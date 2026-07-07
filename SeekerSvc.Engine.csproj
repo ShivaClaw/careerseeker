@@ -1,0 +1,378 @@
+using System.Globalization;
+using System.Net;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+namespace SeekerSvc.Scout;
+
+/// <summary>
+/// Defensive accessors over System.Text.Json. Every getter tolerates a missing property,
+/// a null value, or the wrong JSON type and returns null/empty rather than throwing, so a
+/// single malformed field can never abort parsing a board. Each getter has a JsonElement
+/// overload (real logic) and a JsonElement? overload (null-safe forwarder) for clean chaining.
+/// </summary>
+internal static class Json
+{
+    public static string? Str(this JsonElement e, string name)
+    {
+        if (e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) &&
+            v.ValueKind == JsonValueKind.String)
+        {
+            var s = v.GetString();
+            return string.IsNullOrWhiteSpace(s) ? null : s;
+        }
+        return null;
+    }
+
+    public static long? Long(this JsonElement e, string name)
+    {
+        if (e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v))
+        {
+            if (v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out var l)) return l;
+            if (v.ValueKind == JsonValueKind.String && long.TryParse(v.GetString(), out var ls)) return ls;
+        }
+        return null;
+    }
+
+    public static decimal? Dec(this JsonElement e, string name)
+    {
+        if (e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v))
+        {
+            if (v.ValueKind == JsonValueKind.Number && v.TryGetDecimal(out var d)) return d;
+            if (v.ValueKind == JsonValueKind.String &&
+                decimal.TryParse(v.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var ds))
+                return ds;
+        }
+        return null;
+    }
+
+    public static bool? Bool(this JsonElement e, string name)
+    {
+        if (e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v))
+        {
+            if (v.ValueKind == JsonValueKind.True) return true;
+            if (v.ValueKind == JsonValueKind.False) return false;
+        }
+        return null;
+    }
+
+    public static JsonElement? Prop(this JsonElement e, string name)
+        => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) ? v : null;
+
+    public static IEnumerable<JsonElement> Arr(this JsonElement e, string name)
+    {
+        if (e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) &&
+            v.ValueKind == JsonValueKind.Array)
+            foreach (var item in v.EnumerateArray())
+                yield return item;
+    }
+
+    public static IEnumerable<JsonElement> Items(this JsonElement e)
+    {
+        if (e.ValueKind == JsonValueKind.Array)
+            foreach (var item in e.EnumerateArray())
+                yield return item;
+    }
+
+    // ---- null-safe forwarders (for chaining off Prop, which returns JsonElement?) ----
+    public static string? Str(this JsonElement? e, string name) => e is JsonElement el ? el.Str(name) : null;
+    public static long? Long(this JsonElement? e, string name) => e is JsonElement el ? el.Long(name) : null;
+    public static decimal? Dec(this JsonElement? e, string name) => e is JsonElement el ? el.Dec(name) : null;
+    public static bool? Bool(this JsonElement? e, string name) => e is JsonElement el ? el.Bool(name) : null;
+    public static JsonElement? Prop(this JsonElement? e, string name) => e is JsonElement el ? el.Prop(name) : null;
+    public static IEnumerable<JsonElement> Arr(this JsonElement? e, string name)
+        => e is JsonElement el ? el.Arr(name) : Enumerable.Empty<JsonElement>();
+}
+
+/// <summary>HTML-to-plaintext and whitespace normalization.</summary>
+internal static class Html
+{
+    private static readonly Regex Tag = new("<[^>]+>", RegexOptions.Compiled);
+    private static readonly Regex Ws = new(@"\s+", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Convert (possibly entity-escaped) HTML to clean plain text. Greenhouse stores the
+    /// description as entity-escaped HTML, so we decode, strip tags, then decode again to
+    /// resolve any remaining entities.
+    /// </summary>
+    public static string ToPlainText(string? html)
+    {
+        if (string.IsNullOrEmpty(html)) return "";
+        var decoded = WebUtility.HtmlDecode(html);
+        var stripped = Tag.Replace(decoded, " ");
+        var decoded2 = WebUtility.HtmlDecode(stripped);
+        return Ws.Replace(decoded2, " ").Trim();
+    }
+
+    /// <summary>Normalize whitespace in already-plain text (Lever/Ashby descriptionPlain).</summary>
+    public static string CollapsePlain(string? text)
+        => string.IsNullOrEmpty(text) ? "" : Ws.Replace(text, " ").Trim();
+}
+
+/// <summary>Maps provider interval strings to a normalized <see cref="CompInterval"/>.</summary>
+internal static class Intervals
+{
+    public static CompInterval Parse(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return CompInterval.Unknown;
+        var v = s.ToLowerInvariant();
+        if (v.Contains("hour") || v.Contains("hr")) return CompInterval.Hour;
+        if (v.Contains("year") || v.Contains("annual") || v.Contains("yr") || v.Contains("salary")) return CompInterval.Year;
+        if (v.Contains("month")) return CompInterval.Month;
+        if (v.Contains("week")) return CompInterval.Week;
+        if (v.Contains("day")) return CompInterval.Day;
+        return CompInterval.Unknown;
+    }
+}
+
+/// <summary>Maps provider workplace fields to a normalized <see cref="RemoteMode"/>.</summary>
+internal static class RemoteModes
+{
+    public static RemoteMode Parse(string? workplaceType, bool? isRemote, string? location)
+    {
+        if (!string.IsNullOrWhiteSpace(workplaceType))
+        {
+            var w = workplaceType.ToLowerInvariant();
+            if (w.Contains("remote")) return RemoteMode.Remote;
+            if (w.Contains("hybrid")) return RemoteMode.Hybrid;
+            if (w.Contains("on-site") || w.Contains("onsite") || w.Contains("on site") || w.Contains("office"))
+                return RemoteMode.OnSite;
+        }
+        if (isRemote == true) return RemoteMode.Remote;
+        if (!string.IsNullOrWhiteSpace(location) && location.ToLowerInvariant().Contains("remote"))
+            return RemoteMode.Remote;
+        return RemoteMode.Unknown;
+    }
+}
+
+/// <summary>Date parsing helpers tolerant of nulls and varied formats.</summary>
+internal static class Dates
+{
+    public static DateTimeOffset? Parse(string? s)
+        => DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture,
+               DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var d)
+           ? d : null;
+
+    public static DateTimeOffset? FromUnixMs(long? ms)
+        => ms is long v ? DateTimeOffset.FromUnixTimeMilliseconds(v) : null;
+}
+
+/// <summary>
+/// Compensation extraction. Structured fields are preferred; text parsing is a conservative
+/// fallback that only fires on an explicit currency-prefixed range, never on bare numbers.
+/// We never synthesize a figure.
+/// </summary>
+internal static class CompParse
+{
+    // Requires a leading currency symbol or ISO code so "5 - 10 years" is never mistaken for pay.
+    private static readonly Regex SalaryRx = new(
+        @"(?<cur>[$€£]|USD|EUR|GBP|CAD|AUD)\s*(?<min>\d[\d,]*(?:\.\d+)?)\s*(?<munit>[kKmM])?(?:\s*/\s*(?:hr|hour|yr|year))?\s*" +
+        @"(?:-|–|—|to|through)\s*" +
+        @"(?:[$€£])?\s*(?<max>\d[\d,]*(?:\.\d+)?)\s*(?<maxunit>[kKmM])?(?:\s*/\s*(?:hr|hour|yr|year))?",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public static Compensation? FromText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var m = SalaryRx.Match(text);
+        if (!m.Success) return null;
+
+        var min = Amount(m.Groups["min"].Value, m.Groups["munit"].Value);
+        var max = Amount(m.Groups["max"].Value, m.Groups["maxunit"].Value);
+        if (min is null || max is null) return null;
+        if (max < min) (min, max) = (max, min);
+
+        var currency = NormalizeCurrency(m.Groups["cur"].Value);
+        var interval = DetectInterval(text, max.Value);
+
+        // Plausibility floor depends on the period: an hourly wage is legitimately small,
+        // an annual figure is not. Below the floor we skip rather than record a bad number.
+        var floor = interval switch
+        {
+            CompInterval.Hour => 1m,
+            CompInterval.Day => 10m,
+            CompInterval.Week => 50m,
+            CompInterval.Month => 100m,
+            _ => 1000m,
+        };
+        if (min < floor) return null;
+
+        return new Compensation(min, max, currency, interval, CompSource.ParsedFromText, m.Value.Trim());
+    }
+
+    public static Compensation? FromLeverSalaryRange(JsonElement? sr)
+    {
+        var min = sr.Dec("min");
+        var max = sr.Dec("max");
+        if (min is null && max is null) return null;
+        var interval = sr.Str("interval");
+        return new Compensation(min, max, sr.Str("currency"), Intervals.Parse(interval),
+            CompSource.Structured, interval);
+    }
+
+    public static Compensation? FromAshbyCompensation(JsonElement? comp)
+    {
+        foreach (var tier in comp.Arr("compensationTiers"))
+        {
+            foreach (var c in tier.Arr("components"))
+            {
+                var type = c.Str("componentType") ?? c.Str("compensationType");
+                if (type is not null && type.Contains("Salary", StringComparison.OrdinalIgnoreCase))
+                {
+                    var min = c.Dec("minValue");
+                    var max = c.Dec("maxValue");
+                    if (min is not null || max is not null)
+                        return new Compensation(min, max, c.Str("currencyCode"),
+                            Intervals.Parse(c.Str("interval")), CompSource.Structured, c.Str("summary"));
+                }
+            }
+        }
+        // fall back to the human-readable summary string if no structured salary component
+        var summary = comp.Str("scrapeableCompensationSalarySummary") ?? comp.Str("compensationTierSummary");
+        return FromText(summary);
+    }
+
+    private static decimal? Amount(string number, string unit)
+    {
+        if (!decimal.TryParse(number.Replace(",", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out var n))
+            return null;
+        return unit.ToLowerInvariant() switch
+        {
+            "k" => n * 1_000m,
+            "m" => n * 1_000_000m,
+            _ => n,
+        };
+    }
+
+    private static string NormalizeCurrency(string raw)
+    {
+        var r = raw.Trim().ToUpperInvariant();
+        return r switch
+        {
+            "$" => "USD",
+            "€" => "EUR",
+            "£" => "GBP",
+            _ => string.IsNullOrEmpty(r) ? "USD" : r,
+        };
+    }
+
+    private static CompInterval DetectInterval(string text, decimal maxAmount)
+    {
+        var t = text.ToLowerInvariant();
+        if (t.Contains("per hour") || t.Contains("/hr") || t.Contains(" hour") || t.Contains("hourly"))
+            return CompInterval.Hour;
+        if (t.Contains("per month") || t.Contains("monthly")) return CompInterval.Month;
+        if (t.Contains("per week") || t.Contains("weekly")) return CompInterval.Week;
+        if (t.Contains("per year") || t.Contains("/yr") || t.Contains("annual") || t.Contains("yearly"))
+            return CompInterval.Year;
+        // no explicit marker: a small range reads as hourly, a large one as annual
+        return maxAmount < 1_000m ? CompInterval.Hour : CompInterval.Year;
+    }
+}
+
+/// <summary>
+/// Heuristic detector for prompt-injection in untrusted job-description text. Returns the
+/// names of the patterns that fired. This is a SIGNAL for the legitimacy axis, not a filter:
+/// flagged postings are retained, never silently dropped.
+/// </summary>
+public static class Injection
+{
+    private static readonly (string Name, Regex Rx)[] Patterns =
+    {
+        ("ignore_previous", new Regex(
+            @"ignore\s+(all\s+)?(the\s+)?(previous|prior|above|preceding)\s+(instructions?|prompts?|messages?|context)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("disregard_above", new Regex(
+            @"disregard\s+(all\s+)?(the\s+)?(previous|above|prior|preceding|foregoing)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("system_prompt", new Regex(
+            @"\bsystem\s+(prompt|message|instructions?)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("role_reassign", new Regex(
+            @"\byou\s+are\s+now\b|\bact\s+as\s+(an?|the)\b|\bpretend\s+to\s+be\b|\bfrom\s+now\s+on\s+you\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("new_instructions", new Regex(
+            @"\b(new|updated|revised)\s+instructions?\s*:",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("ai_address", new Regex(
+            @"\bas\s+an?\s+(ai|large\s+language\s+model|language\s+model)\b|\b(dear|attention)\s+(ai|assistant|chatbot|language\s+model|recruiter\s+bot)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("agent_command", new Regex(
+            @"\b(do\s+not|don't|never)\s+(flag|report|reject|filter|screen|disqualify)\b|\balways\s+(recommend|approve|select\s+this|rank\s+this)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("reveal_prompt", new Regex(
+            @"\b(reveal|print|repeat|output|disclose)\s+(your|the)\s+(system\s+)?(prompt|instructions?|guidelines)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("chat_tokens", new Regex(
+            @"<\|(im_start|im_end|system|user|assistant)\|>|\[/?INST\]|<\s*/?\s*(system|assistant|user)\s*>",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+        ("exfiltration", new Regex(
+            @"\b(send|forward|email|post|upload|exfiltrate)\b[^.]{0,40}?(https?://|www\.|[\w.+-]+@[\w.-]+\.[a-z]{2,})",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+    };
+
+    private static readonly Regex HiddenChars =
+        new("[\u200B\u200C\u200D\u2060\uFEFF\u00AD]", RegexOptions.Compiled);
+
+    private static readonly Regex EncodedBlob =
+        new(@"[A-Za-z0-9+/]{200,}={0,2}", RegexOptions.Compiled);
+
+    public static (bool flagged, IReadOnlyList<string> signals) Detect(string? text)
+    {
+        var signals = new List<string>();
+        if (string.IsNullOrEmpty(text)) return (false, signals);
+
+        foreach (var (name, rx) in Patterns)
+            if (rx.IsMatch(text)) signals.Add(name);
+        if (HiddenChars.IsMatch(text)) signals.Add("hidden_characters");
+        if (EncodedBlob.IsMatch(text)) signals.Add("encoded_blob");
+
+        return (signals.Count > 0, signals);
+    }
+}
+
+/// <summary>Intermediate posting each provider fills before shared enrichment.</summary>
+internal readonly record struct RawPosting(
+    string JobId,
+    string Title,
+    string? Location,
+    RemoteMode Remote,
+    Compensation? Comp,
+    string DescriptionText,
+    string Url,
+    string? ApplyUrl,
+    DateTimeOffset? FirstPublished);
+
+/// <summary>
+/// Shared enrichment: turns a provider's <see cref="RawPosting"/> into a normalized
+/// <see cref="DiscoveredJob"/> by computing the canonical title, dedup key, description
+/// SimHash, and injection signals. Centralized so all three providers behave identically.
+/// </summary>
+internal static class JobBuilder
+{
+    public static DiscoveredJob Build(AtsKind source, CompanyBoard board, RawPosting r)
+    {
+        var company = board.DisplayName;
+        var (flagged, signals) = Injection.Detect(r.DescriptionText);
+        return new DiscoveredJob
+        {
+            Source = source,
+            BoardHandle = board.Handle,
+            CompanyName = company,
+            JobId = r.JobId,
+            Title = r.Title,
+            TitleCanon = Canon.Title(r.Title),
+            Location = r.Location,
+            Remote = r.Remote,
+            Compensation = r.Comp,
+            DescriptionText = r.DescriptionText,
+            DescriptionSimHash = SimHash.Compute(r.DescriptionText),
+            Url = r.Url,
+            ApplyUrl = r.ApplyUrl,
+            FirstPublished = r.FirstPublished,
+            DedupKey = Canon.DedupKey(company ?? board.Handle, r.Title, r.Location),
+            DescriptionLikelyInjected = flagged,
+            InjectionSignals = signals,
+        };
+    }
+}

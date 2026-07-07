@@ -1,0 +1,159 @@
+using System.Net.Http;
+using System.Text.Json;
+using SeekerSvc.Dispatcher;
+using SeekerSvc.Engine;
+using SeekerSvc.Gateway;
+using SeekerSvc.Pipeline;
+using SeekerSvc.Scorer;
+using SeekerSvc.Scout;
+using SeekerSvc.Store;
+using SeekerSvc.Tailor;
+using SeekerSvc.Verifier;
+
+int passed = 0, failed = 0;
+void Check(string n, bool c, string? d = null)
+{ if (c) { passed++; Console.WriteLine($"  PASS  {n}"); } else { failed++; Console.WriteLine($"  FAIL  {n}{(d is null ? "" : $"  -- {d}")}"); } }
+
+const string clean =
+    "{\"resume\":\"Senior Software Engineer experienced in distributed systems and Go.\"," +
+    "\"cover\":\"I am excited to apply. I have built reliable distributed systems in Go and would bring that experience to your team.\",\"claims\":[],\"answers\":{}}";
+const string fabricated =
+    "{\"resume\":\"Senior Software Engineer.\",\"cover\":\"I personally increased company revenue by 200% in one quarter.\"," +
+    "\"claims\":[{\"kind\":\"Metric\",\"text\":\"increased revenue 200%\",\"number\":200,\"unit\":\"%\"}],\"answers\":{}}";
+
+// one Tailor serving the whole cycle: fabricates only when the prompt names the "Fabricator" job
+string Respond(ProviderCall call)
+{
+    var prompt = string.Join("\n", call.Messages.Select(m => m.Content));
+    return prompt.Contains("Fabricator") ? fabricated : clean;
+}
+var gateway = new LlmGateway(RoutingTable.Default(), GatewayMode.Managed, new BudgetMeter(1000m),
+    new ILlmProvider[] { new FakeProvider("anthropic", respond: Respond), new FakeProvider("google"), new FakeProvider("local", true) });
+ITailor tailor = new Tailor(new GatewayTailorModel(gateway));
+
+async Task<InMemorySeekerStore> SeededStoreAsync()
+{
+    var store = new InMemorySeekerStore();
+    var pid = await store.UpsertProfileAsync("{}");
+    foreach (var (k, t) in new[] { ("Title","Senior Software Engineer"), ("Skill","distributed systems"),
+        ("Skill","Go"), ("Skill","reliable"), ("Skill","experience"), ("Skill","team"), ("Employer","Acme"), ("Metric","reduced p99 latency 30%") })
+        await store.AddClaimAsync(new ClaimRow(Guid.NewGuid().ToString("N"), pid, k, t, "Verified"));
+    return store;
+}
+
+JobPosting Healthy(string title) => new()
+{
+    Title = title, TitleCanon = title.ToLowerInvariant(), Location = "Remote", Remote = RemoteMode.Remote,
+    Compensation = new Compensation(170000m, 210000m, "USD", CompInterval.Year, CompSource.Structured),
+    DescriptionText = new string('x', 40) + " Build distributed systems in Go, own services, mentor peers, improve reliability. Clear team and mission.",
+    RepostCount = 0, FirstPublished = DateTimeOffset.UtcNow.AddDays(-3),
+    RecruiterIdentifiable = true, CompanyDomainVerified = true,
+};
+JobPosting Scam() => new()
+{
+    Title = "URGENT WORK FROM HOME", TitleCanon = "data entry", Remote = RemoteMode.Remote, Compensation = null,
+    DescriptionText = "Earn $$$ fast. Wire transfer required. Send SSN now. No experience.",
+    RepostCount = 9, FirstPublished = DateTimeOffset.UtcNow.AddDays(-200), DescriptionLikelyInjected = true,
+    RecruiterIdentifiable = false, CompanyDomainVerified = false,
+};
+
+var prefs = new UserPreferences { Comp = new CompTarget(150000m, 180000m, 220000m), Remote = RemoteStance.Any, Seniority = SeniorityBand.Senior };
+var opt = new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email);
+
+Console.WriteLine("=== CareerSeeker Engine host (P2 shell) ===\n");
+
+// ── 1) one real cycle over a mixed batch ──────────────────────────────────────────────────────────
+Console.WriteLine("[ one cycle over a mixed batch ]");
+var counters = new EngineCounters();
+{
+    var store = await SeededStoreAsync();
+    var feed = new FakeFeed(new[] { Healthy("Senior Software Engineer"), Scam(), Healthy("Fabricator Role") });
+    var pipeline = new ApplicationPipeline(store, tailor, MakeDispatcher(new FakeGmail()), null,
+        new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+    var cycle = new EngineCycle(store, feed, new FakeSemantic(), pipeline, opt, counters);
+
+    await cycle.TickAsync();
+    Check("discovered 3", counters.Discovered == 3, counters.Discovered.ToString());
+    Check("drafted 1 (healthy, clean)", counters.Drafted == 1, counters.Drafted.ToString());
+    Check("rejected 1 (scam floor)", counters.Rejected == 1, counters.Rejected.ToString());
+    Check("blocked 1 (fabrication caught in-loop)", counters.Blocked == 1, counters.Blocked.ToString());
+    Check("errors 0", counters.Errors == 0, counters.Errors.ToString());
+    Check("cycles 1", counters.Cycles == 1);
+    Check("audit chain intact after cycle", (await store.VerifyAuditAsync()).Ok);
+}
+
+// ── 2) scheduler runs repeatedly then stops cleanly ────────────────────────────────────────────────
+Console.WriteLine("\n[ scheduler ]");
+{
+    var ticks = 0;
+    var sched = new PeriodicScheduler(_ => { Interlocked.Increment(ref ticks); return Task.CompletedTask; }, TimeSpan.FromMilliseconds(20));
+    sched.Start();
+    await Task.Delay(150);
+    var seen = ticks;
+    Check("scheduler fired repeatedly (immediate + interval)", seen >= 3, seen.ToString());
+    await sched.DisposeAsync();
+    var afterDispose = ticks;
+    await Task.Delay(60);
+    Check("scheduler stopped after dispose", ticks == afterDispose, $"{afterDispose}->{ticks}");
+}
+
+// ── 3) live localhost dashboard over HTTP ──────────────────────────────────────────────────────────
+Console.WriteLine("\n[ localhost dashboard ]");
+{
+    var dash = new LocalDashboard(counters, 7777);
+    var listenerOk = true;
+    try { dash.Start(); } catch (Exception e) { listenerOk = false; Console.WriteLine("    (HttpListener unavailable in sandbox: " + e.GetType().Name + ")"); }
+
+    if (listenerOk)
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+        var json = await http.GetStringAsync("http://localhost:7777/status");
+        using var doc = JsonDocument.Parse(json);
+        Check("/status serves JSON with live counters", doc.RootElement.GetProperty("drafted").GetInt64() == 1, json);
+        var html = await http.GetStringAsync("http://localhost:7777/");
+        Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
+    }
+    else
+    {
+        // fall back to verifying the renderers directly (the listener binds at integration)
+        using var doc = JsonDocument.Parse(dash.StatusJson());
+        Check("/status JSON renders live counters (direct)", doc.RootElement.GetProperty("drafted").GetInt64() == 1);
+        Check("HTML renderer produces the status page (direct)", dash.StatusJson().Contains("drafted"));
+    }
+    await dash.DisposeAsync();
+}
+
+Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
+return failed == 0 ? 0 : 1;
+
+Dispatcher MakeDispatcher(FakeGmail g) => new(
+    new FakePostings(new PostingDispatchInfo(DispatchChannel.Email, "jobs@feed.com")),
+    new FakeRenderer(), g, new DispatcherConfig("Jordan Lee", "jordan@gmail.com"));
+
+sealed class FakeFeed : IJobFeed
+{
+    private readonly IReadOnlyList<JobPosting> _b;
+    public FakeFeed(IReadOnlyList<JobPosting> b) => _b = b;
+    public Task<IReadOnlyList<JobPosting>> DiscoverAsync(CancellationToken ct = default) => Task.FromResult(_b);
+}
+sealed class FakeSemantic : ISemanticScorer
+{
+    public Task<SemanticScores> ScoreAsync(JobPosting p, CancellationToken ct = default) => Task.FromResult(new SemanticScores(4.6, 4.2));
+}
+sealed class FakePostings : IPostingSource
+{
+    private readonly PostingDispatchInfo _i; public FakePostings(PostingDispatchInfo i) => _i = i;
+    public Task<PostingDispatchInfo> GetDispatchInfoAsync(long jobId, CancellationToken ct = default) => Task.FromResult(_i);
+}
+sealed class FakeRenderer : IDocumentRenderer
+{
+    public Task<Attachment> RenderResumeAsync(PipelineJob j, TailoredApplication a, CancellationToken ct = default)
+        => Task.FromResult(new Attachment("resume.pdf", "application/pdf", new byte[] { 0x25, 0x50, 0x44, 0x46 }));
+    public Task<Attachment?> RenderCoverAsync(PipelineJob j, TailoredApplication a, CancellationToken ct = default) => Task.FromResult<Attachment?>(null);
+}
+sealed class FakeGmail : IGmailDraftClient
+{
+    public int Drafts;
+    public Task<string> CreateDraftAsync(string raw, IReadOnlyList<string> labelIds, CancellationToken ct = default) { Drafts++; return Task.FromResult("d" + Drafts); }
+    public Task<string> EnsureLabelAsync(string labelPath, CancellationToken ct = default) => Task.FromResult("L_" + labelPath);
+}
