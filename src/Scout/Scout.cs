@@ -127,6 +127,8 @@ public static class BoardRegistry
         {
             var host = uri.Host.ToLowerInvariant();
             var seg = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (TryParseApiPath(host, seg, out board)) return true;
+
             var handle = seg.Length > 0 ? seg[0] : null;
             if (handle is null) return false;
 
@@ -138,6 +140,40 @@ public static class BoardRegistry
             }
         }
 
+        return false;
+    }
+
+    private static bool TryParseApiPath(string host, string[] seg, out CompanyBoard board)
+    {
+        board = default!;
+
+        if (host == "boards-api.greenhouse.io")
+        {
+            return TryBoardSegment(AtsKind.Greenhouse, "boards", seg, out board);
+        }
+
+        if (host == "api.lever.co")
+        {
+            return TryBoardSegment(AtsKind.Lever, "postings", seg, out board);
+        }
+
+        if (host == "api.ashbyhq.com")
+        {
+            return TryBoardSegment(AtsKind.Ashby, "job-board", seg, out board);
+        }
+
+        return false;
+    }
+
+    private static bool TryBoardSegment(AtsKind kind, string marker, string[] seg, out CompanyBoard board)
+    {
+        board = default!;
+        for (var i = 0; i + 1 < seg.Length; i++)
+        {
+            if (!seg[i].Equals(marker, StringComparison.OrdinalIgnoreCase)) continue;
+            board = new CompanyBoard(kind, seg[i + 1]);
+            return true;
+        }
         return false;
     }
 

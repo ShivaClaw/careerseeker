@@ -6,3 +6,6 @@ obj/
 *.db-wal
 *.db-shm
 secrets/
+.appdata/
+.dotnet/
+.nuget/

@@ -54,7 +54,7 @@ public static class RecipientExtractor
 public static class ChannelDetector
 {
     private static readonly string[] AtsHosts =
-        { "greenhouse.io", "boards.greenhouse.io", "lever.co", "jobs.lever.co", "ashbyhq.com", "workable.com" };
+        { "job-boards.greenhouse.io", "boards.greenhouse.io", "greenhouse.io", "lever.co", "jobs.lever.co", "ashbyhq.com", "workable.com" };
 
     private static readonly string[] ReadOnlyBoards =
         { "linkedin.com", "indeed.com" };

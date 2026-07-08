@@ -1,0 +1,195 @@
+using SeekerSvc.Dispatcher;
+using SeekerSvc.Scout;
+using SeekerSvc.Gateway;
+using SeekerSvc.Pipeline;
+using SeekerSvc.Scorer;
+using SeekerSvc.Store;
+using SeekerSvc.Tailor;
+using SeekerSvc.Verifier;
+
+int passed = 0, failed = 0;
+void Check(string n, bool c, string? d = null)
+{ if (c) { passed++; Console.WriteLine($"  PASS  {n}"); } else { failed++; Console.WriteLine($"  FAIL  {n}{(d is null ? "" : $"  -- {d}")}"); } }
+
+// ── canned tailoring outputs (the FakeProvider returns these as the "model") ──────────────────────
+const string cleanJson =
+    "{\"resume\":\"Senior Software Engineer experienced in distributed systems and Go.\"," +
+    "\"cover\":\"I am excited to apply. I have built reliable distributed systems in Go and would bring that experience to your team.\"," +
+    "\"claims\":[],\"answers\":{}}";
+const string fabricatedJson =
+    "{\"resume\":\"Senior Software Engineer.\"," +
+    "\"cover\":\"In my last role I personally increased company revenue by 200% in a single quarter.\"," +
+    "\"claims\":[{\"kind\":\"Metric\",\"text\":\"increased revenue 200%\",\"number\":200,\"unit\":\"%\"}],\"answers\":{}}";
+
+// ── shared builders ───────────────────────────────────────────────────────────────────────────────
+LlmGateway GatewayReturning(string canned) => new(
+    RoutingTable.Default(), GatewayMode.Managed, new BudgetMeter(100m),
+    new ILlmProvider[] { new FakeProvider("anthropic", respond: _ => canned), new FakeProvider("google"), new FakeProvider("local", true) });
+
+ITailor TailorReturning(string canned) => new Tailor(new GatewayTailorModel(GatewayReturning(canned)));
+
+async Task<InMemorySeekerStore> SeededStoreAsync()
+{
+    var store = new InMemorySeekerStore();
+    var profileId = await store.UpsertProfileAsync("{}");
+    // Source-of-Truth profile: the Gate's oracle. A superset of what the clean draft will say.
+    string[,] claims =
+    {
+        { "Title", "Senior Software Engineer" },
+        { "Skill", "distributed systems" },
+        { "Skill", "Go" },
+        { "Skill", "reliable" },
+        { "Skill", "experience" },
+        { "Skill", "team" },
+        { "Employer", "Acme" },
+        { "Metric", "reduced p99 latency 30%" },
+    };
+    for (var i = 0; i < claims.GetLength(0); i++)
+        await store.AddClaimAsync(new ClaimRow($"c{i}", profileId, claims[i, 0], claims[i, 1], "Verified"));
+    return store;
+}
+
+Dispatcher MakeDispatcher(FakeGmail gmail) => new(
+    new FakePostings(new PostingDispatchInfo(DispatchChannel.Email, "jobs@acme.com")),
+    new FakeRenderer(), gmail, new DispatcherConfig("Jordan Lee", "jordan@gmail.com"));
+
+JobPosting HealthyPosting() => new()
+{
+    Title = "Senior Software Engineer",
+    TitleCanon = "senior software engineer",
+    Location = "Remote",
+    Remote = RemoteMode.Remote,
+    Compensation = new Compensation(170000m, 210000m, "USD", CompInterval.Year, CompSource.Structured),
+    DescriptionText = new string('x', 50) + " We are hiring a senior engineer to build distributed systems in Go. " +
+        "You will own services end to end, mentor peers, and improve reliability. Clear team, clear mission, real comp.",
+    RepostCount = 0,
+    FirstPublished = DateTimeOffset.UtcNow.AddDays(-3),
+    DescriptionLikelyInjected = false,
+    RecruiterIdentifiable = true,
+    CompanyDomainVerified = true,
+};
+
+JobPosting ScamPosting() => new()
+{
+    Title = "URGENT WORK FROM HOME",
+    TitleCanon = "data entry",
+    Location = null,
+    Remote = RemoteMode.Remote,
+    Compensation = null,                       // no comp transparency
+    DescriptionText = "Earn $$$ fast. Wire transfer required. Send SSN to start immediately. No experience.",
+    RepostCount = 9,                           // reposted endlessly
+    FirstPublished = DateTimeOffset.UtcNow.AddDays(-200),
+    DescriptionLikelyInjected = true,          // tripped injection heuristics
+    RecruiterIdentifiable = false,
+    CompanyDomainVerified = false,
+};
+
+var prefs = new UserPreferences
+{
+    Comp = new CompTarget(150000m, 180000m, 220000m),
+    Remote = RemoteStance.Any,
+    Seniority = SeniorityBand.Senior,
+};
+
+Dispatch DecideFor(JobPosting p, SemanticScores sem) => Scorer.Score(p, prefs, sem).Dispatch;
+
+async Task<long> StoreJobAsync(InMemorySeekerStore store, JobPosting p)
+{
+    var companyId = await store.UpsertCompanyAsync(new CompanyUpsert("greenhouse", "acme", "Acme"));
+    var jr = await store.UpsertJobAsync(companyId, new JobUpsert(
+        Source: "greenhouse", ExternalId: "g-1", Url: "https://boards.greenhouse.io/acme/jobs/1",
+        Title: p.Title, TitleCanon: p.TitleCanon, DedupKey: "acme|" + p.TitleCanon, Remote: p.Remote.ToString(),
+        SimHash: 0L, FirstSeen: DateTimeOffset.UtcNow.ToString("o"), ApplyUrl: "mailto:jobs@acme.com",
+        Location: p.Location, CompMin: p.Compensation?.Min, CompMax: p.Compensation?.Max));
+    return jr.JobId;
+}
+
+Console.WriteLine("=== CareerSeeker L1 vertical slice (Scout→Store→Scorer→Pipeline→Tailor→Gate→Dispatcher) ===\n");
+
+// ── 1) HAPPY PATH: a clean, supported application flows all the way to a Gmail draft ───────────────
+Console.WriteLine("[ happy path -> DRAFTED ]");
+{
+    var store = await SeededStoreAsync();
+    var p = HealthyPosting();
+    var jobId = await StoreJobAsync(store, p);
+    var job = new PipelineJob(jobId, p.Title, "Acme", "mailto:jobs@acme.com");
+
+    var sem = new SemanticScores(CvMatch: 4.6, GrowthSignal: 4.2);
+    var decision = DecideFor(p, sem);
+    Check("Scorer says Act on the healthy job", decision == Dispatch.Act, decision.ToString());
+
+    var gmail = new FakeGmail();
+    var pipeline = new ApplicationPipeline(store, TailorReturning(cleanJson), MakeDispatcher(gmail),
+        matcher: null, options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+
+    var result = await pipeline.AdmitAsync(job, AutonomyLevel.L1, decision);
+    Check("Gate passed", result.Gate?.Passed == true, $"violations={result.Gate?.Violations.Count}");
+    Check("final state DRAFTED", result.FinalState == AppState.DRAFTED, result.FinalState.ToString());
+    Check("dispatch outcome Ok via Email channel", result.Dispatch is { Ok: true, Channel: DispatchChannel.Email });
+    Check("a Gmail draft was created", gmail.Drafts == 1);
+    Check("audit chain intact", (await store.VerifyAuditAsync()).Ok);
+}
+
+// ── 2) FABRICATION: an unsupported metric is caught; nothing is drafted ────────────────────────────
+Console.WriteLine("\n[ fabrication -> BLOCKED, no draft ]");
+{
+    var store = await SeededStoreAsync();
+    var p = HealthyPosting();
+    var jobId = await StoreJobAsync(store, p);
+    var job = new PipelineJob(jobId, p.Title, "Acme", "mailto:jobs@acme.com");
+    var decision = DecideFor(p, new SemanticScores(4.6, 4.2));
+
+    var gmail = new FakeGmail();
+    var pipeline = new ApplicationPipeline(store, TailorReturning(fabricatedJson), MakeDispatcher(gmail),
+        matcher: null, options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+
+    var result = await pipeline.AdmitAsync(job, AutonomyLevel.L1, decision);
+    Check("Gate did NOT pass on fabricated metric", result.Gate?.Passed == false);
+    Check("final state BLOCKED_FABRICATION (escalated, not shipped)", result.FinalState == AppState.BLOCKED_FABRICATION, result.FinalState.ToString());
+    Check("NO Gmail draft created for fabricated content", gmail.Drafts == 0);
+}
+
+// ── 3) SCAM FLOOR: a low-legitimacy posting never reaches Tailor/Dispatcher ────────────────────────
+Console.WriteLine("\n[ scam floor -> REJECTED_BY_ENGINE ]");
+{
+    var store = await SeededStoreAsync();
+    var p = ScamPosting();
+    var jobId = await StoreJobAsync(store, p);
+    var job = new PipelineJob(jobId, p.Title, "Acme", "mailto:jobs@acme.com");
+
+    var score = Scorer.Score(p, prefs, new SemanticScores(1.0, 1.0));
+    Check("Scorer refuses to Act on the scam (legitimacy floor)", score.Dispatch != Dispatch.Act, $"{score.Dispatch} legit={score.Legitimacy:0.0}");
+
+    var gmail = new FakeGmail();
+    var pipeline = new ApplicationPipeline(store, TailorReturning(cleanJson), MakeDispatcher(gmail),
+        matcher: null, options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+
+    var result = await pipeline.AdmitAsync(job, AutonomyLevel.L1, score.Dispatch);
+    Check("final state REJECTED_BY_ENGINE", result.FinalState == AppState.REJECTED_BY_ENGINE, result.FinalState.ToString());
+    Check("never tailored, never drafted", gmail.Drafts == 0);
+}
+
+Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
+return failed == 0 ? 0 : 1;
+
+// ── fakes ───────────────────────────────────────────────────────────────────────────────────────
+sealed class FakePostings : IPostingSource
+{
+    private readonly PostingDispatchInfo _i;
+    public FakePostings(PostingDispatchInfo i) => _i = i;
+    public Task<PostingDispatchInfo> GetDispatchInfoAsync(long jobId, CancellationToken ct = default) => Task.FromResult(_i);
+}
+sealed class FakeRenderer : IDocumentRenderer
+{
+    public Task<Attachment> RenderResumeAsync(PipelineJob j, TailoredApplication a, CancellationToken ct = default)
+        => Task.FromResult(new Attachment("resume.pdf", "application/pdf", new byte[] { 0x25, 0x50, 0x44, 0x46 }));
+    public Task<Attachment?> RenderCoverAsync(PipelineJob j, TailoredApplication a, CancellationToken ct = default)
+        => Task.FromResult<Attachment?>(null);
+}
+sealed class FakeGmail : IGmailDraftClient
+{
+    public int Drafts;
+    public Task<string> CreateDraftAsync(string raw, IReadOnlyList<string> labelIds, CancellationToken ct = default)
+    { Drafts++; return Task.FromResult("draft_" + Drafts); }
+    public Task<string> EnsureLabelAsync(string labelPath, CancellationToken ct = default) => Task.FromResult("Label_" + labelPath);
+}

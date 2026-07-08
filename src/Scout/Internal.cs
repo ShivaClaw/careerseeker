@@ -183,7 +183,7 @@ internal static class CompParse
         if (max < min) (min, max) = (max, min);
 
         var currency = NormalizeCurrency(m.Groups["cur"].Value);
-        var interval = DetectInterval(text, max.Value);
+        var interval = DetectInterval(ContextAround(text, m.Index, m.Length), max.Value);
 
         // Plausibility floor depends on the period: an hourly wage is legitimately small,
         // an annual figure is not. Below the floor we skip rather than record a bad number.
@@ -234,7 +234,11 @@ internal static class CompParse
 
     private static decimal? Amount(string number, string unit)
     {
-        if (!decimal.TryParse(number.Replace(",", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out var n))
+        var normalized = LooksLikeEuropeanThousands(number)
+            ? number.Replace(".", "")
+            : number.Replace(",", "");
+
+        if (!decimal.TryParse(normalized, NumberStyles.Any, CultureInfo.InvariantCulture, out var n))
             return null;
         return unit.ToLowerInvariant() switch
         {
@@ -243,6 +247,9 @@ internal static class CompParse
             _ => n,
         };
     }
+
+    private static bool LooksLikeEuropeanThousands(string number) =>
+        Regex.IsMatch(number, @"^\d{1,3}(?:\.\d{3})+$");
 
     private static string NormalizeCurrency(string raw)
     {
@@ -259,14 +266,21 @@ internal static class CompParse
     private static CompInterval DetectInterval(string text, decimal maxAmount)
     {
         var t = text.ToLowerInvariant();
-        if (t.Contains("per hour") || t.Contains("/hr") || t.Contains(" hour") || t.Contains("hourly"))
-            return CompInterval.Hour;
-        if (t.Contains("per month") || t.Contains("monthly")) return CompInterval.Month;
-        if (t.Contains("per week") || t.Contains("weekly")) return CompInterval.Week;
-        if (t.Contains("per year") || t.Contains("/yr") || t.Contains("annual") || t.Contains("yearly"))
+        if (Regex.IsMatch(t, @"(/\s*(hr|hour)\b|\bper\s+hour\b|\ban\s+hour\b|\bhourly\b)"))
+            return maxAmount > 1_000m ? CompInterval.Year : CompInterval.Hour;
+        if (Regex.IsMatch(t, @"(/\s*mo\b|\bper\s+month\b|\bmonthly\b)")) return CompInterval.Month;
+        if (Regex.IsMatch(t, @"(/\s*wk\b|\bper\s+week\b|\bweekly\b)")) return CompInterval.Week;
+        if (Regex.IsMatch(t, @"(/\s*(yr|year)\b|\bper\s+(year|annum)\b|\bannual(?:ly)?\b|\byearly\b|\bsalary\b)"))
             return CompInterval.Year;
         // no explicit marker: a small range reads as hourly, a large one as annual
         return maxAmount < 1_000m ? CompInterval.Hour : CompInterval.Year;
+    }
+
+    private static string ContextAround(string text, int index, int length)
+    {
+        var start = Math.Max(0, index - 80);
+        var end = Math.Min(text.Length, index + length + 120);
+        return text[start..end];
     }
 }
 
