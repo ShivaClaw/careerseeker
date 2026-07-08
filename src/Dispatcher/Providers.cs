@@ -33,11 +33,14 @@ public sealed class GmailDraftClient : IGmailDraftClient
     public async Task<string> CreateDraftAsync(
         string rawRfc822Base64Url, IReadOnlyList<string> labelIds, CancellationToken ct = default)
     {
-        var body = new { message = new { raw = rawRfc822Base64Url, labelIds } };
+        var message = labelIds.Count == 0
+            ? new Dictionary<string, object> { ["raw"] = rawRfc822Base64Url }
+            : new Dictionary<string, object> { ["raw"] = rawRfc822Base64Url, ["labelIds"] = labelIds };
+        var body = new { message };
         using var req = await Authed(HttpMethod.Post, $"{Base}/drafts", body, ct).ConfigureAwait(false);
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        resp.EnsureSuccessStatusCode();
+        EnsureSuccess(resp, json);
 
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement.GetProperty("id").GetString()
@@ -51,7 +54,7 @@ public sealed class GmailDraftClient : IGmailDraftClient
         using (var listResp = await _http.SendAsync(listReq, ct).ConfigureAwait(false))
         {
             var json = await listResp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            listResp.EnsureSuccessStatusCode();
+            EnsureSuccess(listResp, json);
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.TryGetProperty("labels", out var labels))
                 foreach (var l in labels.EnumerateArray())
@@ -64,9 +67,19 @@ public sealed class GmailDraftClient : IGmailDraftClient
         using var createReq = await Authed(HttpMethod.Post, $"{Base}/labels", body, ct).ConfigureAwait(false);
         using var createResp = await _http.SendAsync(createReq, ct).ConfigureAwait(false);
         var cjson = await createResp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        createResp.EnsureSuccessStatusCode();
+        EnsureSuccess(createResp, cjson);
         using var cdoc = JsonDocument.Parse(cjson);
         return cdoc.RootElement.GetProperty("id").GetString()!;
+    }
+
+    private static void EnsureSuccess(HttpResponseMessage resp, string body)
+    {
+        if (resp.IsSuccessStatusCode) return;
+        var compact = string.IsNullOrWhiteSpace(body) ? "" : " Body: " + body.Replace("\r", "").Replace("\n", " ");
+        throw new HttpRequestException(
+            $"Gmail API {(int)resp.StatusCode} {resp.ReasonPhrase}.{compact}",
+            null,
+            resp.StatusCode);
     }
 
     private async Task<HttpRequestMessage> Authed(HttpMethod method, string url, object? body, CancellationToken ct)

@@ -47,15 +47,20 @@ public sealed class Dispatcher : IDispatcher
 
         var pkg = PackageBuilder.Build(job, app, info, _config, resume, coverPdf);
 
-        var labelPath = pkg.Channel == DispatchChannel.Email ? _config.OutboxLabel : _config.ActionNeededLabel;
-        var labelId = await _gmail.EnsureLabelAsync(labelPath, ct).ConfigureAwait(false);
+        var labelIds = Array.Empty<string>();
+        if (_config.UseCustomLabels)
+        {
+            var labelPath = pkg.Channel == DispatchChannel.Email ? _config.OutboxLabel : _config.ActionNeededLabel;
+            var labelId = await _gmail.EnsureLabelAsync(labelPath, ct).ConfigureAwait(false);
+            labelIds = new[] { labelId };
+        }
 
         var raw = MimeBuilder.BuildRaw(
             _config.CandidateName, _config.CandidateEmail,
             pkg.Recipient ?? _config.CandidateEmail,
             pkg.Subject, pkg.BodyText, pkg.Attachments);
 
-        var draftId = await _gmail.CreateDraftAsync(raw, new[] { labelId }, ct).ConfigureAwait(false);
+        var draftId = await _gmail.CreateDraftAsync(raw, labelIds, ct).ConfigureAwait(false);
         return new DispatchOutcome(Ok: true, pkg.Channel, Reference: draftId);
     }
 

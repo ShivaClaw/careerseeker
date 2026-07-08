@@ -35,7 +35,8 @@ public sealed record DispatcherConfig(
     string SubjectTemplate = "Application for {title}",
     string OutboxLabel = "CareerSeeker/Outbox",
     string ActionNeededLabel = "CareerSeeker/Action-Needed",
-    bool AttachCoverPdf = false);
+    bool AttachCoverPdf = false,
+    bool UseCustomLabels = false);           // gmail.compose-only L1 leaves this false; label management needs broader Gmail scope
 
 /// <summary>
 /// Source of posting dispatch facts (channel, recipient, apply URL). Backed by the Store in production;
@@ -59,8 +60,9 @@ public interface IDocumentRenderer
 
 /// <summary>
 /// The narrow Gmail surface L1 needs: create a draft and ensure a label exists. Scope is
-/// <c>gmail.compose</c> — there is deliberately <b>no Send method on this interface</b>, so an L1 build
-/// is structurally incapable of sending mail. Sending belongs to L2/L3 behind a separate, gated port.
+/// <c>gmail.compose</c> for draft creation — there is deliberately <b>no Send method on this interface</b>,
+/// so an L1 build is structurally incapable of sending mail. Custom label management requires broader
+/// Gmail scope and is disabled by default in L1. Sending belongs to L2/L3 behind a separate, gated port.
 /// The real client calls users.drafts.create; tests use a fake.
 /// </summary>
 public interface IGmailDraftClient
@@ -68,6 +70,6 @@ public interface IGmailDraftClient
     /// <summary>Create a draft from a base64url-encoded RFC 5322 message. Returns the draft id.</summary>
     Task<string> CreateDraftAsync(string rawRfc822Base64Url, IReadOnlyList<string> labelIds, CancellationToken ct = default);
 
-    /// <summary>Resolve a label path to an id, creating the CareerSeeker/* tree if needed. Returns the label id.</summary>
+    /// <summary>Resolve a label path to an id, creating it if needed. Not used by compose-only L1 defaults.</summary>
     Task<string> EnsureLabelAsync(string labelPath, CancellationToken ct = default);
 }

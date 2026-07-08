@@ -6,6 +6,8 @@ obj/
 *.db-wal
 *.db-shm
 secrets/
+client_secret*.json
+token*.json
 .appdata/
 .dotnet/
 .nuget/
