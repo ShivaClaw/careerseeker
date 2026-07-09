@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Support — CareerSeeker</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:800px;margin:60px auto;padding:0 24px;color:#1a1a1a;line-height:1.6}h1,h2,h3{color:#111}a{color:#0066cc}</style>
+</head><body><h1>CareerSeeker Support</h1>
+<h2>Contact</h2>
+<p>| Channel | Address | Response target |
+|---------|---------|-----------------|
+| <strong>General support</strong> | support@careerseeker.app | 48 hours (business days) |
+| <strong>Privacy inquiries</strong> | privacy@careerseeker.app | 48 hours (business days) |
+| <strong>Security reports</strong> | security@careerseeker.app | 24 hours |
+| <strong>Product website</strong> | https://careerseeker.app | — |</p>
+<p>During closed beta, support is provided by the development team directly. Response times may be faster than stated targets.</p>
+<p>---</p>
+<h2>Common Actions</h2>
+<h3>Disconnect Gmail</h3>
+<p>1. Open CareerSeeker from the system tray → <strong>Settings</strong> → <strong>Connected Accounts</strong>.
+2. Click <strong>Disconnect Gmail</strong>.
+3. CareerSeeker calls Google's token revocation endpoint and deletes the local refresh token from the DPAPI vault.
+4. You can also revoke access from your <a href="https://myaccount.google.com/permissions">Google Account permissions page</a> → find "CareerSeeker" → <strong>Remove Access</strong>.</p>
+<p>After disconnection, CareerSeeker cannot create Gmail drafts until you reconnect.</p>
+<h3>Revoke LLM Provider Keys</h3>
+<p>1. Open <strong>Settings</strong> → <strong>Provider Keys</strong>.
+2. Select the provider to remove → <strong>Delete Key</strong>.
+3. The key is removed from the local DPAPI-encrypted vault immediately.</p>
+<p>CareerSeeker does not retain copies of your API keys outside the local vault.</p>
+<h3>Delete Local Data</h3>
+<p>All CareerSeeker data is stored on your machine at `%ProgramData%\CareerSeeker\`.</p>
+<ul><li><strong>Uninstall</strong> the application via Windows Settings → Apps to remove the engine and tray application.</li>
+<li><strong>Delete the data directory</strong> (`%ProgramData%\CareerSeeker\`) to remove the database, generated documents, audit log, and encrypted backups.</li>
+<li>These two steps remove all CareerSeeker data from your machine.</li>
+</ul>
+<h3>Export Audit Log</h3>
+<p>1. Open <strong>Settings</strong> → <strong>Audit & History</strong> → <strong>Export Log</strong>.
+2. The export produces a portable file containing the full hash-chained event log.
+3. Each entry includes a hash of the previous entry — you can independently verify the chain's integrity.</p>
+<h3>Report a Fabrication Gate Issue</h3>
+<p>If you believe the Fabrication Gate incorrectly blocked a legitimate claim or allowed an unsupported one:</p>
+<p>1. Open the application's audit log for the specific posting.
+2. Note the posting ID and the claim text in question.
+3. Email support@careerseeker.app with the posting ID, the claim, and whether it was blocked or passed.</p>
+<p>Fabrication Gate accuracy is a top-priority safety concern. Reports are triaged within 24 hours.</p>
+<h3>Report a Draft Quality Issue</h3>
+<p>If a generated cover letter, tailored resume, or prepared answer contains errors, awkward phrasing, or misrepresented information:</p>
+<p>1. Do <strong>not</strong> send the draft — CareerSeeker L1 never sends automatically; you are always the final reviewer.
+2. Email support@careerseeker.app with the posting ID, the generated text, and a description of the issue.</p>
+<p>---</p>
+<h2>Closed Beta</h2>
+<p>During closed beta (up to 100 test users under Google's OAuth test-user cap):</p>
+<ul><li>Support is provided via email only.</li>
+<li>Beta users may encounter rough edges in the UI, scoring, or draft quality.</li>
+<li>All beta feedback — especially Fabrication Gate and draft quality reports — directly shapes the product before public launch.</li>
+<li>Beta users can request full data deletion and account disconnection at any time using the steps above.</li>
+</ul>
+<h2>Public Launch</h2>
+<p>At public launch, support channels and response commitments will be updated to reflect the production support model. This document will be revised accordingly.</p>
+<p>---</p>
+<p><em>CareerSeeker is local-first. Your data stays on your machine. Support exists to help you control it, not to access it.</em></p></body></html>
