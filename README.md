@@ -21,9 +21,8 @@ Trust/OAuth prep placeholders:
 ## Build
 `dotnet build CareerSeeker.sln -c Release`
 
-Note: `nuget.config` clears package sources (offline sandbox origin). Once online, delete it and
-re-include `src/Store/SqliteSeekerStore.cs` (excluded in `Store.csproj`) with a
-`Microsoft.Data.Sqlite` PackageReference — the only external dependency in the tree.
+Note: the production SQLite store is included via `Microsoft.Data.Sqlite`; the in-memory store remains
+available for tests, demos, and dry-runs.
 
 ## Safety invariants (enforced in code, asserted in tests — do not weaken)
 - Fabrication Gate: no application state is reachable except through VERIFIED; unsupported claims block.

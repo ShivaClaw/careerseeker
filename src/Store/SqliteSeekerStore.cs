@@ -72,6 +72,7 @@ RETURNING id;";
         => Locked(async () =>
         {
             var now = Now();
+            var firstSeen = string.IsNullOrWhiteSpace(job.FirstSeen) ? now : job.FirstSeen;
             using var cmd = Conn.CreateCommand();
             cmd.CommandText = @"
 INSERT INTO jobs (company_id, source, external_id, url, apply_url, title, title_canon, dedup_key,
@@ -107,7 +108,7 @@ RETURNING id, repost_count;";
             P(cmd, "$simhash", job.SimHash);
             P(cmd, "$injected", job.Injected ? 1 : 0);
             P(cmd, "$signals", job.InjectionSignals);
-            P(cmd, "$first", job.FirstSeen);
+            P(cmd, "$first", firstSeen);
             P(cmd, "$last", now);
 
             using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
@@ -259,7 +260,7 @@ ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, text=excluded.text,
             P(cmd, "$pid", c.ProfileId);
             P(cmd, "$kind", c.Kind);
             P(cmd, "$text", c.Text);
-            P(cmd, "$conf", c.Confidence);
+            P(cmd, "$conf", NormalizeConfidence(c.Confidence));
             P(cmd, "$src", c.SourceDoc);
             P(cmd, "$now", Now());
             await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
@@ -271,7 +272,7 @@ ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, text=excluded.text,
         {
             var rows = new List<ClaimRow>();
             using var cmd = Conn.CreateCommand();
-            cmd.CommandText = "SELECT id, profile_id, kind, text, confidence, source_doc FROM claims WHERE profile_id=$pid;";
+            cmd.CommandText = "SELECT id, profile_id, kind, text, confidence, source_doc FROM claims WHERE profile_id=$pid ORDER BY created_at;";
             P(cmd, "$pid", profileId);
             using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await r.ReadAsync(ct).ConfigureAwait(false))
@@ -379,6 +380,12 @@ VALUES ($seq, $ts, $actor, $kind, $entity, $eid, $payload, $prev, $hash);";
 
     private static void P(SqliteCommand cmd, string name, object? value)
         => cmd.Parameters.AddWithValue(name, value ?? DBNull.Value);
+
+    private static string NormalizeConfidence(string confidence)
+    {
+        var normalized = confidence.Trim().ToLowerInvariant();
+        return normalized is "verified" or "stated" or "weak" ? normalized : "stated";
+    }
 
     private static async Task ExecAsync(SqliteConnection conn, string sql, CancellationToken ct)
     {

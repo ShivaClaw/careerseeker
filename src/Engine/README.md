@@ -59,9 +59,8 @@ dispose, and the dashboard served over real HTTP (`/status` JSON + `/` HTML). 11
 - All eight modules (Verifier, Scout, Store, Scorer, Pipeline, Tailor, Gateway, Dispatcher) plus the
   Engine compile together as one solution: `dotnet build` → 0 warnings, 0 errors.
 - Vertical slice: **12/12**. Engine host: **11/11** (live HttpListener included).
-- Offline accommodations, not shipped to the real tree: the Store's `SqliteSeekerStore` (needs
-  `Microsoft.Data.Sqlite`) is excluded from the offline build — the in-memory store covers the slice and
-  the cycle; the SQLite backend stays in the real Store project.
+- Store status: `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`; the in-memory store
+  still covers the slice and harnesses that do not need a file-backed database.
 
 ## Not yet built (next)
 

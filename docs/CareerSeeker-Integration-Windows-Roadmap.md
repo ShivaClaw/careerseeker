@@ -21,9 +21,9 @@ Two principles drive the ordering:
 ## Workstream A — Foundations & the long-lead clocks (start immediately, in parallel)
 
 **A1. Windows dev environment.** Windows 11 box or VM. .NET 8 SDK, Playwright (`playwright install`),
-Git. Pull the solution; re-include `SqliteSeekerStore.cs` with the `Microsoft.Data.Sqlite` package (it
-was excluded only for the offline sandbox). Confirm the full solution builds and the four harnesses
-(slice, engine, researcher, hook) run green on Windows. **Exit:** `dotnet test`/harnesses green on Windows.
+Git. Pull the solution; restore packages from nuget.org, including `Microsoft.Data.Sqlite`, and confirm
+the full solution plus slice, engine, researcher, hook, and store parity harnesses run green on Windows.
+**Exit:** `dotnet test`/harnesses green on Windows.
 
 **A2. Google Cloud project + OAuth consent screen.** Create the project; configure the OAuth consent
 screen; register the desktop app client. Request **only `gmail.compose`** for v0.1 (drafts only — no

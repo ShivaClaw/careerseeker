@@ -19,6 +19,7 @@ public sealed class InMemorySeekerStore : ISeekerStore
     private readonly Dictionary<long, ApplicationRow> _apps = new();
     private readonly List<EventRow> _events = new();
     private readonly Dictionary<string, ClaimRow> _claims = new();
+    private readonly List<string> _claimOrder = new();
     private readonly Dictionary<string, string> _config = new();
 
     private long _companySeq, _jobSeq, _appSeq;
@@ -40,7 +41,12 @@ public sealed class InMemorySeekerStore : ISeekerStore
             var key = (company.AtsKind, company.Handle);
             if (_companyKey.TryGetValue(key, out var id))
             {
-                _companies[id] = company;
+                var existing = _companies[id];
+                _companies[id] = company with
+                {
+                    Name = company.Name ?? existing.Name,
+                    Domain = company.Domain ?? existing.Domain
+                };
                 return id;
             }
             id = ++_companySeq;
@@ -57,12 +63,21 @@ public sealed class InMemorySeekerStore : ISeekerStore
         try
         {
             var now = Now();
+            var firstSeen = string.IsNullOrWhiteSpace(job.FirstSeen) ? now : job.FirstSeen;
             var key = (job.Source, job.ExternalId);
             if (_jobKey.TryGetValue(key, out var id))
             {
                 var existing = _jobs[id];
                 var repost = existing.RepostCount + 1;
-                _jobs[id] = existing with { LastVerified = now, RepostCount = repost };
+                _jobs[id] = existing with
+                {
+                    Url = job.Url,
+                    ApplyUrl = job.ApplyUrl,
+                    CompMin = job.CompMin ?? existing.CompMin,
+                    CompMax = job.CompMax ?? existing.CompMax,
+                    LastVerified = now,
+                    RepostCount = repost
+                };
                 return new JobWriteResult(id, false, repost);
             }
             id = ++_jobSeq;
@@ -74,7 +89,7 @@ public sealed class InMemorySeekerStore : ISeekerStore
                 CompMin: job.CompMin, CompMax: job.CompMax, CompCurrency: job.CompCurrency,
                 CompInterval: job.CompInterval, CompSource: job.CompSource, JdPath: job.JdPath,
                 SimHash: job.SimHash, Injected: job.Injected, InjectionSignals: job.InjectionSignals,
-                FirstSeen: job.FirstSeen, LastVerified: now, RepostCount: 0);
+                FirstSeen: firstSeen, LastVerified: now, RepostCount: 0);
             return new JobWriteResult(id, true, 0);
         }
         finally { _mutex.Release(); }
@@ -169,14 +184,19 @@ public sealed class InMemorySeekerStore : ISeekerStore
     public async Task AddClaimAsync(ClaimRow claim, CancellationToken ct = default)
     {
         await _mutex.WaitAsync(ct).ConfigureAwait(false);
-        try { _claims[claim.Id] = claim; }
+        try
+        {
+            if (!_claims.ContainsKey(claim.Id))
+                _claimOrder.Add(claim.Id);
+            _claims[claim.Id] = claim with { Confidence = NormalizeConfidence(claim.Confidence) };
+        }
         finally { _mutex.Release(); }
     }
 
     public async Task<IReadOnlyList<ClaimRow>> GetClaimsAsync(long profileId, CancellationToken ct = default)
     {
         await _mutex.WaitAsync(ct).ConfigureAwait(false);
-        try { return _claims.Values.Where(c => c.ProfileId == profileId).ToList(); }
+        try { return _claimOrder.Select(id => _claims[id]).Where(c => c.ProfileId == profileId).ToList(); }
         finally { _mutex.Release(); }
     }
 
@@ -206,4 +226,10 @@ public sealed class InMemorySeekerStore : ISeekerStore
 
     /// <summary>Test-only hook: overwrite a stored event to simulate tampering. Not part of ISeekerStore.</summary>
     internal void TamperForTest(int index, EventRow replacement) => _events[index] = replacement;
+
+    private static string NormalizeConfidence(string confidence)
+    {
+        var normalized = confidence.Trim().ToLowerInvariant();
+        return normalized is "verified" or "stated" or "weak" ? normalized : "stated";
+    }
 }

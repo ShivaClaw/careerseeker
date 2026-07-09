@@ -123,6 +123,33 @@ Console.WriteLine("\n[ localhost dashboard ]");
     await dash.DisposeAsync();
 }
 
+// ── 4) gateway budget safety invariant ────────────────────────────────────────────────────────────
+Console.WriteLine("\n[ gateway safety ]");
+{
+    var meter = new BudgetMeter(0.001m);
+    meter.Record(0.01m);
+    Check("pinned verifier stage proceeds over cap",
+        meter.Evaluate(Stage.VerifierEntailment) == ThrottleDecision.Proceed);
+}
+
+// ── 5) L1 dispatcher cannot submit ────────────────────────────────────────────────────────────────
+Console.WriteLine("\n[ dispatcher safety ]");
+{
+    var dispatcher = MakeDispatcher(new FakeGmail());
+    var threw = false;
+    try
+    {
+        await dispatcher.SubmitAsync(
+            new PipelineJob(1, "Senior Software Engineer", "Acme"),
+            new TailoredApplication(Array.Empty<TailoredClaim>(), "resume", "cover", new Dictionary<string, string>()));
+    }
+    catch (NotSupportedException)
+    {
+        threw = true;
+    }
+    Check("L1 SubmitAsync throws NotSupportedException", threw);
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
