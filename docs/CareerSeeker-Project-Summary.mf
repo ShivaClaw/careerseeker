@@ -278,7 +278,7 @@ Gmail OAuth:
 - scope: gmail.compose
 - token_storage: DPAPI local vault
 - live_result: real Gmail draft created
-- draft_id: r-2378701918407829911
+- draft_id: r-<scrubbed>
 - notes: custom labels skipped to preserve compose-only scope.
 LLM providers:
 - status: compile_verified_only
@@ -356,7 +356,7 @@ live_gmail_harness:
 - token: access token available from DPAPI vault
 - labels: skipped under compose-only L1
 - real_draft_created: true
-- draft_id: r-2378701918407829911
+- draft_id: r-<scrubbed>
 - setup_issues_resolved:
   - Google OAuth test users were added on Audience page.
   - Gmail API was enabled for the Google project.
