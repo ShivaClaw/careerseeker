@@ -19,6 +19,7 @@ public sealed class BudgetMeter
     private readonly decimal _bandWarn;   // start cutting breadth
     private readonly decimal _bandTight;  // also cut depth/dossier
     private decimal _spent;
+    private readonly object _spentLock = new();
 
     public BudgetMeter(decimal monthlyCapUsd, decimal warnFraction = 0.80m, decimal tightFraction = 0.95m)
     {
@@ -63,8 +64,8 @@ public sealed class BudgetMeter
     }
 
     /// <summary>Record spend. Always applied, including for pinned stages that ran past the cap.</summary>
-    public void Record(decimal costUsd) => _spent += costUsd;
+    public void Record(decimal costUsd) { lock (_spentLock) { _spent += costUsd; } }
 
     /// <summary>Reset for a new billing period.</summary>
-    public void ResetPeriod() => _spent = 0m;
+    public void ResetPeriod() { lock (_spentLock) { _spent = 0m; } }
 }

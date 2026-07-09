@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using SeekerSvc.Scorer;
 using SeekerSvc.Store;
 using SeekerSvc.Verifier;
@@ -39,8 +40,8 @@ public sealed class ApplicationPipeline
 
     // In production the tailored artifacts live on disk (content-addressed, per the Store); here we
     // keep the in-flight tailored application in memory so an L2 gate can submit it on approval.
-    private readonly Dictionary<long, (PipelineJob Job, TailoredApplication Tailored)> _pending = new();
-    private readonly Dictionary<long, AppState> _pausedFrom = new();
+    private readonly ConcurrentDictionary<long, (PipelineJob Job, TailoredApplication Tailored)> _pending = new();
+    private readonly ConcurrentDictionary<long, AppState> _pausedFrom = new();
 
     public ApplicationPipeline(
         ISeekerStore store, ITailor tailor, IDispatcher dispatcher,
@@ -148,7 +149,7 @@ public sealed class ApplicationPipeline
         {
             await TransitionAsync(appId, AppState.SKIPPED, "user",
                 note is null ? null : $"\"reason\":\"{note}\"", ct).ConfigureAwait(false);
-            _pending.Remove(appId);
+            _pending.TryRemove(appId, out _);
             return AppState.SKIPPED;
         }
 
@@ -158,7 +159,7 @@ public sealed class ApplicationPipeline
             await _dispatcher.SubmitAsync(p.Job, p.Tailored, ct).ConfigureAwait(false);
         await TransitionAsync(appId, AppState.APPLIED, "engine", ct: ct).ConfigureAwait(false);
         await TransitionAsync(appId, AppState.AWAITING_RESPONSE, "engine", ct: ct).ConfigureAwait(false);
-        _pending.Remove(appId);
+        _pending.TryRemove(appId, out _);
         return AppState.AWAITING_RESPONSE;
     }
 
@@ -185,7 +186,7 @@ public sealed class ApplicationPipeline
             throw new InvalidOperationException($"Application {appId} has no remembered pre-pause state.");
         await _store.TransitionApplicationAsync(appId, prior.ToString(), "user",
             $"{{\"to\":\"{prior}\",\"resume\":true}}", ct).ConfigureAwait(false);
-        _pausedFrom.Remove(appId);
+        _pausedFrom.TryRemove(appId, out _);
         return prior;
     }
 

@@ -68,7 +68,7 @@ public sealed class GatewayTailorModel : ITailorModel
     private static string BuildUserPrompt(TailorModelRequest r)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"JOB: {r.Job.Title} at {r.Job.Company}.");
+        sb.AppendLine($"JOB: <job_title>{r.Job.Title}</job_title> at <job_company>{r.Job.Company}</job_company>.");
         sb.AppendLine();
         sb.AppendLine("CANDIDATE FACTS (the only admissible facts):");
         foreach (var c in r.Profile)

@@ -53,7 +53,7 @@ public sealed class GatewayDossierModel : IDossierModel
         {
             sb.AppendLine($"- url: {d.Url}");
             sb.AppendLine($"  title: {d.Title}");
-            sb.AppendLine($"  text: {Trim(d.Text, 1200)}");
+            sb.AppendLine($"  text: <document>{Trim(d.Text, 1200)}</document>");
         }
         return sb.ToString();
     }
