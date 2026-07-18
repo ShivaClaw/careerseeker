@@ -20,6 +20,10 @@ const string fabricatedJson =
     "{\"resume\":\"Senior Software Engineer.\"," +
     "\"cover\":\"In my last role I personally increased company revenue by 200% in a single quarter.\"," +
     "\"claims\":[{\"kind\":\"Metric\",\"text\":\"increased revenue 200%\",\"number\":200,\"unit\":\"%\"}],\"answers\":{}}";
+const string outageJson =
+    "{\"resume\":\"Senior Software Engineer.\"," +
+    "\"cover\":\"I drove platform leadership across the organization.\"," +
+    "\"claims\":[],\"answers\":{}}";
 
 // ── shared builders ───────────────────────────────────────────────────────────────────────────────
 LlmGateway GatewayReturning(string canned) => new(
@@ -116,6 +120,27 @@ Console.WriteLine("=== CareerSeeker L1 vertical slice (Scout→Store→Scorer→
     var verdict = await FabricationGate.VerifyAsync(Array.Empty<SourceClaim>(), undeclared, new DefaultSemanticMatcher());
     Check("undeclared title/employer prose is blocked without profile support", !verdict.Passed);
 }
+{
+    var courtesyOnly = Decomposer.FromDraft(new TailorDraft(
+        "", "I am excited to apply.", Array.Empty<DeclaredClaim>(), new Dictionary<string, string>()));
+    Check("pure courtesy sentence stays outside Gate atoms", courtesyOnly.Count == 0, courtesyOnly.Count.ToString());
+
+    var prefixed = Decomposer.FromDraft(new TailorDraft(
+        "", "I'm excited to bring the perspective I gained as Google's CTO.", Array.Empty<DeclaredClaim>(), new Dictionary<string, string>()));
+    Check("courtesy-prefixed factual prose still becomes a Gate atom",
+        prefixed.Any(c => c.Kind == ClaimKind.Other && c.Text.Contains("Google's CTO")));
+    var verdict = await FabricationGate.VerifyAsync(Array.Empty<SourceClaim>(), prefixed, new DefaultSemanticMatcher());
+    Check("courtesy-prefixed unsupported prose is blocked", !verdict.Passed && verdict.Verdict == Verdict.BlockedFabrication, verdict.Verdict.ToString());
+}
+{
+    var unavailable = await FabricationGate.VerifyAsync(
+        new[] { new SourceClaim("s1", ClaimKind.Other, "led platform engineering", Confidence.Verified) },
+        new[] { new TailoredClaim(ClaimKind.Other, "drove platform leadership", "drove platform leadership") },
+        new UnavailableSemanticMatcher());
+    Check("semantic outage defers instead of blocking fabrication",
+        unavailable.Verdict == Verdict.DeferredUnavailable && unavailable.UnavailableClaims == 1,
+        $"{unavailable.Verdict} unavailable={unavailable.UnavailableClaims}");
+}
 
 // ── 1) HAPPY PATH: a clean, supported application flows all the way to a Gmail draft ───────────────
 Console.WriteLine("[ happy path -> DRAFTED ]");
@@ -179,6 +204,24 @@ Console.WriteLine("\n[ fabrication -> BLOCKED, no draft ]");
 }
 
 // ── 3) SCAM FLOOR: a low-legitimacy posting never reaches Tailor/Dispatcher ────────────────────────
+Console.WriteLine("\n[ matcher outage -> GATE_UNAVAILABLE, no draft ]");
+{
+    var store = await SeededStoreAsync();
+    var p = HealthyPosting();
+    var jobId = await StoreJobAsync(store, p);
+    var job = new PipelineJob(jobId, p.Title, "Acme", "mailto:jobs@acme.com");
+    var decision = DecideFor(p, new SemanticScores(4.6, 4.2));
+
+    var gmail = new FakeGmail();
+    var pipeline = new ApplicationPipeline(store, TailorReturning(outageJson), MakeDispatcher(gmail),
+        matcher: new UnavailableSemanticMatcher(), options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+
+    var result = await pipeline.AdmitAsync(job, AutonomyLevel.L1, decision);
+    Check("Gate verdict is DeferredUnavailable", result.Gate?.Verdict == Verdict.DeferredUnavailable, result.Gate?.Verdict.ToString());
+    Check("final state GATE_UNAVAILABLE", result.FinalState == AppState.GATE_UNAVAILABLE, result.FinalState.ToString());
+    Check("NO Gmail draft created while matcher is unavailable", gmail.Drafts == 0);
+}
+
 Console.WriteLine("\n[ scam floor -> REJECTED_BY_ENGINE ]");
 {
     var store = await SeededStoreAsync();
@@ -230,4 +273,9 @@ sealed class FakeGmail : IGmailDraftClient
     public Task<string> CreateDraftAsync(string raw, IReadOnlyList<string> labelIds, CancellationToken ct = default)
     { Drafts++; return Task.FromResult("draft_" + Drafts); }
     public Task<string> EnsureLabelAsync(string labelPath, CancellationToken ct = default) => Task.FromResult("Label_" + labelPath);
+}
+sealed class UnavailableSemanticMatcher : ISemanticMatcher
+{
+    public Task<SemanticMatchResult> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default) =>
+        Task.FromResult(SemanticMatchResult.Deferred("provider_unavailable"));
 }

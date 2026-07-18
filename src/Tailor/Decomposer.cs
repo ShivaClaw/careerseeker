@@ -26,8 +26,12 @@ public static class Decomposer
 
     private static readonly Regex Sentence = new(@"[^.!?\n]+[.!?]?", RegexOptions.Compiled);
 
-    private static readonly Regex NonFactualCourtesy = new(
-        @"^\s*(dear\b|sincerely\b|regards\b|thank you\b|i(?:'m| am) (?:excited|interested)|i look forward\b|i appreciate\b)",
+    private static readonly Regex CourtesyPrefix = new(
+        @"^\s*(dear\b|sincerely\b|regards\b|thank you\b|i(?:'m| am) (?:excited|interested)|i look forward\b|i appreciate\b)(?:\s+(?:to\b|for\b))?",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex CourtesyOnly = new(
+        @"^\s*(dear\b.*|sincerely\b.*|regards\b.*|thank you(?:\s+for your consideration)?[.!]?|i(?:'m| am) (?:excited|interested)(?:\s+to\s+apply)?[.!]?|i look forward(?:\s+to\s+(?:hearing from you|speaking with you|discussing this opportunity))?[.!]?|i appreciate(?:\s+your time(?:\s+and consideration)?)?[.!]?)\s*$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Decompose a draft into atomic claims: declared (normalized) + complete rendered-prose coverage.</summary>
@@ -99,8 +103,24 @@ public static class Decomposer
     /// deliberately excluded; every other non-empty rendered sentence is treated as a factual proposition.
     /// This default-deny boundary avoids relying on a brittle title/employer/proper-noun matcher.
     /// </summary>
-    public static bool IsFactualProposition(string text) =>
-        !string.IsNullOrWhiteSpace(text) && !NonFactualCourtesy.IsMatch(text);
+    public static bool IsFactualProposition(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var trimmed = text.Trim();
+        if (CourtesyOnly.IsMatch(trimmed))
+            return false;
+
+        if (CourtesyPrefix.IsMatch(trimmed))
+        {
+            trimmed = CourtesyPrefix.Replace(trimmed, "", 1).TrimStart(' ', ',', ';', ':', '-', '!');
+            if (trimmed.Length == 0)
+                return false;
+        }
+
+        return true;
+    }
 
     private static void ScanSentence(string text, Action<TailoredClaim> add)
     {

@@ -19,11 +19,13 @@ public static class Lifecycle
         [AppState.SCREENED] = new[] { AppState.EVALUATED },
         [AppState.EVALUATED] = new[] { AppState.TAILORED, AppState.REJECTED_BY_ENGINE },
 
-        // The Gate. A tailored application either passes (VERIFIED) or is blocked. READY has exactly
-        // one predecessor — VERIFIED — so nothing reaches it without passing.
-        [AppState.TAILORED] = new[] { AppState.VERIFIED, AppState.BLOCKED_FABRICATION },
+        // The Gate. A tailored application either passes (VERIFIED), is blocked for unsupported claims,
+        // or is deferred because verifier infrastructure is unavailable. READY has exactly one
+        // predecessor — VERIFIED — so nothing reaches it without passing.
+        [AppState.TAILORED] = new[] { AppState.VERIFIED, AppState.BLOCKED_FABRICATION, AppState.GATE_UNAVAILABLE },
         [AppState.VERIFIED] = new[] { AppState.READY },
         [AppState.BLOCKED_FABRICATION] = new[] { AppState.TAILORED }, // one rework loop; escalation is a human gate
+        [AppState.GATE_UNAVAILABLE] = new[] { AppState.TAILORED },    // retry later when the verifier recovers
 
         // Autonomy routing happens here (see RouteFromReady).
         [AppState.READY] = new[] { AppState.DRAFTED, AppState.GATE_PENDING, AppState.SUBMITTING },

@@ -14,6 +14,7 @@ public enum AppState
     TAILORED,
     VERIFIED,
     BLOCKED_FABRICATION,
+    GATE_UNAVAILABLE,
     READY,
     DRAFTED,
     GATE_PENDING,

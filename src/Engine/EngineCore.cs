@@ -141,6 +141,7 @@ public sealed class EngineCycle
             case AppState.AWAITING_RESPONSE:
             case AppState.GATE_PENDING: _counters.IncActed(); break;
             case AppState.BLOCKED_FABRICATION: _counters.IncBlocked(); break;
+            case AppState.GATE_UNAVAILABLE: _counters.IncErrors(); break;
             case AppState.REJECTED_BY_ENGINE: _counters.IncRejected(); break;
         }
     }

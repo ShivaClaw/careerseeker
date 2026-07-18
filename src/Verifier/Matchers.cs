@@ -70,9 +70,26 @@ public static class Text
 /// source text supports (entails) the tailored claim. Implementations MUST fail
 /// closed: when entailment is uncertain, return false.
 /// </summary>
+public enum SemanticMatchStatus
+{
+    Entailed,
+    NotEntailed,
+    Unavailable,
+}
+
+public readonly record struct SemanticMatchResult(SemanticMatchStatus Status, string? Detail = null)
+{
+    public bool Entailed => Status == SemanticMatchStatus.Entailed;
+    public bool Unavailable => Status == SemanticMatchStatus.Unavailable;
+
+    public static SemanticMatchResult Supported() => new(SemanticMatchStatus.Entailed);
+    public static SemanticMatchResult Unsupported() => new(SemanticMatchStatus.NotEntailed);
+    public static SemanticMatchResult Deferred(string? detail = null) => new(SemanticMatchStatus.Unavailable, detail);
+}
+
 public interface ISemanticMatcher
 {
-    Task<bool> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default);
+    Task<SemanticMatchResult> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -87,13 +104,15 @@ public sealed class DefaultSemanticMatcher : ISemanticMatcher
 
     public DefaultSemanticMatcher(double threshold = 0.85) => _threshold = threshold;
 
-    public Task<bool> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default)
+    public Task<SemanticMatchResult> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default)
     {
         var src = Text.ContentTokens(sourceText);
         var tail = Text.ContentTokens(tailoredText);
-        if (tail.Count == 0) return Task.FromResult(false);
+        if (tail.Count == 0) return Task.FromResult(SemanticMatchResult.Unsupported());
         var covered = (double)tail.Count(src.Contains) / tail.Count;
-        return Task.FromResult(covered >= _threshold);
+        return Task.FromResult(covered >= _threshold
+            ? SemanticMatchResult.Supported()
+            : SemanticMatchResult.Unsupported());
     }
 }
 
@@ -110,10 +129,12 @@ public sealed class RuleSemanticMatcher : ISemanticMatcher
         _pairs = pairs.Select(p => (p.Source.ToLowerInvariant(), p.Tailored.ToLowerInvariant()))
                       .ToArray();
 
-    public Task<bool> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default)
+    public Task<SemanticMatchResult> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default)
     {
         var s = sourceText.ToLowerInvariant();
         var t = tailoredText.ToLowerInvariant();
-        return Task.FromResult(_pairs.Any(p => s.Contains(p.Source) && t.Contains(p.Tailored)));
+        return Task.FromResult(_pairs.Any(p => s.Contains(p.Source) && t.Contains(p.Tailored))
+            ? SemanticMatchResult.Supported()
+            : SemanticMatchResult.Unsupported());
     }
 }

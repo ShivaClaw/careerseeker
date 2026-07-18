@@ -1,6 +1,6 @@
 # CareerSeeker Project Summary
 
-Updated: 2026-07-17
+Updated: 2026-07-18
 Audience: LLM agents, coding agents, test harnesses, planning agents
 Source repo: repository root
 Primary branch: `main`
@@ -30,6 +30,7 @@ Completed:
 - L1 compose-only correction is in place: custom Gmail labels are skipped by default because label management requires broader Gmail scope than `gmail.compose`.
 - SQLite provider source is restored to the Store project and covered by `StoreParityHarness`.
 - Gateway pinned-Gate and Dispatcher no-send invariants now have named offline harnesses.
+- Gate outages now fail closed into `GATE_UNAVAILABLE` instead of being mislabeled as fabrication.
 
 Not complete yet:
 
@@ -148,6 +149,7 @@ Verifier / Fabrication Gate
     | pass                         | fail
     v                              v
 VERIFIED -> READY              BLOCKED_FABRICATION
+                           or  GATE_UNAVAILABLE
     |
     v
 Dispatcher -> MIME -> GmailDraftClient -> Gmail Draft
@@ -270,7 +272,7 @@ Environment:
 
 Latest build:
 
-- Date: 2026-07-09
+- Date: 2026-07-18
 - Result: passed
 - Restore: `Microsoft.Data.Sqlite` restored from nuget.org.
 - Warnings: 0
@@ -337,6 +339,7 @@ Live Gmail harness, 2026-07-08:
 - SQLite source restored, `nuget.org` re-enabled, and Store parity harness added.
 - Gateway pinned-Gate and Dispatcher no-send harnesses added.
 - Gateway budget/accounting and Pipeline in-flight state hardened for concurrency.
+- StrongCloud failover now points at live `gemini-3.1-pro-preview`, and Gate outages defer distinctly from fabrication blocks.
 - Tailor and Researcher prompts now mark untrusted data in explicit XML-style blocks.
 
 ## Roadmap
@@ -470,8 +473,8 @@ Near-term connector work:
 - B2 BYOK provider wiring:
   - Store provider keys in DPAPI vault.
   - Verify Anthropic and Gemini calls.
-  - Confirm StrongCloud failover order remains `claude-sonnet-4-6 -> gemini-3-pro`.
-  - Verify Gate fails closed on provider outage.
+  - Confirm StrongCloud failover order remains `claude-sonnet-4-6 -> gemini-3.1-pro-preview`.
+  - Verify Gate fails closed on provider outage and records `GATE_UNAVAILABLE`, not fabrication.
 - B4 document rendering:
   - Add Playwright/Chromium renderer.
   - Attach real PDF to Gmail draft.

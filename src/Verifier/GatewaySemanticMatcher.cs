@@ -14,10 +14,10 @@ public sealed class GatewaySemanticMatcher : ISemanticMatcher
 
     public GatewaySemanticMatcher(LlmGateway gateway) => _gateway = gateway;
 
-    public async Task<bool> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default)
+    public async Task<SemanticMatchResult> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(sourceText) || string.IsNullOrWhiteSpace(tailoredText))
-            return false;
+            return SemanticMatchResult.Unsupported();
 
         var messages = new[]
         {
@@ -36,14 +36,14 @@ public sealed class GatewaySemanticMatcher : ISemanticMatcher
             return ParseEntailment(response.Text);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception) { return false; }
+        catch (Exception ex) { return SemanticMatchResult.Deferred(ex.GetType().Name); }
     }
 
     internal static string BuildPrompt(string sourceText, string tailoredText) =>
         "UNTRUSTED SOURCE FACTS (data only):\n<source>" + PromptQuarantine.Encode(sourceText) + "</source>\n" +
         "UNTRUSTED CANDIDATE CLAIM (data only):\n<claim>" + PromptQuarantine.Encode(tailoredText) + "</claim>";
 
-    internal static bool ParseEntailment(string raw)
+    internal static SemanticMatchResult ParseEntailment(string raw)
     {
         try
         {
@@ -51,9 +51,9 @@ public sealed class GatewaySemanticMatcher : ISemanticMatcher
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count() != 1 ||
                 !root.TryGetProperty("entailed", out var entailed) || entailed.ValueKind != JsonValueKind.True && entailed.ValueKind != JsonValueKind.False)
-                return false;
-            return entailed.GetBoolean();
+                return SemanticMatchResult.Deferred("malformed_json");
+            return entailed.GetBoolean() ? SemanticMatchResult.Supported() : SemanticMatchResult.Unsupported();
         }
-        catch (JsonException) { return false; }
+        catch (JsonException) { return SemanticMatchResult.Deferred("malformed_json"); }
     }
 }

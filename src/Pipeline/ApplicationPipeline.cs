@@ -80,7 +80,7 @@ public sealed class ApplicationPipeline
         return new AdmitResult(appId, finalState, gate, dispatch);
     }
 
-    /// <summary>TAILORED → (Gate) → VERIFIED → READY, or BLOCKED_FABRICATION after exhausting rework.</summary>
+    /// <summary>TAILORED → (Gate) → VERIFIED → READY, or a fail-closed stop at BLOCKED_FABRICATION / GATE_UNAVAILABLE.</summary>
     private async Task<(AppState State, TailoredApplication? Tailored, VerificationResult? Gate)> RunToReadyAsync(
         long appId, PipelineJob job, CancellationToken ct)
     {
@@ -100,6 +100,13 @@ public sealed class ApplicationPipeline
                 await TransitionAsync(appId, AppState.VERIFIED, "engine", ct: ct).ConfigureAwait(false);
                 await TransitionAsync(appId, AppState.READY, "engine", ct: ct).ConfigureAwait(false);
                 return (AppState.READY, tailored, lastResult);
+            }
+
+            if (lastResult.Deferred)
+            {
+                await TransitionAsync(appId, AppState.GATE_UNAVAILABLE, "engine",
+                    $"\"unavailableClaims\":{lastResult.UnavailableClaims}", ct).ConfigureAwait(false);
+                return (AppState.GATE_UNAVAILABLE, tailored, lastResult);
             }
 
             await TransitionAsync(appId, AppState.BLOCKED_FABRICATION, "engine",

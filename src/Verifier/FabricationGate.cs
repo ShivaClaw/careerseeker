@@ -38,6 +38,12 @@ public static class FabricationGate
 
     private enum TenureStatus { Ok, Mismatch, NoDates }
 
+    private sealed class SemanticMatcherUnavailableException : Exception
+    {
+        public SemanticMatcherUnavailableException(string? detail = null)
+            : base(detail ?? "semantic matcher unavailable") { }
+    }
+
     /// <summary>
     /// Verify a tailored output against the Source-of-Truth Profile. Pure and
     /// stateless. Collects ALL violations (not the first) so the human sees the
@@ -52,13 +58,23 @@ public static class FabricationGate
     {
         matcher ??= new DefaultSemanticMatcher();
         var violations = new List<Violation>();
+        var unavailableClaims = 0;
         foreach (var tc in tailored)
         {
-            var v = await CheckOneAsync(tc, source, matcher, currentYear, ct).ConfigureAwait(false);
-            if (v is not null) violations.Add(v);
+            try
+            {
+                var v = await CheckOneAsync(tc, source, matcher, currentYear, ct).ConfigureAwait(false);
+                if (v is not null) violations.Add(v);
+            }
+            catch (SemanticMatcherUnavailableException)
+            {
+                unavailableClaims++;
+            }
         }
-        var verdict = violations.Count > 0 ? Verdict.BlockedFabrication : Verdict.Ready;
-        return new VerificationResult(verdict, violations, tailored.Count);
+        var verdict = violations.Count > 0
+            ? Verdict.BlockedFabrication
+            : unavailableClaims > 0 ? Verdict.DeferredUnavailable : Verdict.Ready;
+        return new VerificationResult(verdict, violations, tailored.Count, unavailableClaims);
     }
 
     // ---- per-claim dispatch ----------------------------------------------
@@ -128,7 +144,7 @@ public static class FabricationGate
         foreach (var s in ordered)
         {
             var st = Text.ContentTokens(s.Text);
-            if (st.Count > 0 && (st.IsSubsetOf(tcTokens) || await matcher.EntailsAsync(s.Text, tc.Text, ct).ConfigureAwait(false)))
+            if (st.Count > 0 && (st.IsSubsetOf(tcTokens) || await EntailsAsyncOrThrow(matcher, s.Text, tc.Text, ct).ConfigureAwait(false)))
             {
                 supporting = s;
                 break;
@@ -292,7 +308,15 @@ public static class FabricationGate
         var s = Text.ContentTokens(sourceText);
         if (t.Count == 0) return true;
         if (t.IsSubsetOf(s)) return true;   // covers exact-equal and subset
-        return await matcher.EntailsAsync(sourceText, tailoredText, ct).ConfigureAwait(false);
+        return await EntailsAsyncOrThrow(matcher, sourceText, tailoredText, ct).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> EntailsAsyncOrThrow(ISemanticMatcher matcher, string sourceText, string tailoredText, CancellationToken ct)
+    {
+        var result = await matcher.EntailsAsync(sourceText, tailoredText, ct).ConfigureAwait(false);
+        if (result.Unavailable)
+            throw new SemanticMatcherUnavailableException(result.Detail);
+        return result.Entailed;
     }
 
     private static double Overlap(string a, string b)

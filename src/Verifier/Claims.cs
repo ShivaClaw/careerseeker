@@ -92,12 +92,15 @@ public enum Verdict
 {
     Ready,
     BlockedFabrication,
+    DeferredUnavailable,
 }
 
 public record VerificationResult(
     Verdict Verdict,
     IReadOnlyList<Violation> Violations,
-    int ClaimsChecked)
+    int ClaimsChecked,
+    int UnavailableClaims = 0)
 {
     public bool Passed => Verdict == Verdict.Ready;
+    public bool Deferred => Verdict == Verdict.DeferredUnavailable;
 }
