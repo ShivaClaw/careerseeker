@@ -1,58 +1,92 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Support — CareerSeeker</title>
-<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:800px;margin:60px auto;padding:0 24px;color:#1a1a1a;line-height:1.6}h1,h2,h3{color:#111}a{color:#0066cc}</style>
-</head><body><h1>CareerSeeker Support</h1>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Support - CareerSeeker</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 860px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
+  h1, h2, h3 { color: #111; }
+  a { color: #06c; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #d8d8d8; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f5f5f5; }
+  code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>CareerSeeker Support</h1>
+<p><strong>Last updated:</strong> 2026-07-18</p>
+
 <h2>Contact</h2>
-<p>| Channel | Address | Response target |
-|---------|---------|-----------------|
-| <strong>General support</strong> | support@careerseeker.app | 48 hours (business days) |
-| <strong>Privacy inquiries</strong> | privacy@careerseeker.app | 48 hours (business days) |
-| <strong>Security reports</strong> | security@careerseeker.app | 24 hours |
-| <strong>Product website</strong> | https://careerseeker.app | — |</p>
-<p>During closed beta, support is provided by the development team directly. Response times may be faster than stated targets.</p>
-<p>---</p>
-<h2>Common Actions</h2>
+<table>
+<tr><th>Channel</th><th>Address</th><th>Response target</th></tr>
+<tr><td><strong>General support</strong></td><td>support@careerseeker.app</td><td>48 hours on business days</td></tr>
+<tr><td><strong>Privacy inquiries</strong></td><td>privacy@careerseeker.app</td><td>48 hours on business days</td></tr>
+<tr><td><strong>Security reports</strong></td><td>security@careerseeker.app</td><td>24 hours</td></tr>
+<tr><td><strong>Product website</strong></td><td>https://careerseeker.app</td><td>Public product site</td></tr>
+</table>
+<p>During closed alpha and beta, support is provided by the development team directly. Response times may be faster than stated targets.</p>
+
+<h2>Current Alpha Actions</h2>
+
 <h3>Disconnect Gmail</h3>
-<p>1. Open CareerSeeker from the system tray → <strong>Settings</strong> → <strong>Connected Accounts</strong>.
-2. Click <strong>Disconnect Gmail</strong>.
-3. CareerSeeker calls Google's token revocation endpoint and deletes the local refresh token from the DPAPI vault.
-4. You can also revoke access from your <a href="https://myaccount.google.com/permissions">Google Account permissions page</a> → find "CareerSeeker" → <strong>Remove Access</strong>.</p>
-<p>After disconnection, CareerSeeker cannot create Gmail drafts until you reconnect.</p>
+<p>CareerSeeker L1 creates Gmail drafts through a local OAuth token vault. To disconnect the current alpha:</p>
+<ol>
+<li>Open your <a href="https://myaccount.google.com/permissions">Google Account permissions page</a>.</li>
+<li>Find CareerSeeker.</li>
+<li>Remove access.</li>
+<li>Delete the local DPAPI token vault configured for the alpha run, commonly <code>.appdata/oauth/gmail-token.dpapi</code>.</li>
+</ol>
+<p>After disconnection, CareerSeeker cannot create Gmail drafts until you reconnect and authorize again.</p>
+<p>An in-app "Disconnect Gmail" control that calls Google's revocation endpoint is planned for the product shell.</p>
+
 <h3>Revoke LLM Provider Keys</h3>
-<p>1. Open <strong>Settings</strong> → <strong>Provider Keys</strong>.
-2. Select the provider to remove → <strong>Delete Key</strong>.
-3. The key is removed from the local DPAPI-encrypted vault immediately.</p>
-<p>CareerSeeker does not retain copies of your API keys outside the local vault.</p>
+<p>Delete provider keys from the local vault, environment variable, or configuration location where you supplied them. CareerSeeker does not retain copies of provider keys outside the local configuration you control.</p>
+<p>An in-app provider-key manager is planned for the product shell.</p>
+
 <h3>Delete Local Data</h3>
-<p>All CareerSeeker data is stored on your machine at `%ProgramData%\CareerSeeker\`.</p>
-<ul><li><strong>Uninstall</strong> the application via Windows Settings → Apps to remove the engine and tray application.</li>
-<li><strong>Delete the data directory</strong> (`%ProgramData%\CareerSeeker\`) to remove the database, generated documents, audit log, and encrypted backups.</li>
-<li>These two steps remove all CareerSeeker data from your machine.</li>
+<p>Current alpha data is local. Depending on how you launched the app or harness, remove:</p>
+<ul>
+<li>The configured SQLite database, commonly <code>.appdata/careerseeker-alpha.db</code>.</li>
+<li>Generated artifacts or exported documents you created during testing.</li>
+<li>Local token vaults under <code>.appdata/</code>.</li>
+<li>Any warmed local build caches you intentionally created for testing.</li>
 </ul>
-<h3>Export Audit Log</h3>
-<p>1. Open <strong>Settings</strong> → <strong>Audit & History</strong> → <strong>Export Log</strong>.
-2. The export produces a portable file containing the full hash-chained event log.
-3. Each entry includes a hash of the previous entry — you can independently verify the chain's integrity.</p>
+<p>Future installer builds will use a documented product data directory and uninstall flow.</p>
+
+<h3>Verify the Audit Log</h3>
+<p>The Store implements hash-chain verification and the offline harnesses exercise it. Product UI for audit export is planned; until then, use the local store/harness code when validating alpha data.</p>
+
 <h3>Report a Fabrication Gate Issue</h3>
 <p>If you believe the Fabrication Gate incorrectly blocked a legitimate claim or allowed an unsupported one:</p>
-<p>1. Open the application's audit log for the specific posting.
-2. Note the posting ID and the claim text in question.
-3. Email support@careerseeker.app with the posting ID, the claim, and whether it was blocked or passed.</p>
+<ol>
+<li>Record the posting ID or harness scenario.</li>
+<li>Record the claim text and whether it was blocked or passed.</li>
+<li>Email support@careerseeker.app with those details.</li>
+</ol>
 <p>Fabrication Gate accuracy is a top-priority safety concern. Reports are triaged within 24 hours.</p>
+
 <h3>Report a Draft Quality Issue</h3>
 <p>If a generated cover letter, tailored resume, or prepared answer contains errors, awkward phrasing, or misrepresented information:</p>
-<p>1. Do <strong>not</strong> send the draft — CareerSeeker L1 never sends automatically; you are always the final reviewer.
-2. Email support@careerseeker.app with the posting ID, the generated text, and a description of the issue.</p>
-<p>---</p>
+<ol>
+<li>Do not send the draft.</li>
+<li>Record the posting ID, generated text, and a short description of the issue.</li>
+<li>Email support@careerseeker.app.</li>
+</ol>
+<p>CareerSeeker L1 never sends automatically; you are always the final reviewer.</p>
+
 <h2>Closed Beta</h2>
-<p>During closed beta (up to 100 test users under Google's OAuth test-user cap):</p>
-<ul><li>Support is provided via email only.</li>
+<ul>
+<li>Support is provided via email only.</li>
 <li>Beta users may encounter rough edges in the UI, scoring, or draft quality.</li>
-<li>All beta feedback — especially Fabrication Gate and draft quality reports — directly shapes the product before public launch.</li>
-<li>Beta users can request full data deletion and account disconnection at any time using the steps above.</li>
+<li>Fabrication Gate, draft quality, OAuth, and local-data deletion reports are high priority.</li>
+<li>Beta users can request help with full local data deletion and account disconnection at any time.</li>
 </ul>
+
 <h2>Public Launch</h2>
 <p>At public launch, support channels and response commitments will be updated to reflect the production support model. This document will be revised accordingly.</p>
-<p>---</p>
-<p><em>CareerSeeker is local-first. Your data stays on your machine. Support exists to help you control it, not to access it.</em></p></body></html>
+
+<p><em>CareerSeeker is local-first. Your data stays on your machine. Support exists to help you control it, not to access it.</em></p>
+</body>
+</html>

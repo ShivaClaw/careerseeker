@@ -5,7 +5,7 @@ job applications, plus a paid Android dashboard. Spec: `docs/CareerSeeker-Spec.m
 v0.9). Sequencing: `docs/CareerSeeker-Integration-Windows-Roadmap.md`. Current handoff:
 `docs/CareerSeeker-Project-Summary.md`.
 
-Trust/OAuth prep placeholders:
+Trust/OAuth docs:
 - `docs/Privacy-Policy.md`
 - `docs/Support.md`
 - `docs/Autonomy-Contract.md`
@@ -15,12 +15,10 @@ Trust/OAuth prep placeholders:
   Pipeline depends on Store, Scorer, and Verifier; Tailor and Dispatcher sit above Pipeline; Engine
   references Pipeline, Tailor, and Dispatcher. `TailorHookBridge` joins Tailor<->Researcher so neither
   core project references the other.
-- `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (the L1 vertical slice, 12
-  scenarios), `EngineHarness` (11), `ResearcherHarness` (21), `HookHarness` (10),
-  `StoreParityHarness` (in-memory/SQLite parity), `GatewayGateHarness` (pinned Gate), and
-  `DispatcherNoSendHarness` (L1 no-send guard). Run each with `dotnet run -c Release`.
-  Per-module xUnit mirrors live in module `Tests/` folders of the original deliverables and run wherever
-  NuGet is available.
+- `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (22 assertions),
+  `EngineHarness` (13), `ResearcherHarness` (21), `HookHarness` (10), `StoreParityHarness` (7),
+  `GatewayGateHarness` (21), and `DispatcherNoSendHarness` (9). Run each with
+  `dotnet run -c Release`.
 
 ## Build
 `dotnet build CareerSeeker.sln -c Release`
@@ -32,7 +30,8 @@ access or a warmed NuGet cache.
 ## Safety Invariants
 - Fabrication Gate: no application state is reachable except through VERIFIED; unsupported claims block.
 - Gateway pinned-Gate: `Stage.VerifierEntailment` is never throttled, never downgraded, fails closed.
-- Dispatcher L1: the Gmail port has **no send method** (even though `gmail.compose` can authorize sends); body is the Gate-cleared cover letter verbatim.
+- Dispatcher L1: the Gmail draft port exposes only `CreateDraftAsync`; label management is a separate
+  capability and no send method exists in the L1 application, even though `gmail.compose` can authorize sends.
 - Researcher: dossier facts are grounded-or-dropped; signals are positive-only and deterministic.
 - HookGuard: a cover-letter hook carrying any candidate-claim pattern is omitted, never risked.
 - Scorer: `total = min(fit, legitimacy) * red_flags`; a scam can never outrank its worst axis.

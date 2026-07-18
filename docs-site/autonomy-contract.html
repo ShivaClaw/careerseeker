@@ -1,73 +1,87 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Autonomy Contract — CareerSeeker</title>
-<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:800px;margin:60px auto;padding:0 24px;color:#1a1a1a;line-height:1.6}h1,h2,h3{color:#111}a{color:#0066cc}</style>
-</head><body><h1>CareerSeeker Autonomy Contract</h1>
-<p><strong>Version:</strong> L1 Drafts (v0.1)  
-<strong>Last updated:</strong> [DATE]</p>
-<p>This contract defines what CareerSeeker can and cannot do on your behalf. Every action CareerSeeker takes is logged in a tamper-evident audit trail and is reviewable at any time.</p>
-<p>---</p>
-<h2>L1 Drafts Mode — What CareerSeeker May Do</h2>
-<p>In L1 Drafts mode, CareerSeeker operates with the following permissions:</p>
-<p>| Action | Permitted | Details |
-|--------|-----------|---------|
-| Discover job postings | ✅ | Scans public ATS feeds (Greenhouse, Lever, Ashby, and others) for postings matching your targets |
-| Score postings | ✅ | Evaluates fit, legitimacy, and red flags using your profile and preferences |
-| Research employers | ✅ | Builds a company dossier from public sources; facts are grounded-or-dropped, signals are positive-only |
-| Tailor application materials | ✅ | Generates cover letters and resume variants using only your verified claims |
-| Run the Fabrication Gate | ✅ | Decomposes every generated claim, verifies each against your source-of-truth profile, and blocks any unsupported claim |
-| Create Gmail drafts | ✅ | Places completed, gate-cleared application materials into your Gmail Drafts folder for your review |
-| <strong>Send email</strong> | ❌ | <strong>The L1 Gmail interface has no send method. This is structural — the capability does not exist in the code.</strong> |
-| Submit applications | ❌ | CareerSeeker does not interact with any ATS submission portal |
-| Answer recruiter questions | ❌ | Novel free text in your voice is never auto-sent |
-| Book calendar events | ❌ | No calendar access is requested in L1 |</p>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Autonomy Contract - CareerSeeker</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 860px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
+  h1, h2, h3 { color: #111; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #d8d8d8; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f5f5f5; }
+  code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>CareerSeeker Autonomy Contract</h1>
+<p><strong>Version:</strong> L1 Drafts alpha (v0.1)<br>
+<strong>Last updated:</strong> 2026-07-18</p>
+
+<p>This contract defines what CareerSeeker can and cannot do on your behalf in the current L1 Drafts alpha. Every material action is intended to be logged in a local audit trail and reviewable by the user.</p>
+
+<h2>L1 Drafts Mode</h2>
+<p>In L1 Drafts mode, CareerSeeker may:</p>
+<table>
+<tr><th>Action</th><th>Permitted</th><th>Details</th></tr>
+<tr><td>Discover job postings</td><td>Yes</td><td>Scans public ATS feeds for postings matching configured targets.</td></tr>
+<tr><td>Score postings</td><td>Yes</td><td>Evaluates fit, legitimacy, and red flags using local profile/preferences.</td></tr>
+<tr><td>Research employers</td><td>Yes</td><td>Builds company dossiers from public sources; ungrounded facts are dropped.</td></tr>
+<tr><td>Tailor application materials</td><td>Yes</td><td>Generates cover letters and resume variants from source-of-truth profile claims.</td></tr>
+<tr><td>Run the Fabrication Gate</td><td>Yes</td><td>Decomposes generated text into claims and verifies each against the profile.</td></tr>
+<tr><td>Create Gmail drafts</td><td>Yes</td><td>Creates reviewable Gmail drafts after the Gate passes.</td></tr>
+<tr><td>Create Gmail labels</td><td>No by default</td><td>Label management is split out of the L1 draft port because it requires broader Gmail permissions.</td></tr>
+<tr><td>Send email</td><td>No</td><td>The L1 application has no send implementation and the Gmail draft port exposes no send method.</td></tr>
+<tr><td>Submit applications</td><td>No</td><td>CareerSeeker does not interact with ATS submission portals in L1.</td></tr>
+<tr><td>Answer recruiter questions</td><td>No</td><td>Novel free text is never auto-sent.</td></tr>
+<tr><td>Book calendar events</td><td>No</td><td>No calendar access is requested in L1.</td></tr>
+</table>
 <p><strong>You review. You send. CareerSeeker prepares.</strong></p>
-<p>---</p>
+
 <h2>Non-Negotiable Safety Rules</h2>
-<p>These rules are enforced in code and tested continuously. They cannot be disabled by configuration, preference, or any user setting.</p>
+<p>These rules are enforced in code and covered by offline harnesses.</p>
+
 <h3>1. Fabrication Gate</h3>
-<p>Every tailored document is decomposed into atomic claims (employer, title, dates, metrics, skills, credentials). Each claim is verified against your source-of-truth profile. If any claim is unsupported, the application is <strong>blocked</strong> — it cannot reach READY status.</p>
-<p>The Gate cannot be bypassed. There is no override. There is no "send anyway." An application blocked by the Gate stays blocked until the underlying claim is either verified in your profile or removed from the generated text.</p>
-<p><strong>Why this matters:</strong> An autonomous career tool that fabricates credentials is a defamation machine pointed at its own user. A hiring manager who catches one fabricated certification doesn't just reject the application — in regulated industries, it can be disqualifying or unlawful.</p>
+<p>Every tailored document is decomposed into atomic claims such as employer, title, dates, metrics, skills, and credentials. Each claim is verified against the source-of-truth profile. If any claim is unsupported, the application is blocked before draft creation.</p>
+<p>The Gate cannot be bypassed by configuration. An application blocked by the Gate stays blocked until the underlying claim is either verified in the profile or removed from the generated text.</p>
+
 <h3>2. Pinned Verification Provider</h3>
-<p>The LLM provider used for claim verification (the Fabrication Gate's inference call) is <strong>never throttled, never downgraded, and fails closed</strong> regardless of budget, rate limits, or provider availability. If the verification provider is unavailable, the application blocks. It does not fall through to a weaker model or skip verification.</p>
+<p>The LLM provider route used for claim verification is pinned to the strong-provider tier. It is not budget-throttled, downgraded to a local model, or skipped. If verification infrastructure is unavailable, the application is deferred as <code>GATE_UNAVAILABLE</code> and no Gmail draft is created.</p>
+
 <h3>3. No Send Path in L1</h3>
-<p>The L1 Gmail interface exposes `CreateDraftAsync` only. There is no `SendAsync` method, no `SendMailAsync` method, no method with "send" in its name. The Gmail OAuth scope requested is `gmail.compose` — the minimum scope for draft creation. This is not a policy; it is a structural constraint.</p>
-<h3>4. Grounded Research Only</h3>
-<p>Company dossier facts must be traceable to a retrieved source document. Facts that cannot be grounded are dropped, not approximated. Hiring signals are positive-only (e.g., "recently funded," "growing headcount") and deterministic — the Researcher does not speculate or editorialize.</p>
-<h3>5. Hook Safety</h3>
-<p>Cover letter hooks (attention-getting opening lines) are scanned for candidate-claim patterns. Any hook that could be read as a factual claim about you is omitted. Hooks are stylistic, never substantive.</p>
-<h3>6. Tamper-Evident Audit Log</h3>
-<p>Every state transition, gate decision, scoring event, and engine action is recorded in a hash-chained audit log. Each entry's integrity depends on the hash of the previous entry. Silent tampering with any entry breaks the chain and is detectable.</p>
-<p>---</p>
-<h2>Your Controls</h2>
-<p>You can exercise any of these controls at any time:</p>
-<p>| Control | Effect |
-|---------|--------|
-| <strong>Pause</strong> | Engine stops processing; resume when ready |
-| <strong>Stop / Kill</strong> | Immediate engine halt; acknowledged within seconds |
-| <strong>Disconnect Gmail</strong> | Revokes OAuth token; calls Google's revocation endpoint |
-| <strong>Edit claims</strong> | Add, modify, or delete any verified claim; changes re-trigger the Fabrication Gate on in-flight items |
-| <strong>Blocklist employers</strong> | Prevent specific companies or domains from appearing in results |
-| <strong>Set score threshold</strong> | Only postings above your minimum score generate application materials |
-| <strong>Set daily cap</strong> | Maximum applications prepared per day |
-| <strong>Delete learned preferences</strong> | Remove individual lessons or all campaign-learned patterns |
-| <strong>Export audit log</strong> | Portable copy of the full hash-chained event log |
-| <strong>Delete all data</strong> | Remove `%ProgramData%\CareerSeeker\` to delete everything |</p>
-<p>---</p>
+<p>The L1 Gmail draft interface exposes <code>CreateDraftAsync</code> only. There is no <code>SendAsync</code>, <code>SendMailAsync</code>, or public method with "send" in its name in the Dispatcher assembly.</p>
+<p>The Gmail OAuth scope requested by L1 is <code>gmail.compose</code>. That Google permission can authorize sends, so the safety claim is deliberately not "the token cannot send." The safety claim is that the L1 application contains no send implementation.</p>
+
+<h3>4. Label Management Is Separate</h3>
+<p>Custom Gmail labels are not part of the default L1 draft capability. The L1 dispatcher can accept a separate <code>IGmailLabelManager</code> only when a build intentionally wires broader Gmail permissions.</p>
+
+<h3>5. Grounded Research Only</h3>
+<p>Company dossier facts must be traceable to retrieved source documents. Facts that cannot be grounded are dropped, not approximated. Hiring signals are positive-only and deterministic.</p>
+
+<h3>6. Hook Safety</h3>
+<p>Cover-letter hooks are scanned for candidate-claim patterns. A hook that could be read as a factual claim about the candidate is omitted.</p>
+
+<h3>7. Tamper-Evident Audit Log</h3>
+<p>State transitions, gate decisions, scoring events, and engine actions are recorded in a hash-chained audit log. Each entry's integrity depends on the previous entry.</p>
+
+<h2>Current Controls</h2>
+<table>
+<tr><th>Control</th><th>Current L1 alpha path</th></tr>
+<tr><td>Pause or stop</td><td>Stop the local engine process or host. Product tray controls are planned.</td></tr>
+<tr><td>Disconnect Gmail</td><td>Revoke CareerSeeker from Google Account permissions and delete the local DPAPI token vault.</td></tr>
+<tr><td>Edit claims</td><td>Edit the local source profile/claims and rerun affected work through the Gate.</td></tr>
+<tr><td>Blocklist employers</td><td>Configure local preferences/rails when the product shell is wired.</td></tr>
+<tr><td>Set daily cap</td><td>Planned product control; current harnesses exercise bounded local runs.</td></tr>
+<tr><td>Export audit log</td><td>Planned product command; audit-chain verification is implemented in the store and harnesses.</td></tr>
+<tr><td>Delete all data</td><td>Delete local databases, generated artifacts, and <code>.appdata</code> test vaults.</td></tr>
+</table>
+
 <h2>Future Autonomy Levels</h2>
-<p>L2 and L3 modes (auto-send, recruiter response, calendar scheduling) are <strong>not available in v0.1</strong>. Before any higher autonomy level is activated, you will be required to explicitly configure:</p>
-<ul><li>Maximum applications per day</li>
-<li>Minimum score threshold for auto-send</li>
-<li>Current-employer and domain blocklist</li>
-<li>Approved Answer Bank for recruiter Q&A</li>
-<li>Quiet hours (no actions outside these windows)</li>
-<li>Calendar windows for interview scheduling (if enabled)</li>
-</ul>
-Each escalation requires your explicit opt-in. No autonomy level is activated by default.
-<p>---</p>
+<p>L2 and L3 modes are not available in v0.1. Before any higher autonomy level is activated, it must be explicitly designed, scoped, documented, and tested. Higher autonomy may require new Gmail, inbox, calendar, relay, or browser-automation permissions.</p>
+<p>No higher autonomy level is activated by default.</p>
+
 <h2>The Promise</h2>
-<p>CareerSeeker increases your application throughput without compromising your agency, your truthfulness, your account safety, or your privacy. Every material action is logged. Every draft is yours to review. Every control is yours to exercise.</p>
-<p><strong>You are the applicant. CareerSeeker is the prep team. The signature is always yours.</strong></p>
-<p>---</p>
-<p><em>This contract is versioned with the product. Changes to autonomy levels, permitted actions, or safety rules will be documented here before they take effect.</em></p></body></html>
+<p>CareerSeeker increases application throughput without compromising agency, truthfulness, account safety, or privacy. Every draft is yours to review. The signature is always yours.</p>
+<p><em>This contract is versioned with the product. Changes to autonomy levels, permitted actions, or safety rules should be documented before they take effect.</em></p>
+</body>
+</html>

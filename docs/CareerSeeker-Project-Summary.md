@@ -58,7 +58,7 @@ Not complete yet:
 - [CareerSeeker.sln](../CareerSeeker.sln): .NET 8 solution.
 - [README.md](../README.md): concise orientation and safety invariants.
 - [nuget.config](../nuget.config): restores `Microsoft.Data.Sqlite` from nuget.org.
-- [docs/](./): spec, roadmap, privacy/support/autonomy placeholders, and this Markdown handoff.
+- [docs/](./): spec, roadmap, active privacy/support/autonomy trust docs, and this Markdown handoff.
 - [src/](../src): production projects and ports.
 - [tests/](../tests): console harnesses; no xUnit dependency.
 
@@ -67,9 +67,9 @@ Important docs:
 - [CareerSeeker-Spec.md](./CareerSeeker-Spec.md): authoritative v0.9 product and architecture spec.
 - [CareerSeeker-Integration-Windows-Roadmap.md](./CareerSeeker-Integration-Windows-Roadmap.md): integration sequencing.
 - [CareerSeeker-Spec-5_6-LLM-Gateway.md](./CareerSeeker-Spec-5_6-LLM-Gateway.md): gateway economics and routing addendum.
-- [Privacy-Policy.md](./Privacy-Policy.md): OAuth verification placeholder.
-- [Support.md](./Support.md): OAuth support placeholder.
-- [Autonomy-Contract.md](./Autonomy-Contract.md): user-facing autonomy language placeholder.
+- [Privacy-Policy.md](./Privacy-Policy.md): current L1 alpha privacy and Google Limited Use language.
+- [Support.md](./Support.md): current alpha support and account-disconnect guidance.
+- [Autonomy-Contract.md](./Autonomy-Contract.md): current L1 autonomy boundaries and no-send/label split.
 
 ## Module Map
 
@@ -282,13 +282,13 @@ Latest offline harnesses:
 
 | Harness | Result |
 | --- | --- |
-| `Slice` | 12 passed, 0 failed |
-| `EngineHarness` | 11 passed, 0 failed |
+| `Slice` | 22 passed, 0 failed |
+| `EngineHarness` | 13 passed, 0 failed |
 | `ResearcherHarness` | 21 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
 | `StoreParityHarness` | 7 passed, 0 failed |
 | `GatewayGateHarness` | 21 passed, 0 failed |
-| `DispatcherNoSendHarness` | 5 passed, 0 failed |
+| `DispatcherNoSendHarness` | 9 passed, 0 failed |
 
 Live Scout harness, 2026-07-07:
 
@@ -329,7 +329,7 @@ Live Gmail harness, 2026-07-08:
   - interval detection uses salary-context window instead of entire job description.
   - European thousands like `110.000` normalize correctly.
   - implausibly large hourly parsed ranges are treated as annual.
-- OAuth placeholder docs added: Privacy Policy, Support, Autonomy Contract.
+- Trust/OAuth docs added and cleaned up: Privacy Policy, Support, Autonomy Contract.
 - Local OAuth implementation added without external NuGet packages.
 - DPAPI token vault added for local OAuth token storage.
 - Gmail live harness added.
@@ -536,10 +536,10 @@ dotnet run --project tests/GmailLiveHarness/GmailLiveHarness.csproj -c Release -
 
 ## Current Git Facts
 
-- Main commit: `bb5b3f2`
-- Main commit message: `Add agent project summary manifest`
-- Previous baseline commit: `2066213`
-- Previous baseline message: `Add compose-only Gmail OAuth draft harness`
+- Active cleanup branch: `agent/repo-cleanup`
+- Draft PR: `https://github.com/ShivaClaw/careerseeker/pull/1`
+- Main baseline for PR #1: `3fa65f5`
+- Current branch SHA changes during cleanup; use `git rev-parse --short HEAD` for the exact value.
 - Remote: `https://github.com/ShivaClaw/careerseeker.git`
 
 Ignored local artifacts:
