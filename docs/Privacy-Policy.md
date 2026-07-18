@@ -14,6 +14,8 @@ CareerSeeker runs entirely on your Windows machine. The application pipeline, da
 
 There is no CareerSeeker account. There is no CareerSeeker cloud service that processes your resume, job data, or application materials.
 
+For L1 Drafts mode, CareerSeeker requests `gmail.compose`. This permission can authorize Gmail sends, but the L1 app creates reviewable drafts only: it contains no send implementation and its Gmail interface exposes no send method. Custom Gmail labels are deferred in L1 because they require broader Gmail access.
+
 ## 2. Data We Process
 
 All of the following data is created, stored, and processed locally on your machine:

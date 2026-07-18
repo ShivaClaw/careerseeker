@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 namespace SeekerSvc.Gateway;
 
 /// <summary>A rolled-up tally for one bucket (a stage or a model).</summary>
@@ -15,21 +14,29 @@ public sealed record CostLine(long Calls, long InputTokens, long OutputTokens, d
 /// </summary>
 public sealed class Accounting
 {
-    private readonly ConcurrentDictionary<Stage, CostLine> _byStage = new();
-    private readonly ConcurrentDictionary<string, CostLine> _byModel = new();
+    private readonly object _sync = new();
+    private readonly Dictionary<Stage, CostLine> _byStage = new();
+    private readonly Dictionary<string, CostLine> _byModel = new();
     private CostLine _total = CostLine.Empty;
 
     public void Record(Stage stage, string modelId, LlmUsage usage, decimal cost)
     {
-        _byStage.AddOrUpdate(stage, _ => CostLine.Empty.Add(usage, cost), (_, s) => s.Add(usage, cost));
-        _byModel.AddOrUpdate(modelId, _ => CostLine.Empty.Add(usage, cost), (_, m) => m.Add(usage, cost));
-        _total = _total.Add(usage, cost);
+        lock (_sync)
+        {
+            _byStage[stage] = (_byStage.TryGetValue(stage, out var s) ? s : CostLine.Empty).Add(usage, cost);
+            _byModel[modelId] = (_byModel.TryGetValue(modelId, out var m) ? m : CostLine.Empty).Add(usage, cost);
+            _total = _total.Add(usage, cost);
+        }
     }
 
-    public CostLine Total => _total;
-    public IReadOnlyDictionary<Stage, CostLine> ByStage => _byStage;
-    public IReadOnlyDictionary<string, CostLine> ByModel => _byModel;
+    public CostLine Total { get { lock (_sync) return _total; } }
+    public IReadOnlyDictionary<Stage, CostLine> ByStage { get { lock (_sync) return new Dictionary<Stage, CostLine>(_byStage); } }
+    public IReadOnlyDictionary<string, CostLine> ByModel { get { lock (_sync) return new Dictionary<string, CostLine>(_byModel); } }
 
     /// <summary>One-line analytics summary.</summary>
-    public string Summary() => $"${_total.CostUsd:0.00} / {_total.Calls} calls / {_total.InputTokens + _total.OutputTokens} tokens";
+    public string Summary()
+    {
+        var total = Total;
+        return $"${total.CostUsd:0.00} / {total.Calls} calls / {total.InputTokens + total.OutputTokens} tokens";
+    }
 }

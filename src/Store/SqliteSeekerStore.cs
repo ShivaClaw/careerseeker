@@ -250,18 +250,19 @@ RETURNING id;";
     public Task AddClaimAsync(ClaimRow c, CancellationToken ct = default)
         => Locked(async () =>
         {
+            var claim = StoreNormalization.Normalize(c);
             using var cmd = Conn.CreateCommand();
             cmd.CommandText = @"
 INSERT INTO claims (id, profile_id, kind, text, confidence, source_doc, created_at)
 VALUES ($id, $pid, $kind, $text, $conf, $src, $now)
 ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, text=excluded.text,
   confidence=excluded.confidence, source_doc=excluded.source_doc;";
-            P(cmd, "$id", c.Id);
-            P(cmd, "$pid", c.ProfileId);
-            P(cmd, "$kind", c.Kind);
-            P(cmd, "$text", c.Text);
-            P(cmd, "$conf", NormalizeConfidence(c.Confidence));
-            P(cmd, "$src", c.SourceDoc);
+            P(cmd, "$id", claim.Id);
+            P(cmd, "$pid", claim.ProfileId);
+            P(cmd, "$kind", claim.Kind);
+            P(cmd, "$text", claim.Text);
+            P(cmd, "$conf", claim.Confidence);
+            P(cmd, "$src", claim.SourceDoc);
             P(cmd, "$now", Now());
             await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
             return true;
@@ -272,7 +273,7 @@ ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, text=excluded.text,
         {
             var rows = new List<ClaimRow>();
             using var cmd = Conn.CreateCommand();
-            cmd.CommandText = "SELECT id, profile_id, kind, text, confidence, source_doc FROM claims WHERE profile_id=$pid ORDER BY created_at;";
+            cmd.CommandText = "SELECT id, profile_id, kind, text, confidence, source_doc FROM claims WHERE profile_id=$pid ORDER BY id;";
             P(cmd, "$pid", profileId);
             using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await r.ReadAsync(ct).ConfigureAwait(false))
@@ -380,12 +381,6 @@ VALUES ($seq, $ts, $actor, $kind, $entity, $eid, $payload, $prev, $hash);";
 
     private static void P(SqliteCommand cmd, string name, object? value)
         => cmd.Parameters.AddWithValue(name, value ?? DBNull.Value);
-
-    private static string NormalizeConfidence(string confidence)
-    {
-        var normalized = confidence.Trim().ToLowerInvariant();
-        return normalized is "verified" or "stated" or "weak" ? normalized : "stated";
-    }
 
     private static async Task ExecAsync(SqliteConnection conn, string sql, CancellationToken ct)
     {

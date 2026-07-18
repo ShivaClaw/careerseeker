@@ -43,6 +43,8 @@ async Task<InMemorySeekerStore> SeededStoreAsync()
         { "Skill", "team" },
         { "Employer", "Acme" },
         { "Metric", "reduced p99 latency 30%" },
+        { "Other", "Senior Software Engineer experienced in distributed systems and Go" },
+        { "Other", "I have built reliable distributed systems in Go and would bring that experience to your team" },
     };
     for (var i = 0; i < claims.GetLength(0); i++)
         await store.AddClaimAsync(new ClaimRow($"c{i}", profileId, claims[i, 0], claims[i, 1], "Verified"));
@@ -106,6 +108,15 @@ async Task<long> StoreJobAsync(InMemorySeekerStore store, JobPosting p)
 
 Console.WriteLine("=== CareerSeeker L1 vertical slice (Scout→Store→Scorer→Pipeline→Tailor→Gate→Dispatcher) ===\n");
 
+{
+    var undeclared = Decomposer.FromDraft(new TailorDraft(
+        "I served as CTO at Google.", "", Array.Empty<DeclaredClaim>(), new Dictionary<string, string>()));
+    Check("undeclared title/employer prose becomes a Gate atom",
+        undeclared.Any(c => c.Kind == ClaimKind.Other && c.Text.Contains("CTO at Google")));
+    var verdict = await FabricationGate.VerifyAsync(Array.Empty<SourceClaim>(), undeclared, new DefaultSemanticMatcher());
+    Check("undeclared title/employer prose is blocked without profile support", !verdict.Passed);
+}
+
 // ── 1) HAPPY PATH: a clean, supported application flows all the way to a Gmail draft ───────────────
 Console.WriteLine("[ happy path -> DRAFTED ]");
 {
@@ -120,7 +131,7 @@ Console.WriteLine("[ happy path -> DRAFTED ]");
 
     var gmail = new FakeGmail();
     var pipeline = new ApplicationPipeline(store, TailorReturning(cleanJson), MakeDispatcher(gmail),
-        matcher: null, options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+        matcher: new DefaultSemanticMatcher(), options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
 
     var result = await pipeline.AdmitAsync(job, AutonomyLevel.L1, decision);
     Check("Gate passed", result.Gate?.Passed == true, $"violations={result.Gate?.Violations.Count}");
@@ -131,6 +142,24 @@ Console.WriteLine("[ happy path -> DRAFTED ]");
 }
 
 // ── 2) FABRICATION: an unsupported metric is caught; nothing is drafted ────────────────────────────
+Console.WriteLine("\n[ draft failure leaves READY ]");
+{
+    var store = await SeededStoreAsync();
+    var p = HealthyPosting();
+    var jobId = await StoreJobAsync(store, p);
+    var pipeline = new ApplicationPipeline(store, TailorReturning(cleanJson), new FailingDraftDispatcher(),
+        new DefaultSemanticMatcher(), new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+    try
+    {
+        await pipeline.AdmitAsync(new PipelineJob(jobId, p.Title, "Acme"), AutonomyLevel.L1,
+            DecideFor(p, new SemanticScores(4.6, 4.2)));
+    }
+    catch (InvalidOperationException) { }
+
+    var app = await store.GetApplicationAsync(1);
+    Check("failed draft leaves lifecycle at READY", app?.State == AppState.READY.ToString(), app?.State);
+}
+
 Console.WriteLine("\n[ fabrication -> BLOCKED, no draft ]");
 {
     var store = await SeededStoreAsync();
@@ -141,7 +170,7 @@ Console.WriteLine("\n[ fabrication -> BLOCKED, no draft ]");
 
     var gmail = new FakeGmail();
     var pipeline = new ApplicationPipeline(store, TailorReturning(fabricatedJson), MakeDispatcher(gmail),
-        matcher: null, options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+        matcher: new DefaultSemanticMatcher(), options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
 
     var result = await pipeline.AdmitAsync(job, AutonomyLevel.L1, decision);
     Check("Gate did NOT pass on fabricated metric", result.Gate?.Passed == false);
@@ -162,7 +191,7 @@ Console.WriteLine("\n[ scam floor -> REJECTED_BY_ENGINE ]");
 
     var gmail = new FakeGmail();
     var pipeline = new ApplicationPipeline(store, TailorReturning(cleanJson), MakeDispatcher(gmail),
-        matcher: null, options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+        matcher: new DefaultSemanticMatcher(), options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
 
     var result = await pipeline.AdmitAsync(job, AutonomyLevel.L1, score.Dispatch);
     Check("final state REJECTED_BY_ENGINE", result.FinalState == AppState.REJECTED_BY_ENGINE, result.FinalState.ToString());
@@ -173,6 +202,15 @@ Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
 // ── fakes ───────────────────────────────────────────────────────────────────────────────────────
+sealed class FailingDraftDispatcher : IDispatcher
+{
+    public Task<DispatchOutcome> CreateDraftAsync(PipelineJob job, TailoredApplication app, CancellationToken ct = default) =>
+        throw new InvalidOperationException("simulated Gmail draft failure");
+
+    public Task<DispatchOutcome> SubmitAsync(PipelineJob job, TailoredApplication app, CancellationToken ct = default) =>
+        throw new NotSupportedException();
+}
+
 sealed class FakePostings : IPostingSource
 {
     private readonly PostingDispatchInfo _i;

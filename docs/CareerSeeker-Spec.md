@@ -265,7 +265,11 @@ The engine immediately runs Scout+Scorer on live data and presents its first 5 s
 ## Part 5 — The Windows Engine (.exe) in detail
 
 ### 5.1 Packaging & runtime
-- **Stack:** .NET 8, self-contained single-file publish (no runtime install), ~80 MB. Two processes: `SeekerSvc.exe` (Windows Service, auto-start, recovery=restart) and `SeekerTray.exe` (per-user WinUI 3 tray + wizard host). Installer: Inno Setup or MSIX; **Authenticode-signed (EV cert)** — an unsigned background agent that reads your email is SmartScreen-flagged malware as far as Windows is concerned, so code signing is a launch blocker, not a polish item.
+
+2026 packaging note: prefer Azure Artifact Signing when eligible for public Windows distribution. EV
+certificates are no longer a SmartScreen shortcut; the launch blocker is public Authenticode signing, not
+EV specifically.
+- **Stack:** .NET 8, self-contained single-file publish (no runtime install), ~80 MB. Two processes: `SeekerSvc.exe` (Windows Service, auto-start, recovery=restart) and `SeekerTray.exe` (per-user WinUI 3 tray + wizard host). Installer: Inno Setup or MSIX; **Authenticode-signed (Azure Artifact Signing/OV/EV)** — an unsigned background agent that reads your email is SmartScreen-flagged malware as far as Windows is concerned, so code signing is a launch blocker, not a polish item.
 - Why a Service and not a tray-only app: survives logoff, restarts after crash/reboot, runs scheduled work at 3 AM. The tray is a thin client of the local API.
 - **Playwright for .NET** with bundled Chromium for form-fill; headed-but-minimized mode with human-pace input (per-field delays, no parallel sessions) — politeness as policy, one application at a time per site.
 - Auto-update via Squirrel/Velopack channel, delta updates, staged rollout flag.
@@ -449,7 +453,7 @@ The bundled localhost dashboard and the tray app are both pure clients of this A
 **v0.4:** Schedulist + Calendar, interview-day cards, Librarian lessons + Story Bank + Sunday Review.
 **v0.5:** L3 rails mode, Local-max LLM mode, plugin SDK, managed-inference Pro tier.
 
-**Launch-blocking checklist:** EV code-signing cert · Google OAuth restricted-scope verification · Play Store data-safety disclosures · legal review of the Autonomy Contract language and per-jurisdiction automated-correspondence rules · red-team pass on the Fabrication Gate and the prompt-injection surface (a job posting is untrusted input that flows into an LLM with send-email tools — JD content must be strictly quarantined from instruction context, and the Gate + Answer Bank are the containment).
+**Launch-blocking checklist:** public code signing · Google OAuth restricted-scope verification · Play Store data-safety disclosures · legal review of the Autonomy Contract language and per-jurisdiction automated-correspondence rules · red-team pass on the Fabrication Gate and the prompt-injection surface (a job posting is untrusted input that flows into an LLM with send-email tools — JD content must be strictly quarantined from instruction context, and the Gate + Answer Bank are the containment).
 
 **KPIs that define "amazing job," not "many applications":** interview-per-application rate (target ≥ 2× the user's manual baseline) · fabrication-gate escapes (target: zero, ever) · gate-approval latency (median < 1 h) · ghost-job dispatch rate (target: zero) · time-to-first-interview · user-reported offer quality.
 

@@ -43,17 +43,18 @@ public static class FabricationGate
     /// stateless. Collects ALL violations (not the first) so the human sees the
     /// full diff in one pass rather than failing one claim at a time.
     /// </summary>
-    public static VerificationResult Verify(
+    public static async Task<VerificationResult> VerifyAsync(
         IReadOnlyList<SourceClaim> source,
         IReadOnlyList<TailoredClaim> tailored,
         ISemanticMatcher? matcher = null,
-        int currentYear = CurrentYearDefault)
+        int currentYear = CurrentYearDefault,
+        CancellationToken ct = default)
     {
         matcher ??= new DefaultSemanticMatcher();
         var violations = new List<Violation>();
         foreach (var tc in tailored)
         {
-            var v = CheckOne(tc, source, matcher, currentYear);
+            var v = await CheckOneAsync(tc, source, matcher, currentYear, ct).ConfigureAwait(false);
             if (v is not null) violations.Add(v);
         }
         var verdict = violations.Count > 0 ? Verdict.BlockedFabrication : Verdict.Ready;
@@ -62,14 +63,14 @@ public static class FabricationGate
 
     // ---- per-claim dispatch ----------------------------------------------
 
-    private static Violation? CheckOne(
+    private static async Task<Violation?> CheckOneAsync(
         TailoredClaim tc, IReadOnlyList<SourceClaim> source,
-        ISemanticMatcher matcher, int currentYear)
+        ISemanticMatcher matcher, int currentYear, CancellationToken ct)
     {
         if (tc.Kind == ClaimKind.Credential)
             return CheckCredential(tc, source);
         if (tc.Kind == ClaimKind.Skill)
-            return CheckSkill(tc, source, matcher, currentYear);
+            return await CheckSkillAsync(tc, source, matcher, currentYear, ct).ConfigureAwait(false);
 
         if (tc.DurationYears is not null)
         {
@@ -82,13 +83,13 @@ public static class FabricationGate
                     $"This asserts {G(tc.DurationYears.Value)} years, but the employment " +
                     $"dates in your profile add up to about {G(derived!.Value)}.",
                     $"~{G(derived.Value)} years from recorded dates");
-            return CheckTextual(tc, source, matcher);  // NoDates
+            return await CheckTextualAsync(tc, source, matcher, ct).ConfigureAwait(false);  // NoDates
         }
 
         if (tc.Number is not null)
-            return CheckMetric(tc, source, matcher);
+            return await CheckMetricAsync(tc, source, matcher, ct).ConfigureAwait(false);
 
-        return CheckTextual(tc, source, matcher);
+        return await CheckTextualAsync(tc, source, matcher, ct).ConfigureAwait(false);
     }
 
     // ---- credentials: strict, never inferred -----------------------------
@@ -114,9 +115,9 @@ public static class FabricationGate
 
     // ---- skills: identify the term, then govern the characterization ------
 
-    private static Violation? CheckSkill(
+    private static async Task<Violation?> CheckSkillAsync(
         TailoredClaim tc, IReadOnlyList<SourceClaim> source,
-        ISemanticMatcher matcher, int currentYear)
+        ISemanticMatcher matcher, int currentYear, CancellationToken ct)
     {
         // Identification: the skill term must appear in the tailored claim.
         // Search SKILL claims first so the matched confidence is the skill's own.
@@ -127,7 +128,7 @@ public static class FabricationGate
         foreach (var s in ordered)
         {
             var st = Text.ContentTokens(s.Text);
-            if (st.Count > 0 && (st.IsSubsetOf(tcTokens) || matcher.Entails(s.Text, tc.Text)))
+            if (st.Count > 0 && (st.IsSubsetOf(tcTokens) || await matcher.EntailsAsync(s.Text, tc.Text, ct).ConfigureAwait(false)))
             {
                 supporting = s;
                 break;
@@ -216,14 +217,14 @@ public static class FabricationGate
 
     // ---- metrics: qualitative match AND exact number ---------------------
 
-    private static Violation? CheckMetric(
-        TailoredClaim tc, IReadOnlyList<SourceClaim> source, ISemanticMatcher matcher)
+    private static async Task<Violation?> CheckMetricAsync(
+        TailoredClaim tc, IReadOnlyList<SourceClaim> source, ISemanticMatcher matcher, CancellationToken ct)
     {
         var tcQual = StripNumbers(tc.Text);
         SourceClaim? qualitativeMatch = null;
         foreach (var s in source)
         {
-            if (SupportsText(tcQual, StripNumbers(s.Text), matcher))
+            if (await SupportsTextAsync(tcQual, StripNumbers(s.Text), matcher, ct).ConfigureAwait(false))
             {
                 qualitativeMatch = s;
                 if (s.Number is not null)
@@ -248,11 +249,11 @@ public static class FabricationGate
 
     // ---- general textual support -----------------------------------------
 
-    private static Violation? CheckTextual(
-        TailoredClaim tc, IReadOnlyList<SourceClaim> source, ISemanticMatcher matcher)
+    private static async Task<Violation?> CheckTextualAsync(
+        TailoredClaim tc, IReadOnlyList<SourceClaim> source, ISemanticMatcher matcher, CancellationToken ct)
     {
         foreach (var s in source)
-            if (SupportsText(tc.Text, s.Text, matcher))
+            if (await SupportsTextAsync(tc.Text, s.Text, matcher, ct).ConfigureAwait(false))
                 return WeakCheck(tc, s);
         return new Violation(
             tc, ViolationKind.NoSupportingClaim,
@@ -285,13 +286,13 @@ public static class FabricationGate
 
     private static string StripNumbers(string text) => Num.Replace(text, " ");
 
-    private static bool SupportsText(string tailoredText, string sourceText, ISemanticMatcher matcher)
+    private static async Task<bool> SupportsTextAsync(string tailoredText, string sourceText, ISemanticMatcher matcher, CancellationToken ct)
     {
         var t = Text.ContentTokens(tailoredText);
         var s = Text.ContentTokens(sourceText);
         if (t.Count == 0) return true;
         if (t.IsSubsetOf(s)) return true;   // covers exact-equal and subset
-        return matcher.Entails(sourceText, tailoredText);
+        return await matcher.EntailsAsync(sourceText, tailoredText, ct).ConfigureAwait(false);
     }
 
     private static double Overlap(string a, string b)

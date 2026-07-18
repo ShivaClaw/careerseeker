@@ -60,9 +60,10 @@ public interface IDocumentRenderer
 
 /// <summary>
 /// The narrow Gmail surface L1 needs: create a draft and ensure a label exists. Scope is
-/// <c>gmail.compose</c> for draft creation — there is deliberately <b>no Send method on this interface</b>,
-/// so an L1 build is structurally incapable of sending mail. Custom label management requires broader
-/// Gmail scope and is disabled by default in L1. Sending belongs to L2/L3 behind a separate, gated port.
+/// <c>gmail.compose</c> for draft creation. That permission can authorize Gmail sends, but there is
+/// deliberately <b>no Send method on this interface</b>, so the L1 application has no send implementation.
+/// Custom label management requires broader Gmail scope and is disabled by default in L1. Sending belongs
+/// to L2/L3 behind a separate, gated port.
 /// The real client calls users.drafts.create; tests use a fake.
 /// </summary>
 public interface IGmailDraftClient

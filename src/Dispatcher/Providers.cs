@@ -12,9 +12,9 @@ public interface IAccessTokenSource
 }
 
 /// <summary>
-/// Real Gmail client over the REST API, using only the <c>gmail.compose</c> scope: create drafts and
-/// ensure labels. There is intentionally no send call here — sending requires <c>gmail.send</c>, a scope
-/// an L1 install never requests (spec §8.2 incremental scopes). Request/response shapes follow
+/// Real Gmail client over the REST API, using <c>gmail.compose</c> to create drafts. That scope can also
+/// authorize sends, but this class intentionally contains no send call and exposes no send method. Custom
+/// labels are deferred in L1 because they require broader Gmail access. Request/response shapes follow
 /// users.drafts.create and users.labels. Compile-verified in the sandbox; the live HTTP path runs in the
 /// real environment, which holds the OAuth token and network egress the sandbox does not.
 /// </summary>

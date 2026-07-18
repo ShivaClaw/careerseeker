@@ -12,9 +12,9 @@ namespace SeekerSvc.Dispatcher;
 ///   • <b>Nothing here is reachable before the Gate.</b> The Pipeline graph makes the action state that
 ///     calls this dispatcher reachable only via VERIFIED; the Dispatcher adds no claim content, so it
 ///     cannot reintroduce risk the Gate already cleared.
-///   • <b>An L1 Dispatcher cannot send.</b> <see cref="SubmitAsync"/> (L2/L3 submit) throws here; the
-///     Gmail port exposes no send. Drafting and sending are different capabilities behind different
-///     scopes, and this build holds only the draft capability.
+///   • <b>An L1 Dispatcher cannot send.</b> <see cref="SubmitAsync"/> (L2/L3 submit) throws here and the
+///     Gmail port exposes no send method. The OAuth <c>gmail.compose</c> permission can authorize Gmail
+///     sends, so this is an application-level structural safeguard, not a claim about the token's power.
 /// </summary>
 public sealed class Dispatcher : IDispatcher
 {

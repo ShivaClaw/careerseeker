@@ -47,6 +47,17 @@ The host turns the slice into a continuously-running engine, with the **same wir
 fabrication → blocked, all counted correctly), the scheduler firing repeatedly and stopping cleanly on
 dispose, and the dashboard served over real HTTP (`/status` JSON + `/` HTML). 11 assertions, all green.
 
+## Alpha executable modes
+
+- Demo, offline and repeatable:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once`
+- Alpha Gmail smoke, live but one-shot:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --email you@gmail.com --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
+
+The alpha mode uses SQLite for engine state, the DPAPI token vault for Gmail OAuth, and the real
+`GmailDraftClient`. It intentionally runs one cycle and creates one self-addressed L1 draft so early
+testing cannot accidentally produce drafts on a timer.
+
 ## The two injected ports (production vs sandbox)
 
 - **`IJobFeed`** — candidate postings. Production: the Scout over ATS feeds. Sandbox: a fixed batch.
@@ -59,8 +70,8 @@ dispose, and the dashboard served over real HTTP (`/status` JSON + `/` HTML). 11
 - All eight modules (Verifier, Scout, Store, Scorer, Pipeline, Tailor, Gateway, Dispatcher) plus the
   Engine compile together as one solution: `dotnet build` → 0 warnings, 0 errors.
 - Vertical slice: **12/12**. Engine host: **11/11** (live HttpListener included).
-- Store status: `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`; the in-memory store
-  still covers the slice and harnesses that do not need a file-backed database.
+- Store status: `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with a dedicated
+  `StoreParityHarness` for in-memory/SQLite parity. Package restore requires NuGet access or a warmed cache.
 
 ## Not yet built (next)
 

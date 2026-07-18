@@ -72,7 +72,7 @@ public static class Text
 /// </summary>
 public interface ISemanticMatcher
 {
-    bool Entails(string sourceText, string tailoredText);
+    Task<bool> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -87,13 +87,13 @@ public sealed class DefaultSemanticMatcher : ISemanticMatcher
 
     public DefaultSemanticMatcher(double threshold = 0.85) => _threshold = threshold;
 
-    public bool Entails(string sourceText, string tailoredText)
+    public Task<bool> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default)
     {
         var src = Text.ContentTokens(sourceText);
         var tail = Text.ContentTokens(tailoredText);
-        if (tail.Count == 0) return false;
+        if (tail.Count == 0) return Task.FromResult(false);
         var covered = (double)tail.Count(src.Contains) / tail.Count;
-        return covered >= _threshold;
+        return Task.FromResult(covered >= _threshold);
     }
 }
 
@@ -110,10 +110,10 @@ public sealed class RuleSemanticMatcher : ISemanticMatcher
         _pairs = pairs.Select(p => (p.Source.ToLowerInvariant(), p.Tailored.ToLowerInvariant()))
                       .ToArray();
 
-    public bool Entails(string sourceText, string tailoredText)
+    public Task<bool> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default)
     {
         var s = sourceText.ToLowerInvariant();
         var t = tailoredText.ToLowerInvariant();
-        return _pairs.Any(p => s.Contains(p.Source) && t.Contains(p.Tailored));
+        return Task.FromResult(_pairs.Any(p => s.Contains(p.Source) && t.Contains(p.Tailored)));
     }
 }

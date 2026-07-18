@@ -85,3 +85,22 @@ public sealed record ApplicationRow(
     string? Channel,
     string CreatedAt,
     string UpdatedAt);
+
+internal static class StoreNormalization
+{
+    private static readonly HashSet<string> ValidConfidences = new(StringComparer.Ordinal)
+    {
+        "verified",
+        "stated",
+        "weak",
+    };
+
+    public static ClaimRow Normalize(ClaimRow claim)
+    {
+        var confidence = claim.Confidence.Trim().ToLowerInvariant();
+        if (!ValidConfidences.Contains(confidence))
+            throw new ArgumentException($"Unsupported claim confidence '{claim.Confidence}'.", nameof(claim));
+
+        return claim with { Confidence = confidence };
+    }
+}

@@ -35,7 +35,7 @@ public sealed class ApplicationPipeline
     private readonly ISeekerStore _store;
     private readonly ITailor _tailor;
     private readonly IDispatcher _dispatcher;
-    private readonly ISemanticMatcher? _matcher;
+    private readonly ISemanticMatcher _matcher;
     private readonly PipelineOptions _opt;
 
     // In production the tailored artifacts live on disk (content-addressed, per the Store); here we
@@ -45,12 +45,12 @@ public sealed class ApplicationPipeline
 
     public ApplicationPipeline(
         ISeekerStore store, ITailor tailor, IDispatcher dispatcher,
-        ISemanticMatcher? matcher = null, PipelineOptions? options = null)
+        ISemanticMatcher matcher, PipelineOptions? options = null)
     {
         _store = store;
         _tailor = tailor;
         _dispatcher = dispatcher;
-        _matcher = matcher;
+        _matcher = matcher ?? throw new ArgumentNullException(nameof(matcher));
         _opt = options ?? PipelineOptions.Default;
     }
 
@@ -94,7 +94,7 @@ public sealed class ApplicationPipeline
             tailored = await _tailor.TailorAsync(job, claims, prior, ct).ConfigureAwait(false);
             await TransitionAsync(appId, AppState.TAILORED, "engine", ct: ct).ConfigureAwait(false);
 
-            lastResult = FabricationGate.Verify(claims, tailored.Claims, _matcher);
+            lastResult = await FabricationGate.VerifyAsync(claims, tailored.Claims, _matcher, ct: ct).ConfigureAwait(false);
             if (lastResult.Passed)
             {
                 await TransitionAsync(appId, AppState.VERIFIED, "engine", ct: ct).ConfigureAwait(false);
@@ -116,15 +116,17 @@ public sealed class ApplicationPipeline
         long appId, PipelineJob job, AutonomyLevel level, TailoredApplication tailored, CancellationToken ct)
     {
         var target = Lifecycle.RouteFromReady(level);
-        await TransitionAsync(appId, target, "engine", ct: ct).ConfigureAwait(false);
 
         switch (level)
         {
             case AutonomyLevel.L1:
                 var draft = await _dispatcher.CreateDraftAsync(job, tailored, ct).ConfigureAwait(false);
+                // A failed Gmail call must leave the application READY, never falsely DRAFTED.
+                await TransitionAsync(appId, target, "engine", ct: ct).ConfigureAwait(false);
                 return (AppState.DRAFTED, draft); // the human reviews and sends from Gmail
 
             case AutonomyLevel.L2:
+                await TransitionAsync(appId, target, "engine", ct: ct).ConfigureAwait(false);
                 _pending[appId] = (job, tailored);
                 await _store.AppendEventAsync(new EventInput("engine", "gate_request", "gate", appId.ToString(),
                     "{\"kind\":\"apply\"}"), ct).ConfigureAwait(false);
@@ -132,6 +134,7 @@ public sealed class ApplicationPipeline
 
             case AutonomyLevel.L3:
             default:
+                await TransitionAsync(appId, target, "engine", ct: ct).ConfigureAwait(false);
                 var outcome = await _dispatcher.SubmitAsync(job, tailored, ct).ConfigureAwait(false);
                 await TransitionAsync(appId, AppState.APPLIED, "engine", ct: ct).ConfigureAwait(false);
                 await TransitionAsync(appId, AppState.AWAITING_RESPONSE, "engine", ct: ct).ConfigureAwait(false);

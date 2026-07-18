@@ -6,10 +6,9 @@ namespace SeekerSvc.Tailor;
 
 /// <summary>
 /// Turns a tailored draft into the atomic claims the Fabrication Gate verifies (spec section 5.5,
-/// step 1). It normalizes the model's declared claims AND independently scans the rendered prose for
-/// quantified and credentialed assertions the model may not have declared. That independent scan is
-/// the safety property: a number, a tenure, or a credential in the text becomes an atom even if the
-/// model "forgot" to declare it — so nothing the prose asserts slips past the Gate unverified.
+/// step 1). It normalizes the model's declared claims AND independently scans every rendered
+/// applicant-facing factual proposition. Declarations are convenience metadata, never a coverage
+/// boundary: a model that omits a title, employer, outcome, or any other fact still produces a Gate atom.
 /// </summary>
 public static class Decomposer
 {
@@ -27,7 +26,11 @@ public static class Decomposer
 
     private static readonly Regex Sentence = new(@"[^.!?\n]+[.!?]?", RegexOptions.Compiled);
 
-    /// <summary>Decompose a draft into atomic claims: declared (normalized) + prose-scanned (coverage).</summary>
+    private static readonly Regex NonFactualCourtesy = new(
+        @"^\s*(dear\b|sincerely\b|regards\b|thank you\b|i(?:'m| am) (?:excited|interested)|i look forward\b|i appreciate\b)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>Decompose a draft into atomic claims: declared (normalized) + complete rendered-prose coverage.</summary>
     public static IReadOnlyList<TailoredClaim> FromDraft(TailorDraft draft)
     {
         var atoms = new List<TailoredClaim>();
@@ -91,8 +94,21 @@ public static class Decomposer
         Percent.IsMatch(text) || Money.IsMatch(text) || Duration.IsMatch(text)
         || CredentialCue.IsMatch(text) || AmplifiedSkill.IsMatch(text);
 
+    /// <summary>
+    /// Returns whether a rendered sentence must be Gate-checked. Courtesy and intent-only phrases are
+    /// deliberately excluded; every other non-empty rendered sentence is treated as a factual proposition.
+    /// This default-deny boundary avoids relying on a brittle title/employer/proper-noun matcher.
+    /// </summary>
+    public static bool IsFactualProposition(string text) =>
+        !string.IsNullOrWhiteSpace(text) && !NonFactualCourtesy.IsMatch(text);
+
     private static void ScanSentence(string text, Action<TailoredClaim> add)
     {
+        // Every rendered factual proposition becomes an atom, whatever vocabulary it uses.
+        // The typed atoms below add exact metric/tenure/credential checks on top of this base coverage.
+        if (IsFactualProposition(text))
+            add(new TailoredClaim(ClaimKind.Other, text, text));
+
         // credentials: strict — any cue makes the sentence a Credential atom
         if (CredentialCue.IsMatch(text))
             add(new TailoredClaim(ClaimKind.Credential, text, text));

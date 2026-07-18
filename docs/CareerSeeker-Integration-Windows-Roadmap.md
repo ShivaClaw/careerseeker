@@ -11,8 +11,8 @@ provider keys, headless Chromium, and code signing. This document sequences that
 
 Two principles drive the ordering:
 1. **Start the long-lead clocks on day one.** CASA security assessment, OAuth production verification, and
-   the EV code-signing certificate are external, slow, and gate public launch. They run in parallel with
-   all build work.
+   public code signing are external, slow, and gate public launch. They run in parallel with all build
+   work.
 2. **Each port graduates the same way.** It already has an offline harness; "done" for the real client
    means a live smoke test that mirrors those same assertions against the real endpoint.
 
@@ -21,15 +21,23 @@ Two principles drive the ordering:
 ## Workstream A — Foundations & the long-lead clocks (start immediately, in parallel)
 
 **A1. Windows dev environment.** Windows 11 box or VM. .NET 8 SDK, Playwright (`playwright install`),
-Git. Pull the solution; restore packages from nuget.org, including `Microsoft.Data.Sqlite`, and confirm
-the full solution plus slice, engine, researcher, hook, and store parity harnesses run green on Windows.
-**Exit:** `dotnet test`/harnesses green on Windows.
+Git. Pull the solution, restore packages from nuget.org (including `Microsoft.Data.Sqlite`), and run the
+Store parity harness against SQLite. Confirm
+the full solution builds and the harnesses (slice, engine, researcher, hook, store parity, gateway gate,
+dispatcher no-send) run green on Windows. **Exit:** `dotnet test`/harnesses green on Windows.
 
 **A2. Google Cloud project + OAuth consent screen.** Create the project; configure the OAuth consent
-screen; register the desktop app client. Request **only `gmail.compose`** for v0.1 (drafts only — no
-send, no inbox, no calendar). Add yourself + beta users as test users (OAuth "testing" mode allows ≤100
+screen; register the desktop app client. Request **only `gmail.compose`** for v0.1. The L1 application
+creates drafts only and has no send implementation, although this permission can authorize Gmail sends;
+it grants no inbox or calendar access. Add yourself + beta users as test users (OAuth "testing" mode allows ≤100
 users with no verification, which unblocks the entire closed beta before any CASA spend). **Exit:** an
 OAuth client that can mint a `gmail.compose` token for a test user.
+
+**2026 console note:** Google's old OAuth consent screen menu is now organized under Google Auth
+Platform: Branding, Audience, and Data Access. Keep the scope list to `gmail.compose`; Google lists that
+Gmail scope as restricted, so production use still needs verification and possibly assessment. Official
+refs: [Google Auth Platform setup](https://developers.google.com/workspace/guides/configure-oauth-consent),
+[restricted Gmail scopes](https://support.google.com/cloud/answer/13464325?hl=en).
 
 **A3. Start the CASA / OAuth verification clock (paperwork only, now).** Restricted scopes (`gmail.compose`
 is restricted) need OAuth app verification **and** a CASA Tier-2 security assessment by an authorized
@@ -38,9 +46,13 @@ verification request and get assessor quotes now; the assessment itself can comp
 **Flag:** launch-blocking, recurring cost. Keep scopes minimal to keep this cheap. **Exit:** verification
 submitted, assessor engaged.
 
-**A4. EV code-signing certificate.** Order an EV (or OV) certificate for signing the .exe/installer;
-SmartScreen reputation builds faster with EV. Procurement + identity validation is slow. **Flag:**
-long-lead. **Exit:** certificate in hand (or hardware token ordered).
+**A4. Code signing.** Prefer Azure Artifact Signing (formerly Trusted Signing) for non-Store Windows
+distribution if eligibility fits; otherwise use an OV certificate from a traditional CA. Public signing
+identity validation is slow, and new files still need SmartScreen reputation to build; EV is no longer
+worth buying solely to bypass SmartScreen. Official refs: [Windows code-signing options](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options),
+[Artifact Signing](https://azure.microsoft.com/en-us/products/artifact-signing). **Flag:** launch-blocking
+signing setup. **Exit:** signing account/certificate profile ready and the installer/exe signing command
+documented.
 
 **A5. Secrets vault.** Implement the DPAPI-scoped vault file for OAuth refresh tokens, provider API keys,
 and E2E sync keys (spec §6) — `ProtectedData` scoped to the service account, nothing sensitive in the DB.
@@ -73,7 +85,7 @@ holds the hash (spec §6). **Exit:** a real resume PDF rendered and attached to 
 
 **B5. Gmail draft client — OAuth `gmail.compose`.** Wire the OAuth token (A2/A5) into the
 compile-verified `GmailDraftClient`. Create real drafts in a test account; confirm the `CareerSeeker/*`
-label tree and that **no send path exists**. This is the L1 payoff — a real reviewable draft in Gmail.
+label tree and that **no application send path exists**. This is the L1 payoff — a real reviewable draft in Gmail.
 **Exit:** a tailored application appears as a Gmail draft for a test user.
 
 ---
@@ -164,7 +176,7 @@ without waiting on any long-lead external gate.
 
 - **Critical path to public L1:** A2 → B5 (real drafts) → C2 (service) → D1/D2/D3 (UX + installer) →
   E1 (beta) → A3/E2 (CASA + verification) → E3 (launch).
-- **Long-lead / start now:** A3 (CASA + OAuth verification), A4 (EV cert).
+- **Long-lead / start now:** A3 (CASA + OAuth verification), A4 (code signing).
 - **Recurring cost:** CASA assessment (annual), Managed-tier inference (if offered), provider usage.
 - **No-auth quick wins (do first):** B1 (Scout), B2 (BYOK Gateway), B3 (research), B4 (PDF render).
 - **Deferred by design:** Managed proxy billing, Android/relay (F), all L2/L3 scopes (G).

@@ -11,6 +11,7 @@ namespace SeekerSvc.Engine;
 public sealed class EngineCounters
 {
     private long _discovered, _acted, _drafted, _blocked, _rejected, _errors, _cycles;
+    private long _lastCycleUtcTicks;
     public long Discovered => Interlocked.Read(ref _discovered);
     public long Acted => Interlocked.Read(ref _acted);
     public long Drafted => Interlocked.Read(ref _drafted);
@@ -18,7 +19,14 @@ public sealed class EngineCounters
     public long Rejected => Interlocked.Read(ref _rejected);
     public long Errors => Interlocked.Read(ref _errors);
     public long Cycles => Interlocked.Read(ref _cycles);
-    public DateTimeOffset? LastCycleUtc { get; private set; }
+    public DateTimeOffset? LastCycleUtc
+    {
+        get
+        {
+            var ticks = Interlocked.Read(ref _lastCycleUtcTicks);
+            return ticks == 0 ? null : new DateTimeOffset(ticks, TimeSpan.Zero);
+        }
+    }
 
     internal void AddDiscovered(long n) => Interlocked.Add(ref _discovered, n);
     internal void IncActed() => Interlocked.Increment(ref _acted);
@@ -26,7 +34,11 @@ public sealed class EngineCounters
     internal void IncBlocked() => Interlocked.Increment(ref _blocked);
     internal void IncRejected() => Interlocked.Increment(ref _rejected);
     internal void IncErrors() => Interlocked.Increment(ref _errors);
-    internal void IncCycles() { Interlocked.Increment(ref _cycles); LastCycleUtc = DateTimeOffset.UtcNow; }
+    internal void IncCycles()
+    {
+        Interlocked.Increment(ref _cycles);
+        Interlocked.Exchange(ref _lastCycleUtcTicks, DateTimeOffset.UtcNow.Ticks);
+    }
 }
 
 /// <summary>
@@ -82,33 +94,43 @@ public sealed class EngineCycle
 
     public async Task TickAsync(CancellationToken ct = default)
     {
-        var batch = await _feed.DiscoverAsync(ct).ConfigureAwait(false);
-        _counters.AddDiscovered(batch.Count);
-
-        var companyId = await _store.UpsertCompanyAsync(
-            new CompanyUpsert("feed", _opt.CompanyHandle, _opt.CompanyName), ct).ConfigureAwait(false);
-
-        foreach (var posting in batch)
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            try
-            {
-                var jobId = await PersistAsync(companyId, posting, ct).ConfigureAwait(false);
-                var sem = await _semantic.ScoreAsync(posting, ct).ConfigureAwait(false);
-                var score = SeekerSvc.Scorer.Scorer.Score(posting, _opt.Preferences, sem);
+            var batch = await _feed.DiscoverAsync(ct).ConfigureAwait(false);
+            _counters.AddDiscovered(batch.Count);
 
-                var job = new PipelineJob(jobId, posting.Title, _opt.CompanyName,
-                    score.Dispatch == Dispatch.Act ? "mailto:jobs@" + _opt.CompanyHandle + ".com" : null);
+            var companyId = await _store.UpsertCompanyAsync(
+                new CompanyUpsert("feed", _opt.CompanyHandle, _opt.CompanyName), ct).ConfigureAwait(false);
 
-                var result = await _pipeline.AdmitAsync(job, _opt.Level, score.Dispatch, ct).ConfigureAwait(false);
-                Tally(result.FinalState);
-            }
-            catch (Exception)
+            foreach (var posting in batch)
             {
-                _counters.IncErrors(); // one bad posting never takes the cycle down
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    var jobId = await PersistAsync(companyId, posting, ct).ConfigureAwait(false);
+                    var sem = await _semantic.ScoreAsync(posting, ct).ConfigureAwait(false);
+                    var score = SeekerSvc.Scorer.Scorer.Score(posting, _opt.Preferences, sem);
+
+                    var job = new PipelineJob(jobId, posting.Title, _opt.CompanyName,
+                        score.Dispatch == Dispatch.Act ? "mailto:jobs@" + _opt.CompanyHandle + ".com" : null);
+
+                    var result = await _pipeline.AdmitAsync(job, _opt.Level, score.Dispatch, ct).ConfigureAwait(false);
+                    Tally(result.FinalState);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception)
+                {
+                    _counters.IncErrors(); // one bad posting never takes the cycle down
+                }
             }
+            _counters.IncCycles();
         }
-        _counters.IncCycles();
+        catch (OperationCanceledException) { throw; }
+        catch (Exception)
+        {
+            _counters.IncErrors();
+            _counters.IncCycles();
+        }
     }
 
     private void Tally(AppState state)

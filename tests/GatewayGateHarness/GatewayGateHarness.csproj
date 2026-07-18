@@ -4,10 +4,9 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../Pipeline/SeekerSvc.Pipeline.csproj" />
-    <ProjectReference Include="../Tailor/SeekerSvc.Tailor.csproj" />
-    <ProjectReference Include="../Dispatcher/SeekerSvc.Dispatcher.csproj" />
+    <ProjectReference Include="../../src/Gateway/SeekerSvc.Gateway.csproj" />
   </ItemGroup>
 </Project>

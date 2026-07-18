@@ -19,7 +19,6 @@ public sealed class InMemorySeekerStore : ISeekerStore
     private readonly Dictionary<long, ApplicationRow> _apps = new();
     private readonly List<EventRow> _events = new();
     private readonly Dictionary<string, ClaimRow> _claims = new();
-    private readonly List<string> _claimOrder = new();
     private readonly Dictionary<string, string> _config = new();
 
     private long _companySeq, _jobSeq, _appSeq;
@@ -76,7 +75,7 @@ public sealed class InMemorySeekerStore : ISeekerStore
                     CompMin = job.CompMin ?? existing.CompMin,
                     CompMax = job.CompMax ?? existing.CompMax,
                     LastVerified = now,
-                    RepostCount = repost
+                    RepostCount = repost,
                 };
                 return new JobWriteResult(id, false, repost);
             }
@@ -105,7 +104,11 @@ public sealed class InMemorySeekerStore : ISeekerStore
     public async Task SaveScoreAsync(ScoreRow score, CancellationToken ct = default)
     {
         await _mutex.WaitAsync(ct).ConfigureAwait(false);
-        try { _scores[score.JobId] = score; }
+        try
+        {
+            _ = Now();
+            _scores[score.JobId] = score;
+        }
         finally { _mutex.Release(); }
     }
 
@@ -176,6 +179,7 @@ public sealed class InMemorySeekerStore : ISeekerStore
             if (_profileId == 0) _profileId = 1;
             _profileVersion++;
             _profileJson = json;
+            _ = Now();
             return _profileId;
         }
         finally { _mutex.Release(); }
@@ -186,9 +190,8 @@ public sealed class InMemorySeekerStore : ISeekerStore
         await _mutex.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (!_claims.ContainsKey(claim.Id))
-                _claimOrder.Add(claim.Id);
-            _claims[claim.Id] = claim with { Confidence = NormalizeConfidence(claim.Confidence) };
+            _ = Now();
+            _claims[claim.Id] = StoreNormalization.Normalize(claim);
         }
         finally { _mutex.Release(); }
     }
@@ -196,7 +199,7 @@ public sealed class InMemorySeekerStore : ISeekerStore
     public async Task<IReadOnlyList<ClaimRow>> GetClaimsAsync(long profileId, CancellationToken ct = default)
     {
         await _mutex.WaitAsync(ct).ConfigureAwait(false);
-        try { return _claimOrder.Select(id => _claims[id]).Where(c => c.ProfileId == profileId).ToList(); }
+        try { return _claims.Values.Where(c => c.ProfileId == profileId).OrderBy(c => c.Id, StringComparer.Ordinal).ToList(); }
         finally { _mutex.Release(); }
     }
 
@@ -227,9 +230,4 @@ public sealed class InMemorySeekerStore : ISeekerStore
     /// <summary>Test-only hook: overwrite a stored event to simulate tampering. Not part of ISeekerStore.</summary>
     internal void TamperForTest(int index, EventRow replacement) => _events[index] = replacement;
 
-    private static string NormalizeConfidence(string confidence)
-    {
-        var normalized = confidence.Trim().ToLowerInvariant();
-        return normalized is "verified" or "stated" or "weak" ? normalized : "stated";
-    }
 }

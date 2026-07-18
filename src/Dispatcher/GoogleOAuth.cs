@@ -130,7 +130,7 @@ public sealed class GoogleOAuthTokenSource : IAccessTokenSource
     private async Task<OAuthToken> AuthorizeInteractiveAsync(CancellationToken ct)
     {
         var port = FreeTcpPort();
-        var redirect = $"http://127.0.0.1:{port}/";
+        var redirect = $"http://localhost:{port}/";
         var state = RandomUrlToken(32);
         var verifier = RandomUrlToken(64);
         var challenge = Base64Url.Encode(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
@@ -222,7 +222,9 @@ public sealed class GoogleOAuthTokenSource : IAccessTokenSource
         using var resp = await _http.PostAsync(_client.TokenUri, new FormUrlEncodedContent(form), ct)
             .ConfigureAwait(false);
         var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException(
+                $"Google OAuth token request failed: {(int)resp.StatusCode} {resp.ReasonPhrase}. {CompactOAuthError(json)}");
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -235,6 +237,22 @@ public sealed class GoogleOAuthTokenSource : IAccessTokenSource
         var scope = root.TryGetProperty("scope", out var s) ? s.GetString() ?? GmailComposeScope : GmailComposeScope;
 
         return new OAuthToken(access, refresh, expires, scope);
+    }
+
+    private static string CompactOAuthError(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var error = root.TryGetProperty("error", out var e) ? e.GetString() : null;
+            var description = root.TryGetProperty("error_description", out var d) ? d.GetString() : null;
+            return string.Join(" ", new[] { error, description }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        }
+        catch (JsonException)
+        {
+            return json.Length <= 300 ? json : json[..300];
+        }
     }
 
     private static string Query(string baseUrl, IReadOnlyDictionary<string, string> values)

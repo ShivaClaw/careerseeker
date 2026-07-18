@@ -25,6 +25,8 @@ const string fabricated =
 string Respond(ProviderCall call)
 {
     var prompt = string.Join("\n", call.Messages.Select(m => m.Content));
+    if (prompt.Contains("Decide whether SOURCE FACTS fully support", StringComparison.Ordinal))
+        return "{\"entailed\":true}";
     return prompt.Contains("Fabricator") ? fabricated : clean;
 }
 var gateway = new LlmGateway(RoutingTable.Default(), GatewayMode.Managed, new BudgetMeter(1000m),
@@ -36,7 +38,9 @@ async Task<InMemorySeekerStore> SeededStoreAsync()
     var store = new InMemorySeekerStore();
     var pid = await store.UpsertProfileAsync("{}");
     foreach (var (k, t) in new[] { ("Title","Senior Software Engineer"), ("Skill","distributed systems"),
-        ("Skill","Go"), ("Skill","reliable"), ("Skill","experience"), ("Skill","team"), ("Employer","Acme"), ("Metric","reduced p99 latency 30%") })
+        ("Skill","Go"), ("Skill","reliable"), ("Skill","experience"), ("Skill","team"), ("Employer","Acme"), ("Metric","reduced p99 latency 30%"),
+        ("Other","Senior Software Engineer experienced in distributed systems and Go"),
+        ("Other","I have built reliable distributed systems in Go and would bring that experience to your team") })
         await store.AddClaimAsync(new ClaimRow(Guid.NewGuid().ToString("N"), pid, k, t, "Verified"));
     return store;
 }
@@ -68,7 +72,7 @@ var counters = new EngineCounters();
 {
     var store = await SeededStoreAsync();
     var feed = new FakeFeed(new[] { Healthy("Senior Software Engineer"), Scam(), Healthy("Fabricator Role") });
-    var pipeline = new ApplicationPipeline(store, tailor, MakeDispatcher(new FakeGmail()), null,
+    var pipeline = new ApplicationPipeline(store, tailor, MakeDispatcher(new FakeGmail()), new GatewaySemanticMatcher(gateway),
         new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
     var cycle = new EngineCycle(store, feed, new FakeSemantic(), pipeline, opt, counters);
 
