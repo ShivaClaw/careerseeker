@@ -59,18 +59,25 @@ public interface IDocumentRenderer
 }
 
 /// <summary>
-/// The narrow Gmail surface L1 needs: create a draft and ensure a label exists. Scope is
-/// <c>gmail.compose</c> for draft creation. That permission can authorize Gmail sends, but there is
-/// deliberately <b>no Send method on this interface</b>, so the L1 application has no send implementation.
-/// Custom label management requires broader Gmail scope and is disabled by default in L1. Sending belongs
-/// to L2/L3 behind a separate, gated port.
+/// The narrow Gmail surface L1 needs: create a draft. Scope is <c>gmail.compose</c> for draft creation.
+/// That permission can authorize Gmail sends, but there is deliberately <b>no Send method on this
+/// interface</b>, so the L1 application has no send implementation. Custom label management requires
+/// broader Gmail scope and belongs behind <see cref="IGmailLabelManager"/> rather than this L1 port.
+/// Sending belongs to L2/L3 behind a separate, gated port.
 /// The real client calls users.drafts.create; tests use a fake.
 /// </summary>
 public interface IGmailDraftClient
 {
     /// <summary>Create a draft from a base64url-encoded RFC 5322 message. Returns the draft id.</summary>
     Task<string> CreateDraftAsync(string rawRfc822Base64Url, IReadOnlyList<string> labelIds, CancellationToken ct = default);
+}
 
+/// <summary>
+/// Optional Gmail label management capability. This is intentionally separate from <see cref="IGmailDraftClient"/>
+/// because labels require broader Gmail permissions than L1's compose-only draft creation path.
+/// </summary>
+public interface IGmailLabelManager
+{
     /// <summary>Resolve a label path to an id, creating it if needed. Not used by compose-only L1 defaults.</summary>
     Task<string> EnsureLabelAsync(string labelPath, CancellationToken ct = default);
 }

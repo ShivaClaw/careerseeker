@@ -186,5 +186,4 @@ sealed class FakeGmail : IGmailDraftClient
 {
     public int Drafts;
     public Task<string> CreateDraftAsync(string raw, IReadOnlyList<string> labelIds, CancellationToken ct = default) { Drafts++; return Task.FromResult("d" + Drafts); }
-    public Task<string> EnsureLabelAsync(string labelPath, CancellationToken ct = default) => Task.FromResult("L_" + labelPath);
 }

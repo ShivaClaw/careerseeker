@@ -15,8 +15,8 @@ public interface IAccessTokenSource
 /// Real Gmail client over the REST API, using <c>gmail.compose</c> to create drafts. That scope can also
 /// authorize sends, but this class intentionally contains no send call and exposes no send method. Custom
 /// labels are deferred in L1 because they require broader Gmail access. Request/response shapes follow
-/// users.drafts.create and users.labels. Compile-verified in the sandbox; the live HTTP path runs in the
-/// real environment, which holds the OAuth token and network egress the sandbox does not.
+/// users.drafts.create. Compile-verified in the sandbox; the live HTTP path runs in the real environment,
+/// which holds the OAuth token and network egress the sandbox does not.
 /// </summary>
 public sealed class GmailDraftClient : IGmailDraftClient
 {
@@ -37,42 +37,35 @@ public sealed class GmailDraftClient : IGmailDraftClient
             ? new Dictionary<string, object> { ["raw"] = rawRfc822Base64Url }
             : new Dictionary<string, object> { ["raw"] = rawRfc822Base64Url, ["labelIds"] = labelIds };
         var body = new { message };
-        using var req = await Authed(HttpMethod.Post, $"{Base}/drafts", body, ct).ConfigureAwait(false);
+        using var req = await GmailHttp.AuthedAsync(_tokens, HttpMethod.Post, $"{Base}/drafts", body, ct).ConfigureAwait(false);
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        EnsureSuccess(resp, json);
+        GmailHttp.EnsureSuccess(resp, json);
 
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement.GetProperty("id").GetString()
                ?? throw new InvalidOperationException("Gmail draft response had no id.");
     }
+}
 
-    public async Task<string> EnsureLabelAsync(string labelPath, CancellationToken ct = default)
+static class GmailHttp
+{
+    public static async Task<HttpRequestMessage> AuthedAsync(
+        IAccessTokenSource tokens,
+        HttpMethod method,
+        string url,
+        object? body,
+        CancellationToken ct)
     {
-        // look for an existing label by name
-        using (var listReq = await Authed(HttpMethod.Get, $"{Base}/labels", null, ct).ConfigureAwait(false))
-        using (var listResp = await _http.SendAsync(listReq, ct).ConfigureAwait(false))
-        {
-            var json = await listResp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            EnsureSuccess(listResp, json);
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("labels", out var labels))
-                foreach (var l in labels.EnumerateArray())
-                    if (l.TryGetProperty("name", out var n) && n.GetString() == labelPath)
-                        return l.GetProperty("id").GetString()!;
-        }
-
-        // create it
-        var body = new { name = labelPath, labelListVisibility = "labelShow", messageListVisibility = "show" };
-        using var createReq = await Authed(HttpMethod.Post, $"{Base}/labels", body, ct).ConfigureAwait(false);
-        using var createResp = await _http.SendAsync(createReq, ct).ConfigureAwait(false);
-        var cjson = await createResp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        EnsureSuccess(createResp, cjson);
-        using var cdoc = JsonDocument.Parse(cjson);
-        return cdoc.RootElement.GetProperty("id").GetString()!;
+        var req = new HttpRequestMessage(method, url);
+        req.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer", await tokens.GetTokenAsync(ct).ConfigureAwait(false));
+        if (body is not null)
+            req.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+        return req;
     }
 
-    private static void EnsureSuccess(HttpResponseMessage resp, string body)
+    public static void EnsureSuccess(HttpResponseMessage resp, string body)
     {
         if (resp.IsSuccessStatusCode) return;
         var compact = string.IsNullOrWhiteSpace(body) ? "" : " Body: " + body.Replace("\r", "").Replace("\n", " ");
@@ -80,15 +73,5 @@ public sealed class GmailDraftClient : IGmailDraftClient
             $"Gmail API {(int)resp.StatusCode} {resp.ReasonPhrase}.{compact}",
             null,
             resp.StatusCode);
-    }
-
-    private async Task<HttpRequestMessage> Authed(HttpMethod method, string url, object? body, CancellationToken ct)
-    {
-        var req = new HttpRequestMessage(method, url);
-        req.Headers.Authorization = new AuthenticationHeaderValue(
-            "Bearer", await _tokens.GetTokenAsync(ct).ConfigureAwait(false));
-        if (body is not null)
-            req.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-        return req;
     }
 }

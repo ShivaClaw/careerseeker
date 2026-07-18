@@ -21,17 +21,20 @@ public sealed class Dispatcher : IDispatcher
     private readonly IPostingSource _postings;
     private readonly IDocumentRenderer _renderer;
     private readonly IGmailDraftClient _gmail;
+    private readonly IGmailLabelManager? _labels;
     private readonly DispatcherConfig _config;
 
     public Dispatcher(
         IPostingSource postings,
         IDocumentRenderer renderer,
         IGmailDraftClient gmail,
-        DispatcherConfig config)
+        DispatcherConfig config,
+        IGmailLabelManager? labels = null)
     {
         _postings = postings;
         _renderer = renderer;
         _gmail = gmail;
+        _labels = labels;
         _config = config;
     }
 
@@ -50,8 +53,12 @@ public sealed class Dispatcher : IDispatcher
         var labelIds = Array.Empty<string>();
         if (_config.UseCustomLabels)
         {
+            if (_labels is null)
+                throw new InvalidOperationException(
+                    "Custom Gmail labels require an IGmailLabelManager capability; the L1 draft client is compose-only.");
+
             var labelPath = pkg.Channel == DispatchChannel.Email ? _config.OutboxLabel : _config.ActionNeededLabel;
-            var labelId = await _gmail.EnsureLabelAsync(labelPath, ct).ConfigureAwait(false);
+            var labelId = await _labels.EnsureLabelAsync(labelPath, ct).ConfigureAwait(false);
             labelIds = new[] { labelId };
         }
 

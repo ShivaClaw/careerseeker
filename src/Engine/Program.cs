@@ -381,7 +381,4 @@ sealed class DemoGmailDraftClient : IGmailDraftClient
 
     public Task<string> CreateDraftAsync(string raw, IReadOnlyList<string> labelIds, CancellationToken ct = default) =>
         Task.FromResult("demo-draft-" + Interlocked.Increment(ref _drafts));
-
-    public Task<string> EnsureLabelAsync(string labelPath, CancellationToken ct = default) =>
-        Task.FromResult("demo-label-" + labelPath);
 }

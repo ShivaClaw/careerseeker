@@ -272,7 +272,6 @@ sealed class FakeGmail : IGmailDraftClient
     public int Drafts;
     public Task<string> CreateDraftAsync(string raw, IReadOnlyList<string> labelIds, CancellationToken ct = default)
     { Drafts++; return Task.FromResult("draft_" + Drafts); }
-    public Task<string> EnsureLabelAsync(string labelPath, CancellationToken ct = default) => Task.FromResult("Label_" + labelPath);
 }
 sealed class UnavailableSemanticMatcher : ISemanticMatcher
 {
