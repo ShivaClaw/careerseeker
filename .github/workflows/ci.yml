@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: true
+
+jobs:
+  build-and-test:
+    name: Build and offline harnesses
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore CareerSeeker.sln
+
+      - name: Build Release with warnings as errors
+        run: dotnet build CareerSeeker.sln -c Release --no-restore --warnaserror
+
+      - name: Run vertical slice harness
+        run: dotnet run --project tests/Slice/Slice.csproj -c Release --no-build
+
+      - name: Run engine harness
+        run: dotnet run --project tests/EngineHarness/EngineHarness.csproj -c Release --no-build
+
+      - name: Run researcher harness
+        run: dotnet run --project tests/ResearcherHarness/ResearcherHarness.csproj -c Release --no-build
+
+      - name: Run hook harness
+        run: dotnet run --project tests/HookHarness/HookHarness.csproj -c Release --no-build
+
+      - name: Run store parity harness
+        run: dotnet run --project tests/StoreParityHarness/StoreParityHarness.csproj -c Release --no-build
+
+      - name: Run pinned Gate harness
+        run: dotnet run --project tests/GatewayGateHarness/GatewayGateHarness.csproj -c Release --no-build
+
+      - name: Run dispatcher no-send harness
+        run: dotnet run --project tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj -c Release --no-build
