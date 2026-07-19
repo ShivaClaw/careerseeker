@@ -26,6 +26,8 @@ if (mode.Equals("research-company", StringComparison.OrdinalIgnoreCase))
     return await RunResearchCompanyAsync().ConfigureAwait(false);
 if (mode.Equals("export-audit", StringComparison.OrdinalIgnoreCase))
     return await RunExportAuditAsync().ConfigureAwait(false);
+if (mode.Equals("doctor", StringComparison.OrdinalIgnoreCase))
+    return await RunDoctorAsync().ConfigureAwait(false);
 if (mode.Equals("import-byok", StringComparison.OrdinalIgnoreCase))
     return RunImportByok();
 if (mode.Equals("clear-byok", StringComparison.OrdinalIgnoreCase))
@@ -303,6 +305,26 @@ async Task<int> RunExportAuditAsync()
     }
 
     return verification.Ok ? 0 : 1;
+}
+
+async Task<int> RunDoctorAsync()
+{
+    var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
+    var report = await StartupDoctor.RunAsync(new StartupDoctorOptions(
+        DbPath: StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db"),
+        ArtifactDirectory: StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts"),
+        OAuthClientPath: StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json"),
+        GmailTokenVaultPath: StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi"),
+        EnvFilePath: envFilePath,
+        KeyVaultPath: StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi"),
+        RequireGmail: HasFlag("--require-gmail"),
+        RequireByok: HasFlag("--require-byok"))).ConfigureAwait(false);
+
+    Console.WriteLine("CareerSeeker startup doctor");
+    foreach (var check in report.Checks)
+        Console.WriteLine($"  {(check.Ok ? "OK" : "FAIL")}  {check.Name}: {check.Detail}");
+    Console.WriteLine("  secret values were not printed.");
+    return report.Ok ? 0 : 1;
 }
 
 int RunImportByok()
@@ -657,6 +679,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");
+    Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe disconnect-gmail [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");

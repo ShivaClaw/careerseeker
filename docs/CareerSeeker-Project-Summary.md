@@ -31,6 +31,8 @@ Completed:
 - The localhost dashboard exposes recent application state, scores, draft refs, generated resume/cover document links, and safe job/apply links at `/applications`.
 - The localhost dashboard exposes audit-chain status and recent audit event metadata at `/evidence`.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
+- The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
+  Gmail vault presence, and BYOK provider availability.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
 - Gmail live smoke and alpha mode preflight the Gmail drafts API before creating a draft.
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
@@ -297,12 +299,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 201 passed, 0 failed.
+Total: 203 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 30 passed, 0 failed |
+| `EngineHarness` | 32 passed, 0 failed |
 | `ResearcherHarness` | 26 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
 | `StoreParityHarness` | 14 passed, 0 failed |
@@ -482,7 +484,7 @@ Status: substantially complete.
 - Kill switch.
 - Broader dashboard polish beyond the current local status, evidence, application, and document-link views.
 - Installer and Azure Artifact Signing/OV code signing.
-- Startup smoke test for config, keys, API reachability, and DB health.
+- Broader startup smoke can add live API reachability; local DB, artifacts, Gmail config/vault, and BYOK checks are covered by `doctor`.
 
 ### Phase 5: Onboarding And User Data
 

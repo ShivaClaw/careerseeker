@@ -46,6 +46,8 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --gate-semantic-candidates 3 --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
 - Bounded BYOK alpha smoke for routine validation:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --fast-smoke --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
+- Startup doctor for local DB, artifact folder, Gmail config, and BYOK readiness:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- doctor --require-gmail --require-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --artifacts .appdata/artifacts`
 - Disconnect Gmail, revoking OAuth and deleting the local vault:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`
 - Clear imported BYOK provider keys from the local vault:
@@ -76,7 +78,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 201 passed, 0 failed.
+- Latest offline harness total: 203 passed, 0 failed.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
   in-memory/SQLite behavior parity plus the recent-application read model, and `EngineHarness` covering a
   SQLite-backed engine cycle.
@@ -91,6 +93,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   metadata without payload bodies.
 - `export-audit` writes a local audit JSON package; payloads are hash-only by default and opt-in with
   `--include-payloads`.
+- `doctor` checks local SQLite/audit health, artifact writability, Gmail OAuth/vault presence when required,
+  and BYOK provider availability without printing secret values.
 
 ## Not Yet Built
 

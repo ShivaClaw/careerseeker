@@ -26,6 +26,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   resume/cover document links, and safe job/apply links.
 - The localhost dashboard exposes `/evidence` with audit-chain status and recent audit event metadata.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
+- The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
+  Gmail vault presence, and BYOK provider availability.
 - A real Brave Search web-research adapter and `research-company` alpha command are implemented; live verification is pending a Brave Search key.
 
 ## Alpha target
@@ -83,6 +85,7 @@ Verified:
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --fast-smoke --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- doctor --require-gmail --require-byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --artifacts .appdata/artifacts --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project tests/RendererHarness/RendererHarness.csproj --no-build`
 

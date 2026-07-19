@@ -261,6 +261,55 @@ Console.WriteLine("\n[ audit export ]");
         full);
 }
 
+Console.WriteLine("\n[ startup doctor ]");
+{
+    var root = Path.Combine(Path.GetTempPath(), "careerseeker-doctor-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var clientPath = Path.Combine(root, "client.json");
+        await File.WriteAllTextAsync(clientPath, """
+        {
+          "installed": {
+            "client_id": "client-123.apps.googleusercontent.com",
+            "client_secret": "secret-abc"
+          }
+        }
+        """);
+        var envPath = Path.Combine(root, "env.secrets");
+        await File.WriteAllTextAsync(envPath, """
+        ANTHROPIC_API_KEY=fake-anthropic
+        GEMINI_API_KEY=fake-gemini
+        """);
+
+        var report = await StartupDoctor.RunAsync(new StartupDoctorOptions(
+            DbPath: Path.Combine(root, "doctor.db"),
+            ArtifactDirectory: Path.Combine(root, "artifacts"),
+            OAuthClientPath: clientPath,
+            GmailTokenVaultPath: Path.Combine(root, "missing-token.dpapi"),
+            EnvFilePath: envPath,
+            KeyVaultPath: Path.Combine(root, "missing-keys.dpapi")));
+        Check("startup doctor passes optional Gmail/BYOK checks with usable local resources",
+            report.Ok && report.Checks.Any(c => c.Name == "byok_providers" && c.Detail.Contains("anthropic")));
+
+        var strict = await StartupDoctor.RunAsync(new StartupDoctorOptions(
+            DbPath: Path.Combine(root, "doctor-strict.db"),
+            ArtifactDirectory: Path.Combine(root, "strict-artifacts"),
+            OAuthClientPath: clientPath,
+            GmailTokenVaultPath: Path.Combine(root, "missing-token.dpapi"),
+            EnvFilePath: envPath,
+            KeyVaultPath: Path.Combine(root, "missing-keys.dpapi"),
+            RequireGmail: true,
+            RequireByok: true));
+        Check("startup doctor fails closed when required Gmail token is missing",
+            !strict.Ok && strict.Checks.Any(c => c.Name == "gmail_token_vault" && !c.Ok));
+    }
+    finally
+    {
+        try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch (IOException) { }
+    }
+}
+
 Console.WriteLine("\n[ gateway safety ]");
 {
     var meter = new BudgetMeter(0.001m);
