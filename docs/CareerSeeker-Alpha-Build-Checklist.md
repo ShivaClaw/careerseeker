@@ -16,6 +16,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - The alpha executable can revoke Gmail OAuth and delete the local DPAPI token vault.
 - Engine alpha mode can use `--llm byok` to route Tailor and Gate through local Anthropic/Gemini keys, preferring a DPAPI provider-key vault when present.
 - Live BYOK provider smoke is green for Anthropic, Gemini, Tailor, Gate entailment, and Gateway accounting.
+- Engine alpha mode has a bounded `--fast-smoke` BYOK path that verifies live Gate, live Tailor, Gmail draft creation, PDF attachment packaging, and SQLite audit in one routine command.
 - Engine alpha drafts attach a real ATS-clean resume PDF.
 
 ## Alpha target
@@ -69,6 +70,7 @@ Verified:
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project tests/ByokLiveHarness/ByokLiveHarness.csproj -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --fast-smoke --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project tests/RendererHarness/RendererHarness.csproj --no-build`
 
@@ -76,7 +78,7 @@ Verified:
 
 Status: after technical alpha
 
-- Add a fast full alpha BYOK smoke path or batch/minimize live Gate checks so the Gmail + PDF + BYOK path completes quickly enough for routine validation.
+- Batch/minimize live Gate checks for the unconstrained production-like BYOK alpha path.
 - Add a polished HTML/Chromium renderer when visual templates become product-facing.
 
 Exit:

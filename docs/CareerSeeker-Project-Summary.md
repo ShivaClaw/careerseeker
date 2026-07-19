@@ -19,7 +19,7 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration, Gmail disconnect, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, ATS-clean PDF rendering, and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, Gmail disconnect, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, bounded BYOK alpha smoke, ATS-clean PDF rendering, and parity coverage verified.
 
 Completed:
 
@@ -32,6 +32,7 @@ Completed:
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
 - BYOK provider keys can be imported from environment/env.secrets into a local DPAPI vault.
 - Live BYOK provider smoke passes for Anthropic, Gemini, Tailor, Gate entailment, and Gateway accounting.
+- Bounded alpha `--llm byok --fast-smoke` passes live Gate preflight, live Tailor smoke, Gmail draft creation, PDF attachment packaging, and SQLite audit in one routine command.
 - Dispatcher has a real deterministic ATS-clean PDF renderer for resume attachments, with optional cover PDFs.
 - L1 compose-only correction is in place: custom Gmail labels are skipped by default because label management requires broader Gmail scope than `gmail.compose`.
 - SQLite provider source is restored to the Store project and covered by `StoreParityHarness`.
@@ -40,7 +41,7 @@ Completed:
 
 Not complete yet:
 
-- Fast full alpha BYOK + Gmail smoke; the provider harness is green, but the full alpha command can be slow because live Gate checks may run across extracted draft claims.
+- Batched/minimized live Gate checks for the unconstrained production-like BYOK alpha path; the bounded smoke path is green.
 - Real web research adapter.
 - Headless Chromium/HTML document renderer polish beyond the current ATS-clean text PDF renderer.
 - Windows Service, tray, installer, and code signing.
@@ -259,7 +260,7 @@ SQLite pragmas:
 | --- | --- | --- |
 | Scout | Live verified | Greenhouse, Lever, and Ashby public APIs. Board-level failures are isolated. |
 | Gmail OAuth | Live verified | `gmail.compose`; DPAPI local token vault; real draft created; custom labels skipped for L1. |
-| LLM providers | Live provider smoke verified | `--llm byok` reads local DPAPI/env/env.secrets keys and registers Anthropic/Gemini providers for Tailor and Gate; full alpha BYOK smoke still needs a faster validation path. |
+| LLM providers | Live provider and bounded alpha smoke verified | `--llm byok` reads local DPAPI/env/env.secrets keys and registers Anthropic/Gemini providers for Tailor and Gate; `--fast-smoke` keeps routine alpha validation bounded. |
 | Research web | Fake/offline only | Planned search API plus web fetch. |
 | Document renderer | Offline verified | Deterministic single-column ATS-clean PDF renderer writes selectable resume text and attaches PDFs to drafts; Chromium/HTML polish remains future work. |
 | SQLite | Source restored | `Microsoft.Data.Sqlite` PackageReference active; `StoreParityHarness` passed. |
@@ -352,6 +353,18 @@ Alpha Gmail/PDF smoke, 2026-07-19:
 - ATS-clean resume PDF attached by the real document renderer.
 - SQLite audit chain verified.
 
+Bounded BYOK alpha smoke, 2026-07-19:
+
+- Result: passed with `--llm byok --fast-smoke`.
+- Gmail OAuth token available from DPAPI vault.
+- Gmail drafts API preflight reachable.
+- Gmail profile lookup available, so `--email` is optional for this path.
+- BYOK provider keys loaded from local DPAPI vault.
+- Live Gate preflight returned supported entailment through the pinned VerifierEntailment stage.
+- Live Tailor smoke returned an exact source-backed draft through Anthropic `claude-sonnet-4-6`.
+- One self-addressed L1 Gmail draft created with the real PDF attachment path.
+- SQLite audit chain verified.
+
 ## Design Changes Since Original Snapshot
 
 - Repo baseline repaired into structured `src/`, `tests/`, and `docs/` layout.
@@ -380,6 +393,7 @@ Alpha Gmail/PDF smoke, 2026-07-19:
 - Tailor and Researcher prompts now mark untrusted data in explicit XML-style blocks.
 - BYOK alpha wiring added for real Anthropic/Gemini Tailor and Gate calls from local environment or `env.secrets` keys.
 - BYOK provider-key import/clear commands added for a local DPAPI vault; alpha `--llm byok` prefers the vault.
+- Bounded `alpha --llm byok --fast-smoke` added for routine live Tailor + Gate + Gmail + PDF validation.
 - ATS-clean PDF renderer added and wired into alpha draft packaging; sample PDFs render and text extracts cleanly.
 
 ## Roadmap
@@ -405,7 +419,8 @@ Status: substantially complete.
 
 - B2 BYOK LLM providers:
   - Direct Anthropic, Gemini, Tailor, Gate entailment, and Gateway accounting smoke is verified.
-  - Add a fast full alpha BYOK smoke path or batch/minimize live Gate calls so routine Gmail + PDF + BYOK validation completes quickly.
+  - Bounded alpha `--llm byok --fast-smoke` is verified for routine Gmail + PDF + BYOK validation.
+  - Batch/minimize live Gate calls for the unconstrained production-like BYOK alpha path.
   - Confirm StrongCloud failover under real provider outage conditions.
 - B3 real Researcher:
   - Implement `IWebResearch` with search API plus web fetch.
@@ -493,7 +508,7 @@ Status: substantially complete.
 - DPAPI vault now supports local deletion and Gmail token revocation; future product should add migration/export policy and perhaps optional entropy.
 - Production composition root has not yet been wired to SQLite.
 - OAuth production verification and CASA remain long-lead launch blockers.
-- Full alpha BYOK + Gmail smoke is not yet quick enough for routine validation; use `ByokLiveHarness` plus alpha fake-inference Gmail/PDF smoke until Gate batching or a fast smoke mode lands.
+- Unconstrained production-like BYOK alpha can still be slow because live Gate calls may run across extracted draft claims; the bounded `--fast-smoke` path is the routine validator until Gate batching/minimization lands.
 - Current PDF renderer is ATS-clean text; not yet a polished HTML/Chromium resume template.
 - No real web research adapter yet.
 - No Windows service/tray composition root yet.
@@ -504,7 +519,7 @@ Status: substantially complete.
 Highest priority:
 
 - Add a product-shell control that calls the existing Gmail disconnect path from the tray/dashboard.
-- Add a fast full alpha BYOK smoke path or batch/minimize live Gate checks, then verify Gmail + PDF + real Tailor/Gate in one routine command.
+- Batch/minimize live Gate checks for the unconstrained production-like BYOK alpha path.
 
 Near-term connector work:
 
@@ -574,6 +589,7 @@ dotnet run --project tests/GmailLiveHarness/GmailLiveHarness.csproj -c Release -
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi
 dotnet run --project tests/ByokLiveHarness/ByokLiveHarness.csproj -c Release --no-build -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db
+dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- alpha --llm byok --fast-smoke --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- alpha --llm byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- clear-byok --key-vault .appdata/secrets/byok-keys.dpapi
@@ -598,6 +614,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past six important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, live BYOK provider calls, local DPAPI provider-key import, and real ATS-clean PDF draft attachments. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be a fast full alpha BYOK validation path, real web research, and then product-shell controls around the existing Gmail disconnect and local evidence surfaces.
+CareerSeeker is now past seven important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, and real ATS-clean PDF draft attachments. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be Gate batching/minimization for unconstrained BYOK runs, real web research, and then product-shell controls around the existing Gmail disconnect and local evidence surfaces.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

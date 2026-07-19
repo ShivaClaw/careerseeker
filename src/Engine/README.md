@@ -42,6 +42,8 @@ The engine shell adds:
   `dotnet run -c Release --project tests/ByokLiveHarness/ByokLiveHarness.csproj -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - Alpha Gmail smoke with real BYOK Tailor and Gate calls:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
+- Bounded BYOK alpha smoke for routine validation:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --fast-smoke --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
 - Disconnect Gmail, revoking OAuth and deleting the local vault:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`
 - Clear imported BYOK provider keys from the local vault:
@@ -54,9 +56,10 @@ testing cannot accidentally produce drafts on a timer.
 
 By default it uses fake inference. Pass `--llm byok` to use local Anthropic/Gemini keys from the DPAPI
 provider-key vault, environment variables, or `secrets/env.secrets`. `--email` is optional when Gmail
-profile lookup is available. For quick routine validation, use `ByokLiveHarness` for live provider wiring
-and alpha fake inference for Gmail/PDF draft creation; the full BYOK alpha command may take longer because
-it can run live Gate checks over extracted draft claims.
+profile lookup is available. For quick routine validation, use `--llm byok --fast-smoke`; it performs one
+bounded live Gate entailment check, one bounded live Tailor call, then runs the normal Gmail/PDF draft path.
+The unconstrained BYOK alpha command may take longer because it can run live Gate checks over extracted
+draft claims.
 
 ## Injected Ports
 
@@ -73,11 +76,12 @@ it can run live Gate checks over extracted draft claims.
   in-memory/SQLite behavior parity.
 - Live connector status: Scout ingestion, Gmail draft creation, BYOK provider calls, and alpha Gmail/PDF
   smoke are verified.
-- Full alpha BYOK + Gmail validation still needs a faster routine smoke path.
+- Bounded BYOK alpha smoke is verified for live Gate, live Tailor, Gmail draft creation, PDF attachment
+  packaging, and SQLite audit.
 
 ## Not Yet Built
 
 - Real Researcher/dossier from grounded web sources.
-- Fast full BYOK alpha smoke that keeps live Gate calls bounded.
+- Batched/minimized live Gate checks for the unconstrained production-like BYOK alpha path.
 - Windows Service host, tray controls, and local dashboard polish around `EngineHost`.
 - Onboarding, WinUI tray, OAuth/CASA, installer, and code signing.
