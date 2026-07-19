@@ -104,6 +104,11 @@ Console.WriteLine("\n[ orchestrator + cache ]");
 
     await researcher.BuildAsync(company, forceRefresh: true);             // bypass cache
     Check("forceRefresh re-runs research", web.Calls > webCalls1 && model.Calls > modelCalls1);
+
+    var fallback = new Researcher(new FakeWeb(docs), new FakeModel(Array.Empty<ProposedFact>()), new InMemoryDossierStore());
+    var fallbackDossier = await fallback.BuildAsync(company);
+    Check("empty model proposals fall back to grounded source snippets",
+        fallback.LastProposedFacts == 0 && fallback.LastFallbackFacts > 0 && fallbackDossier.Facts.Count > 0);
 }
 
 // ── bridge: GatewayDossierModel over the LLM Gateway (Stage.FullEvaluation) ─────────────────────────

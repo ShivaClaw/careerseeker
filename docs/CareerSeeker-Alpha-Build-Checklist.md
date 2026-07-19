@@ -94,6 +94,7 @@ Exit:
 
 Verified:
 - `powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1`
+- `powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1 -IncludeResearch`
 - `dotnet run -c Release --project tests/GmailLiveHarness/GmailLiveHarness.csproj -- --email you@gmail.com --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project tests/ByokLiveHarness/ByokLiveHarness.csproj -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`

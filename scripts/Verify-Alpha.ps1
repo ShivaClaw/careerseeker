@@ -1,13 +1,18 @@
 param(
     [switch] $IncludeLive,
     [switch] $IncludePublish,
+    [switch] $IncludeResearch,
     [string] $Configuration = "Release",
     [string] $DbPath = ".appdata/careerseeker-alpha.db",
     [string] $ArtifactsPath = ".appdata/artifacts",
     [string] $SecretsPath = "secrets/env.secrets",
     [string] $ByokVaultPath = ".appdata/secrets/byok-keys.dpapi",
     [string] $GmailClientPath = "secrets/google-oauth-client.json",
-    [string] $GmailVaultPath = ".appdata/oauth/gmail-token.dpapi"
+    [string] $GmailVaultPath = ".appdata/oauth/gmail-token.dpapi",
+    [string] $ResearchCompany = "GitLab",
+    [string] $ResearchDomain = "gitlab.com",
+    [int] $ResearchMaxDocsPerQuery = 5,
+    [int] $ResearchAttempts = 3
 )
 
 $ErrorActionPreference = "Stop"
@@ -170,6 +175,57 @@ if ($IncludeLive) {
             "--client", $GmailClientPath,
             "--vault", $GmailVaultPath
         )
+    }
+}
+
+if ($IncludeResearch) {
+    Invoke-Step "Live Brave/BYOK company research smoke" {
+        if (-not (
+            (Test-SecretName $SecretsPath "BRAVE_SEARCH_API_KEY") -or
+            (Test-SecretName $SecretsPath "BRAVE_SEARCH_API") -or
+            (Test-SecretName $SecretsPath "CAREERSEEKER_BRAVE_SEARCH_API_KEY"))) {
+            throw "Missing BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY in $SecretsPath"
+        }
+
+        $maxAttempts = [Math]::Max(1, $ResearchAttempts)
+        for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "Research attempt $attempt of $maxAttempts"
+            $output = & dotnet run --project "src/Engine/SeekerSvc.Engine.csproj" `
+                -c $Configuration --no-build -- `
+                "research-company" `
+                "--company" $ResearchCompany `
+                "--domain" $ResearchDomain `
+                "--llm" "byok" `
+                "--secrets" $SecretsPath `
+                "--key-vault" $ByokVaultPath `
+                "--max-docs-per-query" $ResearchMaxDocsPerQuery.ToString() 2>&1
+            $output | Write-Host
+            if ($LASTEXITCODE -ne 0) {
+                if ($attempt -eq $maxAttempts) {
+                    throw "Live company research smoke failed."
+                }
+                continue
+            }
+
+            $summary = $output | Select-String -Pattern "facts:\s+(\d+)" | Select-Object -Last 1
+            if (-not $summary) {
+                if ($attempt -eq $maxAttempts) {
+                    throw "Live company research smoke did not print a grounded fact count."
+                }
+                continue
+            }
+
+            $factCount = [int] $summary.Matches[0].Groups[1].Value
+            if ($factCount -gt 0) {
+                return
+            }
+
+            if ($attempt -eq $maxAttempts) {
+                throw "Live company research smoke returned zero grounded facts."
+            }
+
+            Write-Host "Research returned zero grounded facts; retrying..."
+        }
     }
 }
 

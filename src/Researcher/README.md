@@ -50,10 +50,13 @@ Retrieved document text is treated as untrusted data, never instructions.
 ## Verified Status
 
 - Compiles clean against the Gateway: `dotnet build -c Release` returns 0 warnings, 0 errors.
-- `ResearcherHarness`: 28 passed, 0 failed.
+- `ResearcherHarness`: 29 passed, 0 failed.
 - Coverage includes the grounding invariant, positive-only signals, cache behavior, Gateway model bridge,
   dossier-to-Scorer seam, and the Brave adapter's auth/query shape, public-page fetch, HTML stripping,
-  localhost refusal, non-text skipping, wrapper-shaped live model responses, and research observability.
+  localhost refusal, non-text skipping, wrapper-shaped live model responses, deterministic source fallback,
+  and research observability.
 - Live `research-company` is verified with Brave Search plus BYOK dossier modeling. The command accepts
   `BRAVE_SEARCH_API_KEY`, `BRAVE_SEARCH_API`, or `CAREERSEEKER_BRAVE_SEARCH_API_KEY` from the environment
   or `secrets/env.secrets`.
+- `scripts/Verify-Alpha.ps1 -IncludeResearch` repeats the live GitLab research smoke and fails if no
+  grounded facts are returned.

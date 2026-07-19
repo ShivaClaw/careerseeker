@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace SeekerSvc.Researcher;
 
@@ -43,6 +44,8 @@ public sealed class Researcher
     public int LastRetrievedDocs { get; private set; }
     /// <summary>Number of model-proposed facts before grounding in the last uncached build.</summary>
     public int LastProposedFacts { get; private set; }
+    /// <summary>Number of deterministic source-text fallback facts used when the model proposes nothing.</summary>
+    public int LastFallbackFacts { get; private set; }
 
     public async Task<Dossier> BuildAsync(CompanyRef company, bool forceRefresh = false, CancellationToken ct = default)
     {
@@ -55,6 +58,7 @@ public sealed class Researcher
             {
                 LastRetrievedDocs = 0;
                 LastProposedFacts = 0;
+                LastFallbackFacts = 0;
                 LastDroppedUngrounded = 0;
                 return cached;
             }
@@ -65,7 +69,12 @@ public sealed class Researcher
 
         var proposed = await _model.ProposeAsync(company, docs, ct).ConfigureAwait(false);
         LastProposedFacts = proposed.Count;
-        var grounded = GroundingFilter.Apply(proposed, docs);
+        var factsToGround = proposed;
+        if (factsToGround.Count == 0)
+            factsToGround = FallbackProposals(company, docs);
+        LastFallbackFacts = proposed.Count == 0 ? factsToGround.Count : 0;
+
+        var grounded = GroundingFilter.Apply(factsToGround, docs);
         LastDroppedUngrounded = grounded.Dropped;
 
         var signals = Signals.Derive(company, docs);
@@ -98,6 +107,50 @@ public sealed class Researcher
 
     private static string Key(CompanyRef c) =>
         (c.Domain ?? c.Name).Trim().ToLowerInvariant();
+
+    private static IReadOnlyList<ProposedFact> FallbackProposals(CompanyRef company, IReadOnlyList<ResearchDoc> docs)
+    {
+        var terms = new[] { company.Name, company.Domain ?? "" }
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .ToArray();
+        if (terms.Length == 0) return Array.Empty<ProposedFact>();
+
+        var proposed = new List<ProposedFact>();
+        foreach (var doc in docs)
+        {
+            foreach (var snippet in Snippets(doc.Text))
+            {
+                if (!MentionsAny(snippet, terms) || LooksBoilerplate(snippet)) continue;
+                proposed.Add(new ProposedFact(DossierTopic.Overview, snippet, doc.Url, doc.Title));
+                break;
+            }
+            if (proposed.Count >= 3) break;
+        }
+
+        return proposed;
+    }
+
+    private static IEnumerable<string> Snippets(string text)
+    {
+        foreach (var raw in Regex.Split(text, @"(?<=[.!?])\s+|\s+[|]\s+"))
+        {
+            var snippet = Regex.Replace(raw, @"\s+", " ").Trim();
+            if (snippet.Length is >= 40 and <= 220 && WordCount(snippet) >= 6)
+                yield return snippet;
+        }
+    }
+
+    private static bool MentionsAny(string text, IReadOnlyList<string> terms) =>
+        terms.Any(term => text.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+    private static bool LooksBoilerplate(string text) =>
+        text.Contains("cookie", StringComparison.OrdinalIgnoreCase) ||
+        text.Contains("privacy policy", StringComparison.OrdinalIgnoreCase) ||
+        text.Contains("sign in", StringComparison.OrdinalIgnoreCase) ||
+        text.Contains("subscribe", StringComparison.OrdinalIgnoreCase);
+
+    private static int WordCount(string text) =>
+        Regex.Matches(text, @"[A-Za-z][A-Za-z0-9'\-]{2,}").Count;
 
     private static string HashOf(IReadOnlyList<DossierFact> facts)
     {

@@ -45,7 +45,7 @@ Completed:
   `jd_path` and a `--dry-run` package/artifact/audit verification path that does not touch Gmail.
 - Tailor generation now minimizes profile claims to posting-relevant facts while preserving Gate rework facts.
 - `scripts/Verify-Alpha.ps1` provides a repeatable build/offline-harness verification entrypoint, with optional
-  live BYOK/Gmail and win-x64 publish checks.
+  live BYOK/Gmail, live Brave/BYOK company research, and win-x64 publish checks.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
 - Gmail live smoke and alpha mode preflight the Gmail drafts API before creating a draft.
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
@@ -313,13 +313,13 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 218 passed, 0 failed.
+Total: 219 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
 | `EngineHarness` | 40 passed, 0 failed |
-| `ResearcherHarness` | 28 passed, 0 failed |
+| `ResearcherHarness` | 29 passed, 0 failed |
 | `HookHarness` | 12 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
 | `GatewayGateHarness` | 29 passed, 0 failed |

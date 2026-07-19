@@ -273,6 +273,7 @@ async Task<int> RunResearchCompanyAsync()
     Console.WriteLine("Dossier");
     Console.WriteLine($"  retrieved docs: {researcher.LastRetrievedDocs}");
     Console.WriteLine($"  proposed facts: {researcher.LastProposedFacts}");
+    Console.WriteLine($"  fallback facts: {researcher.LastFallbackFacts}");
     Console.WriteLine($"  facts: {dossier.Facts.Count}");
     Console.WriteLine($"  dropped ungrounded: {researcher.LastDroppedUngrounded}");
     Console.WriteLine($"  domain verified: {dossier.Signals.CompanyDomainVerified?.ToString() ?? "unknown"}");
