@@ -20,6 +20,12 @@ if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase))
     return await RunDemoAsync().ConfigureAwait(false);
 if (mode.Equals("alpha", StringComparison.OrdinalIgnoreCase))
     return await RunAlphaAsync().ConfigureAwait(false);
+if (mode.Equals("import-byok", StringComparison.OrdinalIgnoreCase))
+    return RunImportByok();
+if (mode.Equals("clear-byok", StringComparison.OrdinalIgnoreCase))
+    return RunClearByok();
+if (mode.Equals("disconnect-gmail", StringComparison.OrdinalIgnoreCase))
+    return await RunDisconnectGmailAsync().ConfigureAwait(false);
 return Fail($"Unknown mode '{mode}'.");
 
 async Task<int> RunDemoAsync()
@@ -76,13 +82,18 @@ EngineCycle BuildDemoCycle(InMemorySeekerStore store, EngineCounters counters)
 
 async Task<int> RunAlphaAsync()
 {
-    var email = StringArg("--email") ?? Environment.GetEnvironmentVariable("CAREERSEEKER_GMAIL_TEST_EMAIL");
+    var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
+    var email = StringArg("--email")
+                ?? Environment.GetEnvironmentVariable("CAREERSEEKER_GMAIL_TEST_EMAIL")
+                ?? EnvFileValue(envFilePath, "CAREERSEEKER_GMAIL_TEST_EMAIL");
     var clientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
     var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
     var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var llmMode = StringArg("--llm") ?? "fake";
+    var keyVaultPath = StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi");
 
-    if (string.IsNullOrWhiteSpace(email))
-        return Fail("Alpha mode needs --email or CAREERSEEKER_GMAIL_TEST_EMAIL.");
+    if (!string.IsNullOrWhiteSpace(email) && (email.StartsWith("--", StringComparison.Ordinal) || !email.Contains('@')))
+        return Fail("Alpha mode received an invalid --email value.");
     if (string.IsNullOrWhiteSpace(clientPath) || !File.Exists(clientPath))
         return Fail($"Alpha mode cannot find OAuth client JSON at '{clientPath ?? "<none>"}'.");
 
@@ -107,23 +118,35 @@ async Task<int> RunAlphaAsync()
     Console.WriteLine($"  db: {dbPath}");
     Console.WriteLine($"  oauth client: {clientPath}");
     Console.WriteLine($"  token vault: {vaultPath} ({(File.Exists(vaultPath) ? "present" : "will create")})");
-    Console.WriteLine($"  gmail account: {email}");
+    Console.WriteLine($"  gmail account: {(string.IsNullOrWhiteSpace(email) ? "will read from Gmail profile" : email)}");
+    Console.WriteLine($"  llm mode: {llmMode}");
 
     await tokens.GetTokenAsync().ConfigureAwait(false);
     Console.WriteLine("  OAuth token: available");
+    var gmail = new GmailDraftClient(http, tokens);
+    await gmail.PreflightDraftAccessAsync().ConfigureAwait(false);
+    Console.WriteLine("  Gmail drafts API: reachable");
+    if (string.IsNullOrWhiteSpace(email))
+        email = await gmail.GetProfileEmailAsync().ConfigureAwait(false);
+    Console.WriteLine("  Gmail profile: available");
+
+    var gateway = BuildGateway(llmMode, envFilePath, keyVaultPath, http, out var keySourceName, out var byokProviders);
+    if (llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase))
+        Console.WriteLine($"  BYOK providers ({keySourceName}): " + string.Join(", ", byokProviders));
 
     var counters = new EngineCounters();
     var cycle = BuildDemoCycleCore(
         store,
         counters,
-        new GmailDraftClient(http, tokens),
+        gmail,
         new DemoPostingSource(new PostingDispatchInfo(DispatchChannel.Email, email)),
         "CareerSeeker Alpha",
         email,
         new AlphaSmokeFeed(),
         "alpha",
         "CareerSeeker Alpha",
-        profileId);
+        profileId,
+        gateway);
 
     await cycle.TickAsync().ConfigureAwait(false);
     PrintCounters(counters);
@@ -131,6 +154,75 @@ async Task<int> RunAlphaAsync()
     var audit = await store.VerifyAuditAsync().ConfigureAwait(false);
     Console.WriteLine($"  audit chain: {(audit.Ok ? "ok" : "FAILED")}");
     return counters.Errors == 0 && counters.Drafted == 1 && audit.Ok ? 0 : 1;
+}
+
+int RunImportByok()
+{
+    var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
+    var keyVaultPath = StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi");
+    var source = EnvironmentApiKeySource.Load(envFilePath);
+    var providers = source.ProvidersPresent();
+    if (providers.Count == 0)
+        return Fail($"No BYOK keys found in environment variables or '{envFilePath}'. Expected ANTHROPIC_API_KEY and GEMINI_API_KEY or GOOGLE_API_KEY.");
+
+    var values = providers.ToDictionary(provider => provider, source.GetKey, StringComparer.OrdinalIgnoreCase);
+    new DpapiSecretVault(keyVaultPath).Save(values);
+
+    Console.WriteLine("CareerSeeker BYOK import");
+    Console.WriteLine($"  key vault: {keyVaultPath}");
+    Console.WriteLine("  imported providers: " + string.Join(", ", providers));
+    Console.WriteLine("  values were not printed.");
+    return 0;
+}
+
+int RunClearByok()
+{
+    var keyVaultPath = StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi");
+    var vault = new DpapiSecretVault(keyVaultPath);
+    var existed = vault.Exists;
+    vault.Delete();
+
+    Console.WriteLine("CareerSeeker BYOK clear");
+    Console.WriteLine($"  key vault: {keyVaultPath}");
+    Console.WriteLine(existed ? "  local provider-key vault deleted." : "  no local provider-key vault was found.");
+    return 0;
+}
+
+async Task<int> RunDisconnectGmailAsync()
+{
+    var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
+    var clientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+    var client = !string.IsNullOrWhiteSpace(clientPath) && File.Exists(clientPath)
+        ? GoogleOAuthClient.Load(clientPath)
+        : new GoogleOAuthClient(
+            "",
+            null,
+            "https://accounts.google.com/o/oauth2/auth",
+            "https://oauth2.googleapis.com/token",
+            "https://oauth2.googleapis.com/revoke");
+
+    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+    var vault = new DpapiTokenVault(vaultPath);
+    var tokens = new GoogleOAuthTokenSource(http, client, vault);
+
+    Console.WriteLine("CareerSeeker Gmail disconnect");
+    Console.WriteLine($"  token vault: {vaultPath}");
+    Console.WriteLine($"  oauth client: {(File.Exists(clientPath ?? "") ? clientPath : "default Google revoke endpoint")}");
+
+    try
+    {
+        var disconnected = await tokens.DisconnectAsync().ConfigureAwait(false);
+        Console.WriteLine(disconnected
+            ? "  Gmail token revoked and local vault deleted."
+            : "  No local Gmail token was found.");
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("  Gmail disconnect did not complete cleanly.");
+        Console.Error.WriteLine("  " + ex.Message);
+        return 1;
+    }
 }
 
 EngineCycle BuildDemoCycleCore(
@@ -143,23 +235,15 @@ EngineCycle BuildDemoCycleCore(
     IJobFeed feed,
     string companyHandle,
     string companyName,
-    long profileId = 1)
+    long profileId = 1,
+    LlmGateway? gateway = null)
 {
-    var gateway = new LlmGateway(
-        RoutingTable.Default(),
-        GatewayMode.Managed,
-        new BudgetMeter(1000m),
-        new ILlmProvider[]
-        {
-            new FakeProvider("anthropic", respond: RespondForDemo),
-            new FakeProvider("google"),
-            new FakeProvider("local", isLocal: true),
-        });
+    gateway ??= BuildFakeGateway();
 
     ITailor tailor = new SeekerSvc.Tailor.Tailor(new GatewayTailorModel(gateway));
     var dispatcher = new SeekerSvc.Dispatcher.Dispatcher(
         postingSource,
-        new AlphaTextRenderer(),
+        new AtsPdfDocumentRenderer(new AtsPdfRendererOptions(candidateName)),
         gmail,
         new DispatcherConfig(candidateName, candidateEmail));
 
@@ -188,6 +272,64 @@ EngineCycle BuildDemoCycleCore(
         pipeline,
         new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email, profileId, companyHandle, companyName),
         counters);
+}
+
+LlmGateway BuildFakeGateway() => new(
+    RoutingTable.Default(),
+    GatewayMode.Managed,
+    new BudgetMeter(1000m),
+    new ILlmProvider[]
+    {
+        new FakeProvider("anthropic", respond: RespondForDemo),
+        new FakeProvider("google"),
+        new FakeProvider("local", isLocal: true),
+    });
+
+LlmGateway BuildGateway(
+    string mode,
+    string envFilePath,
+    string keyVaultPath,
+    HttpClient http,
+    out string keySourceName,
+    out IReadOnlyList<string> byokProviders)
+{
+    keySourceName = "fake";
+    byokProviders = Array.Empty<string>();
+    if (!mode.Equals("byok", StringComparison.OrdinalIgnoreCase))
+    {
+        if (!mode.Equals("fake", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Unsupported --llm value. Use 'fake' or 'byok'.");
+        return BuildFakeGateway();
+    }
+
+    var keys = LoadByokKeySource(envFilePath, keyVaultPath, out keySourceName);
+    byokProviders = keys.ProvidersPresent();
+    var providers = new List<ILlmProvider>();
+    if (keys.HasKey("anthropic")) providers.Add(new AnthropicProvider(http, keys));
+    if (keys.HasKey("google")) providers.Add(new GoogleProvider(http, keys));
+    if (providers.Count == 0)
+        throw new InvalidOperationException(
+            $"BYOK mode could not find provider keys in DPAPI vault '{keyVaultPath}', environment variables, or '{envFilePath}'. Expected ANTHROPIC_API_KEY and GEMINI_API_KEY or GOOGLE_API_KEY.");
+
+    return new LlmGateway(
+        RoutingTable.Default(),
+        GatewayMode.Byok,
+        new BudgetMeter(1000m),
+        providers);
+}
+
+EnvironmentApiKeySource LoadByokKeySource(string envFilePath, string keyVaultPath, out string sourceName)
+{
+    var vault = new DpapiSecretVault(keyVaultPath);
+    var vaulted = vault.Load();
+    if (vaulted.Count > 0)
+    {
+        sourceName = "dpapi";
+        return new EnvironmentApiKeySource(vaulted);
+    }
+
+    sourceName = File.Exists(envFilePath) ? "env.secrets" : "environment";
+    return EnvironmentApiKeySource.Load(envFilePath);
 }
 
 async Task<InMemorySeekerStore> SeededStoreAsync()
@@ -266,7 +408,24 @@ string? StringArg(string name)
 {
     for (var i = 0; i + 1 < args.Length; i++)
     {
-        if (args[i].Equals(name, StringComparison.OrdinalIgnoreCase)) return args[i + 1];
+        if (!args[i].Equals(name, StringComparison.OrdinalIgnoreCase)) continue;
+        return args[i + 1].StartsWith("--", StringComparison.Ordinal) ? null : args[i + 1];
+    }
+    return null;
+}
+
+string? EnvFileValue(string path, string name)
+{
+    if (!File.Exists(path)) return null;
+    foreach (var line in File.ReadLines(path))
+    {
+        var trimmed = line.Trim();
+        if (trimmed.Length == 0 || trimmed.StartsWith('#')) continue;
+        var idx = trimmed.IndexOf('=');
+        if (idx <= 0) continue;
+        if (!trimmed[..idx].Trim().Equals(name, StringComparison.OrdinalIgnoreCase)) continue;
+        var value = trimmed[(idx + 1)..].Trim().Trim('"');
+        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
     return null;
 }
@@ -287,7 +446,10 @@ void PrintUsage()
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30]");
-    Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db]");
+    Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db]");
+    Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe disconnect-gmail [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
 }
 
 sealed class AlphaSmokeFeed : IJobFeed
@@ -364,15 +526,6 @@ sealed class DemoPostingSource : IPostingSource
 
     public Task<PostingDispatchInfo> GetDispatchInfoAsync(long jobId, CancellationToken ct = default) =>
         Task.FromResult(_info);
-}
-
-sealed class AlphaTextRenderer : IDocumentRenderer
-{
-    public Task<Attachment> RenderResumeAsync(PipelineJob job, TailoredApplication app, CancellationToken ct = default) =>
-        Task.FromResult(new Attachment("resume.txt", "text/plain; charset=utf-8", Encoding.UTF8.GetBytes(app.ResumeText)));
-
-    public Task<Attachment?> RenderCoverAsync(PipelineJob job, TailoredApplication app, CancellationToken ct = default) =>
-        Task.FromResult<Attachment?>(null);
 }
 
 sealed class DemoGmailDraftClient : IGmailDraftClient

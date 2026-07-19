@@ -1,17 +1,22 @@
 # CareerSeeker Alpha Build Checklist
 
-Updated: 2026-07-16
+Updated: 2026-07-19
 Purpose: turn the current repo into a small-tester Windows alpha without pretending launch polish is done.
 
 ## Current baseline
 
 - `CareerSeeker.sln` builds cleanly on Windows in Release.
-- Offline harnesses are green: Slice, EngineHarness, ResearcherHarness, HookHarness, StoreParityHarness, GatewayGateHarness, DispatcherNoSendHarness, LifecycleHarness.
+- Offline harnesses are green: Slice, EngineHarness, ResearcherHarness, HookHarness, StoreParityHarness, GatewayGateHarness, DispatcherNoSendHarness, LifecycleHarness, RendererHarness.
 - Live Scout ingestion is already verified against real ATS feeds.
 - Live Gmail draft creation is already verified with `gmail.compose`.
 - `src/Engine` is now a runnable executable entrypoint with demo and alpha modes.
 - A self-contained `win-x64` single-file publish succeeds and the published `.exe` runs a demo cycle.
 - Engine alpha mode can use SQLite + DPAPI OAuth + Gmail to create one real self-addressed L1 draft.
+- Engine alpha mode preflights Gmail draft access before creating the draft.
+- The alpha executable can revoke Gmail OAuth and delete the local DPAPI token vault.
+- Engine alpha mode can use `--llm byok` to route Tailor and Gate through local Anthropic/Gemini keys, preferring a DPAPI provider-key vault when present.
+- Live BYOK provider smoke is green for Anthropic, Gemini, Tailor, Gate entailment, and Gateway accounting.
+- Engine alpha drafts attach a real ATS-clean resume PDF.
 
 ## Alpha target
 
@@ -51,22 +56,28 @@ Status: complete as of 2026-07-16
 - Reuse the existing Gmail OAuth flow from `src/Dispatcher/GoogleOAuth.cs`.
 - Add a startup preflight that reports missing OAuth client JSON, missing token vault, or disabled Gmail API clearly.
 - Add a simple local config convention for alpha secrets and paths.
+- Add a disconnect flow that revokes Gmail refresh tokens and deletes local token material.
+- Add BYOK provider wiring for Tailor and Gate from local environment or `env.secrets`.
+- Add BYOK provider-key import/clear commands for the local DPAPI vault.
+- Add a deterministic ATS-clean PDF renderer for alpha resume attachments.
 
 Exit:
 - A tester can run the executable, complete Gmail OAuth, and create a real draft in their own Gmail account.
 
 Verified:
 - `dotnet run -c Release --project tests/GmailLiveHarness/GmailLiveHarness.csproj -- --email you@gmail.com --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
-- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --email you@gmail.com --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
+- `dotnet run -c Release --project tests/ByokLiveHarness/ByokLiveHarness.csproj -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`
+- `dotnet run -c Release --project tests/RendererHarness/RendererHarness.csproj --no-build`
 
 ## Phase C: useful application alpha
 
 Status: after technical alpha
 
-- Wire BYOK provider keys from the local DPAPI-backed secret path.
-- Verify one real Tailor call and one real Gate entailment call.
-- Add a basic document renderer path so the draft can attach a real resume PDF.
-- Add a disconnect flow that revokes Gmail refresh tokens and deletes local token material.
+- Add a fast full alpha BYOK smoke path or batch/minimize live Gate checks so the Gmail + PDF + BYOK path completes quickly enough for routine validation.
+- Add a polished HTML/Chromium renderer when visual templates become product-facing.
 
 Exit:
 - A tester can run an end-to-end L1 draft flow on real jobs with real Gmail drafts and real tailored content.
@@ -98,4 +109,6 @@ Suggested entries:
 CLOUDFLARE_API_TOKEN=...
 CLOUDFLARE_ZONE_NAME=careerseeker.app
 CAREERSEEKER_GMAIL_TEST_EMAIL=...
+ANTHROPIC_API_KEY=...
+GEMINI_API_KEY=...
 ```

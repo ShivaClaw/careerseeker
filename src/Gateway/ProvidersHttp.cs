@@ -24,6 +24,64 @@ public sealed class StaticKeySource : IApiKeySource
 }
 
 /// <summary>
+/// BYOK key source for local alpha runs. It reads process environment variables plus an optional
+/// KEY=value file, but never logs or exposes values. Provider ids stay stable even when vendors use
+/// different environment variable names.
+/// </summary>
+public sealed class EnvironmentApiKeySource : IApiKeySource
+{
+    private readonly IReadOnlyDictionary<string, string> _keys;
+
+    public EnvironmentApiKeySource(IReadOnlyDictionary<string, string> keys) => _keys = keys;
+
+    public static EnvironmentApiKeySource Load(string? envFilePath = null)
+    {
+        var raw = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var name in new[] { "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY" })
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            if (!string.IsNullOrWhiteSpace(value)) raw[name] = value.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(envFilePath) && File.Exists(envFilePath))
+        {
+            foreach (var line in File.ReadLines(envFilePath))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.Length == 0 || trimmed.StartsWith('#')) continue;
+                var idx = trimmed.IndexOf('=');
+                if (idx <= 0) continue;
+                var name = trimmed[..idx].Trim();
+                var value = trimmed[(idx + 1)..].Trim().Trim('"');
+                if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(value))
+                    raw[name] = value;
+            }
+        }
+
+        var providerKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (raw.TryGetValue("ANTHROPIC_API_KEY", out var anthropic))
+            providerKeys["anthropic"] = anthropic;
+        if (raw.TryGetValue("GEMINI_API_KEY", out var gemini))
+            providerKeys["google"] = gemini;
+        else if (raw.TryGetValue("GOOGLE_API_KEY", out var google))
+            providerKeys["google"] = google;
+
+        return new EnvironmentApiKeySource(providerKeys);
+    }
+
+    public bool HasKey(string provider) => _keys.ContainsKey(provider);
+
+    public IReadOnlyList<string> ProvidersPresent() => _keys.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    public string GetKey(string provider) =>
+        _keys.TryGetValue(provider, out var key)
+            ? key
+            : throw new InvalidOperationException(
+                $"No BYOK API key for provider '{provider}'. Expected ANTHROPIC_API_KEY for anthropic and GEMINI_API_KEY or GOOGLE_API_KEY for google.");
+}
+
+/// <summary>
 /// Anthropic Messages API provider. Request/response shapes follow the public v1/messages contract
 /// (system + messages[], usage.input_tokens/output_tokens). Compile-verified here; the live HTTP path
 /// is exercised in the real environment (the sandbox has no provider network access or keys).
@@ -132,8 +190,26 @@ public sealed class GoogleProvider : ILlmProvider
         var root = doc.RootElement;
         var text = new StringBuilder();
         if (root.TryGetProperty("candidates", out var cands) && cands.GetArrayLength() > 0)
-            foreach (var part in cands[0].GetProperty("content").GetProperty("parts").EnumerateArray())
-                if (part.TryGetProperty("text", out var tx)) text.Append(tx.GetString());
+        {
+            var first = cands[0];
+            if (first.TryGetProperty("content", out var content)
+                && content.TryGetProperty("parts", out var parts)
+                && parts.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var part in parts.EnumerateArray())
+                    if (part.TryGetProperty("text", out var tx)) text.Append(tx.GetString());
+            }
+
+            if (text.Length == 0)
+            {
+                var finish = first.TryGetProperty("finishReason", out var fr) ? fr.GetString() : "unknown";
+                throw new InvalidOperationException($"Google provider returned no text content (finishReason={finish}).");
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException("Google provider returned no candidates.");
+        }
 
         int inTok = 0, outTok = 0;
         if (root.TryGetProperty("usageMetadata", out var um))

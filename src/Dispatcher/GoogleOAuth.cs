@@ -13,7 +13,8 @@ public sealed record GoogleOAuthClient(
     string ClientId,
     string? ClientSecret,
     string AuthUri,
-    string TokenUri)
+    string TokenUri,
+    string RevokeUri)
 {
     public static GoogleOAuthClient Load(string path)
     {
@@ -27,7 +28,8 @@ public sealed record GoogleOAuthClient(
             Required(client, "client_id"),
             Optional(client, "client_secret"),
             Optional(client, "auth_uri") ?? "https://accounts.google.com/o/oauth2/auth",
-            Optional(client, "token_uri") ?? "https://oauth2.googleapis.com/token");
+            Optional(client, "token_uri") ?? "https://oauth2.googleapis.com/token",
+            Optional(client, "revoke_uri") ?? "https://oauth2.googleapis.com/revoke");
     }
 
     private static string Required(JsonElement obj, string name) =>
@@ -63,6 +65,11 @@ public sealed class DpapiTokenVault
         if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
         var json = JsonSerializer.Serialize(token);
         File.WriteAllBytes(_path, WindowsDpapi.Protect(Encoding.UTF8.GetBytes(json)));
+    }
+
+    public void Delete()
+    {
+        if (File.Exists(_path)) File.Delete(_path);
     }
 }
 
@@ -125,6 +132,25 @@ public sealed class GoogleOAuthTokenSource : IAccessTokenSource
         token = await AuthorizeInteractiveAsync(ct).ConfigureAwait(false);
         _vault.Save(token);
         return token.AccessToken;
+    }
+
+    public async Task<bool> DisconnectAsync(CancellationToken ct = default)
+    {
+        var token = _vault.Load();
+        if (token is null) return false;
+
+        try
+        {
+            var tokenToRevoke = token.RefreshToken ?? token.AccessToken;
+            if (!string.IsNullOrWhiteSpace(tokenToRevoke))
+                await RevokeAsync(tokenToRevoke, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _vault.Delete();
+        }
+
+        return true;
     }
 
     private async Task<OAuthToken> AuthorizeInteractiveAsync(CancellationToken ct)
@@ -206,6 +232,17 @@ public sealed class GoogleOAuthTokenSource : IAccessTokenSource
             ["grant_type"] = "refresh_token",
         });
         return await TokenRequestAsync(form, refreshToken, ct).ConfigureAwait(false) with { Scope = scope };
+    }
+
+    private async Task RevokeAsync(string token, CancellationToken ct)
+    {
+        using var resp = await _http.PostAsync(_client.RevokeUri,
+                new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }), ct)
+            .ConfigureAwait(false);
+        var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException(
+                $"Google OAuth revoke failed: {(int)resp.StatusCode} {resp.ReasonPhrase}. {CompactOAuthError(body)}");
     }
 
     private Dictionary<string, string> BaseTokenForm(Dictionary<string, string> form)

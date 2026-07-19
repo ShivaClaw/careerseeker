@@ -30,6 +30,32 @@ public sealed class GmailDraftClient : IGmailDraftClient
         _tokens = tokens;
     }
 
+    public async Task PreflightDraftAccessAsync(CancellationToken ct = default)
+    {
+        using var req = await GmailHttp.AuthedAsync(
+            _tokens,
+            HttpMethod.Get,
+            $"{Base}/drafts?maxResults=1",
+            null,
+            ct).ConfigureAwait(false);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        GmailHttp.EnsureSuccess(resp, json);
+    }
+
+    public async Task<string> GetProfileEmailAsync(CancellationToken ct = default)
+    {
+        using var req = await GmailHttp.AuthedAsync(_tokens, HttpMethod.Get, $"{Base}/profile", null, ct)
+            .ConfigureAwait(false);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        GmailHttp.EnsureSuccess(resp, json);
+
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.GetProperty("emailAddress").GetString()
+               ?? throw new InvalidOperationException("Gmail profile response had no emailAddress.");
+    }
+
     public async Task<string> CreateDraftAsync(
         string rawRfc822Base64Url, IReadOnlyList<string> labelIds, CancellationToken ct = default)
     {

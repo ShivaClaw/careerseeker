@@ -1,6 +1,6 @@
 # CareerSeeker Support
 
-**Last updated:** 2026-07-18
+**Last updated:** 2026-07-19
 
 ## Contact
 
@@ -19,14 +19,10 @@ During closed alpha and beta, support is provided by the development team direct
 
 CareerSeeker L1 creates Gmail drafts through a local OAuth token vault. To disconnect the current alpha:
 
-1. Open your [Google Account permissions page](https://myaccount.google.com/permissions).
-2. Find CareerSeeker.
-3. Remove access.
-4. Delete the local DPAPI token vault configured for the alpha run, commonly `.appdata/oauth/gmail-token.dpapi`.
+1. Run `SeekerSvc.Engine.exe disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`.
+2. Optionally confirm removal on your [Google Account permissions page](https://myaccount.google.com/permissions).
 
 After disconnection, CareerSeeker cannot create Gmail drafts until you reconnect and authorize again.
-
-An in-app "Disconnect Gmail" control that calls Google's revocation endpoint is planned for the product shell.
 
 ### Revoke LLM Provider Keys
 

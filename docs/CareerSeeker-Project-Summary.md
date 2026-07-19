@@ -1,6 +1,6 @@
 # CareerSeeker Project Summary
 
-Updated: 2026-07-18
+Updated: 2026-07-19
 Audience: LLM agents, coding agents, test harnesses, planning agents
 Source repo: repository root
 Primary branch: `main`
@@ -19,14 +19,20 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, Gmail disconnect, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, ATS-clean PDF rendering, and parity coverage verified.
 
 Completed:
 
 - B1 live Scout ATS ingestion verified against real Greenhouse, Lever, and Ashby APIs.
 - B5 Gmail draft client verified with a real Google OAuth token and a real Gmail draft in the test account.
 - OAuth token storage works through a local DPAPI-backed token vault.
+- Gmail disconnect can revoke the OAuth token and delete the local DPAPI vault via the alpha executable.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
+- Gmail live smoke and alpha mode preflight the Gmail drafts API before creating a draft.
+- Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
+- BYOK provider keys can be imported from environment/env.secrets into a local DPAPI vault.
+- Live BYOK provider smoke passes for Anthropic, Gemini, Tailor, Gate entailment, and Gateway accounting.
+- Dispatcher has a real deterministic ATS-clean PDF renderer for resume attachments, with optional cover PDFs.
 - L1 compose-only correction is in place: custom Gmail labels are skipped by default because label management requires broader Gmail scope than `gmail.compose`.
 - SQLite provider source is restored to the Store project and covered by `StoreParityHarness`.
 - Gateway pinned-Gate and Dispatcher no-send invariants now have named offline harnesses.
@@ -34,9 +40,9 @@ Completed:
 
 Not complete yet:
 
-- BYOK Anthropic/Gemini provider key wiring and live inference smoke.
+- Fast full alpha BYOK + Gmail smoke; the provider harness is green, but the full alpha command can be slow because live Gate checks may run across extracted draft claims.
 - Real web research adapter.
-- Headless Chromium document renderer.
+- Headless Chromium/HTML document renderer polish beyond the current ATS-clean text PDF renderer.
 - Windows Service, tray, installer, and code signing.
 - OAuth production verification and CASA assessment.
 - Android blind relay and dashboard.
@@ -253,9 +259,9 @@ SQLite pragmas:
 | --- | --- | --- |
 | Scout | Live verified | Greenhouse, Lever, and Ashby public APIs. Board-level failures are isolated. |
 | Gmail OAuth | Live verified | `gmail.compose`; DPAPI local token vault; real draft created; custom labels skipped for L1. |
-| LLM providers | Compile verified only | BYOK Anthropic and Gemini planned first, managed proxy later. |
+| LLM providers | Live provider smoke verified | `--llm byok` reads local DPAPI/env/env.secrets keys and registers Anthropic/Gemini providers for Tailor and Gate; full alpha BYOK smoke still needs a faster validation path. |
 | Research web | Fake/offline only | Planned search API plus web fetch. |
-| Document renderer | Fake/offline only | Planned headless Chromium renderer to ATS-clean PDF. |
+| Document renderer | Offline verified | Deterministic single-column ATS-clean PDF renderer writes selectable resume text and attaches PDFs to drafts; Chromium/HTML polish remains future work. |
 | SQLite | Source restored | `Microsoft.Data.Sqlite` PackageReference active; `StoreParityHarness` passed. |
 | Windows service/tray | Engine shell only | Service/tray not yet implemented. |
 | Android relay | Not implemented | Intentionally deferred. |
@@ -282,7 +288,7 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 145 passed, 0 failed.
+Total: 170 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
@@ -291,9 +297,10 @@ Total: 145 passed, 0 failed.
 | `ResearcherHarness` | 21 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
 | `StoreParityHarness` | 12 passed, 0 failed |
-| `GatewayGateHarness` | 21 passed, 0 failed |
-| `DispatcherNoSendHarness` | 9 passed, 0 failed |
+| `GatewayGateHarness` | 29 passed, 0 failed |
+| `DispatcherNoSendHarness` | 20 passed, 0 failed |
 | `LifecycleHarness` | 37 passed, 0 failed |
+| `RendererHarness` | 6 passed, 0 failed |
 
 Live Scout harness, 2026-07-07:
 
@@ -316,13 +323,34 @@ Live Scout harness, 2026-07-07:
 
 Live Gmail harness, 2026-07-08:
 
-- Result: 4 passed, 0 failed.
+- Result: 5 passed, 0 failed.
 - Scope: `gmail.compose`
 - Send method present: false
 - Token: access token available from DPAPI vault
+- Gmail drafts API preflight: reachable
 - Labels: skipped under compose-only L1
 - Real draft created: true
 - Draft ID: redacted real draft ID
+
+Live BYOK harness, 2026-07-19:
+
+- Result: 6 passed, 0 failed.
+- Provider-key source: local DPAPI vault imported from `secrets/env.secrets`.
+- Anthropic direct completion returned text and usage.
+- Gemini direct completion returned text and usage.
+- Gateway Tailor live call returned a parseable draft.
+- Gateway Gate live entailment returned a supported verdict.
+- Gateway accounting recorded Gate spend.
+
+Alpha Gmail/PDF smoke, 2026-07-19:
+
+- Result: passed with fake inference.
+- Gmail OAuth token available from DPAPI vault.
+- Gmail drafts API preflight reachable.
+- Gmail profile lookup available, so `--email` is optional for this path.
+- One self-addressed L1 Gmail draft created.
+- ATS-clean resume PDF attached by the real document renderer.
+- SQLite audit chain verified.
 
 ## Design Changes Since Original Snapshot
 
@@ -337,6 +365,8 @@ Live Gmail harness, 2026-07-08:
 - Trust/OAuth docs added and cleaned up: Privacy Policy, Support, Autonomy Contract.
 - Local OAuth implementation added without external NuGet packages.
 - DPAPI token vault added for local OAuth token storage.
+- Gmail disconnect added to revoke refresh tokens and delete local DPAPI token material.
+- Gmail draft API preflight added before live draft creation.
 - Gmail live harness added.
 - L1 Gmail labels deferred to preserve `gmail.compose` only.
 - `client_secret*.json` and `token*.json` added to `.gitignore`.
@@ -348,6 +378,9 @@ Live Gmail harness, 2026-07-08:
 - Gateway budget/accounting and Pipeline in-flight state hardened for concurrency.
 - StrongCloud failover now points at live `gemini-3.1-pro-preview`, and Gate outages defer distinctly from fabrication blocks.
 - Tailor and Researcher prompts now mark untrusted data in explicit XML-style blocks.
+- BYOK alpha wiring added for real Anthropic/Gemini Tailor and Gate calls from local environment or `env.secrets` keys.
+- BYOK provider-key import/clear commands added for a local DPAPI vault; alpha `--llm byok` prefers the vault.
+- ATS-clean PDF renderer added and wired into alpha draft packaging; sample PDFs render and text extracts cleanly.
 
 ## Roadmap
 
@@ -371,15 +404,15 @@ Status: substantially complete.
 ### Phase 2: Next Real Connectors
 
 - B2 BYOK LLM providers:
-  - Wire Anthropic and Gemini provider clients to local DPAPI-stored keys.
-  - Verify real Tailor call and real Gate entailment call.
-  - Confirm budget accounting and failover.
+  - Direct Anthropic, Gemini, Tailor, Gate entailment, and Gateway accounting smoke is verified.
+  - Add a fast full alpha BYOK smoke path or batch/minimize live Gate calls so routine Gmail + PDF + BYOK validation completes quickly.
+  - Confirm StrongCloud failover under real provider outage conditions.
 - B3 real Researcher:
   - Implement `IWebResearch` with search API plus web fetch.
   - Verify grounding drops unsupported facts on real pages.
 - B4 document renderer:
-  - Implement `IDocumentRenderer` with headless Chromium/Playwright.
-  - Produce ATS-clean resume PDF and optional cover PDF.
+  - Keep the current ATS-clean text PDF renderer for alpha.
+  - Add headless Chromium/Playwright when HTML template polish is needed.
 
 ### Phase 3: Composition Root And Storage
 
@@ -457,11 +490,11 @@ Status: substantially complete.
 ## Open Risks
 
 - Gmail label tree is deferred; product UX needs another way to surface CareerSeeker drafts under compose-only scope.
-- DPAPI vault currently demonstrates local protection, but future product should add revocation, migration/export policy, and perhaps optional entropy.
+- DPAPI vault now supports local deletion and Gmail token revocation; future product should add migration/export policy and perhaps optional entropy.
 - Production composition root has not yet been wired to SQLite.
 - OAuth production verification and CASA remain long-lead launch blockers.
-- No real PDF renderer yet; current draft harness creates message body only.
-- No real LLM provider call has been verified in this repo baseline.
+- Full alpha BYOK + Gmail smoke is not yet quick enough for routine validation; use `ByokLiveHarness` plus alpha fake-inference Gmail/PDF smoke until Gate batching or a fast smoke mode lands.
+- Current PDF renderer is ATS-clean text; not yet a polished HTML/Chromium resume template.
 - No real web research adapter yet.
 - No Windows service/tray composition root yet.
 - Live ATS feeds are volatile; some configured boards can be empty while still reachable.
@@ -470,22 +503,19 @@ Status: substantially complete.
 
 Highest priority:
 
-- Add a Gmail API preflight step to `GmailLiveHarness` so disabled API errors are reported before draft creation.
-- Add a "Disconnect Gmail" command that revokes the refresh token and deletes local DPAPI token material.
-- Add a non-network harness for `GoogleOAuthClient` JSON parsing and DPAPI round-trip where Windows APIs are available.
-- Build the production composition root for a one-cycle local run using fake Tailor or BYOK Tailor plus real Gmail draft.
+- Add a product-shell control that calls the existing Gmail disconnect path from the tray/dashboard.
+- Add a fast full alpha BYOK smoke path or batch/minimize live Gate checks, then verify Gmail + PDF + real Tailor/Gate in one routine command.
 
 Near-term connector work:
 
 - B2 BYOK provider wiring:
-  - Store provider keys in DPAPI vault.
-  - Verify Anthropic and Gemini calls.
+  - Keep provider keys in the local DPAPI vault after import.
+  - Keep `ByokLiveHarness` green for Anthropic, Gemini, Tailor, Gate, and accounting.
   - Confirm StrongCloud failover order remains `claude-sonnet-4-6 -> gemini-3.1-pro-preview`.
   - Verify Gate fails closed on provider outage and records `GATE_UNAVAILABLE`, not fabrication.
 - B4 document rendering:
-  - Add Playwright/Chromium renderer.
-  - Attach real PDF to Gmail draft.
-  - Ensure text is ATS-clean and does not introduce ungated claims.
+  - Add Playwright/Chromium renderer when visual template polish matters.
+  - Keep the current renderer's selectable text and no-new-claims behavior.
 - SQLite:
   - Wire the production composition root to `SqliteSeekerStore`.
   - Keep package restore available in CI or a warmed NuGet cache.
@@ -533,6 +563,7 @@ dotnet run --project tests/StoreParityHarness/StoreParityHarness.csproj -c Relea
 dotnet run --project tests/GatewayGateHarness/GatewayGateHarness.csproj -c Release --no-build
 dotnet run --project tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj -c Release --no-build
 dotnet run --project tests/LifecycleHarness/LifecycleHarness.csproj -c Release --no-build
+dotnet run --project tests/RendererHarness/RendererHarness.csproj -c Release --no-build
 ```
 
 Live harnesses:
@@ -540,6 +571,12 @@ Live harnesses:
 ```powershell
 dotnet run --project tests/ScoutLiveHarness/ScoutLiveHarness.csproj -c Release --no-build
 dotnet run --project tests/GmailLiveHarness/GmailLiveHarness.csproj -c Release --no-build -- --email you@gmail.com --client client_secret.json
+dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi
+dotnet run --project tests/ByokLiveHarness/ByokLiveHarness.csproj -c Release --no-build -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi
+dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db
+dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- alpha --llm byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db
+dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi
+dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- clear-byok --key-vault .appdata/secrets/byok-keys.dpapi
 ```
 
 ## Current Git Facts
@@ -561,6 +598,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past three important proof points: real job ingestion, real Gmail draft creation, and restored SQLite source/parity coverage in the working tree. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be BYOK LLM provider wiring, document rendering, and a composition root that turns a real discovered job into a real draft through the full safety path using SQLite.
+CareerSeeker is now past six important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, live BYOK provider calls, local DPAPI provider-key import, and real ATS-clean PDF draft attachments. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be a fast full alpha BYOK validation path, real web research, and then product-shell controls around the existing Gmail disconnect and local evidence surfaces.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

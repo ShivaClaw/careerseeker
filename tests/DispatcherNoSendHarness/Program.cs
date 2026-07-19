@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Net;
 using SeekerSvc.Dispatcher;
 using SeekerSvc.Pipeline;
 using SeekerSvc.Verifier;
@@ -108,6 +109,170 @@ Check("Injected label manager supplies custom label ids",
     labeledLabels.Calls == 1 && labeledGmail.LastLabelIds.SequenceEqual(new[] { "Label_CareerSeeker/Outbox" }),
     $"labelCalls={labeledLabels.Calls} ids={string.Join(",", labeledGmail.LastLabelIds)}");
 
+Console.WriteLine("\n[ PDF renderer ]");
+var pdfRenderer = new AtsPdfDocumentRenderer(new AtsPdfRendererOptions("Jordan Lee", RenderCoverPdf: true));
+var pdfJob = new PipelineJob(42, "Software Engineer", "Acme");
+var pdfApp = new TailoredApplication(
+    Array.Empty<TailoredClaim>(),
+    "Jordan Lee\nSenior Software Engineer\nBuilt reliable distributed systems in Go.",
+    "I am excited to apply. I have built reliable distributed systems in Go.",
+    new Dictionary<string, string>());
+var resumePdf = await pdfRenderer.RenderResumeAsync(pdfJob, pdfApp);
+var coverPdf = await pdfRenderer.RenderCoverAsync(pdfJob, pdfApp);
+var resumeText = System.Text.Encoding.ASCII.GetString(resumePdf.Content);
+Check("ATS PDF renderer emits a real resume PDF attachment",
+    resumePdf.MimeType == "application/pdf"
+    && resumePdf.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
+    && resumeText.StartsWith("%PDF-1.4", StringComparison.Ordinal)
+    && resumeText.Contains("Built reliable distributed systems in Go.", StringComparison.Ordinal));
+Check("ATS PDF renderer can emit optional cover PDF",
+    coverPdf is not null
+    && coverPdf.MimeType == "application/pdf"
+    && System.Text.Encoding.ASCII.GetString(coverPdf.Content).Contains("I am excited to apply.", StringComparison.Ordinal));
+
+var pdfGmail = new FakeGmail();
+var pdfDispatcher = new Dispatcher(
+    new FakePostings(new PostingDispatchInfo(DispatchChannel.Email, "jobs@example.com")),
+    pdfRenderer,
+    pdfGmail,
+    new DispatcherConfig("Jordan Lee", "jordan@example.com", AttachCoverPdf: true));
+await pdfDispatcher.CreateDraftAsync(pdfJob, pdfApp);
+var decodedMessage = System.Text.Encoding.UTF8.GetString(Base64Url.Decode(pdfGmail.LastRaw));
+Check("Dispatcher attaches rendered PDF documents to the Gmail draft",
+    decodedMessage.Contains("Content-Type: application/pdf", StringComparison.Ordinal)
+    && decodedMessage.Contains("Jordan Lee - Acme - Resume.pdf", StringComparison.Ordinal)
+    && decodedMessage.Contains("Jordan Lee - Acme - Cover Letter.pdf", StringComparison.Ordinal));
+
+Console.WriteLine("\n[ OAuth local controls ]");
+var tempRoot = Path.Combine(Path.GetTempPath(), "CareerSeeker-DispatcherHarness-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(tempRoot);
+try
+{
+    var clientJson = Path.Combine(tempRoot, "client_secret.json");
+    await File.WriteAllTextAsync(clientJson, """
+    {
+      "installed": {
+        "client_id": "client-123.apps.googleusercontent.com",
+        "client_secret": "secret-abc"
+      }
+    }
+    """);
+    var parsed = GoogleOAuthClient.Load(clientJson);
+    Check("OAuth client JSON parser accepts installed clients",
+        parsed.ClientId == "client-123.apps.googleusercontent.com"
+        && parsed.ClientSecret == "secret-abc"
+        && parsed.AuthUri == "https://accounts.google.com/o/oauth2/auth"
+        && parsed.TokenUri == "https://oauth2.googleapis.com/token"
+        && parsed.RevokeUri == "https://oauth2.googleapis.com/revoke");
+
+    var webJson = Path.Combine(tempRoot, "web_client.json");
+    await File.WriteAllTextAsync(webJson, """
+    {
+      "web": {
+        "client_id": "web-123",
+        "auth_uri": "https://auth.example",
+        "token_uri": "https://token.example",
+        "revoke_uri": "https://revoke.example"
+      }
+    }
+    """);
+    var parsedWeb = GoogleOAuthClient.Load(webJson);
+    Check("OAuth client JSON parser accepts web clients with explicit endpoints",
+        parsedWeb.ClientId == "web-123"
+        && parsedWeb.ClientSecret is null
+        && parsedWeb.AuthUri == "https://auth.example"
+        && parsedWeb.TokenUri == "https://token.example"
+        && parsedWeb.RevokeUri == "https://revoke.example");
+
+    var vaultPath = Path.Combine(tempRoot, "gmail-token.dpapi");
+    var vault = new DpapiTokenVault(vaultPath);
+    var token = new OAuthToken(
+        "access-token",
+        "refresh-token",
+        DateTimeOffset.UtcNow.AddHours(1),
+        GoogleOAuthTokenSource.GmailComposeScope);
+    try
+    {
+        vault.Save(token);
+        var loaded = vault.Load();
+        Check("DPAPI token vault round-trips locally",
+            loaded?.AccessToken == token.AccessToken
+            && loaded.RefreshToken == token.RefreshToken
+            && loaded.Scope == token.Scope);
+        vault.Delete();
+        Check("DPAPI token vault delete removes local token material", vault.Load() is null);
+    }
+    catch (Exception ex) when (ex is DllNotFoundException
+                               or EntryPointNotFoundException
+                               or PlatformNotSupportedException
+                               or System.ComponentModel.Win32Exception)
+    {
+        Check("DPAPI token vault round-trips locally", true, "skipped: DPAPI unavailable on this host");
+        Check("DPAPI token vault delete removes local token material", true, "skipped: DPAPI unavailable on this host");
+    }
+
+    var secretVault = new DpapiSecretVault(Path.Combine(tempRoot, "byok-keys.dpapi"));
+    try
+    {
+        secretVault.Save(new Dictionary<string, string>
+        {
+            ["anthropic"] = "anthropic-test-key",
+            ["google"] = "gemini-test-key",
+        });
+        var loadedSecrets = secretVault.Load();
+        Check("DPAPI secret vault round-trips provider keys locally",
+            loadedSecrets["anthropic"] == "anthropic-test-key"
+            && loadedSecrets["google"] == "gemini-test-key");
+        secretVault.Delete();
+        Check("DPAPI secret vault delete removes provider keys",
+            secretVault.Load().Count == 0 && !secretVault.Exists);
+    }
+    catch (Exception ex) when (ex is DllNotFoundException
+                               or EntryPointNotFoundException
+                               or PlatformNotSupportedException
+                               or System.ComponentModel.Win32Exception)
+    {
+        Check("DPAPI secret vault round-trips provider keys locally", true, "skipped: DPAPI unavailable on this host");
+        Check("DPAPI secret vault delete removes provider keys", true, "skipped: DPAPI unavailable on this host");
+    }
+
+    var revokeVault = new DpapiTokenVault(Path.Combine(tempRoot, "revoke-token.dpapi"));
+    var revokeHandler = new CapturingHandler(HttpStatusCode.OK, "{}");
+    var tokenSource = new GoogleOAuthTokenSource(
+        new HttpClient(revokeHandler),
+        new GoogleOAuthClient("client-id", null, "https://auth.example", "https://token.example", "https://revoke.example"),
+        revokeVault);
+
+    try
+    {
+        revokeVault.Save(token);
+        var disconnected = await tokenSource.DisconnectAsync();
+        Check("Disconnect Gmail revokes refresh token then deletes vault",
+            disconnected
+            && revokeVault.Load() is null
+            && revokeHandler.Calls == 1
+            && revokeHandler.LastRequestUri == "https://revoke.example/"
+            && revokeHandler.LastBody == "token=refresh-token",
+            $"calls={revokeHandler.Calls} uri={revokeHandler.LastRequestUri} body={revokeHandler.LastBody}");
+
+        var noToken = await tokenSource.DisconnectAsync();
+        Check("Disconnect Gmail without a token is a harmless no-op",
+            noToken == false && revokeHandler.Calls == 1);
+    }
+    catch (Exception ex) when (ex is DllNotFoundException
+                               or EntryPointNotFoundException
+                               or PlatformNotSupportedException
+                               or System.ComponentModel.Win32Exception)
+    {
+        Check("Disconnect Gmail revokes refresh token then deletes vault", true, "skipped: DPAPI unavailable on this host");
+        Check("Disconnect Gmail without a token is a harmless no-op", true, "skipped: DPAPI unavailable on this host");
+    }
+}
+finally
+{
+    Directory.Delete(tempRoot, recursive: true);
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
@@ -130,9 +295,11 @@ sealed class FakeRenderer : IDocumentRenderer
 sealed class FakeGmail : IGmailDraftClient
 {
     public IReadOnlyList<string> LastLabelIds { get; private set; } = Array.Empty<string>();
+    public string LastRaw { get; private set; } = "";
 
     public Task<string> CreateDraftAsync(string rawRfc822Base64Url, IReadOnlyList<string> labelIds, CancellationToken ct = default)
     {
+        LastRaw = rawRfc822Base64Url;
         LastLabelIds = labelIds.ToArray();
         return Task.FromResult("draft_1");
     }
@@ -146,5 +313,29 @@ sealed class FakeLabels : IGmailLabelManager
     {
         Calls++;
         return Task.FromResult("Label_" + labelPath);
+    }
+}
+
+sealed class CapturingHandler : HttpMessageHandler
+{
+    private readonly HttpStatusCode _statusCode;
+    private readonly string _body;
+
+    public int Calls { get; private set; }
+    public string? LastRequestUri { get; private set; }
+    public string? LastBody { get; private set; }
+
+    public CapturingHandler(HttpStatusCode statusCode, string body)
+    {
+        _statusCode = statusCode;
+        _body = body;
+    }
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        Calls++;
+        LastRequestUri = request.RequestUri?.GetLeftPart(UriPartial.Path);
+        LastBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+        return new HttpResponseMessage(_statusCode) { Content = new StringContent(_body) };
     }
 }

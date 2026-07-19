@@ -48,6 +48,8 @@ catch (Exception ex)
 Console.WriteLine("\n[ Gmail draft ]");
 try
 {
+    await gmail.PreflightDraftAccessAsync();
+    Console.WriteLine("  PASS  Gmail drafts API reachable");
     Console.WriteLine("  custom labels: skipped (gmail.compose-only)");
 
     var raw = MimeBuilder.BuildRaw(
@@ -64,12 +66,12 @@ try
 }
 catch (Exception ex)
 {
-    Console.WriteLine("  FAIL  Gmail draft path");
+    Console.WriteLine("  FAIL  Gmail draft path or preflight");
     Console.WriteLine("  " + ex.Message);
     return 1;
 }
 
-Console.WriteLine("\n=== 4 passed, 0 failed ===");
+Console.WriteLine("\n=== 5 passed, 0 failed ===");
 return 0;
 
 string? Arg(string name)

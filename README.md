@@ -17,8 +17,8 @@ Trust/OAuth docs:
   core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (22 assertions),
   `EngineHarness` (13), `ResearcherHarness` (21), `HookHarness` (10), `StoreParityHarness` (12),
-  `GatewayGateHarness` (21), `DispatcherNoSendHarness` (9), and `LifecycleHarness` (37).
-  Latest offline total: 145 assertions. Run each with
+  `GatewayGateHarness` (29), `DispatcherNoSendHarness` (20), `LifecycleHarness` (37), and
+  `RendererHarness` (6). Latest offline total: 170 assertions. Run each with
   `dotnet run -c Release`.
 
 ## Build
