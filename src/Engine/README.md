@@ -34,6 +34,8 @@ The engine shell adds:
 
 - Demo, offline and repeatable:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once`
+- Demo with persistent SQLite state and audit evidence:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once --db .appdata/careerseeker-demo.db`
 - Alpha Gmail smoke, live but one-shot:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
 - Import real BYOK provider keys into the local DPAPI vault:
@@ -50,9 +52,11 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- clear-byok --key-vault .appdata/secrets/byok-keys.dpapi`
 
 The alpha mode uses SQLite for engine state, the DPAPI token vault for Gmail OAuth, and the real
-`GmailDraftClient`. It preflights Gmail draft access before creating anything, renders an ATS-clean PDF
-resume attachment, then intentionally runs one cycle and creates one self-addressed L1 draft so early
-testing cannot accidentally produce drafts on a timer.
+`GmailDraftClient`. Demo mode is in-memory by default, but `demo --db <path>` runs the same local
+dashboard/cycle shell against `SqliteSeekerStore` so testers can inspect persistent status and audit
+evidence without touching Gmail. Alpha preflights Gmail draft access before creating anything, renders an
+ATS-clean PDF resume attachment, then intentionally runs one cycle and creates one self-addressed L1 draft
+so early testing cannot accidentally produce drafts on a timer.
 
 By default it uses fake inference. Pass `--llm byok` to use local Anthropic/Gemini keys from the DPAPI
 provider-key vault, environment variables, or `secrets/env.secrets`. `--email` is optional when Gmail
@@ -71,9 +75,9 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 193 passed, 0 failed.
+- Latest offline harness total: 195 passed, 0 failed.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
-  in-memory/SQLite behavior parity.
+  in-memory/SQLite behavior parity and `EngineHarness` covering a SQLite-backed engine cycle.
 - Live connector status: Scout ingestion, Gmail draft creation, BYOK provider calls, full alpha BYOK
   Gmail/PDF draft creation, alpha Gmail/PDF smoke, and dashboard Gmail disconnect wiring are verified.
 - Bounded BYOK alpha smoke is verified for live Gate, live Tailor, Gmail draft creation, PDF attachment

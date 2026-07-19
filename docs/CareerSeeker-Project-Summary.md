@@ -19,7 +19,7 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration, Gmail disconnect, dashboard disconnect control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, Brave web-research adapter source, and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, Gmail disconnect, dashboard disconnect control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, Brave web-research adapter source, and parity coverage verified.
 
 Completed:
 
@@ -35,6 +35,7 @@ Completed:
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
 - BYOK provider keys can be imported from environment/env.secrets into a local DPAPI vault.
 - Live BYOK provider smoke passes for Anthropic, Gemini, Tailor, Gate entailment, and Gateway accounting.
+- Demo mode can run the dashboard/cycle shell against a persistent SQLite database with exportable audit evidence.
 - Bounded alpha `--llm byok --fast-smoke` passes live Gate preflight, live Tailor smoke, Gmail draft creation, PDF attachment packaging, and SQLite audit in one routine command.
 - Alpha BYOK Gate verification defaults to top-3 semantic source candidates per tailored claim to bound live entailment calls while still failing closed.
 - Unconstrained alpha `--llm byok` passes with live Tailor, live Gate, Gmail draft creation, PDF attachment packaging, and SQLite audit.
@@ -295,12 +296,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 193 passed, 0 failed.
+Total: 195 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 25 passed, 0 failed |
+| `EngineHarness` | 27 passed, 0 failed |
 | `ResearcherHarness` | 26 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
 | `StoreParityHarness` | 12 passed, 0 failed |
@@ -535,7 +536,7 @@ Status: substantially complete.
 
 - Gmail label tree is deferred; product UX needs another way to surface CareerSeeker drafts under compose-only scope.
 - DPAPI vault now supports local deletion and Gmail token revocation; future product should add migration/export policy and perhaps optional entropy.
-- Production composition root has not yet been wired to SQLite.
+- The executable demo and alpha paths are wired to SQLite; no Windows service/tray composition root exists yet.
 - OAuth production verification and CASA remain long-lead launch blockers.
 - Current PDF renderer is ATS-clean text; not yet a polished HTML/Chromium resume template.
 - Live real-company web research has not been run yet because no Brave Search key is present locally.
@@ -560,7 +561,7 @@ Near-term connector work:
   - Add Playwright/Chromium renderer when visual template polish matters.
   - Keep the current renderer's selectable text and no-new-claims behavior.
 - SQLite:
-  - Wire the production composition root to `SqliteSeekerStore`.
+  - Keep executable demo/alpha SQLite composition covered as dashboard and service hosting evolve.
   - Keep package restore available in CI or a warmed NuGet cache.
 
 Product recommendations:
@@ -642,6 +643,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past ten important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, a dashboard-accessible Gmail disconnect control, and offline-verified real web-research adapter code. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be live Brave-key verification for `research-company` and then broader local evidence surfaces.
+CareerSeeker is now past eleven important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, a dashboard-accessible Gmail disconnect control, and offline-verified real web-research adapter code. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be live Brave-key verification for `research-company` and then broader local evidence surfaces.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

@@ -37,13 +37,19 @@ ITailor tailor = new Tailor(new GatewayTailorModel(gateway));
 async Task<InMemorySeekerStore> SeededStoreAsync()
 {
     var store = new InMemorySeekerStore();
+    await SeedProfileAsync(store);
+    return store;
+}
+
+async Task<long> SeedProfileAsync(ISeekerStore store)
+{
     var pid = await store.UpsertProfileAsync("{}");
     foreach (var (k, t) in new[] { ("Title","Senior Software Engineer"), ("Skill","distributed systems"),
         ("Skill","Go"), ("Skill","reliable"), ("Skill","experience"), ("Skill","team"), ("Employer","Acme"), ("Metric","reduced p99 latency 30%"),
         ("Other","Senior Software Engineer experienced in distributed systems and Go"),
         ("Other","I have built reliable distributed systems in Go and would bring that experience to your team") })
         await store.AddClaimAsync(new ClaimRow(Guid.NewGuid().ToString("N"), pid, k, t, "Verified"));
-    return store;
+    return pid;
 }
 
 JobPosting Healthy(string title) => new()
@@ -85,6 +91,36 @@ var counters = new EngineCounters();
     Check("errors 0", counters.Errors == 0, counters.Errors.ToString());
     Check("cycles 1", counters.Cycles == 1);
     Check("audit chain intact after cycle", (await store.VerifyAuditAsync()).Ok);
+}
+
+Console.WriteLine("\n[ SQLite engine composition ]");
+{
+    var dbPath = Path.Combine(Path.GetTempPath(), "careerseeker-engineharness-" + Guid.NewGuid().ToString("N") + ".db");
+    try
+    {
+        {
+            await using var store = SqliteSeekerStore.ForFile(dbPath);
+            await store.InitializeAsync();
+            var profileId = await SeedProfileAsync(store);
+            var sqliteCounters = new EngineCounters();
+            var feed = new FakeFeed(new[] { Healthy("Senior Software Engineer") });
+            var pipeline = new ApplicationPipeline(store, tailor, MakeDispatcher(new FakeGmail()), new GatewaySemanticMatcher(gateway),
+                new PipelineOptions { ProfileId = profileId, Channel = DispatchChannel.Email });
+            var cycle = new EngineCycle(store, feed, new FakeSemantic(), pipeline,
+                opt with { ProfileId = profileId, CompanyHandle = "sqlite", CompanyName = "SQLite Demo" },
+                sqliteCounters);
+
+            await cycle.TickAsync();
+            Check("SQLite-backed cycle drafts one application", sqliteCounters.Drafted == 1, sqliteCounters.Drafted.ToString());
+            Check("SQLite-backed cycle audit chain intact", (await store.VerifyAuditAsync()).Ok);
+        }
+    }
+    finally
+    {
+        foreach (var path in new[] { dbPath, dbPath + "-wal", dbPath + "-shm" })
+            if (File.Exists(path))
+                try { File.Delete(path); } catch (IOException) { }
+    }
 }
 
 // ── 2) scheduler runs repeatedly then stops cleanly ────────────────────────────────────────────────

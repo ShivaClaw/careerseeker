@@ -39,65 +39,86 @@ async Task<int> RunDemoAsync()
     var port = IntArg("--port", 7777);
     var intervalSeconds = IntArg("--interval-seconds", 30);
     var once = HasFlag("--once");
+    var dbPath = StringArg("--db");
     var gmailVaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
     var gmailClientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
     var dashboardActions = HasFlag("--gmail-control") || File.Exists(gmailVaultPath)
         ? BuildGmailDashboardActions(gmailClientPath, gmailVaultPath)
         : null;
 
+    if (!string.IsNullOrWhiteSpace(dbPath))
+    {
+        var dbDir = Path.GetDirectoryName(dbPath);
+        if (!string.IsNullOrWhiteSpace(dbDir)) Directory.CreateDirectory(dbDir);
+
+        await using var sqlite = SqliteSeekerStore.ForFile(dbPath);
+        await sqlite.InitializeAsync().ConfigureAwait(false);
+        var profileId = await SeedProfileOnceAsync(sqlite, "demo.profileId").ConfigureAwait(false);
+        return await RunDemoWithStoreAsync(sqlite, profileId, $"SQLite db: {dbPath}").ConfigureAwait(false);
+    }
+
     var store = await SeededStoreAsync().ConfigureAwait(false);
-    var counters = new EngineCounters();
-    var cycle = BuildDemoCycle(store, counters);
+    return await RunDemoWithStoreAsync(store, 1, null).ConfigureAwait(false);
 
-    if (once)
+    async Task<int> RunDemoWithStoreAsync(ISeekerStore store, long profileId, string? storeDetail)
     {
-        await cycle.TickAsync().ConfigureAwait(false);
-        PrintCounters(counters);
-        return 0;
-    }
+        var counters = new EngineCounters();
+        var cycle = BuildDemoCycle(store, counters, profileId);
 
-    await using var host = new EngineHost(
-        cycle,
-        counters,
-        TimeSpan.FromSeconds(intervalSeconds),
-        port,
-        dashboardActions,
-        LocalDashboardEvidence.FromStore(store));
-    using var stop = new CancellationTokenSource();
-    var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (once)
+        {
+            await cycle.TickAsync().ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(storeDetail))
+                Console.WriteLine(storeDetail);
+            PrintCounters(counters);
+            return 0;
+        }
 
-    Console.CancelKeyPress += OnCancel;
-    try
-    {
-        host.Start();
-        Console.WriteLine("CareerSeeker alpha demo host is running.");
-        Console.WriteLine($"Dashboard: http://localhost:{port}/");
-        if (dashboardActions is not null)
-            Console.WriteLine("Dashboard Gmail disconnect control: available");
-        Console.WriteLine("Press Enter or Ctrl+C to stop.");
+        await using var host = new EngineHost(
+            cycle,
+            counters,
+            TimeSpan.FromSeconds(intervalSeconds),
+            port,
+            dashboardActions,
+            LocalDashboardEvidence.FromStore(store));
+        using var stop = new CancellationTokenSource();
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var readLine = Task.Run(Console.ReadLine, stop.Token);
-        await Task.WhenAny(readLine, stopped.Task).ConfigureAwait(false);
-        return 0;
-    }
-    finally
-    {
-        Console.CancelKeyPress -= OnCancel;
-        stop.Cancel();
-        PrintCounters(counters);
-    }
+        Console.CancelKeyPress += OnCancel;
+        try
+        {
+            host.Start();
+            Console.WriteLine("CareerSeeker alpha demo host is running.");
+            Console.WriteLine($"Dashboard: http://localhost:{port}/");
+            if (!string.IsNullOrWhiteSpace(storeDetail))
+                Console.WriteLine(storeDetail);
+            if (dashboardActions is not null)
+                Console.WriteLine("Dashboard Gmail disconnect control: available");
+            Console.WriteLine("Press Enter or Ctrl+C to stop.");
 
-    void OnCancel(object? sender, ConsoleCancelEventArgs e)
-    {
-        e.Cancel = true;
-        stopped.TrySetResult();
+            var readLine = Task.Run(Console.ReadLine, stop.Token);
+            await Task.WhenAny(readLine, stopped.Task).ConfigureAwait(false);
+            return 0;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= OnCancel;
+            stop.Cancel();
+            PrintCounters(counters);
+        }
+
+        void OnCancel(object? sender, ConsoleCancelEventArgs e)
+        {
+            e.Cancel = true;
+            stopped.TrySetResult();
+        }
     }
 }
 
-EngineCycle BuildDemoCycle(InMemorySeekerStore store, EngineCounters counters)
+EngineCycle BuildDemoCycle(ISeekerStore store, EngineCounters counters, long profileId = 1)
     => BuildDemoCycleCore(store, counters, new DemoGmailDraftClient(), new DemoPostingSource(
         new PostingDispatchInfo(DispatchChannel.Email, "jobs@feed.example")), "CareerSeeker Alpha",
-        "alpha@careerseeker.app", new DemoFeed(), "feed", "Discovered");
+        "alpha@careerseeker.app", new DemoFeed(), "feed", "Discovered", profileId);
 
 async Task<int> RunAlphaAsync()
 {
@@ -527,6 +548,21 @@ async Task<long> SeedProfileAsync(ISeekerStore store)
     return profileId;
 }
 
+async Task<long> SeedProfileOnceAsync(ISeekerStore store, string configKey)
+{
+    var configured = await store.GetConfigAsync(configKey).ConfigureAwait(false);
+    if (long.TryParse(configured, out var existingProfileId))
+    {
+        var existingClaims = await store.GetClaimsAsync(existingProfileId).ConfigureAwait(false);
+        if (existingClaims.Count > 0)
+            return existingProfileId;
+    }
+
+    var profileId = await SeedProfileAsync(store).ConfigureAwait(false);
+    await store.SetConfigAsync(configKey, profileId.ToString()).ConfigureAwait(false);
+    return profileId;
+}
+
 string RespondForDemo(ProviderCall call)
 {
     var prompt = string.Join("\n", call.Messages.Select(m => m.Content));
@@ -608,7 +644,7 @@ void PrintUsage()
     Console.WriteLine("CareerSeeker alpha executable");
     Console.WriteLine();
     Console.WriteLine("Usage:");
-    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");

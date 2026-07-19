@@ -11,6 +11,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - Live Gmail draft creation is already verified with `gmail.compose`.
 - `src/Engine` is now a runnable executable entrypoint with demo and alpha modes.
 - A self-contained `win-x64` single-file publish succeeds and the published `.exe` runs a demo cycle.
+- Demo mode can also run against a persistent SQLite database with audit export support.
 - Engine alpha mode can use SQLite + DPAPI OAuth + Gmail to create one real self-addressed L1 draft.
 - Engine alpha mode preflights Gmail draft access before creating the draft.
 - The alpha executable can revoke Gmail OAuth and delete the local DPAPI token vault.
@@ -50,6 +51,7 @@ Exit:
 
 Verified:
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once --db .appdata/careerseeker-demo.db`
 - `dotnet publish src/Engine/SeekerSvc.Engine.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true`
 - `src/Engine/bin/Release/net8.0/win-x64/publish/SeekerSvc.Engine.exe demo --once`
 
