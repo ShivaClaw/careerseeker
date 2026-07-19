@@ -33,6 +33,8 @@ public sealed class InMemorySeekerStore : ISeekerStore
 
     private string Now() => _clock().ToString("O");
 
+    private static string JsonBool(string? value) => string.IsNullOrWhiteSpace(value) ? "false" : "true";
+
     public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
 
     public async Task<long> UpsertCompanyAsync(CompanyUpsert company, CancellationToken ct = default)
@@ -275,9 +277,37 @@ public sealed class InMemorySeekerStore : ISeekerStore
                         score?.Legitimacy,
                         score?.Total,
                         draft?.Status,
-                        draft?.ExternalRef);
+                        draft?.ExternalRef,
+                        app.ResumePath,
+                        app.CoverPath,
+                        !string.IsNullOrWhiteSpace(app.AnswersJson));
                 })
                 .ToList();
+        }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task SaveApplicationArtifactsAsync(
+        long applicationId,
+        string? resumePath,
+        string? coverPath,
+        string? answersJson,
+        CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (!_apps.TryGetValue(applicationId, out var app))
+                throw new InvalidOperationException($"No application {applicationId}");
+            _apps[applicationId] = app with
+            {
+                ResumePath = resumePath,
+                CoverPath = coverPath,
+                AnswersJson = answersJson,
+                UpdatedAt = Now()
+            };
+            AppendLocked(new EventInput("engine", "artifacts_saved", "application", applicationId.ToString(),
+                $"{{\"resume\":{JsonBool(resumePath)},\"cover\":{JsonBool(coverPath)},\"answers\":{JsonBool(answersJson)}}}"));
         }
         finally { _mutex.Release(); }
     }

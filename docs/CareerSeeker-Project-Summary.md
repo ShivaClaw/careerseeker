@@ -28,7 +28,7 @@ Completed:
 - OAuth token storage works through a local DPAPI-backed token vault.
 - Gmail disconnect can revoke the OAuth token and delete the local DPAPI vault via the alpha executable.
 - The localhost dashboard can expose a token-protected Gmail disconnect control wired to the same revoke/delete path.
-- The localhost dashboard exposes recent application state, scores, draft refs, and safe job/apply links at `/applications`.
+- The localhost dashboard exposes recent application state, scores, draft refs, generated resume/cover document links, and safe job/apply links at `/applications`.
 - The localhost dashboard exposes audit-chain status and recent audit event metadata at `/evidence`.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
@@ -36,7 +36,7 @@ Completed:
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
 - BYOK provider keys can be imported from environment/env.secrets into a local DPAPI vault.
 - Live BYOK provider smoke passes for Anthropic, Gemini, Tailor, Gate entailment, and Gateway accounting.
-- Demo mode can run the dashboard/cycle shell against a persistent SQLite database with exportable audit evidence.
+- Demo mode can run the dashboard/cycle shell against a persistent SQLite database with exportable audit evidence and local draft artifacts.
 - Bounded alpha `--llm byok --fast-smoke` passes live Gate preflight, live Tailor smoke, Gmail draft creation, PDF attachment packaging, and SQLite audit in one routine command.
 - Alpha BYOK Gate verification defaults to top-3 semantic source candidates per tailored claim to bound live entailment calls while still failing closed.
 - Unconstrained alpha `--llm byok` passes with live Tailor, live Gate, Gmail draft creation, PDF attachment packaging, and SQLite audit.
@@ -44,7 +44,7 @@ Completed:
 - Researcher has a real Brave Search adapter that fetches public result pages before docs can ground dossier facts.
 - Engine has a `research-company` alpha command that composes Brave Search, BYOK Gateway dossier modeling, and the grounding filter when a Brave key is available.
 - L1 compose-only correction is in place: custom Gmail labels are skipped by default because label management requires broader Gmail scope than `gmail.compose`.
-- SQLite provider source is restored to the Store project and covered by `StoreParityHarness`, including the recent-application read model.
+- SQLite provider source is restored to the Store project and covered by `StoreParityHarness`, including the recent-application and artifact-metadata read model.
 - Gateway pinned-Gate and Dispatcher no-send invariants now have named offline harnesses.
 - Gate outages now fail closed into `GATE_UNAVAILABLE` instead of being mislabeled as fabrication.
 
@@ -297,7 +297,7 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 199 passed, 0 failed.
+Total: 201 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
@@ -305,9 +305,9 @@ Total: 199 passed, 0 failed.
 | `EngineHarness` | 30 passed, 0 failed |
 | `ResearcherHarness` | 26 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
-| `StoreParityHarness` | 13 passed, 0 failed |
+| `StoreParityHarness` | 14 passed, 0 failed |
 | `GatewayGateHarness` | 29 passed, 0 failed |
-| `DispatcherNoSendHarness` | 20 passed, 0 failed |
+| `DispatcherNoSendHarness` | 21 passed, 0 failed |
 | `LifecycleHarness` | 37 passed, 0 failed |
 | `RendererHarness` | 6 passed, 0 failed |
 
@@ -480,7 +480,7 @@ Status: substantially complete.
 - Windows Service host around `EngineHost`.
 - WinUI 3 tray app.
 - Kill switch.
-- Local dashboard document-link polish once generated artifact paths are persisted into application rows.
+- Broader dashboard polish beyond the current local status, evidence, application, and document-link views.
 - Installer and Azure Artifact Signing/OV code signing.
 - Startup smoke test for config, keys, API reachability, and DB health.
 
@@ -549,7 +549,7 @@ Status: substantially complete.
 Highest priority:
 
 - Live-verify `research-company` with a real Brave Search key so company hooks and legitimacy signals can graduate from source-present to live-proven.
-- Add document-link polish to the local dashboard once generated artifact paths are persisted into application rows.
+- Live-verify dashboard document links in an interactive hosted demo session before wider tester distribution.
 
 Near-term connector work:
 
@@ -570,7 +570,7 @@ Product recommendations:
 - Keep L1 free, local-first, and reviewable.
 - Treat the first public promise as "real drafts, zero sends."
 - Make privacy copy concrete: resume and OAuth tokens never leave the device.
-- Add document-link polish to the local dashboard once generated artifact paths are persisted into application rows.
+- Live-verify dashboard document links in an interactive hosted demo session before wider tester distribution.
 - Add import/migration packaging around the audit export when the workspace export story broadens.
 
 Security recommendations:
@@ -644,6 +644,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past eleven important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, a dashboard-accessible Gmail disconnect control, and offline-verified real web-research adapter code. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be live Brave-key verification for `research-company` and then broader local evidence surfaces.
+CareerSeeker is now past twelve important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, a dashboard-accessible Gmail disconnect control, and offline-verified real web-research adapter code. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be live Brave-key verification for `research-company` and then broader local evidence surfaces.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

@@ -165,6 +165,12 @@ public sealed class ApplicationPipeline
                     throw;
                 }
                 await _store.ResolveEffectAttemptAsync(attemptId, "SUCCEEDED", draft.Reference, ct).ConfigureAwait(false);
+                await _store.SaveApplicationArtifactsAsync(
+                    appId,
+                    draft.ResumePath,
+                    draft.CoverPath,
+                    draft.AnswersJson,
+                    ct).ConfigureAwait(false);
                 await TransitionAsync(appId, target, "engine", ct: ct).ConfigureAwait(false);
                 return (AppState.DRAFTED, draft); // the human reviews and sends from Gmail
             }

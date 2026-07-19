@@ -32,6 +32,8 @@ public sealed class SqliteSeekerStore : ISeekerStore, IAsyncDisposable
 
     private string Now() => _clock().ToString("O");
 
+    private static string JsonBool(string? value) => string.IsNullOrWhiteSpace(value) ? "false" : "true";
+
     private SqliteConnection Conn => _conn ?? throw new InvalidOperationException("Call InitializeAsync first.");
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -46,6 +48,12 @@ public sealed class SqliteSeekerStore : ISeekerStore, IAsyncDisposable
                 await ExecAsync(conn, pragma, ct).ConfigureAwait(false);
             await ExecAsync(conn, Schema.Ddl, ct).ConfigureAwait(false);
             try { await ExecAsync(conn, "ALTER TABLE applications ADD COLUMN paused_from TEXT;", ct).ConfigureAwait(false); }
+            catch (SqliteException) { /* column already exists (fresh DDL or prior migration) */ }
+            try { await ExecAsync(conn, "ALTER TABLE applications ADD COLUMN resume_path TEXT;", ct).ConfigureAwait(false); }
+            catch (SqliteException) { /* column already exists (fresh DDL or prior migration) */ }
+            try { await ExecAsync(conn, "ALTER TABLE applications ADD COLUMN cover_path TEXT;", ct).ConfigureAwait(false); }
+            catch (SqliteException) { /* column already exists (fresh DDL or prior migration) */ }
+            try { await ExecAsync(conn, "ALTER TABLE applications ADD COLUMN answers_json TEXT;", ct).ConfigureAwait(false); }
             catch (SqliteException) { /* column already exists (fresh DDL or prior migration) */ }
             _conn = conn;
         }
@@ -266,13 +274,16 @@ WHERE id=$id AND state=$expected;";
         => Locked(async () =>
         {
             using var cmd = Conn.CreateCommand();
-            cmd.CommandText = "SELECT id, job_id, state, autonomy_level, channel, created_at, updated_at, paused_from FROM applications WHERE id=$id;";
+            cmd.CommandText = "SELECT id, job_id, state, autonomy_level, channel, created_at, updated_at, paused_from, resume_path, cover_path, answers_json FROM applications WHERE id=$id;";
             P(cmd, "$id", applicationId);
             using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             if (!await r.ReadAsync(ct).ConfigureAwait(false)) return null;
             return new ApplicationRow(r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3),
                 r.IsDBNull(4) ? null : r.GetString(4), r.GetString(5), r.GetString(6),
-                r.IsDBNull(7) ? null : r.GetString(7));
+                r.IsDBNull(7) ? null : r.GetString(7),
+                r.IsDBNull(8) ? null : r.GetString(8),
+                r.IsDBNull(9) ? null : r.GetString(9),
+                r.IsDBNull(10) ? null : r.GetString(10));
         }, ct);
 
     public Task<IReadOnlyList<ApplicationSummaryRow>> GetRecentApplicationsAsync(
@@ -288,7 +299,8 @@ SELECT
   j.id, j.title, c.name, c.domain, j.location, j.remote, j.url, j.apply_url,
   s.fit, s.legitimacy, s.total,
   (SELECT e.status FROM effect_attempts e WHERE e.application_id=a.id AND e.kind='draft' ORDER BY e.id DESC LIMIT 1) AS draft_status,
-  (SELECT e.external_ref FROM effect_attempts e WHERE e.application_id=a.id AND e.kind='draft' ORDER BY e.id DESC LIMIT 1) AS draft_ref
+  (SELECT e.external_ref FROM effect_attempts e WHERE e.application_id=a.id AND e.kind='draft' ORDER BY e.id DESC LIMIT 1) AS draft_ref,
+  a.resume_path, a.cover_path, a.answers_json
 FROM applications a
 JOIN jobs j ON j.id = a.job_id
 LEFT JOIN companies c ON c.id = j.company_id
@@ -321,9 +333,45 @@ LIMIT $limit;";
                     D(16),
                     D(17),
                     S(18),
-                    S(19)));
+                    S(19),
+                    S(20),
+                    S(21),
+                    !string.IsNullOrWhiteSpace(S(22))));
             }
             return (IReadOnlyList<ApplicationSummaryRow>)rows;
+        }, ct);
+
+    public Task SaveApplicationArtifactsAsync(
+        long applicationId,
+        string? resumePath,
+        string? coverPath,
+        string? answersJson,
+        CancellationToken ct = default)
+        => Locked<object?>(async () =>
+        {
+            var now = Now();
+            using var tx = (SqliteTransaction)await Conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            using var cmd = Conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = @"
+UPDATE applications
+SET resume_path=$resume, cover_path=$cover, answers_json=$answers, updated_at=$now
+WHERE id=$id;";
+            P(cmd, "$resume", resumePath);
+            P(cmd, "$cover", coverPath);
+            P(cmd, "$answers", answersJson);
+            P(cmd, "$now", now);
+            P(cmd, "$id", applicationId);
+            var changed = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            if (changed == 0) throw new InvalidOperationException($"No application {applicationId}");
+
+            await AppendEventTxAsync(tx, new EventInput("engine", "artifacts_saved", "application",
+                applicationId.ToString(),
+                $"{{\"resume\":{JsonBool(resumePath)},\"cover\":{JsonBool(coverPath)},\"answers\":{JsonBool(answersJson)}}}"), ct)
+                .ConfigureAwait(false);
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+            return null;
         }, ct);
 
     public Task SavePendingDispatchAsync(long applicationId, string payloadJson, CancellationToken ct = default)

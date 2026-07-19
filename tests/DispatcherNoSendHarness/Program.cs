@@ -143,6 +143,28 @@ Check("Dispatcher attaches rendered PDF documents to the Gmail draft",
     && decodedMessage.Contains("Jordan Lee - Acme - Resume.pdf", StringComparison.Ordinal)
     && decodedMessage.Contains("Jordan Lee - Acme - Cover Letter.pdf", StringComparison.Ordinal));
 
+var artifactRoot = Path.Combine(Path.GetTempPath(), "CareerSeeker-DispatcherArtifacts-" + Guid.NewGuid().ToString("N"));
+try
+{
+    var artifactGmail = new FakeGmail();
+    var artifactDispatcher = new Dispatcher(
+        new FakePostings(new PostingDispatchInfo(DispatchChannel.Email, "jobs@example.com")),
+        pdfRenderer,
+        artifactGmail,
+        new DispatcherConfig("Jordan Lee", "jordan@example.com", AttachCoverPdf: true, ArtifactDirectory: artifactRoot));
+    var artifactOutcome = await artifactDispatcher.CreateDraftAsync(pdfJob, pdfApp);
+    Check("Dispatcher persists local draft artifacts when configured",
+        artifactOutcome.ResumePath is not null &&
+        artifactOutcome.CoverPath is not null &&
+        Path.IsPathRooted(artifactOutcome.ResumePath) &&
+        File.Exists(artifactOutcome.ResumePath) &&
+        File.ReadAllBytes(artifactOutcome.ResumePath).SequenceEqual(resumePdf.Content));
+}
+finally
+{
+    try { if (Directory.Exists(artifactRoot)) Directory.Delete(artifactRoot, recursive: true); } catch (IOException) { }
+}
+
 Console.WriteLine("\n[ OAuth local controls ]");
 var tempRoot = Path.Combine(Path.GetTempPath(), "CareerSeeker-DispatcherHarness-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(tempRoot);

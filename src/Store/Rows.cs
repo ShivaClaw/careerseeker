@@ -86,7 +86,10 @@ public sealed record ApplicationRow(
     string? Channel,
     string CreatedAt,
     string UpdatedAt,
-    string? PausedFrom = null);
+    string? PausedFrom = null,
+    string? ResumePath = null,
+    string? CoverPath = null,
+    string? AnswersJson = null);
 
 /// <summary>Read-only dashboard summary for recent applications. Payload bodies stay out of this row.</summary>
 public sealed record ApplicationSummaryRow(
@@ -109,7 +112,10 @@ public sealed record ApplicationSummaryRow(
     double? Legitimacy,
     double? Total,
     string? DraftStatus,
-    string? DraftExternalRef);
+    string? DraftExternalRef,
+    string? ResumePath,
+    string? CoverPath,
+    bool HasAnswers);
 
 /// <summary>
 /// A durable side-effect attempt record bracketing an external call (Gmail draft, ATS submit).

@@ -20,7 +20,13 @@ public sealed record TailoredApplication(
 public enum DispatchChannel { AtsForm, Email, ManualFinish }
 
 /// <summary>Result of a dispatch action.</summary>
-public sealed record DispatchOutcome(bool Ok, DispatchChannel Channel, string? Reference = null);
+public sealed record DispatchOutcome(
+    bool Ok,
+    DispatchChannel Channel,
+    string? Reference = null,
+    string? ResumePath = null,
+    string? CoverPath = null,
+    string? AnswersJson = null);
 
 /// <summary>
 /// Produces a tailored application for a job from the Source-of-Truth claims. The real implementation

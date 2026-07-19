@@ -40,6 +40,7 @@ async Task<int> RunDemoAsync()
     var intervalSeconds = IntArg("--interval-seconds", 30);
     var once = HasFlag("--once");
     var dbPath = StringArg("--db");
+    var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
     var gmailVaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
     var gmailClientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
     var dashboardActions = HasFlag("--gmail-control") || File.Exists(gmailVaultPath)
@@ -63,7 +64,7 @@ async Task<int> RunDemoAsync()
     async Task<int> RunDemoWithStoreAsync(ISeekerStore store, long profileId, string? storeDetail)
     {
         var counters = new EngineCounters();
-        var cycle = BuildDemoCycle(store, counters, profileId);
+        var cycle = BuildDemoCycle(store, counters, profileId, artifactsPath);
 
         if (once)
         {
@@ -115,10 +116,11 @@ async Task<int> RunDemoAsync()
     }
 }
 
-EngineCycle BuildDemoCycle(ISeekerStore store, EngineCounters counters, long profileId = 1)
+EngineCycle BuildDemoCycle(ISeekerStore store, EngineCounters counters, long profileId = 1, string? artifactDirectory = null)
     => BuildDemoCycleCore(store, counters, new DemoGmailDraftClient(), new DemoPostingSource(
         new PostingDispatchInfo(DispatchChannel.Email, "jobs@feed.example")), "CareerSeeker Alpha",
-        "alpha@careerseeker.app", new DemoFeed(), "feed", "Discovered", profileId);
+        "alpha@careerseeker.app", new DemoFeed(), "feed", "Discovered", profileId,
+        artifactDirectory: artifactDirectory);
 
 async Task<int> RunAlphaAsync()
 {
@@ -129,6 +131,7 @@ async Task<int> RunAlphaAsync()
     var clientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
     var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
     var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
     var llmMode = StringArg("--llm") ?? "fake";
     var keyVaultPath = StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi");
     var fastSmoke = HasFlag("--fast-smoke");
@@ -161,6 +164,7 @@ async Task<int> RunAlphaAsync()
 
     Console.WriteLine("CareerSeeker alpha live Gmail smoke");
     Console.WriteLine($"  db: {dbPath}");
+    Console.WriteLine($"  artifacts: {artifactsPath}");
     Console.WriteLine($"  oauth client: {clientPath}");
     Console.WriteLine($"  token vault: {vaultPath} ({(File.Exists(vaultPath) ? "present" : "will create")})");
     Console.WriteLine($"  gmail account: {(string.IsNullOrWhiteSpace(email) ? "will read from Gmail profile" : email)}");
@@ -201,7 +205,8 @@ async Task<int> RunAlphaAsync()
         profileId,
         gateway,
         tailor,
-        GateOptionsFrom(gateSemanticCandidates));
+        GateOptionsFrom(gateSemanticCandidates),
+        artifactsPath);
 
     await cycle.TickAsync().ConfigureAwait(false);
     PrintCounters(counters);
@@ -414,16 +419,20 @@ EngineCycle BuildDemoCycleCore(
     long profileId = 1,
     LlmGateway? gateway = null,
     ITailor? tailorOverride = null,
-    GateVerificationOptions? gateOptions = null)
+    GateVerificationOptions? gateOptions = null,
+    string? artifactDirectory = null)
 {
     gateway ??= BuildFakeGateway();
+
+    if (!string.IsNullOrWhiteSpace(artifactDirectory))
+        Directory.CreateDirectory(artifactDirectory);
 
     ITailor tailor = tailorOverride ?? new SeekerSvc.Tailor.Tailor(new GatewayTailorModel(gateway));
     var dispatcher = new SeekerSvc.Dispatcher.Dispatcher(
         postingSource,
         new AtsPdfDocumentRenderer(new AtsPdfRendererOptions(candidateName)),
         gmail,
-        new DispatcherConfig(candidateName, candidateEmail));
+        new DispatcherConfig(candidateName, candidateEmail, ArtifactDirectory: artifactDirectory));
 
     var pipeline = new ApplicationPipeline(
         store,
@@ -644,8 +653,8 @@ void PrintUsage()
     Console.WriteLine("CareerSeeker alpha executable");
     Console.WriteLine();
     Console.WriteLine("Usage:");
-    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
-    Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db]");
+    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");

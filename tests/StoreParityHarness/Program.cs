@@ -38,6 +38,9 @@ Check("recent application summary joins job, company, and score",
     sqlite.Summaries.Count == 1 &&
     sqlite.Summaries[0] is { JobTitle: "Senior Software Engineer", CompanyName: "Acme" } &&
     sqlite.Summaries[0].Total == 4.4);
+Check("application artifact metadata persists into app and summary rows",
+    sqlite.App is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", AnswersJson: "{\"q\":\"a\"}" } &&
+    sqlite.Summaries[0] is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", HasAnswers: true });
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
@@ -130,6 +133,7 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
         var pendingSeen = await store.GetPendingDispatchAsync(appId);
         var attemptId = await store.BeginEffectAttemptAsync(appId, "submit");
         await store.ResolveEffectAttemptAsync(attemptId, "SUCCEEDED", "ref-1");
+        await store.SaveApplicationArtifactsAsync(appId, "resume.pdf", "cover.pdf", "{\"q\":\"a\"}");
         var attempts = (await store.GetEffectAttemptsAsync(appId)).ToList();
         await store.DeletePendingDispatchAsync(appId);
         var pendingAfterDelete = await store.GetPendingDispatchAsync(appId);

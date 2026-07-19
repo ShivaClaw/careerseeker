@@ -148,8 +148,9 @@ Console.WriteLine("\n[ localhost dashboard ]");
         return Task.FromResult(new DashboardControlResult(true, "Gmail disconnected."));
     });
     var evidenceStore = await SeededStoreAsync();
+    var artifactDir = Path.Combine(Path.GetTempPath(), "careerseeker-engineharness-artifacts-" + Guid.NewGuid().ToString("N"));
     var evidenceCounters = new EngineCounters();
-    var evidencePipeline = new ApplicationPipeline(evidenceStore, tailor, MakeDispatcher(new FakeGmail()), new GatewaySemanticMatcher(gateway),
+    var evidencePipeline = new ApplicationPipeline(evidenceStore, tailor, MakeDispatcher(new FakeGmail(), artifactDir), new GatewaySemanticMatcher(gateway),
         new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
     var evidenceCycle = new EngineCycle(evidenceStore, new FakeFeed(new[] { Healthy("Senior Software Engineer") }),
         new FakeSemantic(), evidencePipeline, opt, evidenceCounters);
@@ -177,7 +178,8 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/applications serves recent job/state drill-down",
             applicationsHtml.Contains("Senior Software Engineer") &&
             applicationsHtml.Contains("DRAFTED") &&
-            applicationsHtml.Contains("SUCCEEDED"),
+            applicationsHtml.Contains("SUCCEEDED") &&
+            applicationsHtml.Contains(">resume</a>"),
             applicationsHtml);
 
         var evidenceJson = await http.GetStringAsync("http://localhost:7777/evidence");
@@ -233,6 +235,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
             evidenceDoc.RootElement.GetProperty("auditOk").GetBoolean());
     }
     await dash.DisposeAsync();
+    try { if (Directory.Exists(artifactDir)) Directory.Delete(artifactDir, recursive: true); } catch (IOException) { }
 }
 
 // ── 4) gateway budget safety invariant ────────────────────────────────────────────────────────────
@@ -287,9 +290,9 @@ Console.WriteLine("\n[ dispatcher safety ]");
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
-Dispatcher MakeDispatcher(FakeGmail g) => new(
+Dispatcher MakeDispatcher(FakeGmail g, string? artifactDirectory = null) => new(
     new FakePostings(new PostingDispatchInfo(DispatchChannel.Email, "jobs@feed.com")),
-    new FakeRenderer(), g, new DispatcherConfig("Jordan Lee", "jordan@gmail.com"));
+    new FakeRenderer(), g, new DispatcherConfig("Jordan Lee", "jordan@gmail.com", ArtifactDirectory: artifactDirectory));
 
 string DashboardToken(string html)
 {

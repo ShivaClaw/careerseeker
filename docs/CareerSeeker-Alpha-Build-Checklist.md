@@ -11,7 +11,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - Live Gmail draft creation is already verified with `gmail.compose`.
 - `src/Engine` is now a runnable executable entrypoint with demo and alpha modes.
 - A self-contained `win-x64` single-file publish succeeds and the published `.exe` runs a demo cycle.
-- Demo mode can also run against a persistent SQLite database with audit export support.
+- Demo mode can also run against a persistent SQLite database with audit export support and local draft artifacts.
 - Engine alpha mode can use SQLite + DPAPI OAuth + Gmail to create one real self-addressed L1 draft.
 - Engine alpha mode preflights Gmail draft access before creating the draft.
 - The alpha executable can revoke Gmail OAuth and delete the local DPAPI token vault.
@@ -22,8 +22,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - The unconstrained alpha `--llm byok` path now creates a real Gmail draft after live Tailor and live Gate verification.
 - Engine alpha drafts attach a real ATS-clean resume PDF.
 - The localhost dashboard can expose a token-protected Gmail disconnect control backed by the same local DPAPI revoke/delete path as the CLI.
-- The localhost dashboard exposes `/applications` with recent application state, scores, draft refs, and
-  safe job/apply links.
+- The localhost dashboard exposes `/applications` with recent application state, scores, draft refs, generated
+  resume/cover document links, and safe job/apply links.
 - The localhost dashboard exposes `/evidence` with audit-chain status and recent audit event metadata.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
 - A real Brave Search web-research adapter and `research-company` alpha command are implemented; live verification is pending a Brave Search key.
@@ -53,7 +53,7 @@ Exit:
 
 Verified:
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once`
-- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once --db .appdata/careerseeker-demo.db`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once --db .appdata/careerseeker-demo.db --artifacts .appdata/artifacts`
 - `dotnet publish src/Engine/SeekerSvc.Engine.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true`
 - `src/Engine/bin/Release/net8.0/win-x64/publish/SeekerSvc.Engine.exe demo --once`
 

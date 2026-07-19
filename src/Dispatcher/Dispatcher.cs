@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SeekerSvc.Pipeline;
 
 namespace SeekerSvc.Dispatcher;
@@ -68,7 +69,14 @@ public sealed class Dispatcher : IDispatcher
             pkg.Subject, pkg.BodyText, pkg.Attachments);
 
         var draftId = await _gmail.CreateDraftAsync(raw, labelIds, ct).ConfigureAwait(false);
-        return new DispatchOutcome(Ok: true, pkg.Channel, Reference: draftId);
+        var artifacts = await TrySaveArtifactsAsync(job, app, draftId, resume, coverPdf, ct).ConfigureAwait(false);
+        return new DispatchOutcome(
+            Ok: true,
+            pkg.Channel,
+            Reference: draftId,
+            ResumePath: artifacts.ResumePath,
+            CoverPath: artifacts.CoverPath,
+            AnswersJson: artifacts.AnswersJson);
     }
 
     /// <summary>L2/L3 submit is not part of an L1 build. Sending is a separate, gated capability.</summary>
@@ -76,4 +84,78 @@ public sealed class Dispatcher : IDispatcher
         PipelineJob job, TailoredApplication app, CancellationToken ct = default) =>
         throw new NotSupportedException(
             "L1 Dispatcher drafts only (gmail.compose). Submission/sending is an L2/L3 capability behind a separate gated port.");
+
+    private async Task<SavedArtifacts> TrySaveArtifactsAsync(
+        PipelineJob job,
+        TailoredApplication app,
+        string draftId,
+        Attachment resume,
+        Attachment? cover,
+        CancellationToken ct)
+    {
+        var artifactDirectory = _config.ArtifactDirectory;
+        if (string.IsNullOrWhiteSpace(artifactDirectory))
+            return new SavedArtifacts(null, null, AnswersJson(app));
+
+        try
+        {
+            return await SaveArtifactsAsync(job, app, draftId, resume, cover, artifactDirectory, ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            return new SavedArtifacts(null, null, AnswersJson(app));
+        }
+    }
+
+    private async Task<SavedArtifacts> SaveArtifactsAsync(
+        PipelineJob job,
+        TailoredApplication app,
+        string draftId,
+        Attachment resume,
+        Attachment? cover,
+        string artifactDirectory,
+        CancellationToken ct)
+    {
+
+        var artifactRoot = Path.GetFullPath(artifactDirectory);
+        var dir = Path.Combine(
+            artifactRoot,
+            "job-" + job.JobId.ToString("D8"),
+            "draft-" + SafeSegment(draftId));
+        Directory.CreateDirectory(dir);
+
+        var resumePath = Path.Combine(dir, SafeFileName(resume.FileName, "resume.pdf"));
+        await File.WriteAllBytesAsync(resumePath, resume.Content, ct).ConfigureAwait(false);
+
+        string? coverPath = null;
+        if (cover is not null)
+        {
+            coverPath = Path.Combine(dir, SafeFileName(cover.FileName, "cover.pdf"));
+            await File.WriteAllBytesAsync(coverPath, cover.Content, ct).ConfigureAwait(false);
+        }
+
+        var answersJson = AnswersJson(app);
+        if (!string.IsNullOrWhiteSpace(answersJson))
+            await File.WriteAllTextAsync(Path.Combine(dir, "answers.json"), answersJson, ct).ConfigureAwait(false);
+
+        return new SavedArtifacts(resumePath, coverPath, answersJson);
+    }
+
+    private static string? AnswersJson(TailoredApplication app) =>
+        app.Answers.Count == 0 ? null : JsonSerializer.Serialize(app.Answers);
+
+    private static string SafeFileName(string fileName, string fallback)
+    {
+        var safe = string.Join("_", fileName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+        return string.IsNullOrWhiteSpace(safe) ? fallback : safe;
+    }
+
+    private static string SafeSegment(string value)
+    {
+        var safe = string.Join("_", value.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+        return string.IsNullOrWhiteSpace(safe) ? Guid.NewGuid().ToString("N") : safe;
+    }
+
+    private sealed record SavedArtifacts(string? ResumePath, string? CoverPath, string? AnswersJson);
 }

@@ -329,7 +329,19 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
             links.Add($@"<a href=""{WebUtility.HtmlEncode(jobUri.ToString())}"">job</a>");
         if (Uri.TryCreate(row.ApplyUrl, UriKind.Absolute, out var applyUri) && applyUri.Scheme is "http" or "https" or "mailto")
             links.Add($@"<a href=""{WebUtility.HtmlEncode(applyUri.ToString())}"">apply</a>");
+        AddFileLink(links, row.ResumePath, "resume");
+        AddFileLink(links, row.CoverPath, "cover");
         return links.Count == 0 ? "-" : string.Join(" ", links);
+    }
+
+    private static void AddFileLink(List<string> links, string? path, string label)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path)) return;
+        try
+        {
+            links.Add($@"<a href=""{WebUtility.HtmlEncode(new Uri(path).AbsoluteUri)}"">{label}</a>");
+        }
+        catch (UriFormatException) { }
     }
 
     private async Task HandleApplicationsAsync(HttpListenerContext ctx, CancellationToken ct)

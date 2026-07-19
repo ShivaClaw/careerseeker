@@ -36,7 +36,8 @@ public sealed record DispatcherConfig(
     string OutboxLabel = "CareerSeeker/Outbox",
     string ActionNeededLabel = "CareerSeeker/Action-Needed",
     bool AttachCoverPdf = false,
-    bool UseCustomLabels = false);           // gmail.compose-only L1 leaves this false; label management needs broader Gmail scope
+    bool UseCustomLabels = false,            // gmail.compose-only L1 leaves this false; label management needs broader Gmail scope
+    string? ArtifactDirectory = null);
 
 /// <summary>
 /// Source of posting dispatch facts (channel, recipient, apply URL). Backed by the Store in production;
