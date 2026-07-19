@@ -16,9 +16,9 @@ Trust/OAuth docs:
   references Pipeline, Tailor, Dispatcher, and Researcher for alpha composition commands. `TailorHookBridge`
   joins Tailor<->Researcher so neither core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
-  `EngineHarness` (32), `ResearcherHarness` (26), `HookHarness` (10), `StoreParityHarness` (14),
+  `EngineHarness` (36), `ResearcherHarness` (26), `HookHarness` (10), `StoreParityHarness` (14),
   `GatewayGateHarness` (29), `DispatcherNoSendHarness` (21), `LifecycleHarness` (37), and
-  `RendererHarness` (6). Latest offline total: 203 assertions. Run each with
+  `RendererHarness` (6). Latest offline total: 207 assertions. Run each with
   `dotnet run -c Release`.
 
 ## Build

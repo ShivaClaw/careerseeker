@@ -23,7 +23,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - Engine alpha drafts attach a real ATS-clean resume PDF.
 - The localhost dashboard can expose a token-protected Gmail disconnect control backed by the same local DPAPI revoke/delete path as the CLI.
 - The localhost dashboard exposes `/applications` with recent application state, scores, draft refs, generated
-  resume/cover document links, and safe job/apply links.
+  resume/cover document links, safe job/apply links, and token-protected pause/resume/kill controls.
 - The localhost dashboard exposes `/evidence` with audit-chain status and recent audit event metadata.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
