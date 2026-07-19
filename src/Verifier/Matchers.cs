@@ -59,8 +59,11 @@ public static class Text
     {
         var result = new HashSet<string>(StringComparer.Ordinal);
         foreach (var w in Canonicalize(text).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
-            if (!Stop.Contains(w))
-                result.Add(w);
+        {
+            var token = w.Trim('.');
+            if (token.Length > 0 && !Stop.Contains(token))
+                result.Add(token);
+        }
         return result;
     }
 }

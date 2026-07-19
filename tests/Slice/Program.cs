@@ -141,6 +141,71 @@ Console.WriteLine("=== CareerSeeker L1 vertical slice (Scout→Store→Scorer→
         unavailable.Verdict == Verdict.DeferredUnavailable && unavailable.UnavailableClaims == 1,
         $"{unavailable.Verdict} unavailable={unavailable.UnavailableClaims}");
 }
+{
+    var matcher = new CountingSemanticMatcher((source, _) => source.Contains("reliable distributed systems", StringComparison.OrdinalIgnoreCase));
+    var verdict = await FabricationGate.VerifyAsync(
+        new[]
+        {
+            new SourceClaim("s1", ClaimKind.Other, "payment processing work", Confidence.Verified),
+            new SourceClaim("s2", ClaimKind.Other, "built reliable distributed systems in Go", Confidence.Verified),
+            new SourceClaim("s3", ClaimKind.Other, "customer support playbooks", Confidence.Verified),
+        },
+        new[] { new TailoredClaim(ClaimKind.Other, "built resilient services with Go", "built resilient services with Go") },
+        matcher,
+        options: GateVerificationOptions.BoundedSemantic(1));
+    Check("bounded Gate candidates still allow relevant semantic support", verdict.Passed, verdict.Verdict.ToString());
+    Check("bounded Gate candidates avoid irrelevant semantic calls", matcher.Calls == 1, matcher.Calls.ToString());
+}
+{
+    var matcher = new CountingSemanticMatcher((source, _) => source.Contains("reliable distributed systems", StringComparison.OrdinalIgnoreCase));
+    var verdict = await FabricationGate.VerifyAsync(
+        new[]
+        {
+            new SourceClaim("s1", ClaimKind.Other, "payment processing work", Confidence.Verified),
+            new SourceClaim("s2", ClaimKind.Other, "customer support playbooks", Confidence.Verified),
+            new SourceClaim("s3", ClaimKind.Other, "built reliable distributed systems in Go", Confidence.Verified),
+        },
+        new[] { new TailoredClaim(ClaimKind.Other, "shipped resilient services with Go", "shipped resilient services with Go") },
+        matcher);
+    Check("default Gate semantic candidates remain exhaustive", verdict.Passed && matcher.Calls == 3,
+        $"passed={verdict.Passed} calls={matcher.Calls}");
+}
+{
+    var smokeProfile = new[]
+    {
+        new SourceClaim("title", ClaimKind.Title, "Senior Software Engineer", Confidence.Verified),
+        new SourceClaim("skill-dist", ClaimKind.Skill, "distributed systems", Confidence.Verified),
+        new SourceClaim("skill-go", ClaimKind.Skill, "Go", Confidence.Verified),
+        new SourceClaim("skill-reliable", ClaimKind.Skill, "reliable", Confidence.Verified),
+        new SourceClaim("skill-experience", ClaimKind.Skill, "experience", Confidence.Verified),
+        new SourceClaim("skill-team", ClaimKind.Skill, "team", Confidence.Verified),
+        new SourceClaim("summary", ClaimKind.Other, "Senior Software Engineer experienced in distributed systems and Go", Confidence.Verified),
+        new SourceClaim("cover", ClaimKind.Other, "I have built reliable distributed systems in Go and would bring that experience to your team", Confidence.Verified),
+    };
+    var smokeDraft = Decomposer.FromDraft(new TailorDraft(
+        "Senior Software Engineer experienced in distributed systems and Go.",
+        "I have built reliable distributed systems in Go and would bring that experience to your team.",
+        Array.Empty<DeclaredClaim>(),
+        new Dictionary<string, string>()));
+    var verdict = await FabricationGate.VerifyAsync(
+        smokeProfile,
+        smokeDraft,
+        new DefaultSemanticMatcher(),
+        options: GateVerificationOptions.BoundedSemantic(3));
+    Check("bounded Gate accepts exact alpha smoke draft", verdict.Passed,
+        string.Join(" | ", verdict.Violations.Select(v => v.Claim.Kind + ":" + v.Claim.Text + " nearest=" + v.NearestSource)));
+}
+{
+    var matcher = new CountingSemanticMatcher((_, _) => true);
+    var verdict = await FabricationGate.VerifyAsync(
+        new[] { new SourceClaim("s1", ClaimKind.Other, "payment processing work", Confidence.Verified) },
+        new[] { new TailoredClaim(ClaimKind.Other, "managed Kubernetes clusters", "managed Kubernetes clusters") },
+        matcher,
+        options: GateVerificationOptions.BoundedSemantic(2));
+    Check("bounded Gate blocks no-overlap unsupported claims without semantic calls",
+        !verdict.Passed && matcher.Calls == 0,
+        $"passed={verdict.Passed} calls={matcher.Calls}");
+}
 
 // ── 1) HAPPY PATH: a clean, supported application flows all the way to a Gmail draft ───────────────
 Console.WriteLine("[ happy path -> DRAFTED ]");
@@ -277,4 +342,21 @@ sealed class UnavailableSemanticMatcher : ISemanticMatcher
 {
     public Task<SemanticMatchResult> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default) =>
         Task.FromResult(SemanticMatchResult.Deferred("provider_unavailable"));
+}
+
+sealed class CountingSemanticMatcher : ISemanticMatcher
+{
+    private readonly Func<string, string, bool> _entails;
+
+    public CountingSemanticMatcher(Func<string, string, bool> entails) => _entails = entails;
+
+    public int Calls { get; private set; }
+
+    public Task<SemanticMatchResult> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default)
+    {
+        Calls++;
+        return Task.FromResult(_entails(sourceText, tailoredText)
+            ? SemanticMatchResult.Supported()
+            : SemanticMatchResult.Unsupported());
+    }
 }

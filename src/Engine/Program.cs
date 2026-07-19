@@ -93,6 +93,8 @@ async Task<int> RunAlphaAsync()
     var llmMode = StringArg("--llm") ?? "fake";
     var keyVaultPath = StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi");
     var fastSmoke = HasFlag("--fast-smoke");
+    var gateSemanticCandidates = IntArg("--gate-semantic-candidates",
+        llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase) ? 3 : 0);
 
     if (!string.IsNullOrWhiteSpace(email) && (email.StartsWith("--", StringComparison.Ordinal) || !email.Contains('@')))
         return Fail("Alpha mode received an invalid --email value.");
@@ -125,6 +127,7 @@ async Task<int> RunAlphaAsync()
     Console.WriteLine($"  gmail account: {(string.IsNullOrWhiteSpace(email) ? "will read from Gmail profile" : email)}");
     Console.WriteLine($"  llm mode: {llmMode}");
     Console.WriteLine($"  fast smoke: {(fastSmoke ? "yes" : "no")}");
+    Console.WriteLine($"  gate semantic candidates: {(gateSemanticCandidates > 0 ? gateSemanticCandidates : "exhaustive")}");
 
     await tokens.GetTokenAsync().ConfigureAwait(false);
     Console.WriteLine("  OAuth token: available");
@@ -158,7 +161,8 @@ async Task<int> RunAlphaAsync()
         "CareerSeeker Alpha",
         profileId,
         gateway,
-        tailor);
+        tailor,
+        GateOptionsFrom(gateSemanticCandidates));
 
     await cycle.TickAsync().ConfigureAwait(false);
     PrintCounters(counters);
@@ -265,7 +269,8 @@ EngineCycle BuildDemoCycleCore(
     string companyName,
     long profileId = 1,
     LlmGateway? gateway = null,
-    ITailor? tailorOverride = null)
+    ITailor? tailorOverride = null,
+    GateVerificationOptions? gateOptions = null)
 {
     gateway ??= BuildFakeGateway();
 
@@ -285,6 +290,7 @@ EngineCycle BuildDemoCycleCore(
         {
             ProfileId = profileId,
             Channel = DispatchChannel.Email,
+            Gate = gateOptions ?? GateVerificationOptions.Default,
         });
 
     var prefs = new UserPreferences
@@ -302,6 +308,11 @@ EngineCycle BuildDemoCycleCore(
         new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email, profileId, companyHandle, companyName),
         counters);
 }
+
+static GateVerificationOptions GateOptionsFrom(int semanticCandidates) =>
+    semanticCandidates > 0
+        ? GateVerificationOptions.BoundedSemantic(semanticCandidates)
+        : GateVerificationOptions.Default;
 
 LlmGateway BuildFakeGateway() => new(
     RoutingTable.Default(),
@@ -475,7 +486,7 @@ void PrintUsage()
     Console.WriteLine();
     Console.WriteLine("Usage:");
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30]");
-    Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db]");
+    Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe disconnect-gmail [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");

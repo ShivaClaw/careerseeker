@@ -16,6 +16,9 @@ public sealed record PipelineOptions
 
     public DispatchChannel Channel { get; init; } = DispatchChannel.AtsForm;
 
+    /// <summary>Optional Gate tuning; default preserves exhaustive semantic comparison.</summary>
+    public GateVerificationOptions Gate { get; init; } = GateVerificationOptions.Default;
+
     public static PipelineOptions Default { get; } = new();
 }
 
@@ -113,7 +116,7 @@ public sealed class ApplicationPipeline
             tailored = await _tailor.TailorAsync(job, claims, prior, ct).ConfigureAwait(false);
             await TransitionAsync(appId, AppState.TAILORED, "engine", ct: ct).ConfigureAwait(false);
 
-            lastResult = await FabricationGate.VerifyAsync(claims, tailored.Claims, _matcher, ct: ct).ConfigureAwait(false);
+            lastResult = await FabricationGate.VerifyAsync(claims, tailored.Claims, _matcher, options: _opt.Gate, ct: ct).ConfigureAwait(false);
             if (lastResult.Passed)
             {
                 await TransitionAsync(appId, AppState.VERIFIED, "engine", ct: ct).ConfigureAwait(false);

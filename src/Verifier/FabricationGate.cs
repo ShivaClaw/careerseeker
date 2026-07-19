@@ -3,6 +3,14 @@ using System.Text.RegularExpressions;
 
 namespace SeekerSvc.Verifier;
 
+public sealed record GateVerificationOptions(int? SemanticCandidateLimit = null, double MinimumSemanticOverlap = 0.20)
+{
+    public static GateVerificationOptions Default { get; } = new();
+
+    public static GateVerificationOptions BoundedSemantic(int candidateLimit, double minimumOverlap = 0.20) =>
+        new(Math.Max(0, candidateLimit), minimumOverlap);
+}
+
 /// <summary>
 /// The Fabrication Gate (spec sections 5.5, 9.3) -- a pure verification function.
 ///
@@ -54,16 +62,18 @@ public static class FabricationGate
         IReadOnlyList<TailoredClaim> tailored,
         ISemanticMatcher? matcher = null,
         int currentYear = CurrentYearDefault,
+        GateVerificationOptions? options = null,
         CancellationToken ct = default)
     {
         matcher ??= new DefaultSemanticMatcher();
+        options ??= GateVerificationOptions.Default;
         var violations = new List<Violation>();
         var unavailableClaims = 0;
         foreach (var tc in tailored)
         {
             try
             {
-                var v = await CheckOneAsync(tc, source, matcher, currentYear, ct).ConfigureAwait(false);
+                var v = await CheckOneAsync(tc, source, matcher, currentYear, options, ct).ConfigureAwait(false);
                 if (v is not null) violations.Add(v);
             }
             catch (SemanticMatcherUnavailableException)
@@ -81,12 +91,12 @@ public static class FabricationGate
 
     private static async Task<Violation?> CheckOneAsync(
         TailoredClaim tc, IReadOnlyList<SourceClaim> source,
-        ISemanticMatcher matcher, int currentYear, CancellationToken ct)
+        ISemanticMatcher matcher, int currentYear, GateVerificationOptions options, CancellationToken ct)
     {
         if (tc.Kind == ClaimKind.Credential)
             return CheckCredential(tc, source);
         if (tc.Kind == ClaimKind.Skill)
-            return await CheckSkillAsync(tc, source, matcher, currentYear, ct).ConfigureAwait(false);
+            return await CheckSkillAsync(tc, source, matcher, currentYear, options, ct).ConfigureAwait(false);
 
         if (tc.DurationYears is not null)
         {
@@ -99,13 +109,13 @@ public static class FabricationGate
                     $"This asserts {G(tc.DurationYears.Value)} years, but the employment " +
                     $"dates in your profile add up to about {G(derived!.Value)}.",
                     $"~{G(derived.Value)} years from recorded dates");
-            return await CheckTextualAsync(tc, source, matcher, ct).ConfigureAwait(false);  // NoDates
+            return await CheckTextualAsync(tc, source, matcher, options, ct).ConfigureAwait(false);  // NoDates
         }
 
         if (tc.Number is not null)
-            return await CheckMetricAsync(tc, source, matcher, ct).ConfigureAwait(false);
+            return await CheckMetricAsync(tc, source, matcher, options, ct).ConfigureAwait(false);
 
-        return await CheckTextualAsync(tc, source, matcher, ct).ConfigureAwait(false);
+        return await CheckTextualAsync(tc, source, matcher, options, ct).ConfigureAwait(false);
     }
 
     // ---- credentials: strict, never inferred -----------------------------
@@ -133,23 +143,37 @@ public static class FabricationGate
 
     private static async Task<Violation?> CheckSkillAsync(
         TailoredClaim tc, IReadOnlyList<SourceClaim> source,
-        ISemanticMatcher matcher, int currentYear, CancellationToken ct)
+        ISemanticMatcher matcher, int currentYear, GateVerificationOptions options, CancellationToken ct)
     {
         // Identification: the skill term must appear in the tailored claim.
         // Search SKILL claims first so the matched confidence is the skill's own.
         var ordered = source.Where(s => s.Kind == ClaimKind.Skill)
-                            .Concat(source.Where(s => s.Kind != ClaimKind.Skill));
+                            .Concat(source.Where(s => s.Kind != ClaimKind.Skill))
+                            .ToArray();
         var tcTokens = Text.ContentTokens(tc.Text);
         SourceClaim? supporting = null;
         foreach (var s in ordered)
         {
             var st = Text.ContentTokens(s.Text);
-            if (st.Count > 0 && (st.IsSubsetOf(tcTokens) || await EntailsAsyncOrThrow(matcher, s.Text, tc.Text, ct).ConfigureAwait(false)))
+            if (st.Count > 0 && st.IsSubsetOf(tcTokens))
             {
                 supporting = s;
                 break;
             }
         }
+
+        if (supporting is null)
+        {
+            foreach (var s in SemanticCandidates(tc.Text, ordered, options))
+            {
+                if (await EntailsAsyncOrThrow(matcher, s.Text, tc.Text, ct).ConfigureAwait(false))
+                {
+                    supporting = s;
+                    break;
+                }
+            }
+        }
+
         if (supporting is null)
             return new Violation(
                 tc, ViolationKind.NoSupportingClaim,
@@ -234,19 +258,33 @@ public static class FabricationGate
     // ---- metrics: qualitative match AND exact number ---------------------
 
     private static async Task<Violation?> CheckMetricAsync(
-        TailoredClaim tc, IReadOnlyList<SourceClaim> source, ISemanticMatcher matcher, CancellationToken ct)
+        TailoredClaim tc, IReadOnlyList<SourceClaim> source, ISemanticMatcher matcher, GateVerificationOptions options, CancellationToken ct)
     {
         var tcQual = StripNumbers(tc.Text);
         SourceClaim? qualitativeMatch = null;
         foreach (var s in source)
         {
-            if (await SupportsTextAsync(tcQual, StripNumbers(s.Text), matcher, ct).ConfigureAwait(false))
+            if (LexicallySupports(tcQual, StripNumbers(s.Text)))
             {
                 qualitativeMatch = s;
                 if (s.Number is not null)
                     break;  // prefer a source carrying a number to compare against
             }
         }
+
+        if (qualitativeMatch is null || qualitativeMatch.Number is null)
+        {
+            foreach (var s in SemanticCandidates(tcQual, source, options, claim => StripNumbers(claim.Text)))
+            {
+                if (await EntailsAsyncOrThrow(matcher, StripNumbers(s.Text), tcQual, ct).ConfigureAwait(false))
+                {
+                    qualitativeMatch = s;
+                    if (s.Number is not null)
+                        break;  // prefer a source carrying a number to compare against
+                }
+            }
+        }
+
         if (qualitativeMatch is null)
             return new Violation(
                 tc, ViolationKind.NoSupportingClaim,
@@ -266,11 +304,18 @@ public static class FabricationGate
     // ---- general textual support -----------------------------------------
 
     private static async Task<Violation?> CheckTextualAsync(
-        TailoredClaim tc, IReadOnlyList<SourceClaim> source, ISemanticMatcher matcher, CancellationToken ct)
+        TailoredClaim tc, IReadOnlyList<SourceClaim> source, ISemanticMatcher matcher, GateVerificationOptions options, CancellationToken ct)
     {
         foreach (var s in source)
-            if (await SupportsTextAsync(tc.Text, s.Text, matcher, ct).ConfigureAwait(false))
+            if (LexicallySupports(tc.Text, s.Text))
                 return WeakCheck(tc, s);
+
+        foreach (var s in SemanticCandidates(tc.Text, source, options))
+        {
+            if (await EntailsAsyncOrThrow(matcher, s.Text, tc.Text, ct).ConfigureAwait(false))
+                return WeakCheck(tc, s);
+        }
+
         return new Violation(
             tc, ViolationKind.NoSupportingClaim,
             "No supporting fact for this statement exists in your profile.",
@@ -302,13 +347,50 @@ public static class FabricationGate
 
     private static string StripNumbers(string text) => Num.Replace(text, " ");
 
-    private static async Task<bool> SupportsTextAsync(string tailoredText, string sourceText, ISemanticMatcher matcher, CancellationToken ct)
+    private static bool LexicallySupports(string tailoredText, string sourceText)
     {
         var t = Text.ContentTokens(tailoredText);
         var s = Text.ContentTokens(sourceText);
         if (t.Count == 0) return true;
-        if (t.IsSubsetOf(s)) return true;   // covers exact-equal and subset
-        return await EntailsAsyncOrThrow(matcher, sourceText, tailoredText, ct).ConfigureAwait(false);
+        return t.IsSubsetOf(s);   // covers exact-equal and subset
+    }
+
+    private static IReadOnlyList<SourceClaim> SemanticCandidates(
+        string tailoredText,
+        IEnumerable<SourceClaim> source,
+        GateVerificationOptions options,
+        Func<SourceClaim, string>? sourceText = null)
+    {
+        var all = source.ToArray();
+        if (options.SemanticCandidateLimit is not { } limit)
+            return all;
+        if (limit <= 0)
+            return Array.Empty<SourceClaim>();
+
+        sourceText ??= claim => claim.Text;
+        var tailoredTokens = Text.ContentTokens(tailoredText);
+        if (tailoredTokens.Count == 0)
+            return Array.Empty<SourceClaim>();
+
+        return all
+            .Select((claim, index) =>
+            {
+                var tokens = Text.ContentTokens(sourceText(claim));
+                var intersection = tailoredTokens.Count(tokens.Contains);
+                var denom = Math.Max(1, Math.Min(tailoredTokens.Count, tokens.Count));
+                return new
+                {
+                    Claim = claim,
+                    Index = index,
+                    Score = (double)intersection / denom,
+                };
+            })
+            .Where(x => x.Score >= options.MinimumSemanticOverlap)
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Index)
+            .Take(limit)
+            .Select(x => x.Claim)
+            .ToArray();
     }
 
     private static async Task<bool> EntailsAsyncOrThrow(ISemanticMatcher matcher, string sourceText, string tailoredText, CancellationToken ct)
