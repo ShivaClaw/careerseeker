@@ -25,7 +25,29 @@ public interface ISeekerStore
     Task<long> CreateApplicationAsync(long jobId, string autonomyLevel, CancellationToken ct = default);
     Task TransitionApplicationAsync(long applicationId, string newState, string actor,
         string? payloadJson = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Compare-and-swap transition: atomically move to <paramref name="newState"/> and append the
+    /// audit event iff the row's current state equals <paramref name="expectedState"/>. Returns false
+    /// (no write, no event) when the precondition fails — the caller lost the race and must re-read.
+    /// <paramref name="recordPausedFrom"/> is persisted into the row's paused_from (every transition
+    /// overwrites it; pass the origin state when pausing, leave null otherwise so it clears).
+    /// </summary>
+    Task<bool> TryTransitionApplicationAsync(long applicationId, string expectedState, string newState,
+        string actor, string? payloadJson = null, string? recordPausedFrom = null, CancellationToken ct = default);
+
     Task<ApplicationRow?> GetApplicationAsync(long applicationId, CancellationToken ct = default);
+
+    // ---- durable in-flight dispatch payload (L2 gate content survives restart; no audit event —
+    //      the payload carries tailored content, which does not belong in the event log) ----
+    Task SavePendingDispatchAsync(long applicationId, string payloadJson, CancellationToken ct = default);
+    Task<string?> GetPendingDispatchAsync(long applicationId, CancellationToken ct = default);
+    Task DeletePendingDispatchAsync(long applicationId, CancellationToken ct = default);
+
+    // ---- side-effect attempts (crash-window evidence around external calls; each write is audited) ----
+    Task<long> BeginEffectAttemptAsync(long applicationId, string kind, CancellationToken ct = default);
+    Task ResolveEffectAttemptAsync(long attemptId, string status, string? externalRef = null, CancellationToken ct = default);
+    Task<IReadOnlyList<EffectAttemptRow>> GetEffectAttemptsAsync(long applicationId, string? kind = null, CancellationToken ct = default);
 
     // ---- audit log ----
     Task<long> AppendEventAsync(EventInput e, CancellationToken ct = default);

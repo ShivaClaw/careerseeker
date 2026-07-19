@@ -272,13 +272,17 @@ Environment:
 
 Latest build:
 
-- Date: 2026-07-18
+- Date: 2026-07-19
 - Result: passed
 - Restore: `Microsoft.Data.Sqlite` restored from nuget.org.
 - Warnings: 0
 - Errors: 0
+- Alpha DB migration check: copied `.appdata/careerseeker-alpha.db`, initialized with current SQLite
+  store, verified `applications.paused_from`, and passed a pause/resume round-trip on the copy.
 
 Latest offline harnesses:
+
+Total: 145 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
@@ -286,9 +290,10 @@ Latest offline harnesses:
 | `EngineHarness` | 13 passed, 0 failed |
 | `ResearcherHarness` | 21 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
-| `StoreParityHarness` | 7 passed, 0 failed |
+| `StoreParityHarness` | 12 passed, 0 failed |
 | `GatewayGateHarness` | 21 passed, 0 failed |
 | `DispatcherNoSendHarness` | 9 passed, 0 failed |
+| `LifecycleHarness` | 37 passed, 0 failed |
 
 Live Scout harness, 2026-07-07:
 
@@ -338,6 +343,8 @@ Live Gmail harness, 2026-07-08:
 - Main branch includes verified real Gmail draft creation.
 - SQLite source restored, `nuget.org` re-enabled, and Store parity harness added.
 - Gateway pinned-Gate and Dispatcher no-send harnesses added.
+- Lifecycle CAS transitions, durable L2 payloads, side-effect attempt records, pause/resume durability,
+  and crash reconciliation added with `LifecycleHarness` coverage.
 - Gateway budget/accounting and Pipeline in-flight state hardened for concurrency.
 - StrongCloud failover now points at live `gemini-3.1-pro-preview`, and Gate outages defer distinctly from fabrication blocks.
 - Tailor and Researcher prompts now mark untrusted data in explicit XML-style blocks.
@@ -525,6 +532,7 @@ dotnet run --project tests/HookHarness/HookHarness.csproj -c Release --no-build
 dotnet run --project tests/StoreParityHarness/StoreParityHarness.csproj -c Release --no-build
 dotnet run --project tests/GatewayGateHarness/GatewayGateHarness.csproj -c Release --no-build
 dotnet run --project tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj -c Release --no-build
+dotnet run --project tests/LifecycleHarness/LifecycleHarness.csproj -c Release --no-build
 ```
 
 Live harnesses:

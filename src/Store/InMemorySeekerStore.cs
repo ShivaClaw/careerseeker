@@ -20,6 +20,9 @@ public sealed class InMemorySeekerStore : ISeekerStore
     private readonly List<EventRow> _events = new();
     private readonly Dictionary<string, ClaimRow> _claims = new();
     private readonly Dictionary<string, string> _config = new();
+    private readonly Dictionary<long, string> _pendingDispatch = new();
+    private readonly Dictionary<long, EffectAttemptRow> _attempts = new();
+    private long _attemptSeq;
 
     private long _companySeq, _jobSeq, _appSeq;
     private long _profileId;
@@ -136,9 +139,89 @@ public sealed class InMemorySeekerStore : ISeekerStore
             if (!_apps.TryGetValue(applicationId, out var app))
                 throw new InvalidOperationException($"No application {applicationId}");
             var now = Now();
-            _apps[applicationId] = app with { State = newState, UpdatedAt = now };
+            _apps[applicationId] = app with { State = newState, UpdatedAt = now, PausedFrom = null };
             AppendLocked(new EventInput(actor, "state_change", "application", applicationId.ToString(),
                 payloadJson ?? $"{{\"to\":\"{newState}\"}}"));
+        }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task<bool> TryTransitionApplicationAsync(long applicationId, string expectedState, string newState,
+        string actor, string? payloadJson = null, string? recordPausedFrom = null, CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (!_apps.TryGetValue(applicationId, out var app))
+                throw new InvalidOperationException($"No application {applicationId}");
+            if (!string.Equals(app.State, expectedState, StringComparison.Ordinal))
+                return false; // lost the race: no write, no event
+            _apps[applicationId] = app with { State = newState, UpdatedAt = Now(), PausedFrom = recordPausedFrom };
+            AppendLocked(new EventInput(actor, "state_change", "application", applicationId.ToString(),
+                payloadJson ?? $"{{\"to\":\"{newState}\"}}"));
+            return true;
+        }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task SavePendingDispatchAsync(long applicationId, string payloadJson, CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try { _ = Now(); _pendingDispatch[applicationId] = payloadJson; }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task<string?> GetPendingDispatchAsync(long applicationId, CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try { return _pendingDispatch.TryGetValue(applicationId, out var p) ? p : null; }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task DeletePendingDispatchAsync(long applicationId, CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try { _pendingDispatch.Remove(applicationId); }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task<long> BeginEffectAttemptAsync(long applicationId, string kind, CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var now = Now();
+            var id = ++_attemptSeq;
+            _attempts[id] = new EffectAttemptRow(id, applicationId, kind, "PENDING", null, now, now);
+            AppendLocked(new EventInput("engine", "effect_attempt", "application", applicationId.ToString(),
+                $"{{\"attempt\":{id},\"kind\":\"{kind}\",\"status\":\"PENDING\"}}"));
+            return id;
+        }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task ResolveEffectAttemptAsync(long attemptId, string status, string? externalRef = null, CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (!_attempts.TryGetValue(attemptId, out var a))
+                throw new InvalidOperationException($"No effect attempt {attemptId}");
+            _attempts[attemptId] = a with { Status = status, ExternalRef = externalRef, UpdatedAt = Now() };
+            AppendLocked(new EventInput("engine", "effect_attempt", "application", a.ApplicationId.ToString(),
+                $"{{\"attempt\":{attemptId},\"kind\":\"{a.Kind}\",\"status\":\"{status}\"}}"));
+        }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task<IReadOnlyList<EffectAttemptRow>> GetEffectAttemptsAsync(long applicationId, string? kind = null, CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return _attempts.Values
+                .Where(a => a.ApplicationId == applicationId && (kind is null || a.Kind == kind))
+                .OrderBy(a => a.Id).ToList();
         }
         finally { _mutex.Release(); }
     }

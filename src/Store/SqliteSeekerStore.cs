@@ -45,6 +45,8 @@ public sealed class SqliteSeekerStore : ISeekerStore, IAsyncDisposable
             foreach (var pragma in Schema.Pragmas)
                 await ExecAsync(conn, pragma, ct).ConfigureAwait(false);
             await ExecAsync(conn, Schema.Ddl, ct).ConfigureAwait(false);
+            try { await ExecAsync(conn, "ALTER TABLE applications ADD COLUMN paused_from TEXT;", ct).ConfigureAwait(false); }
+            catch (SqliteException) { /* column already exists (fresh DDL or prior migration) */ }
             _conn = conn;
         }
         finally { _mutex.Release(); }
@@ -183,7 +185,7 @@ VALUES ($job, 'DISCOVERED', $auto, $now, $now) RETURNING id;";
 
             using var cmd = Conn.CreateCommand();
             cmd.Transaction = tx;
-            cmd.CommandText = "UPDATE applications SET state=$state, updated_at=$now WHERE id=$id;";
+            cmd.CommandText = "UPDATE applications SET state=$state, paused_from=NULL, updated_at=$now WHERE id=$id;";
             P(cmd, "$state", newState);
             P(cmd, "$now", now);
             P(cmd, "$id", applicationId);
@@ -197,16 +199,181 @@ VALUES ($job, 'DISCOVERED', $auto, $now, $now) RETURNING id;";
             return true;
         }, ct);
 
+    public Task<bool> TryTransitionApplicationAsync(long applicationId, string expectedState, string newState,
+        string actor, string? payloadJson = null, string? recordPausedFrom = null, CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            using var tx = (SqliteTransaction)await Conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            // Read-validate first, and only then consume the clock. This mirrors the in-memory
+            // implementation exactly: a missing row throws and a lost race returns false with ZERO
+            // clock reads. That parity is load-bearing — StoreParityHarness drives both stores with
+            // one deterministic StepClock and compares rows and event hashes byte-for-byte, so a
+            // failure path that ticks in one store but not the other skews every timestamp (and
+            // therefore every event hash) downstream of the first failed CAS.
+            // Atomicity: all writers serialize through Locked() on a single connection, so
+            // SELECT-then-UPDATE inside this transaction cannot interleave with another writer; the
+            // WHERE state=$expected clause below is retained as defense-in-depth, not as the guard.
+            string currentState;
+            using (var read = Conn.CreateCommand())
+            {
+                read.Transaction = tx;
+                read.CommandText = "SELECT state FROM applications WHERE id=$id;";
+                P(read, "$id", applicationId);
+                var v = await read.ExecuteScalarAsync(ct).ConfigureAwait(false);
+                if (v is null or DBNull)
+                {
+                    await tx.RollbackAsync(ct).ConfigureAwait(false);
+                    throw new InvalidOperationException($"No application {applicationId}");
+                }
+                currentState = (string)v;
+            }
+            if (!string.Equals(currentState, expectedState, StringComparison.Ordinal))
+            {
+                await tx.RollbackAsync(ct).ConfigureAwait(false);
+                return false; // lost the race: no write, no event, no clock consumed
+            }
+
+            var now = Now();
+            using var cmd = Conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = @"
+UPDATE applications SET state=$state, paused_from=$pf, updated_at=$now
+WHERE id=$id AND state=$expected;";
+            P(cmd, "$state", newState);
+            P(cmd, "$pf", recordPausedFrom);
+            P(cmd, "$now", now);
+            P(cmd, "$id", applicationId);
+            P(cmd, "$expected", expectedState);
+            var changed = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            if (changed == 0)
+            {
+                // Unreachable given the serialized read above; kept as a hard failure rather than a
+                // silent false so any future locking regression is loud.
+                await tx.RollbackAsync(ct).ConfigureAwait(false);
+                throw new InvalidOperationException(
+                    $"Application {applicationId}: CAS UPDATE matched 0 rows after a validating read; store serialization is broken.");
+            }
+
+            await AppendEventTxAsync(tx, new EventInput(actor, "state_change", "application",
+                applicationId.ToString(), payloadJson ?? $"{{\"to\":\"{newState}\"}}"), ct).ConfigureAwait(false);
+
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+            return true;
+        }, ct);
+
     public Task<ApplicationRow?> GetApplicationAsync(long applicationId, CancellationToken ct = default)
         => Locked(async () =>
         {
             using var cmd = Conn.CreateCommand();
-            cmd.CommandText = "SELECT id, job_id, state, autonomy_level, channel, created_at, updated_at FROM applications WHERE id=$id;";
+            cmd.CommandText = "SELECT id, job_id, state, autonomy_level, channel, created_at, updated_at, paused_from FROM applications WHERE id=$id;";
             P(cmd, "$id", applicationId);
             using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             if (!await r.ReadAsync(ct).ConfigureAwait(false)) return null;
             return new ApplicationRow(r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3),
-                r.IsDBNull(4) ? null : r.GetString(4), r.GetString(5), r.GetString(6));
+                r.IsDBNull(4) ? null : r.GetString(4), r.GetString(5), r.GetString(6),
+                r.IsDBNull(7) ? null : r.GetString(7));
+        }, ct);
+
+    public Task SavePendingDispatchAsync(long applicationId, string payloadJson, CancellationToken ct = default)
+        => Locked<object?>(async () =>
+        {
+            using var cmd = Conn.CreateCommand();
+            cmd.CommandText = @"
+INSERT INTO pending_dispatch (application_id, payload_json, created_at) VALUES ($id, $json, $now)
+ON CONFLICT(application_id) DO UPDATE SET payload_json=$json;";
+            P(cmd, "$id", applicationId);
+            P(cmd, "$json", payloadJson);
+            P(cmd, "$now", Now());
+            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            return null;
+        }, ct);
+
+    public Task<string?> GetPendingDispatchAsync(long applicationId, CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            using var cmd = Conn.CreateCommand();
+            cmd.CommandText = "SELECT payload_json FROM pending_dispatch WHERE application_id=$id;";
+            P(cmd, "$id", applicationId);
+            var v = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+            return v is null or DBNull ? null : (string)v;
+        }, ct);
+
+    public Task DeletePendingDispatchAsync(long applicationId, CancellationToken ct = default)
+        => Locked<object?>(async () =>
+        {
+            using var cmd = Conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM pending_dispatch WHERE application_id=$id;";
+            P(cmd, "$id", applicationId);
+            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            return null;
+        }, ct);
+
+    public Task<long> BeginEffectAttemptAsync(long applicationId, string kind, CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            var now = Now();
+            using var tx = (SqliteTransaction)await Conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+            using var cmd = Conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = @"
+INSERT INTO effect_attempts (application_id, kind, status, created_at, updated_at)
+VALUES ($app, $kind, 'PENDING', $now, $now) RETURNING id;";
+            P(cmd, "$app", applicationId);
+            P(cmd, "$kind", kind);
+            P(cmd, "$now", now);
+            var id = Convert.ToInt64(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
+            await AppendEventTxAsync(tx, new EventInput("engine", "effect_attempt", "application",
+                applicationId.ToString(), $"{{\"attempt\":{id},\"kind\":\"{kind}\",\"status\":\"PENDING\"}}"), ct).ConfigureAwait(false);
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+            return id;
+        }, ct);
+
+    public Task ResolveEffectAttemptAsync(long attemptId, string status, string? externalRef = null, CancellationToken ct = default)
+        => Locked<object?>(async () =>
+        {
+            var now = Now();
+            using var tx = (SqliteTransaction)await Conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+            using var read = Conn.CreateCommand();
+            read.Transaction = tx;
+            read.CommandText = "SELECT application_id, kind FROM effect_attempts WHERE id=$id;";
+            P(read, "$id", attemptId);
+            using var r = await read.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            if (!await r.ReadAsync(ct).ConfigureAwait(false))
+                throw new InvalidOperationException($"No effect attempt {attemptId}");
+            var appId = r.GetInt64(0);
+            var kind = r.GetString(1);
+            await r.CloseAsync().ConfigureAwait(false);
+
+            using var cmd = Conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "UPDATE effect_attempts SET status=$status, external_ref=$ref, updated_at=$now WHERE id=$id;";
+            P(cmd, "$status", status);
+            P(cmd, "$ref", externalRef);
+            P(cmd, "$now", now);
+            P(cmd, "$id", attemptId);
+            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            await AppendEventTxAsync(tx, new EventInput("engine", "effect_attempt", "application",
+                appId.ToString(), $"{{\"attempt\":{attemptId},\"kind\":\"{kind}\",\"status\":\"{status}\"}}"), ct).ConfigureAwait(false);
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+            return null;
+        }, ct);
+
+    public Task<IReadOnlyList<EffectAttemptRow>> GetEffectAttemptsAsync(long applicationId, string? kind = null, CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            var rows = new List<EffectAttemptRow>();
+            using var cmd = Conn.CreateCommand();
+            cmd.CommandText = @"
+SELECT id, application_id, kind, status, external_ref, created_at, updated_at
+FROM effect_attempts WHERE application_id=$app AND ($kind IS NULL OR kind=$kind) ORDER BY id;";
+            P(cmd, "$app", applicationId);
+            P(cmd, "$kind", kind);
+            using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await r.ReadAsync(ct).ConfigureAwait(false))
+                rows.Add(new EffectAttemptRow(r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3),
+                    r.IsDBNull(4) ? null : r.GetString(4), r.GetString(5), r.GetString(6)));
+            return (IReadOnlyList<EffectAttemptRow>)rows;
         }, ct);
 
     public Task<long> AppendEventAsync(EventInput e, CancellationToken ct = default)

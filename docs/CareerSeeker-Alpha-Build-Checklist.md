@@ -6,7 +6,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 ## Current baseline
 
 - `CareerSeeker.sln` builds cleanly on Windows in Release.
-- Offline harnesses are green: Slice, EngineHarness, ResearcherHarness, HookHarness, StoreParityHarness, GatewayGateHarness, DispatcherNoSendHarness.
+- Offline harnesses are green: Slice, EngineHarness, ResearcherHarness, HookHarness, StoreParityHarness, GatewayGateHarness, DispatcherNoSendHarness, LifecycleHarness.
 - Live Scout ingestion is already verified against real ATS feeds.
 - Live Gmail draft creation is already verified with `gmail.compose`.
 - `src/Engine` is now a runnable executable entrypoint with demo and alpha modes.

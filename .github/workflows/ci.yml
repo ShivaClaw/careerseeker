@@ -59,3 +59,6 @@ jobs:
 
       - name: Run dispatcher no-send harness
         run: dotnet run --project tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj -c Release --no-build
+
+      - name: Run lifecycle harness
+        run: dotnet run --project tests/LifecycleHarness/LifecycleHarness.csproj -c Release --no-build

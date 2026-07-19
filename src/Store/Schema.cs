@@ -107,11 +107,32 @@ CREATE TABLE IF NOT EXISTS applications (
   gate_id        INTEGER,
   channel        TEXT    CHECK (channel IS NULL OR channel IN ('ats_form','email','manual_finish')),
   submitted_at   TEXT,
+  paused_from    TEXT,
   created_at     TEXT    NOT NULL,
   updated_at     TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_app_job   ON applications(job_id);
 CREATE INDEX IF NOT EXISTS ix_app_state ON applications(state);
+
+-- Durable L2 in-flight payload: written before GATE_PENDING is entered, deleted when the gate
+-- resolves. Approval after a restart reads this row instead of process memory.
+CREATE TABLE IF NOT EXISTS pending_dispatch (
+  application_id INTEGER PRIMARY KEY REFERENCES applications(id) ON DELETE CASCADE,
+  payload_json   TEXT NOT NULL,
+  created_at     TEXT NOT NULL
+);
+
+-- Side-effect attempt bracket around external calls (Gmail draft / ATS submit).
+CREATE TABLE IF NOT EXISTS effect_attempts (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  kind           TEXT NOT NULL CHECK (kind IN ('draft','submit')),
+  status         TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SUCCEEDED','FAILED')),
+  external_ref   TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_attempt_app ON effect_attempts(application_id, kind, status);
 
 CREATE TABLE IF NOT EXISTS gates (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,

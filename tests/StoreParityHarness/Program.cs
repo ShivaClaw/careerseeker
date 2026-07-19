@@ -27,6 +27,13 @@ Check("repost upsert preserves existing null-coalesced comp_min", sqlite.Job?.Co
 Check("repost upsert refreshes apply_url", sqlite.Job?.ApplyUrl == "mailto:apply-updated@example.com", sqlite.Job?.ApplyUrl);
 Check("claim confidence normalized before storage", sqlite.Claims.All(c => c.Confidence is "verified" or "weak"));
 Check("config round-trips", sqlite.ConfigValue == "L1", sqlite.ConfigValue);
+Check("CAS refuses a wrong expected state in both stores", !sqlite.CasWrong && !memory.CasWrong);
+Check("CAS succeeds on the right expected state in both stores", sqlite.CasRight && memory.CasRight);
+Check("pending dispatch round-trips and deletes", sqlite.PendingSeen == "{\"job\":1}" && sqlite.PendingAfterDelete is null);
+Check("effect attempt bracket persists with its reference",
+    sqlite.Attempts.Count == 1 && sqlite.Attempts[0] is { Kind: "submit", Status: "SUCCEEDED", ExternalRef: "ref-1" });
+Check("paused_from is durable while PAUSED and cleared on resume",
+    sqlite.PausedFromSeen == "EVALUATED" && sqlite.App?.PausedFrom is null);
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
@@ -110,7 +117,31 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
         await store.AppendEventAsync(new EventInput("engine", "store_parity", "job", first.JobId.ToString(), "{\"ok\":true}"));
         await store.SetConfigAsync("autonomy.level", "L1");
 
+        // CAS semantics: a wrong expected state is a silent no-op; a right one writes state + event.
+        var casWrong = await store.TryTransitionApplicationAsync(appId, "DISCOVERED", "EVALUATED", "engine");
+        var casRight = await store.TryTransitionApplicationAsync(appId, "SCREENED", "EVALUATED", "engine");
+
+        // Durable L2 payload + side-effect attempt bracket round-trips.
+        await store.SavePendingDispatchAsync(appId, "{\"job\":1}");
+        var pendingSeen = await store.GetPendingDispatchAsync(appId);
+        var attemptId = await store.BeginEffectAttemptAsync(appId, "submit");
+        await store.ResolveEffectAttemptAsync(attemptId, "SUCCEEDED", "ref-1");
+        var attempts = (await store.GetEffectAttemptsAsync(appId)).ToList();
+        await store.DeletePendingDispatchAsync(appId);
+        var pendingAfterDelete = await store.GetPendingDispatchAsync(appId);
+
+        // paused_from is written by the pausing CAS and cleared by the resuming one.
+        await store.TryTransitionApplicationAsync(appId, "EVALUATED", "PAUSED", "user", null, recordPausedFrom: "EVALUATED");
+        var pausedFromSeen = (await store.GetApplicationAsync(appId))?.PausedFrom;
+        await store.TryTransitionApplicationAsync(appId, "PAUSED", "EVALUATED", "user");
+
         return new StoreSnapshot(
+            CasWrong: casWrong,
+            CasRight: casRight,
+            PendingSeen: pendingSeen,
+            PendingAfterDelete: pendingAfterDelete,
+            Attempts: attempts,
+            PausedFromSeen: pausedFromSeen,
             First: first,
             Second: second,
             Job: await store.GetJobAsync(first.JobId),
@@ -154,6 +185,12 @@ sealed class StepClock
 }
 
 sealed record StoreSnapshot(
+    bool CasWrong,
+    bool CasRight,
+    string? PendingSeen,
+    string? PendingAfterDelete,
+    IReadOnlyList<EffectAttemptRow> Attempts,
+    string? PausedFromSeen,
     JobWriteResult First,
     JobWriteResult Second,
     JobRow? Job,
@@ -168,6 +205,23 @@ sealed record StoreSnapshot(
 
     public string? FirstDiff(StoreSnapshot other)
     {
+        if (CasWrong != other.CasWrong) return "CAS wrong-expected outcome differs";
+        if (CasRight != other.CasRight) return "CAS right-expected outcome differs";
+        if (PendingSeen != other.PendingSeen) return "pending dispatch payload differs";
+        if (PendingAfterDelete != other.PendingAfterDelete) return "pending dispatch delete differs";
+        // Exact record equality, timestamps included. The stores consume the deterministic test
+        // clock identically on every path — including failed CAS attempts, which tick zero times in
+        // both (see SqliteSeekerStore.TryTransitionApplicationAsync's read-validate-then-write
+        // structure). Any tick asymmetry introduced by a future store change will surface here as a
+        // timestamp mismatch, and in the Events comparison below as a hash mismatch. Do NOT loosen
+        // this to functional-fields-only: that was tried and it only masked the first symptom of a
+        // real one-tick skew while every downstream row and event hash still diverged.
+        if (Attempts.Count != other.Attempts.Count)
+            return $"effect attempt count: {Attempts.Count} != {other.Attempts.Count}";
+        for (var i = 0; i < Attempts.Count; i++)
+            if (Attempts[i] != other.Attempts[i])
+                return $"attempt[{i}]: {Attempts[i]} != {other.Attempts[i]}";
+        if (PausedFromSeen != other.PausedFromSeen) return "paused_from round-trip differs";
         if (First != other.First) return $"first write result: {First} != {other.First}";
         if (Second != other.Second) return $"second write result: {Second} != {other.Second}";
         if (Job != other.Job) return $"job row: {Job} != {other.Job}";

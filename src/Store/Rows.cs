@@ -76,13 +76,30 @@ public sealed record ClaimRow(
     string Confidence,
     string? SourceDoc = null);
 
-/// <summary>A persisted application row.</summary>
+/// <summary>A persisted application row. <see cref="PausedFrom"/> is the durable pre-pause state:
+/// set only while the row is PAUSED, cleared by every other transition, so resume survives restart.</summary>
 public sealed record ApplicationRow(
     long Id,
     long JobId,
     string State,
     string AutonomyLevel,
     string? Channel,
+    string CreatedAt,
+    string UpdatedAt,
+    string? PausedFrom = null);
+
+/// <summary>
+/// A durable side-effect attempt record bracketing an external call (Gmail draft, ATS submit).
+/// PENDING is written before the call, SUCCEEDED/FAILED after — so after a crash, PENDING means
+/// "outcome unknown at the provider", FAILED means "known not to have happened" (safe to retry),
+/// and SUCCEEDED with a stale application state means "happened; finish the transition, never re-call".
+/// </summary>
+public sealed record EffectAttemptRow(
+    long Id,
+    long ApplicationId,
+    string Kind,      // 'draft' | 'submit'
+    string Status,    // 'PENDING' | 'SUCCEEDED' | 'FAILED'
+    string? ExternalRef,
     string CreatedAt,
     string UpdatedAt);
 
