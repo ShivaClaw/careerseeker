@@ -350,6 +350,7 @@ sealed class FaultingStore : ISeekerStore
     public Task TransitionApplicationAsync(long applicationId, string newState, string actor, string? payloadJson = null, CancellationToken ct = default)
         => _inner.TransitionApplicationAsync(applicationId, newState, actor, payloadJson, ct);
     public Task<ApplicationRow?> GetApplicationAsync(long applicationId, CancellationToken ct = default) => _inner.GetApplicationAsync(applicationId, ct);
+    public Task<IReadOnlyList<ApplicationSummaryRow>> GetRecentApplicationsAsync(int limit = 25, CancellationToken ct = default) => _inner.GetRecentApplicationsAsync(limit, ct);
     public Task<long> AppendEventAsync(EventInput e, CancellationToken ct = default) => _inner.AppendEventAsync(e, ct);
     public Task<IReadOnlyList<EventRow>> GetEventsAsync(CancellationToken ct = default) => _inner.GetEventsAsync(ct);
     public Task<AuditVerification> VerifyAuditAsync(CancellationToken ct = default) => _inner.VerifyAuditAsync(ct);

@@ -22,6 +22,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - The unconstrained alpha `--llm byok` path now creates a real Gmail draft after live Tailor and live Gate verification.
 - Engine alpha drafts attach a real ATS-clean resume PDF.
 - The localhost dashboard can expose a token-protected Gmail disconnect control backed by the same local DPAPI revoke/delete path as the CLI.
+- The localhost dashboard exposes `/applications` with recent application state, scores, draft refs, and
+  safe job/apply links.
 - The localhost dashboard exposes `/evidence` with audit-chain status and recent audit event metadata.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
 - A real Brave Search web-research adapter and `research-company` alpha command are implemented; live verification is pending a Brave Search key.

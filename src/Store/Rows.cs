@@ -88,6 +88,29 @@ public sealed record ApplicationRow(
     string UpdatedAt,
     string? PausedFrom = null);
 
+/// <summary>Read-only dashboard summary for recent applications. Payload bodies stay out of this row.</summary>
+public sealed record ApplicationSummaryRow(
+    long ApplicationId,
+    string State,
+    string AutonomyLevel,
+    string? Channel,
+    string CreatedAt,
+    string UpdatedAt,
+    string? PausedFrom,
+    long JobId,
+    string JobTitle,
+    string? CompanyName,
+    string? CompanyDomain,
+    string? Location,
+    string Remote,
+    string JobUrl,
+    string? ApplyUrl,
+    double? Fit,
+    double? Legitimacy,
+    double? Total,
+    string? DraftStatus,
+    string? DraftExternalRef);
+
 /// <summary>
 /// A durable side-effect attempt record bracketing an external call (Gmail draft, ATS submit).
 /// PENDING is written before the call, SUCCEEDED/FAILED after — so after a crash, PENDING means

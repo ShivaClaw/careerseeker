@@ -37,6 +37,7 @@ public interface ISeekerStore
         string actor, string? payloadJson = null, string? recordPausedFrom = null, CancellationToken ct = default);
 
     Task<ApplicationRow?> GetApplicationAsync(long applicationId, CancellationToken ct = default);
+    Task<IReadOnlyList<ApplicationSummaryRow>> GetRecentApplicationsAsync(int limit = 25, CancellationToken ct = default);
 
     // ---- durable in-flight dispatch payload (L2 gate content survives restart; no audit event —
     //      the payload carries tailored content, which does not belong in the event log) ----

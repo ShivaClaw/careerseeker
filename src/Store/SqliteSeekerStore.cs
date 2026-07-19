@@ -275,6 +275,57 @@ WHERE id=$id AND state=$expected;";
                 r.IsDBNull(7) ? null : r.GetString(7));
         }, ct);
 
+    public Task<IReadOnlyList<ApplicationSummaryRow>> GetRecentApplicationsAsync(
+        int limit = 25,
+        CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            var rows = new List<ApplicationSummaryRow>();
+            using var cmd = Conn.CreateCommand();
+            cmd.CommandText = @"
+SELECT
+  a.id, a.state, a.autonomy_level, a.channel, a.created_at, a.updated_at, a.paused_from,
+  j.id, j.title, c.name, c.domain, j.location, j.remote, j.url, j.apply_url,
+  s.fit, s.legitimacy, s.total,
+  (SELECT e.status FROM effect_attempts e WHERE e.application_id=a.id AND e.kind='draft' ORDER BY e.id DESC LIMIT 1) AS draft_status,
+  (SELECT e.external_ref FROM effect_attempts e WHERE e.application_id=a.id AND e.kind='draft' ORDER BY e.id DESC LIMIT 1) AS draft_ref
+FROM applications a
+JOIN jobs j ON j.id = a.job_id
+LEFT JOIN companies c ON c.id = j.company_id
+LEFT JOIN scores s ON s.job_id = j.id
+ORDER BY a.updated_at DESC, a.id DESC
+LIMIT $limit;";
+            P(cmd, "$limit", Math.Clamp(limit, 1, 100));
+            using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await r.ReadAsync(ct).ConfigureAwait(false))
+            {
+                string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
+                double? D(int i) => r.IsDBNull(i) ? null : r.GetDouble(i);
+                rows.Add(new ApplicationSummaryRow(
+                    r.GetInt64(0),
+                    r.GetString(1),
+                    r.GetString(2),
+                    S(3),
+                    r.GetString(4),
+                    r.GetString(5),
+                    S(6),
+                    r.GetInt64(7),
+                    r.GetString(8),
+                    S(9),
+                    S(10),
+                    S(11),
+                    r.GetString(12),
+                    r.GetString(13),
+                    S(14),
+                    D(15),
+                    D(16),
+                    D(17),
+                    S(18),
+                    S(19)));
+            }
+            return (IReadOnlyList<ApplicationSummaryRow>)rows;
+        }, ct);
+
     public Task SavePendingDispatchAsync(long applicationId, string payloadJson, CancellationToken ct = default)
         => Locked<object?>(async () =>
         {

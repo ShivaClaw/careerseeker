@@ -148,6 +148,12 @@ Console.WriteLine("\n[ localhost dashboard ]");
         return Task.FromResult(new DashboardControlResult(true, "Gmail disconnected."));
     });
     var evidenceStore = await SeededStoreAsync();
+    var evidenceCounters = new EngineCounters();
+    var evidencePipeline = new ApplicationPipeline(evidenceStore, tailor, MakeDispatcher(new FakeGmail()), new GatewaySemanticMatcher(gateway),
+        new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+    var evidenceCycle = new EngineCycle(evidenceStore, new FakeFeed(new[] { Healthy("Senior Software Engineer") }),
+        new FakeSemantic(), evidencePipeline, opt, evidenceCounters);
+    await evidenceCycle.TickAsync();
     await evidenceStore.AppendEventAsync(new EventInput("engine", "dashboard-test", "application", "1"));
     var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore));
     var listenerOk = true;
@@ -165,6 +171,14 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
         Check("/ exposes configured Gmail disconnect control", html.Contains("Disconnect Gmail"));
         Check("/ links to audit evidence", html.Contains("/evidence") && html.Contains("audit-chain"));
+        Check("/ links to recent applications", html.Contains("/applications"));
+
+        var applicationsHtml = await http.GetStringAsync("http://localhost:7777/applications");
+        Check("/applications serves recent job/state drill-down",
+            applicationsHtml.Contains("Senior Software Engineer") &&
+            applicationsHtml.Contains("DRAFTED") &&
+            applicationsHtml.Contains("SUCCEEDED"),
+            applicationsHtml);
 
         var evidenceJson = await http.GetStringAsync("http://localhost:7777/evidence");
         using var evidenceDoc = JsonDocument.Parse(evidenceJson);
@@ -173,6 +187,11 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/evidence exposes recent audit event metadata without payloads",
             evidenceDoc.RootElement.GetProperty("recentEvents").GetArrayLength() > 0 &&
             !evidenceJson.Contains("PayloadJson", StringComparison.OrdinalIgnoreCase),
+            evidenceJson);
+        Check("/evidence includes recent application metadata",
+            evidenceDoc.RootElement.GetProperty("recentApplications").GetArrayLength() > 0 &&
+            evidenceJson.Contains("Senior Software Engineer") &&
+            !evidenceJson.Contains("resume\":\"", StringComparison.OrdinalIgnoreCase),
             evidenceJson);
 
         using var noRedirect = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })

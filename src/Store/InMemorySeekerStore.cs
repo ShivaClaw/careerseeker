@@ -233,6 +233,55 @@ public sealed class InMemorySeekerStore : ISeekerStore
         finally { _mutex.Release(); }
     }
 
+    public async Task<IReadOnlyList<ApplicationSummaryRow>> GetRecentApplicationsAsync(
+        int limit = 25,
+        CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var safeLimit = Math.Clamp(limit, 1, 100);
+            return _apps.Values
+                .OrderByDescending(a => a.UpdatedAt)
+                .ThenByDescending(a => a.Id)
+                .Take(safeLimit)
+                .Select(app =>
+                {
+                    _jobs.TryGetValue(app.JobId, out var job);
+                    var company = job is null || !_companies.TryGetValue(job.CompanyId, out var c) ? null : c;
+                    var score = job is null || !_scores.TryGetValue(job.Id, out var s) ? null : s;
+                    var draft = _attempts.Values
+                        .Where(a => a.ApplicationId == app.Id && a.Kind == "draft")
+                        .OrderByDescending(a => a.Id)
+                        .FirstOrDefault();
+
+                    return new ApplicationSummaryRow(
+                        app.Id,
+                        app.State,
+                        app.AutonomyLevel,
+                        app.Channel,
+                        app.CreatedAt,
+                        app.UpdatedAt,
+                        app.PausedFrom,
+                        app.JobId,
+                        job?.Title ?? $"Job {app.JobId}",
+                        company?.Name,
+                        company?.Domain,
+                        job?.Location,
+                        job?.Remote ?? "Unknown",
+                        job?.Url ?? "",
+                        job?.ApplyUrl,
+                        score?.Fit,
+                        score?.Legitimacy,
+                        score?.Total,
+                        draft?.Status,
+                        draft?.ExternalRef);
+                })
+                .ToList();
+        }
+        finally { _mutex.Release(); }
+    }
+
     public async Task<long> AppendEventAsync(EventInput e, CancellationToken ct = default)
     {
         await _mutex.WaitAsync(ct).ConfigureAwait(false);

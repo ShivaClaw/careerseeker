@@ -34,6 +34,10 @@ Check("effect attempt bracket persists with its reference",
     sqlite.Attempts.Count == 1 && sqlite.Attempts[0] is { Kind: "submit", Status: "SUCCEEDED", ExternalRef: "ref-1" });
 Check("paused_from is durable while PAUSED and cleared on resume",
     sqlite.PausedFromSeen == "EVALUATED" && sqlite.App?.PausedFrom is null);
+Check("recent application summary joins job, company, and score",
+    sqlite.Summaries.Count == 1 &&
+    sqlite.Summaries[0] is { JobTitle: "Senior Software Engineer", CompanyName: "Acme" } &&
+    sqlite.Summaries[0].Total == 4.4);
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
@@ -148,6 +152,7 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
             ProfileId: profileId,
             Claims: (await store.GetClaimsAsync(profileId)).ToList(),
             App: await store.GetApplicationAsync(appId),
+            Summaries: (await store.GetRecentApplicationsAsync()).ToList(),
             Events: (await store.GetEventsAsync()).ToList(),
             Audit: await store.VerifyAuditAsync(),
             ConfigValue: await store.GetConfigAsync("autonomy.level"));
@@ -197,6 +202,7 @@ sealed record StoreSnapshot(
     long ProfileId,
     IReadOnlyList<ClaimRow> Claims,
     ApplicationRow? App,
+    IReadOnlyList<ApplicationSummaryRow> Summaries,
     IReadOnlyList<EventRow> Events,
     AuditVerification Audit,
     string? ConfigValue)
@@ -228,6 +234,7 @@ sealed record StoreSnapshot(
         if (ProfileId != other.ProfileId) return $"profile id: {ProfileId} != {other.ProfileId}";
         if (!Claims.SequenceEqual(other.Claims)) return "claim rows differ";
         if (App != other.App) return $"application row: {App} != {other.App}";
+        if (!Summaries.SequenceEqual(other.Summaries)) return "application summaries differ";
         if (!Events.SequenceEqual(other.Events)) return "event rows differ";
         if (Audit != other.Audit) return $"audit result: {Audit} != {other.Audit}";
         if (ConfigValue != other.ConfigValue) return $"config value: {ConfigValue} != {other.ConfigValue}";

@@ -28,6 +28,7 @@ Completed:
 - OAuth token storage works through a local DPAPI-backed token vault.
 - Gmail disconnect can revoke the OAuth token and delete the local DPAPI vault via the alpha executable.
 - The localhost dashboard can expose a token-protected Gmail disconnect control wired to the same revoke/delete path.
+- The localhost dashboard exposes recent application state, scores, draft refs, and safe job/apply links at `/applications`.
 - The localhost dashboard exposes audit-chain status and recent audit event metadata at `/evidence`.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
@@ -43,7 +44,7 @@ Completed:
 - Researcher has a real Brave Search adapter that fetches public result pages before docs can ground dossier facts.
 - Engine has a `research-company` alpha command that composes Brave Search, BYOK Gateway dossier modeling, and the grounding filter when a Brave key is available.
 - L1 compose-only correction is in place: custom Gmail labels are skipped by default because label management requires broader Gmail scope than `gmail.compose`.
-- SQLite provider source is restored to the Store project and covered by `StoreParityHarness`.
+- SQLite provider source is restored to the Store project and covered by `StoreParityHarness`, including the recent-application read model.
 - Gateway pinned-Gate and Dispatcher no-send invariants now have named offline harnesses.
 - Gate outages now fail closed into `GATE_UNAVAILABLE` instead of being mislabeled as fabrication.
 
@@ -296,15 +297,15 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 195 passed, 0 failed.
+Total: 199 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 27 passed, 0 failed |
+| `EngineHarness` | 30 passed, 0 failed |
 | `ResearcherHarness` | 26 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
-| `StoreParityHarness` | 12 passed, 0 failed |
+| `StoreParityHarness` | 13 passed, 0 failed |
 | `GatewayGateHarness` | 29 passed, 0 failed |
 | `DispatcherNoSendHarness` | 20 passed, 0 failed |
 | `LifecycleHarness` | 37 passed, 0 failed |
@@ -479,7 +480,7 @@ Status: substantially complete.
 - Windows Service host around `EngineHost`.
 - WinUI 3 tray app.
 - Kill switch.
-- Local dashboard drill-down polish beyond status counters, audit evidence, and the Gmail disconnect control.
+- Local dashboard document-link polish once generated artifact paths are persisted into application rows.
 - Installer and Azure Artifact Signing/OV code signing.
 - Startup smoke test for config, keys, API reachability, and DB health.
 
@@ -548,7 +549,7 @@ Status: substantially complete.
 Highest priority:
 
 - Live-verify `research-company` with a real Brave Search key so company hooks and legitimacy signals can graduate from source-present to live-proven.
-- Add richer local dashboard drill-down: jobs found, rejected, blocked, drafted, and document links.
+- Add document-link polish to the local dashboard once generated artifact paths are persisted into application rows.
 
 Near-term connector work:
 
@@ -569,7 +570,7 @@ Product recommendations:
 - Keep L1 free, local-first, and reviewable.
 - Treat the first public promise as "real drafts, zero sends."
 - Make privacy copy concrete: resume and OAuth tokens never leave the device.
-- Add richer local dashboard drill-down: jobs found, rejected, blocked, drafted, and document links.
+- Add document-link polish to the local dashboard once generated artifact paths are persisted into application rows.
 - Add import/migration packaging around the audit export when the workspace export story broadens.
 
 Security recommendations:
