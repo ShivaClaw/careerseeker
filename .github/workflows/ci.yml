@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - agent/**
+      - codex/**
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -39,26 +42,6 @@ jobs:
       - name: Build Release with warnings as errors
         run: dotnet build CareerSeeker.sln -c Release --no-restore --warnaserror
 
-      - name: Run vertical slice harness
-        run: dotnet run --project tests/Slice/Slice.csproj -c Release --no-build
-
-      - name: Run engine harness
-        run: dotnet run --project tests/EngineHarness/EngineHarness.csproj -c Release --no-build
-
-      - name: Run researcher harness
-        run: dotnet run --project tests/ResearcherHarness/ResearcherHarness.csproj -c Release --no-build
-
-      - name: Run hook harness
-        run: dotnet run --project tests/HookHarness/HookHarness.csproj -c Release --no-build
-
-      - name: Run store parity harness
-        run: dotnet run --project tests/StoreParityHarness/StoreParityHarness.csproj -c Release --no-build
-
-      - name: Run pinned Gate harness
-        run: dotnet run --project tests/GatewayGateHarness/GatewayGateHarness.csproj -c Release --no-build
-
-      - name: Run dispatcher no-send harness
-        run: dotnet run --project tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj -c Release --no-build
-
-      - name: Run lifecycle harness
-        run: dotnet run --project tests/LifecycleHarness/LifecycleHarness.csproj -c Release --no-build
+      - name: Run offline alpha verification
+        shell: pwsh
+        run: ./scripts/Verify-Alpha.ps1

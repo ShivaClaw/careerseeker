@@ -46,6 +46,8 @@ Completed:
 - Tailor generation now minimizes profile claims to posting-relevant facts while preserving Gate rework facts.
 - `scripts/Verify-Alpha.ps1` provides a repeatable build/offline-harness verification entrypoint, with optional
   live BYOK/Gmail, live Brave/BYOK company research, and win-x64 publish checks.
+- GitHub CI mirrors the local offline alpha verifier on `main`, `agent/**`, and `codex/**` pushes plus PRs,
+  after a Release warnings-as-errors build.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
 - Gmail live smoke and alpha mode preflight the Gmail drafts API before creating a draft.
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.

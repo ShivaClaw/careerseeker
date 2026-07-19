@@ -27,6 +27,8 @@ Trust/OAuth docs:
   one-shot smoke check or `-Published -PublishIfMissing` to run the self-contained executable.
 - `scripts/Manage-AlphaDashboardTask.ps1`: optional per-user Windows startup task helper for the alpha
   dashboard. Use `-Action Install -DryRun` to preview it before registering anything.
+- `.github/workflows/ci.yml`: GitHub CI runs the Release warnings-as-errors build plus the same offline
+  alpha verification script used locally.
 
 ## Build
 `dotnet build CareerSeeker.sln -c Release`
