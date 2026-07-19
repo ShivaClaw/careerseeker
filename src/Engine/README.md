@@ -38,6 +38,8 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once --db .appdata/careerseeker-demo.db --artifacts .appdata/artifacts`
 - Alpha Gmail smoke, live but one-shot:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
+- Live ATS board ingest into the local SQLite store:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- scout-boards --board greenhouse:remotecom --board lever:mistral --db .appdata/careerseeker-alpha.db`
 - Import real BYOK provider keys into the local DPAPI vault:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - Live BYOK provider smoke for Anthropic, Gemini, Tailor, Gate, and accounting:
@@ -86,6 +88,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   SQLite-backed engine cycle.
 - Live connector status: Scout ingestion, Gmail draft creation, BYOK provider calls, full alpha BYOK
   Gmail/PDF draft creation, alpha Gmail/PDF smoke, and dashboard Gmail disconnect wiring are verified.
+- `scout-boards` gives the alpha executable a live ATS ingest path for Greenhouse, Lever, and Ashby boards;
+  it writes postings into SQLite, records a hash-chained ingest event, and treats repeat sightings as reposts.
 - Bounded BYOK alpha smoke is verified for live Gate, live Tailor, Gmail draft creation, PDF attachment
   packaging, and SQLite audit.
 - Brave web-research adapter source and the `research-company` alpha command are implemented and offline

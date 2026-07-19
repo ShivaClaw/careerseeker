@@ -22,6 +22,8 @@ if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase))
     return await RunDemoAsync().ConfigureAwait(false);
 if (mode.Equals("alpha", StringComparison.OrdinalIgnoreCase))
     return await RunAlphaAsync().ConfigureAwait(false);
+if (mode.Equals("scout-boards", StringComparison.OrdinalIgnoreCase))
+    return await RunScoutBoardsAsync().ConfigureAwait(false);
 if (mode.Equals("research-company", StringComparison.OrdinalIgnoreCase))
     return await RunResearchCompanyAsync().ConfigureAwait(false);
 if (mode.Equals("export-audit", StringComparison.OrdinalIgnoreCase))
@@ -272,6 +274,113 @@ async Task<int> RunResearchCompanyAsync()
         Console.WriteLine($"  - {fact.Topic}: {fact.Text} ({fact.SourceUrl})");
 
     return 0;
+}
+
+async Task<int> RunScoutBoardsAsync()
+{
+    var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var boardInputs = BoardArgValues().ToList();
+    if (boardInputs.Count == 0)
+        boardInputs.AddRange(DefaultLiveBoardInputs());
+
+    var boards = new List<CompanyBoard>();
+    foreach (var input in boardInputs)
+    {
+        if (!BoardRegistry.TryParse(input, out var board))
+            return Fail($"scout-boards could not parse board '{input}'. Use --board greenhouse:remotecom, --board lever:mistral, or a public board URL.");
+        boards.Add(board);
+    }
+
+    var dbDir = Path.GetDirectoryName(dbPath);
+    if (!string.IsNullOrWhiteSpace(dbDir)) Directory.CreateDirectory(dbDir);
+
+    var options = ScoutOptions.Default with
+    {
+        MaxConcurrency = IntArg("--max-concurrency", 4),
+        PerHostConcurrency = IntArg("--per-host-concurrency", 1),
+        MinDelayPerHost = TimeSpan.FromMilliseconds(IntArg("--min-delay-ms", 300)),
+        RequestTimeout = TimeSpan.FromSeconds(IntArg("--http-timeout-seconds", 30)),
+    };
+
+    Console.WriteLine("CareerSeeker live Scout board ingest");
+    Console.WriteLine($"  db: {dbPath}");
+    Console.WriteLine("  boards: " + string.Join(", ", boards.Select(b => $"{b.Ats}:{b.Handle}")));
+
+    await using var store = SqliteSeekerStore.ForFile(dbPath);
+    await store.InitializeAsync().ConfigureAwait(false);
+
+    using var fetcher = new HttpBoardFetcher(options);
+    var scout = new SeekerSvc.Scout.Scout(fetcher, options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(IntArg("--timeout-seconds", 240)));
+
+    DiscoveryResult result;
+    try
+    {
+        result = await scout.DiscoverAsync(boards, timeout.Token).ConfigureAwait(false);
+    }
+    catch (OperationCanceledException)
+    {
+        return Fail($"scout-boards timed out after {IntArg("--timeout-seconds", 240)} seconds.");
+    }
+
+    var inserted = 0;
+    var reposts = 0;
+    foreach (var job in result.Jobs)
+    {
+        var write = await store.IngestAsync(job).ConfigureAwait(false);
+        if (write.Inserted) inserted++;
+        else reposts++;
+    }
+
+    var payload = JsonSerializer.Serialize(new
+    {
+        boards = boards.Select(b => new { ats = b.Ats.ToString(), handle = b.Handle }).ToArray(),
+        boardsOk = result.BoardsOk,
+        boardsFailed = result.BoardsFailed,
+        jobs = result.Jobs.Count,
+        inserted,
+        reposts,
+        duplicatesCollapsed = result.DuplicatesCollapsed,
+        promptInjectionSignals = result.FlaggedCount,
+    });
+    await store.AppendEventAsync(new EventInput(
+        "engine",
+        "scout_ingest",
+        "scout",
+        Guid.NewGuid().ToString("N"),
+        payload)).ConfigureAwait(false);
+
+    var audit = await store.VerifyAuditAsync().ConfigureAwait(false);
+
+    Console.WriteLine();
+    Console.WriteLine("Boards");
+    foreach (var board in result.Boards)
+        Console.WriteLine($"  {(board.Ok ? "OK" : "FAIL")}  {board.Board.Ats}:{board.Board.Handle}: {(board.Ok ? $"jobs={board.JobCount}" : $"{board.HttpStatus} {board.Error}")}");
+
+    Console.WriteLine();
+    Console.WriteLine("Ingest");
+    Console.WriteLine($"  deduped jobs: {result.Jobs.Count}");
+    Console.WriteLine($"  inserted: {inserted}");
+    Console.WriteLine($"  reposts: {reposts}");
+    Console.WriteLine($"  duplicates collapsed: {result.DuplicatesCollapsed}");
+    Console.WriteLine($"  prompt-injection signals: {result.FlaggedCount}");
+    Console.WriteLine($"  audit chain: {(audit.Ok ? "ok" : "FAILED")}");
+
+    var sampleCount = IntArg("--sample", 5);
+    if (sampleCount > 0 && result.Jobs.Count > 0)
+    {
+        Console.WriteLine();
+        Console.WriteLine("Sample");
+        foreach (var job in result.Jobs.Take(sampleCount))
+        {
+            var comp = job.Compensation is null
+                ? "comp n/a"
+                : $"{job.Compensation.Currency ?? "?"} {job.Compensation.Min}-{job.Compensation.Max} {job.Compensation.Interval}";
+            Console.WriteLine($"  {job.Source}:{job.BoardHandle} | {job.Title} | {job.Remote} | {comp}");
+        }
+    }
+
+    return result.BoardsFailed == 0 && audit.Ok ? 0 : 1;
 }
 
 async Task<int> RunExportAuditAsync()
@@ -777,6 +886,33 @@ string? StringArg(string name)
     return null;
 }
 
+IReadOnlyList<string> StringArgs(string name)
+{
+    var values = new List<string>();
+    for (var i = 0; i + 1 < args.Length; i++)
+    {
+        if (!args[i].Equals(name, StringComparison.OrdinalIgnoreCase)) continue;
+        if (!args[i + 1].StartsWith("--", StringComparison.Ordinal))
+            values.Add(args[i + 1]);
+    }
+    return values;
+}
+
+IEnumerable<string> BoardArgValues() =>
+    StringArgs("--board")
+        .Concat(StringArgs("--boards"))
+        .SelectMany(v => v.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        .Where(v => !string.IsNullOrWhiteSpace(v));
+
+static IReadOnlyList<string> DefaultLiveBoardInputs() => new[]
+{
+    "greenhouse:remotecom",
+    "greenhouse:grafanalabs",
+    "lever:mistral",
+    "ashby:deel",
+    "ashby:ramp",
+};
+
 string? EnvFileValue(string path, string name)
 {
     if (!File.Exists(path)) return null;
@@ -810,6 +946,7 @@ void PrintUsage()
     Console.WriteLine("Usage:");
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
+    Console.WriteLine("  SeekerSvc.Engine.exe scout-boards [--board greenhouse:remotecom] [--board lever:mistral] [--db .appdata/careerseeker-alpha.db] [--timeout-seconds 240]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");
     Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");

@@ -405,6 +405,8 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - Local dashboard Gmail disconnect control added with per-process form token plus loopback, Host, Origin, and Referer checks.
 - Local dashboard evidence endpoint added; `/evidence` verifies the audit chain and returns recent event metadata without payload bodies.
 - Local `export-audit` command added; default export includes audit-chain status, event metadata, hashes, and payload lengths, while raw payloads require `--include-payloads`.
+- Alpha executable `scout-boards` command added for live ATS board ingestion into SQLite, with a hash-chained
+  ingest event and idempotent repost refresh behavior.
 - Brave Search web-research adapter added; it uses search results only to select URLs, fetches public result pages, strips HTML/script noise, skips localhost/private/non-text results, and leaves final trust to the grounding filter.
 - `research-company` command added for live Brave + BYOK dossier runs when `BRAVE_SEARCH_API_KEY` is available.
 - Gmail draft API preflight added before live draft creation.
