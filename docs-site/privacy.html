@@ -52,7 +52,7 @@
 
 <h2>4. Third-Party LLM Inference</h2>
 <p>CareerSeeker uses large language models for scoring support, tailoring, research, and verification. In BYOK mode, you supply your own API key for your chosen provider. Inference requests travel from your machine to that provider. CareerSeeker does not currently proxy, log, or retain your API key beyond the local DPAPI-encrypted vault.</p>
-<p>Data sent to inference providers may include job posting text, company research snippets, source-of-truth profile claims, generated draft text, and Fabrication Gate verification prompts. The current alpha does not yet guarantee an automated relevance filter for every profile claim passed to a model, so public-release privacy copy must not claim "only posting-relevant claims" until that minimization exists in code.</p>
+<p>Data sent to inference providers may include job posting text, company research snippets, source-of-truth profile claims, generated draft text, and Fabrication Gate verification prompts. Tailor generation filters profile claims to posting-relevant facts before sending a prompt. Fabrication Gate verification still uses the local source-of-truth profile as its oracle and may send bounded verification prompts for generated claims.</p>
 <p>Each provider's own privacy policy governs its handling of API requests. CareerSeeker records local token/cost accounting for provider calls.</p>
 <p>The Fabrication Gate uses a pinned strong-provider route for claim verification. That route is never budget-throttled or downgraded. If verification infrastructure is unavailable, the application is deferred as <code>GATE_UNAVAILABLE</code>; it is not marked ready and it is not mislabeled as a fabrication block.</p>
 

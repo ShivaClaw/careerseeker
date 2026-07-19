@@ -38,6 +38,38 @@ Console.WriteLine("\n[ prompt wiring ]");
 }
 
 // ── end-to-end via the dossier bridge: grounded qualitative hook flows; quantified hook is dropped ──────
+Console.WriteLine("\n[ profile minimization ]");
+{
+    var cap = new CapturingProvider();
+    var gw = new LlmGateway(RoutingTable.Default(), GatewayMode.Managed, new BudgetMeter(100m),
+        new ILlmProvider[] { cap, new FakeProvider("google"), new FakeProvider("local", true) });
+    var tailor = new Tailor(new GatewayTailorModel(gw));
+    var job = new PipelineJob(1, "Platform Engineer", "Acme", DescriptionText: "Build distributed systems in Go.");
+    var profile = new List<SourceClaim>
+    {
+        new("c1", ClaimKind.Skill, "distributed systems", Confidence.Verified),
+        new("c2", ClaimKind.Other, "managed payroll operations", Confidence.Verified),
+    };
+
+    await tailor.TailorAsync(job, profile, Array.Empty<Violation>());
+    Check("Tailor prompt keeps posting-relevant profile facts",
+        cap.Last.Contains("distributed systems") && !cap.Last.Contains("managed payroll operations"),
+        cap.Last);
+
+    var prior = new[]
+    {
+        new Violation(
+            new TailoredClaim(ClaimKind.Other, "handled payroll migrations"),
+            ViolationKind.NoSupportingClaim,
+            "Unsupported.",
+            "managed payroll operations")
+    };
+    await tailor.TailorAsync(job, profile, prior);
+    Check("Tailor rework preserves nearest supported fact even when not posting-relevant",
+        cap.Last.Contains("managed payroll operations"),
+        cap.Last);
+}
+
 Console.WriteLine("\n[ dossier bridge end-to-end ]");
 async Task<string> RunWithDossierHook(string hookText, string docText)
 {

@@ -46,7 +46,7 @@ You can revoke Gmail access at any time from your [Google Account permissions pa
 
 CareerSeeker uses large language models for scoring support, tailoring, research, and verification. In BYOK mode, you supply your own API key for your chosen provider. Inference requests travel from your machine to that provider. CareerSeeker does not currently proxy, log, or retain your API key beyond the local DPAPI-encrypted vault.
 
-Data sent to inference providers may include job posting text, company research snippets, source-of-truth profile claims, generated draft text, and Fabrication Gate verification prompts. The current alpha does not yet guarantee an automated relevance filter for every profile claim passed to a model, so public-release privacy copy must not claim "only posting-relevant claims" until that minimization exists in code.
+Data sent to inference providers may include job posting text, company research snippets, source-of-truth profile claims, generated draft text, and Fabrication Gate verification prompts. Tailor generation filters profile claims to posting-relevant facts before sending a prompt. Fabrication Gate verification still uses the local source-of-truth profile as its oracle and may send bounded verification prompts for generated claims.
 
 Each provider's own privacy policy governs its handling of API requests. CareerSeeker records local token/cost accounting for provider calls.
 

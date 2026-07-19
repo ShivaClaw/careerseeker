@@ -60,8 +60,9 @@ public sealed class Tailor : ITailor
         var hook = _hooks is null ? null : await _hooks.GetHookAsync(job, ct).ConfigureAwait(false);
         var safeHook = HookGuard.IsSafe(hook) ? hook : null;
 
+        var generationProfile = ProfileClaimSelector.Select(profile, job, priorViolations);
         var draft = await _model.GenerateAsync(
-            new TailorModelRequest(job, profile, constraints, _style, _questions, safeHook), ct).ConfigureAwait(false);
+            new TailorModelRequest(job, generationProfile, constraints, _style, _questions, safeHook), ct).ConfigureAwait(false);
 
         var claims = Decomposer.FromDraft(draft);
         var (answered, flagged) = AnswerBank.ResolveAll(_questions, _answerBank);

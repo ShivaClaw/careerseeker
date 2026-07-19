@@ -39,6 +39,7 @@ Completed:
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
 - The alpha executable has `draft-job` for a selected stored job row, including posting-body loading from
   `jd_path` and a `--dry-run` package/artifact/audit verification path that does not touch Gmail.
+- Tailor generation now minimizes profile claims to posting-relevant facts while preserving Gate rework facts.
 - `scripts/Verify-Alpha.ps1` provides a repeatable build/offline-harness verification entrypoint, with optional
   live BYOK/Gmail and win-x64 publish checks.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
@@ -307,14 +308,14 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 214 passed, 0 failed.
+Total: 216 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
 | `EngineHarness` | 40 passed, 0 failed |
 | `ResearcherHarness` | 26 passed, 0 failed |
-| `HookHarness` | 10 passed, 0 failed |
+| `HookHarness` | 12 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
 | `GatewayGateHarness` | 29 passed, 0 failed |
 | `DispatcherNoSendHarness` | 21 passed, 0 failed |
@@ -666,6 +667,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past sixteen important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, offline-verified real web-research adapter code, and local-first JD artifact persistence. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be live Brave-key verification for `research-company` and then Windows product-shell polish.
+CareerSeeker is now past seventeen important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, Tailor profile-claim minimization, offline-verified real web-research adapter code, and local-first JD artifact persistence. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be live Brave-key verification for `research-company` and then Windows product-shell polish.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.
