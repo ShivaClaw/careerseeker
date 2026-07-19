@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using SeekerSvc.Pipeline;
 using SeekerSvc.Store;
 
 namespace SeekerSvc.Engine;
@@ -61,7 +62,8 @@ public sealed class PeriodicScheduler : IAsyncDisposable
 public sealed record DashboardControlResult(bool Performed, string Message);
 
 public sealed record LocalDashboardActions(
-    Func<CancellationToken, Task<DashboardControlResult>> DisconnectGmailAsync);
+    Func<CancellationToken, Task<DashboardControlResult>>? DisconnectGmailAsync = null,
+    Func<long, string, CancellationToken, Task<DashboardControlResult>>? ControlApplicationAsync = null);
 
 public sealed record DashboardEvidence(
     bool AuditOk,
@@ -153,7 +155,8 @@ public sealed class LocalDashboard : IAsyncDisposable
             blocked = c.Blocked,
             rejected = c.Rejected,
             errors = c.Errors,
-            gmailDisconnectAvailable = _actions is not null,
+            gmailDisconnectAvailable = _actions?.DisconnectGmailAsync is not null,
+            applicationControlAvailable = _actions?.ControlApplicationAsync is not null,
             evidenceAvailable = _evidence is not null,
             applicationsAvailable = _evidence is not null,
         });
@@ -165,7 +168,7 @@ public sealed class LocalDashboard : IAsyncDisposable
         var notice = string.IsNullOrWhiteSpace(_lastActionMessage)
             ? ""
             : $@"<p class=""notice"">{WebUtility.HtmlEncode(_lastActionMessage)}</p>";
-        var controls = _actions is null
+        var controls = _actions?.DisconnectGmailAsync is null
             ? ""
             : $@"<h2>Controls</h2><form method=""post"" action=""/controls/gmail/disconnect"">
 <input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(_controlToken)}"">
@@ -249,7 +252,14 @@ h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;gri
             return;
         }
 
-        ctx.Response.StatusCode = path is "/controls/gmail/disconnect" or "/evidence" or "/applications"
+        if (ctx.Request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
+            path == "/controls/application")
+        {
+            await HandleApplicationControlAsync(ctx, ct).ConfigureAwait(false);
+            return;
+        }
+
+        ctx.Response.StatusCode = path is "/controls/gmail/disconnect" or "/controls/application" or "/evidence" or "/applications"
             ? (int)HttpStatusCode.MethodNotAllowed
             : (int)HttpStatusCode.NotFound;
         await WriteAsync(ctx, "text/plain; charset=utf-8", "Not found.", ct).ConfigureAwait(false);
@@ -294,18 +304,21 @@ h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;gri
 
         var evidence = await _evidence.LoadAsync(ct).ConfigureAwait(false);
         var rows = evidence.RecentApplications.Count == 0
-            ? @"<tr><td colspan=""7"">No applications yet.</td></tr>"
-            : string.Concat(evidence.RecentApplications.Select(ApplicationRowHtml));
+            ? @"<tr><td colspan=""8"">No applications yet.</td></tr>"
+            : string.Concat(evidence.RecentApplications.Select(row => ApplicationRowHtml(
+                row,
+                _actions?.ControlApplicationAsync is not null,
+                _controlToken)));
 
         return $@"<!doctype html><html><head><meta charset=""utf-8""><title>CareerSeeker Applications</title>
 <meta http-equiv=""refresh"" content=""5""><style>body{{font:14px system-ui;margin:2rem;max-width:72rem}}
 h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-align:left;border-bottom:1px solid #ddd;padding:.45rem .55rem;vertical-align:top}}
-.n{{font-variant-numeric:tabular-nums}}.state{{font-weight:600}}a{{color:#075985}}</style></head>
-<body><h1>Recent applications</h1><table><thead><tr><th>State</th><th>Job</th><th>Company</th><th>Score</th><th>Draft</th><th>Updated</th><th>Links</th></tr></thead>
+.n{{font-variant-numeric:tabular-nums}}.state{{font-weight:600}}a{{color:#075985}}form{{display:inline}}button{{font:inherit;padding:.2rem .4rem;margin:.1rem}}</style></head>
+<body><h1>Recent applications</h1><table><thead><tr><th>State</th><th>Job</th><th>Company</th><th>Score</th><th>Draft</th><th>Updated</th><th>Links</th><th>Controls</th></tr></thead>
 <tbody>{rows}</tbody></table><p><a href=""/"">Back to status</a></p></body></html>";
     }
 
-    private static string ApplicationRowHtml(ApplicationSummaryRow row)
+    private static string ApplicationRowHtml(ApplicationSummaryRow row, bool canControl, string token)
     {
         var job = WebUtility.HtmlEncode(row.JobTitle);
         var company = WebUtility.HtmlEncode(row.CompanyName ?? row.CompanyDomain ?? "-");
@@ -319,8 +332,26 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
                 : $"{row.DraftStatus} ({row.DraftExternalRef})");
         var updated = WebUtility.HtmlEncode(row.UpdatedAt);
         var links = LinksHtml(row);
-        return $@"<tr><td class=""state"">{WebUtility.HtmlEncode(row.State)}</td><td>{job}</td><td>{company}</td><td class=""n"">{score}</td><td>{draft}</td><td class=""n"">{updated}</td><td>{links}</td></tr>";
+        var controls = canControl ? ApplicationControlsHtml(row, token) : "-";
+        return $@"<tr><td class=""state"">{WebUtility.HtmlEncode(row.State)}</td><td>{job}</td><td>{company}</td><td class=""n"">{score}</td><td>{draft}</td><td class=""n"">{updated}</td><td>{links}</td><td>{controls}</td></tr>";
     }
+
+    private static string ApplicationControlsHtml(ApplicationSummaryRow row, string token)
+    {
+        var buttons = new List<string>();
+        if (row.State == AppState.PAUSED.ToString())
+            buttons.Add(ControlButton(row.ApplicationId, "resume", token, "Resume"));
+        else if (Enum.TryParse<AppState>(row.State, out var state) && Lifecycle.IsActive(state))
+            buttons.Add(ControlButton(row.ApplicationId, "pause", token, "Pause"));
+
+        if (row.State != AppState.USER_KILLED.ToString())
+            buttons.Add(ControlButton(row.ApplicationId, "kill", token, "Kill"));
+
+        return buttons.Count == 0 ? "-" : string.Join(" ", buttons);
+    }
+
+    private static string ControlButton(long applicationId, string action, string token, string label) =>
+        $@"<form method=""post"" action=""/controls/application""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><input type=""hidden"" name=""applicationId"" value=""{applicationId}""><input type=""hidden"" name=""action"" value=""{WebUtility.HtmlEncode(action)}""><button type=""submit"">{WebUtility.HtmlEncode(label)}</button></form>";
 
     private static string LinksHtml(ApplicationSummaryRow row)
     {
@@ -360,7 +391,7 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
 
     private async Task HandleGmailDisconnectAsync(HttpListenerContext ctx, CancellationToken ct)
     {
-        if (_actions is null)
+        if (_actions?.DisconnectGmailAsync is null)
         {
             ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
             await WriteAsync(ctx, "text/plain; charset=utf-8", "No Gmail disconnect action is configured.", ct)
@@ -388,14 +419,73 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
         }
     }
 
+    private async Task HandleApplicationControlAsync(HttpListenerContext ctx, CancellationToken ct)
+    {
+        if (_actions?.ControlApplicationAsync is null)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "No application control action is configured.", ct)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!RequestCameFromThisDashboard(ctx))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (ctx.Request.ContentLength64 is < 0 or > 4096)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        var form = ParseForm(await ReadBodyAsync(ctx).ConfigureAwait(false));
+        if (!HasValidControlToken(form))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (!long.TryParse(form.GetValueOrDefault("applicationId"), out var applicationId) ||
+            !form.TryGetValue("action", out var action))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Missing application control fields.", ct)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var result = await _actions.ControlApplicationAsync(applicationId, action, ct).ConfigureAwait(false);
+            _lastActionMessage = result.Message;
+            RedirectApplications(ctx);
+        }
+        catch (Exception ex)
+        {
+            _lastActionMessage = "Application control did not complete cleanly: " + ex.Message;
+            RedirectApplications(ctx);
+        }
+    }
+
     private async Task<bool> HasValidControlTokenAsync(HttpListenerContext ctx)
     {
         if (ctx.Request.ContentLength64 is < 0 or > 4096) return false;
         var form = await ReadBodyAsync(ctx).ConfigureAwait(false);
-        return ParseForm(form).TryGetValue("token", out var token) &&
-               CryptographicOperations.FixedTimeEquals(
-                   Encoding.UTF8.GetBytes(token),
-                   Encoding.UTF8.GetBytes(_controlToken));
+        return HasValidControlToken(ParseForm(form));
+    }
+
+    private bool HasValidControlToken(Dictionary<string, string> form)
+    {
+        return form.TryGetValue("token", out var token) &&
+            CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(token),
+                Encoding.UTF8.GetBytes(_controlToken));
     }
 
     private async Task<string> ReadBodyAsync(HttpListenerContext ctx)
@@ -461,6 +551,12 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
     {
         ctx.Response.StatusCode = (int)HttpStatusCode.SeeOther;
         ctx.Response.RedirectLocation = "/";
+    }
+
+    private static void RedirectApplications(HttpListenerContext ctx)
+    {
+        ctx.Response.StatusCode = (int)HttpStatusCode.SeeOther;
+        ctx.Response.RedirectLocation = "/applications";
     }
 
     private static string NewControlToken() =>

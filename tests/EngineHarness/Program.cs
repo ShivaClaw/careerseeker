@@ -142,11 +142,7 @@ Console.WriteLine("\n[ scheduler ]");
 Console.WriteLine("\n[ localhost dashboard ]");
 {
     var disconnects = 0;
-    var actions = new LocalDashboardActions(_ =>
-    {
-        Interlocked.Increment(ref disconnects);
-        return Task.FromResult(new DashboardControlResult(true, "Gmail disconnected."));
-    });
+    var appControls = 0;
     var evidenceStore = await SeededStoreAsync();
     var artifactDir = Path.Combine(Path.GetTempPath(), "careerseeker-engineharness-artifacts-" + Guid.NewGuid().ToString("N"));
     var evidenceCounters = new EngineCounters();
@@ -156,6 +152,20 @@ Console.WriteLine("\n[ localhost dashboard ]");
         new FakeSemantic(), evidencePipeline, opt, evidenceCounters);
     await evidenceCycle.TickAsync();
     await evidenceStore.AppendEventAsync(new EventInput("engine", "dashboard-test", "application", "1"));
+    var applicationId = (await evidenceStore.GetRecentApplicationsAsync()).First().ApplicationId;
+    var actions = new LocalDashboardActions(
+        DisconnectGmailAsync: _ =>
+        {
+            Interlocked.Increment(ref disconnects);
+            return Task.FromResult(new DashboardControlResult(true, "Gmail disconnected."));
+        },
+        ControlApplicationAsync: async (id, action, ct) =>
+        {
+            Interlocked.Increment(ref appControls);
+            if (action == "pause")
+                await evidencePipeline.PauseAsync(id, ct);
+            return new DashboardControlResult(true, "Application controlled.");
+        });
     var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore));
     var listenerOk = true;
     try { dash.Start(); } catch (Exception e) { listenerOk = false; Console.WriteLine("    (HttpListener unavailable in sandbox: " + e.GetType().Name + ")"); }
@@ -167,6 +177,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
         using var doc = JsonDocument.Parse(json);
         Check("/status serves JSON with live counters", doc.RootElement.GetProperty("drafted").GetInt64() == 1, json);
         Check("/status reports Gmail control availability", doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean(), json);
+        Check("/status reports application control availability", doc.RootElement.GetProperty("applicationControlAvailable").GetBoolean(), json);
         Check("/status reports evidence availability", doc.RootElement.GetProperty("evidenceAvailable").GetBoolean(), json);
         var html = await http.GetStringAsync("http://localhost:7777/");
         Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
@@ -180,6 +191,11 @@ Console.WriteLine("\n[ localhost dashboard ]");
             applicationsHtml.Contains("DRAFTED") &&
             applicationsHtml.Contains("SUCCEEDED") &&
             applicationsHtml.Contains(">resume</a>"),
+            applicationsHtml);
+        Check("/applications exposes local application controls",
+            applicationsHtml.Contains("action=\"/controls/application\"") &&
+            applicationsHtml.Contains("value=\"pause\"") &&
+            applicationsHtml.Contains("value=\"kill\""),
             applicationsHtml);
 
         var evidenceJson = await http.GetStringAsync("http://localhost:7777/evidence");
@@ -222,6 +238,33 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("Gmail disconnect control invokes the configured action",
             post.StatusCode == HttpStatusCode.SeeOther && disconnects == 1,
             $"{post.StatusCode}, calls={disconnects}");
+
+        var forgedApp = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/application",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["token"] = "wrong",
+                ["applicationId"] = applicationId.ToString(),
+                ["action"] = "pause",
+            }));
+        Check("application control rejects a bad token",
+            forgedApp.StatusCode == HttpStatusCode.Forbidden && appControls == 0,
+            $"{forgedApp.StatusCode}, calls={appControls}");
+
+        var appPost = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/application",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["token"] = token,
+                ["applicationId"] = applicationId.ToString(),
+                ["action"] = "pause",
+            }));
+        var controlled = await evidenceStore.GetApplicationAsync(applicationId);
+        Check("application control invokes the configured action",
+            appPost.StatusCode == HttpStatusCode.SeeOther &&
+            appControls == 1 &&
+            controlled?.State == AppState.PAUSED.ToString(),
+            $"{appPost.StatusCode}, calls={appControls}, state={controlled?.State}");
     }
     else
     {
@@ -230,6 +273,8 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/status JSON renders live counters (direct)", doc.RootElement.GetProperty("drafted").GetInt64() == 1);
         Check("HTML renderer exposes configured controls (direct)",
             doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean());
+        Check("HTML renderer exposes configured application controls (direct)",
+            doc.RootElement.GetProperty("applicationControlAvailable").GetBoolean());
         using var evidenceDoc = JsonDocument.Parse(await dash.EvidenceJsonAsync());
         Check("evidence renderer reports audit verification (direct)",
             evidenceDoc.RootElement.GetProperty("auditOk").GetBoolean());

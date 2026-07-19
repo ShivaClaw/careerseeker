@@ -47,9 +47,7 @@ async Task<int> RunDemoAsync()
     var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
     var gmailVaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
     var gmailClientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
-    var dashboardActions = HasFlag("--gmail-control") || File.Exists(gmailVaultPath)
-        ? BuildGmailDashboardActions(gmailClientPath, gmailVaultPath)
-        : null;
+    var gmailControlRequested = HasFlag("--gmail-control");
 
     if (!string.IsNullOrWhiteSpace(dbPath))
     {
@@ -69,6 +67,7 @@ async Task<int> RunDemoAsync()
     {
         var counters = new EngineCounters();
         var cycle = BuildDemoCycle(store, counters, profileId, artifactsPath);
+        var dashboardActions = BuildDashboardActions(store, gmailClientPath, gmailVaultPath, gmailControlRequested);
 
         if (once)
         {
@@ -97,8 +96,9 @@ async Task<int> RunDemoAsync()
             Console.WriteLine($"Dashboard: http://localhost:{port}/");
             if (!string.IsNullOrWhiteSpace(storeDetail))
                 Console.WriteLine(storeDetail);
-            if (dashboardActions is not null)
+            if (dashboardActions.DisconnectGmailAsync is not null)
                 Console.WriteLine("Dashboard Gmail disconnect control: available");
+            Console.WriteLine("Dashboard application controls: available");
             Console.WriteLine("Press Enter or Ctrl+C to stop.");
 
             var readLine = Task.Run(Console.ReadLine, stop.Token);
@@ -457,6 +457,66 @@ LocalDashboardActions BuildGmailDashboardActions(string? clientPath, string vaul
             ? new DashboardControlResult(true, "Gmail token revoked and local vault deleted.")
             : new DashboardControlResult(false, "No local Gmail token was found.");
     });
+
+LocalDashboardActions BuildDashboardActions(
+    ISeekerStore store,
+    string? gmailClientPath,
+    string gmailVaultPath,
+    bool gmailControlRequested)
+{
+    var actions = gmailControlRequested || File.Exists(gmailVaultPath)
+        ? BuildGmailDashboardActions(gmailClientPath, gmailVaultPath)
+        : new LocalDashboardActions();
+
+    return actions with { ControlApplicationAsync = BuildApplicationControlAction(store) };
+}
+
+Func<long, string, CancellationToken, Task<DashboardControlResult>> BuildApplicationControlAction(ISeekerStore store) =>
+    async (applicationId, action, ct) =>
+    {
+        if (applicationId <= 0)
+            return new DashboardControlResult(false, "Application control requires a positive application id.");
+
+        var before = await store.GetApplicationAsync(applicationId, ct).ConfigureAwait(false);
+        if (before is null)
+            return new DashboardControlResult(false, $"Application {applicationId} was not found.");
+
+        var normalized = action.Trim().ToLowerInvariant();
+        var pipeline = BuildControlPipeline(store);
+        AppState? resumed = null;
+        try
+        {
+            switch (normalized)
+            {
+                case "pause":
+                    await pipeline.PauseAsync(applicationId, ct).ConfigureAwait(false);
+                    break;
+                case "resume":
+                    resumed = await pipeline.ResumeAsync(applicationId, ct).ConfigureAwait(false);
+                    break;
+                case "kill":
+                    await pipeline.KillAsync(applicationId, ct).ConfigureAwait(false);
+                    break;
+                default:
+                    return new DashboardControlResult(false, "Unsupported application control. Use pause, resume, or kill.");
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new DashboardControlResult(false, ex.Message);
+        }
+
+        var after = await store.GetApplicationAsync(applicationId, ct).ConfigureAwait(false);
+        var audit = await store.VerifyAuditAsync(ct).ConfigureAwait(false);
+        var final = after is null ? "<missing>" : after.State.ToString();
+        var message = $"Application {applicationId}: {before.State} -> {final}.";
+        if (resumed is not null)
+            message += $" Resumed to {resumed}.";
+        if (!audit.Ok)
+            message += " Audit verification failed.";
+
+        return new DashboardControlResult(audit.Ok, message);
+    };
 
 GoogleOAuthClient LoadDisconnectGoogleClient(string? clientPath) =>
     !string.IsNullOrWhiteSpace(clientPath) && File.Exists(clientPath)
