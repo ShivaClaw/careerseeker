@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http;
 using SeekerSvc.Gateway;
 using SeekerSvc.Researcher;
 using SeekerSvc.Scorer;
@@ -47,6 +49,32 @@ Console.WriteLine("\n[ researched signals ]");
         { new("https://random.net/x", "x", "nothing useful here") });
     Check("domain null when not retrieved (unknown, not false)", s2.CompanyDomainVerified is null);
     Check("recruiter null when none found", s2.RecruiterIdentifiable is null);
+}
+
+Console.WriteLine("\n[ Brave web adapter ]");
+{
+    var handler = new FakeBraveHttp();
+    using var http = new HttpClient(handler);
+    var web = new BraveSearchWebResearch(http, new BraveSearchOptions(
+        "test-key",
+        Endpoint: new Uri("https://search.test/res/v1/web/search")));
+
+    var found = await web.SearchAsync("Acme careers", 5);
+    Check("Brave adapter sends subscription token",
+        handler.Requests.Any(r => r.RequestUri?.Host == "search.test" &&
+                                  r.Headers.TryGetValues("X-Subscription-Token", out var values) &&
+                                  values.Contains("test-key")));
+    Check("Brave adapter passes query and count",
+        handler.Requests.Any(r => r.RequestUri?.Query.Contains("q=Acme%20careers") == true &&
+                                  r.RequestUri.Query.Contains("count=5")));
+    Check("Brave adapter fetches public result pages before returning docs",
+        found.Count == 1 && found[0].Url == "https://acme.com/about" &&
+        found[0].Text.Contains("Acme builds developer tools"));
+    Check("Brave adapter strips script and HTML noise",
+        !found[0].Text.Contains("alert(") && !found[0].Text.Contains("<h1>"));
+    Check("Brave adapter skips localhost and non-text results",
+        handler.Requests.All(r => r.RequestUri?.Host != "127.0.0.1") &&
+        found.All(d => !d.Url.Contains("files.example")));
 }
 
 // ── orchestrator + caching (fakes) ──────────────────────────────────────────────────────────────────
@@ -131,4 +159,43 @@ sealed class FakeModel : IDossierModel
     public FakeModel(IReadOnlyList<ProposedFact> facts) => _facts = facts;
     public Task<IReadOnlyList<ProposedFact>> ProposeAsync(CompanyRef c, IReadOnlyList<ResearchDoc> d, CancellationToken ct = default)
     { Calls++; return Task.FromResult(_facts); }
+}
+
+sealed class FakeBraveHttp : HttpMessageHandler
+{
+    public List<HttpRequestMessage> Requests { get; } = new();
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        Requests.Add(request);
+        var uri = request.RequestUri ?? new Uri("https://invalid.local/");
+        if (uri.Host == "search.test")
+        {
+            const string json = """
+                {"web":{"results":[
+                  {"url":"https://acme.com/about#team","title":"About Acme"},
+                  {"url":"http://127.0.0.1/secret","title":"Local"},
+                  {"url":"https://files.example/doc.pdf","title":"PDF"}
+                ]}}
+                """;
+            return Task.FromResult(Text(json, "application/json"));
+        }
+
+        if (uri.Host == "acme.com")
+            return Task.FromResult(Text("""
+                <html><head><script>alert('ignore me')</script></head>
+                <body><h1>About Acme</h1><p>Acme builds developer tools for observability.</p></body></html>
+                """, "text/html"));
+
+        if (uri.Host == "files.example")
+            return Task.FromResult(Bytes(new byte[] { 0x25, 0x50, 0x44, 0x46 }, "application/pdf"));
+
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+    }
+
+    private static HttpResponseMessage Text(string text, string contentType) =>
+        new(HttpStatusCode.OK) { Content = new StringContent(text, System.Text.Encoding.UTF8, contentType) };
+
+    private static HttpResponseMessage Bytes(byte[] bytes, string contentType) =>
+        new(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) { Headers = { ContentType = new(contentType) } } };
 }

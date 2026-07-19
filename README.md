@@ -13,12 +13,12 @@ Trust/OAuth docs:
 ## Layout
 - `src/`: 11 net8.0 projects. Leaves are Verifier, Scout, and Gateway; Store/Scorer build on Scout;
   Pipeline depends on Store, Scorer, and Verifier; Tailor and Dispatcher sit above Pipeline; Engine
-  references Pipeline, Tailor, and Dispatcher. `TailorHookBridge` joins Tailor<->Researcher so neither
-  core project references the other.
+  references Pipeline, Tailor, Dispatcher, and Researcher for alpha composition commands. `TailorHookBridge`
+  joins Tailor<->Researcher so neither core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
-  `EngineHarness` (18), `ResearcherHarness` (21), `HookHarness` (10), `StoreParityHarness` (12),
+  `EngineHarness` (18), `ResearcherHarness` (26), `HookHarness` (10), `StoreParityHarness` (12),
   `GatewayGateHarness` (29), `DispatcherNoSendHarness` (20), `LifecycleHarness` (37), and
-  `RendererHarness` (6). Latest offline total: 181 assertions. Run each with
+  `RendererHarness` (6). Latest offline total: 186 assertions. Run each with
   `dotnet run -c Release`.
 
 ## Build

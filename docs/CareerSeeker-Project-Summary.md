@@ -19,7 +19,7 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration, Gmail disconnect, dashboard disconnect control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, Gmail disconnect, dashboard disconnect control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, Brave web-research adapter source, and parity coverage verified.
 
 Completed:
 
@@ -37,6 +37,8 @@ Completed:
 - Alpha BYOK Gate verification defaults to top-3 semantic source candidates per tailored claim to bound live entailment calls while still failing closed.
 - Unconstrained alpha `--llm byok` passes with live Tailor, live Gate, Gmail draft creation, PDF attachment packaging, and SQLite audit.
 - Dispatcher has a real deterministic ATS-clean PDF renderer for resume attachments, with optional cover PDFs.
+- Researcher has a real Brave Search adapter that fetches public result pages before docs can ground dossier facts.
+- Engine has a `research-company` alpha command that composes Brave Search, BYOK Gateway dossier modeling, and the grounding filter when a Brave key is available.
 - L1 compose-only correction is in place: custom Gmail labels are skipped by default because label management requires broader Gmail scope than `gmail.compose`.
 - SQLite provider source is restored to the Store project and covered by `StoreParityHarness`.
 - Gateway pinned-Gate and Dispatcher no-send invariants now have named offline harnesses.
@@ -44,7 +46,7 @@ Completed:
 
 Not complete yet:
 
-- Real web research adapter.
+- Live real-company Researcher verification with a Brave Search key.
 - Headless Chromium/HTML document renderer polish beyond the current ATS-clean text PDF renderer.
 - Windows Service, tray, installer, and code signing.
 - OAuth production verification and CASA assessment.
@@ -291,13 +293,13 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 181 passed, 0 failed.
+Total: 186 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
 | `EngineHarness` | 18 passed, 0 failed |
-| `ResearcherHarness` | 21 passed, 0 failed |
+| `ResearcherHarness` | 26 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
 | `StoreParityHarness` | 12 passed, 0 failed |
 | `GatewayGateHarness` | 29 passed, 0 failed |
@@ -394,6 +396,8 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - DPAPI token vault added for local OAuth token storage.
 - Gmail disconnect added to revoke refresh tokens and delete local DPAPI token material.
 - Local dashboard Gmail disconnect control added with per-process form token plus loopback, Host, Origin, and Referer checks.
+- Brave Search web-research adapter added; it uses search results only to select URLs, fetches public result pages, strips HTML/script noise, skips localhost/private/non-text results, and leaves final trust to the grounding filter.
+- `research-company` command added for live Brave + BYOK dossier runs when `BRAVE_SEARCH_API_KEY` is available.
 - Gmail draft API preflight added before live draft creation.
 - Gmail live harness added.
 - L1 Gmail labels deferred to preserve `gmail.compose` only.
@@ -530,7 +534,7 @@ Status: substantially complete.
 - Production composition root has not yet been wired to SQLite.
 - OAuth production verification and CASA remain long-lead launch blockers.
 - Current PDF renderer is ATS-clean text; not yet a polished HTML/Chromium resume template.
-- No real web research adapter yet.
+- Live real-company web research has not been run yet because no Brave Search key is present locally.
 - No Windows service/tray composition root yet.
 - Live ATS feeds are volatile; some configured boards can be empty while still reachable.
 
@@ -538,7 +542,7 @@ Status: substantially complete.
 
 Highest priority:
 
-- Implement the real web research adapter so company hooks and legitimacy signals can graduate from fake/offline to live.
+- Live-verify `research-company` with a real Brave Search key so company hooks and legitimacy signals can graduate from source-present to live-proven.
 - Add visible local dashboard evidence: jobs found, rejected, blocked, drafted, last audit verification.
 
 Near-term connector work:
@@ -634,6 +638,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past nine important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, and a dashboard-accessible Gmail disconnect control. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be real web research and then broader local evidence surfaces.
+CareerSeeker is now past ten important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, a dashboard-accessible Gmail disconnect control, and offline-verified real web-research adapter code. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be live Brave-key verification for `research-company` and then broader local evidence surfaces.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

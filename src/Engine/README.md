@@ -27,7 +27,7 @@ The engine shell adds:
 
 - `EngineCycle`: one discovery, decision, and action pass over a batch.
 - `PeriodicScheduler`: immediate tick, then repeated ticks by interval.
-- `LocalDashboard`: loopback-only HTML and JSON status on `localhost`.
+- `LocalDashboard`: loopback-only HTML and JSON status on `localhost`, with optional token-protected controls.
 - `EngineHost`: composition root for counters, scheduler, and dashboard.
 
 ## Alpha Executable Modes
@@ -71,16 +71,18 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 181 passed, 0 failed.
+- Latest offline harness total: 186 passed, 0 failed.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
   in-memory/SQLite behavior parity.
 - Live connector status: Scout ingestion, Gmail draft creation, BYOK provider calls, full alpha BYOK
   Gmail/PDF draft creation, alpha Gmail/PDF smoke, and dashboard Gmail disconnect wiring are verified.
 - Bounded BYOK alpha smoke is verified for live Gate, live Tailor, Gmail draft creation, PDF attachment
   packaging, and SQLite audit.
+- Brave web-research adapter source and the `research-company` alpha command are implemented and offline
+  verified; live verification is pending a Brave Search key.
 
 ## Not Yet Built
 
-- Real Researcher/dossier from grounded web sources.
+- Live `research-company` verification with a real Brave Search key.
 - Windows Service host, tray controls, and broader local dashboard evidence around `EngineHost`.
 - Onboarding, WinUI tray, OAuth/CASA, installer, and code signing.

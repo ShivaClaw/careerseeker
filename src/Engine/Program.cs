@@ -4,6 +4,7 @@ using SeekerSvc.Dispatcher;
 using SeekerSvc.Engine;
 using SeekerSvc.Gateway;
 using SeekerSvc.Pipeline;
+using SeekerSvc.Researcher;
 using SeekerSvc.Scorer;
 using SeekerSvc.Scout;
 using SeekerSvc.Store;
@@ -21,6 +22,8 @@ if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase))
     return await RunDemoAsync().ConfigureAwait(false);
 if (mode.Equals("alpha", StringComparison.OrdinalIgnoreCase))
     return await RunAlphaAsync().ConfigureAwait(false);
+if (mode.Equals("research-company", StringComparison.OrdinalIgnoreCase))
+    return await RunResearchCompanyAsync().ConfigureAwait(false);
 if (mode.Equals("import-byok", StringComparison.OrdinalIgnoreCase))
     return RunImportByok();
 if (mode.Equals("clear-byok", StringComparison.OrdinalIgnoreCase))
@@ -177,6 +180,60 @@ async Task<int> RunAlphaAsync()
     var audit = await store.VerifyAuditAsync().ConfigureAwait(false);
     Console.WriteLine($"  audit chain: {(audit.Ok ? "ok" : "FAILED")}");
     return counters.Errors == 0 && counters.Drafted == 1 && audit.Ok ? 0 : 1;
+}
+
+async Task<int> RunResearchCompanyAsync()
+{
+    var company = StringArg("--company");
+    if (string.IsNullOrWhiteSpace(company))
+        return Fail("research-company requires --company.");
+
+    var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
+    var braveKey = StringArg("--brave-key")
+                   ?? Environment.GetEnvironmentVariable("BRAVE_SEARCH_API_KEY")
+                   ?? Environment.GetEnvironmentVariable("CAREERSEEKER_BRAVE_SEARCH_API_KEY")
+                   ?? EnvFileValue(envFilePath, "BRAVE_SEARCH_API_KEY")
+                   ?? EnvFileValue(envFilePath, "CAREERSEEKER_BRAVE_SEARCH_API_KEY");
+    if (string.IsNullOrWhiteSpace(braveKey))
+        return Fail($"research-company could not find BRAVE_SEARCH_API_KEY in arguments, environment, or '{envFilePath}'.");
+
+    var llmMode = StringArg("--llm") ?? "byok";
+    if (!llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase))
+        return Fail("research-company currently requires --llm byok so the dossier model can run through real providers.");
+
+    var keyVaultPath = StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi");
+    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(IntArg("--http-timeout-seconds", 60)) };
+    var gateway = BuildGateway(llmMode, envFilePath, keyVaultPath, http, out var keySourceName, out var byokProviders);
+    var web = new BraveSearchWebResearch(http, new BraveSearchOptions(braveKey));
+    var researcher = new SeekerSvc.Researcher.Researcher(
+        web,
+        new GatewayDossierModel(gateway),
+        new InMemoryDossierStore(),
+        new ResearcherOptions(TimeSpan.Zero, IntArg("--max-docs-per-query", 5)));
+
+    Console.WriteLine("CareerSeeker live company research");
+    Console.WriteLine($"  company: {company}");
+    Console.WriteLine($"  domain: {StringArg("--domain") ?? "<none>"}");
+    Console.WriteLine("  search provider: brave");
+    Console.WriteLine($"  BYOK providers ({keySourceName}): " + string.Join(", ", byokProviders));
+    Console.WriteLine("  secret values were not printed.");
+
+    var dossier = await researcher.BuildAsync(
+        new CompanyRef(company, StringArg("--domain")),
+        forceRefresh: true).ConfigureAwait(false);
+
+    Console.WriteLine();
+    Console.WriteLine("Dossier");
+    Console.WriteLine($"  facts: {dossier.Facts.Count}");
+    Console.WriteLine($"  dropped ungrounded: {researcher.LastDroppedUngrounded}");
+    Console.WriteLine($"  domain verified: {dossier.Signals.CompanyDomainVerified?.ToString() ?? "unknown"}");
+    Console.WriteLine($"  recruiter identifiable: {dossier.Signals.RecruiterIdentifiable?.ToString() ?? "unknown"}");
+    Console.WriteLine($"  best hook: {dossier.BestHook?.Text ?? "<none>"}");
+
+    foreach (var fact in dossier.Facts.Take(5))
+        Console.WriteLine($"  - {fact.Topic}: {fact.Text} ({fact.SourceUrl})");
+
+    return 0;
 }
 
 int RunImportByok()
@@ -510,6 +567,7 @@ void PrintUsage()
     Console.WriteLine("Usage:");
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db]");
+    Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe disconnect-gmail [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");

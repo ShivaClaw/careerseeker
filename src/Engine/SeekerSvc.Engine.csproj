@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Pipeline/SeekerSvc.Pipeline.csproj" />
+    <ProjectReference Include="../Researcher/SeekerSvc.Researcher.csproj" />
     <ProjectReference Include="../Tailor/SeekerSvc.Tailor.csproj" />
     <ProjectReference Include="../Dispatcher/SeekerSvc.Dispatcher.csproj" />
   </ItemGroup>
