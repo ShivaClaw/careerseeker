@@ -47,6 +47,9 @@ Check("recent job summary joins job and company metadata",
         ApplyUrl: "mailto:apply-updated@example.com",
         RepostCount: 1
     });
+Check("job summary lookup returns the selected job",
+    sqlite.JobSummary is { JobId: var id, Title: "Senior Software Engineer" } &&
+    id == sqlite.First.JobId);
 Check("application artifact metadata persists into app and summary rows",
     sqlite.App is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", AnswersJson: "{\"q\":\"a\"}" } &&
     sqlite.Summaries[0] is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", HasAnswers: true });
@@ -165,6 +168,7 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
             ProfileId: profileId,
             Claims: (await store.GetClaimsAsync(profileId)).ToList(),
             App: await store.GetApplicationAsync(appId),
+            JobSummary: await store.GetJobSummaryAsync(first.JobId),
             Summaries: (await store.GetRecentApplicationsAsync()).ToList(),
             JobSummaries: (await store.GetRecentJobsAsync()).ToList(),
             Events: (await store.GetEventsAsync()).ToList(),
@@ -216,6 +220,7 @@ sealed record StoreSnapshot(
     long ProfileId,
     IReadOnlyList<ClaimRow> Claims,
     ApplicationRow? App,
+    JobSummaryRow? JobSummary,
     IReadOnlyList<ApplicationSummaryRow> Summaries,
     IReadOnlyList<JobSummaryRow> JobSummaries,
     IReadOnlyList<EventRow> Events,
@@ -249,6 +254,7 @@ sealed record StoreSnapshot(
         if (ProfileId != other.ProfileId) return $"profile id: {ProfileId} != {other.ProfileId}";
         if (!Claims.SequenceEqual(other.Claims)) return "claim rows differ";
         if (App != other.App) return $"application row: {App} != {other.App}";
+        if (JobSummary != other.JobSummary) return $"job summary lookup: {JobSummary} != {other.JobSummary}";
         if (!Summaries.SequenceEqual(other.Summaries)) return "application summaries differ";
         if (!JobSummaries.SequenceEqual(other.JobSummaries)) return "job summaries differ";
         if (!Events.SequenceEqual(other.Events)) return "event rows differ";

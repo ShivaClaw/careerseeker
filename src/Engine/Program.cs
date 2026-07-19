@@ -22,6 +22,8 @@ if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase))
     return await RunDemoAsync().ConfigureAwait(false);
 if (mode.Equals("alpha", StringComparison.OrdinalIgnoreCase))
     return await RunAlphaAsync().ConfigureAwait(false);
+if (mode.Equals("draft-job", StringComparison.OrdinalIgnoreCase))
+    return await RunDraftJobAsync().ConfigureAwait(false);
 if (mode.Equals("scout-boards", StringComparison.OrdinalIgnoreCase))
     return await RunScoutBoardsAsync().ConfigureAwait(false);
 if (mode.Equals("research-company", StringComparison.OrdinalIgnoreCase))
@@ -381,6 +383,122 @@ async Task<int> RunScoutBoardsAsync()
     }
 
     return result.BoardsFailed == 0 && audit.Ok ? 0 : 1;
+}
+
+async Task<int> RunDraftJobAsync()
+{
+    var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var appIdText = StringArg("--job-id");
+    if (!long.TryParse(appIdText, out var jobId) || jobId <= 0)
+        return Fail("draft-job requires --job-id <positive integer>.");
+
+    var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
+    var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
+    var llmMode = StringArg("--llm") ?? "fake";
+    var keyVaultPath = StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi");
+    var dryRun = HasFlag("--dry-run");
+    var gateSemanticCandidates = IntArg("--gate-semantic-candidates",
+        llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase) ? 3 : 0);
+    var email = StringArg("--email")
+                ?? Environment.GetEnvironmentVariable("CAREERSEEKER_GMAIL_TEST_EMAIL")
+                ?? EnvFileValue(envFilePath, "CAREERSEEKER_GMAIL_TEST_EMAIL")
+                ?? (dryRun ? "alpha@careerseeker.app" : null);
+    if (!string.IsNullOrWhiteSpace(email) && (email.StartsWith("--", StringComparison.Ordinal) || !email.Contains('@')))
+        return Fail("draft-job received an invalid --email value.");
+
+    await using var store = SqliteSeekerStore.ForFile(dbPath);
+    await store.InitializeAsync().ConfigureAwait(false);
+    var summary = await store.GetJobSummaryAsync(jobId).ConfigureAwait(false);
+    if (summary is null)
+        return Fail($"draft-job could not find job {jobId} in '{dbPath}'. Run scout-boards first or choose an existing job id from /jobs.");
+    if (summary.Injected && !HasFlag("--allow-injected"))
+        return Fail($"draft-job refused job {jobId} because Scout flagged prompt-injection signals. Pass --allow-injected only after manual review.");
+
+    var profileId = await SeedProfileAsync(store).ConfigureAwait(false);
+    if (!string.IsNullOrWhiteSpace(artifactsPath))
+        Directory.CreateDirectory(artifactsPath);
+
+    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(IntArg("--http-timeout-seconds", 60)) };
+    IGmailDraftClient gmail;
+    if (dryRun)
+    {
+        gmail = new DemoGmailDraftClient();
+    }
+    else
+    {
+        var clientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+        var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
+        if (string.IsNullOrWhiteSpace(clientPath) || !File.Exists(clientPath))
+            return Fail($"draft-job cannot find OAuth client JSON at '{clientPath ?? "<none>"}'.");
+
+        var client = GoogleOAuthClient.Load(clientPath);
+        var vault = new DpapiTokenVault(vaultPath);
+        var tokens = new GoogleOAuthTokenSource(http, client, vault, allowInteractive: true,
+            authorizationUrlSink: url =>
+            {
+                Console.WriteLine("Open this URL if the browser did not appear:");
+                Console.WriteLine(url);
+            });
+
+        await tokens.GetTokenAsync().ConfigureAwait(false);
+        gmail = new GmailDraftClient(http, tokens);
+        await ((GmailDraftClient)gmail).PreflightDraftAccessAsync().ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(email))
+            email = await ((GmailDraftClient)gmail).GetProfileEmailAsync().ConfigureAwait(false);
+    }
+
+    email ??= "alpha@careerseeker.app";
+    var gateway = BuildGateway(llmMode, envFilePath, keyVaultPath, http, out var keySourceName, out var byokProviders);
+    var applyUrl = string.IsNullOrWhiteSpace(summary.ApplyUrl) ? summary.JobUrl : summary.ApplyUrl;
+    var dispatchInfo = new PostingDispatchInfo(
+        ChannelDetector.Detect(applyUrl, null),
+        ApplicationEmail: null,
+        ApplyUrl: applyUrl,
+        PostingText: null);
+    var company = summary.CompanyName ?? summary.CompanyDomain ?? $"{summary.Source}:{summary.ExternalId}";
+    var job = new PipelineJob(summary.JobId, summary.Title, company, applyUrl);
+    var dispatcher = new SeekerSvc.Dispatcher.Dispatcher(
+        new DemoPostingSource(dispatchInfo),
+        new AtsPdfDocumentRenderer(new AtsPdfRendererOptions("CareerSeeker Alpha")),
+        gmail,
+        new DispatcherConfig("CareerSeeker Alpha", email, ArtifactDirectory: artifactsPath));
+    var pipeline = new ApplicationPipeline(
+        store,
+        new SeekerSvc.Tailor.Tailor(new GatewayTailorModel(gateway)),
+        dispatcher,
+        new GatewaySemanticMatcher(gateway),
+        new PipelineOptions
+        {
+            ProfileId = profileId,
+            Channel = dispatchInfo.Channel,
+            Gate = GateOptionsFrom(gateSemanticCandidates),
+        });
+
+    Console.WriteLine("CareerSeeker selected-job draft");
+    Console.WriteLine($"  db: {dbPath}");
+    Console.WriteLine($"  job: {job.JobId} - {job.Title} at {job.Company}");
+    Console.WriteLine($"  apply: {applyUrl}");
+    Console.WriteLine($"  channel: {dispatchInfo.Channel}");
+    Console.WriteLine($"  dry run: {(dryRun ? "yes" : "no")}");
+    Console.WriteLine($"  llm mode: {llmMode}");
+    if (llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase))
+        Console.WriteLine($"  BYOK providers ({keySourceName}): " + string.Join(", ", byokProviders));
+    Console.WriteLine($"  gate semantic candidates: {(gateSemanticCandidates > 0 ? gateSemanticCandidates : "exhaustive")}");
+
+    var result = await pipeline.AdmitAsync(job, AutonomyLevel.L1, Dispatch.Act).ConfigureAwait(false);
+    var app = await store.GetApplicationAsync(result.ApplicationId).ConfigureAwait(false);
+    var audit = await store.VerifyAuditAsync().ConfigureAwait(false);
+
+    Console.WriteLine();
+    Console.WriteLine("Draft result");
+    Console.WriteLine($"  application: {result.ApplicationId}");
+    Console.WriteLine($"  final state: {result.FinalState}");
+    Console.WriteLine($"  dispatch: {(result.Dispatch?.Ok == true ? "ok" : result.Dispatch is null ? "none" : "failed")}");
+    Console.WriteLine($"  draft ref: {result.Dispatch?.Reference ?? "<none>"}");
+    Console.WriteLine($"  resume: {app?.ResumePath ?? "<none>"}");
+    Console.WriteLine($"  cover: {app?.CoverPath ?? "<none>"}");
+    Console.WriteLine($"  audit chain: {(audit.Ok ? "ok" : "FAILED")}");
+    return result.FinalState == AppState.DRAFTED && result.Dispatch?.Ok == true && audit.Ok ? 0 : 1;
 }
 
 async Task<int> RunExportAuditAsync()
@@ -946,6 +1064,7 @@ void PrintUsage()
     Console.WriteLine("Usage:");
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
+    Console.WriteLine("  SeekerSvc.Engine.exe draft-job --job-id 123 [--dry-run] [--llm fake|byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe scout-boards [--board greenhouse:remotecom] [--board lever:mistral] [--db .appdata/careerseeker-alpha.db] [--timeout-seconds 240]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");

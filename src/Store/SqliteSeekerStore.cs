@@ -138,6 +138,16 @@ RETURNING id, repost_count;";
             return await r.ReadAsync(ct).ConfigureAwait(false) ? MapJob(r) : null;
         }, ct);
 
+    public Task<JobSummaryRow?> GetJobSummaryAsync(long jobId, CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            using var cmd = Conn.CreateCommand();
+            cmd.CommandText = JobSummarySelectSql + " WHERE j.id = $id;";
+            P(cmd, "$id", jobId);
+            using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            return await r.ReadAsync(ct).ConfigureAwait(false) ? MapJobSummary(r) : null;
+        }, ct);
+
     public Task<IReadOnlyList<JobSummaryRow>> GetRecentJobsAsync(
         int limit = 25,
         CancellationToken ct = default)
@@ -145,13 +155,7 @@ RETURNING id, repost_count;";
         {
             var safeLimit = Math.Clamp(limit, 1, 100);
             using var cmd = Conn.CreateCommand();
-            cmd.CommandText = @"
-SELECT
-  j.id, j.source, j.external_id, j.title, c.name, c.domain, j.remote, j.location,
-  j.url, j.apply_url, j.comp_min, j.comp_max, j.comp_currency, j.comp_interval,
-  j.comp_source, j.injected, j.injection_signals, j.last_verified, j.repost_count
-FROM jobs j
-LEFT JOIN companies c ON c.id = j.company_id
+            cmd.CommandText = JobSummarySelectSql + @"
 ORDER BY j.last_verified DESC, j.id DESC
 LIMIT $limit;";
             P(cmd, "$limit", safeLimit);
@@ -159,30 +163,7 @@ LIMIT $limit;";
             var rows = new List<JobSummaryRow>();
             using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await r.ReadAsync(ct).ConfigureAwait(false))
-            {
-                string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
-                decimal? D(int i) => r.IsDBNull(i) ? null : (decimal)r.GetDouble(i);
-                rows.Add(new JobSummaryRow(
-                    r.GetInt64(0),
-                    r.GetString(1),
-                    r.GetString(2),
-                    r.GetString(3),
-                    S(4),
-                    S(5),
-                    r.GetString(6),
-                    S(7),
-                    r.GetString(8),
-                    S(9),
-                    D(10),
-                    D(11),
-                    S(12),
-                    S(13),
-                    S(14),
-                    r.GetInt64(15) != 0,
-                    S(16),
-                    r.GetString(17),
-                    r.GetInt32(18)));
-            }
+                rows.Add(MapJobSummary(r));
             return (IReadOnlyList<JobSummaryRow>)rows;
         }, ct);
 
@@ -691,6 +672,40 @@ VALUES ($seq, $ts, $actor, $kind, $entity, $eid, $payload, $prev, $hash);";
             FirstSeen: r.GetString(O("first_seen")),
             LastVerified: r.GetString(O("last_verified")),
             RepostCount: r.GetInt32(O("repost_count")));
+    }
+
+    private const string JobSummarySelectSql = @"
+SELECT
+  j.id, j.source, j.external_id, j.title, c.name, c.domain, j.remote, j.location,
+  j.url, j.apply_url, j.comp_min, j.comp_max, j.comp_currency, j.comp_interval,
+  j.comp_source, j.injected, j.injection_signals, j.last_verified, j.repost_count
+FROM jobs j
+LEFT JOIN companies c ON c.id = j.company_id";
+
+    private static JobSummaryRow MapJobSummary(SqliteDataReader r)
+    {
+        string? S(int i) => r.IsDBNull(i) ? null : r.GetString(i);
+        decimal? D(int i) => r.IsDBNull(i) ? null : (decimal)r.GetDouble(i);
+        return new JobSummaryRow(
+            r.GetInt64(0),
+            r.GetString(1),
+            r.GetString(2),
+            r.GetString(3),
+            S(4),
+            S(5),
+            r.GetString(6),
+            S(7),
+            r.GetString(8),
+            S(9),
+            D(10),
+            D(11),
+            S(12),
+            S(13),
+            S(14),
+            r.GetInt64(15) != 0,
+            S(16),
+            r.GetString(17),
+            r.GetInt32(18));
     }
 
     private static void P(SqliteCommand cmd, string name, object? value)
