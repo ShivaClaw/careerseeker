@@ -19,7 +19,7 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration, Gmail disconnect, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, Gmail disconnect, dashboard disconnect control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, and parity coverage verified.
 
 Completed:
 
@@ -27,6 +27,7 @@ Completed:
 - B5 Gmail draft client verified with a real Google OAuth token and a real Gmail draft in the test account.
 - OAuth token storage works through a local DPAPI-backed token vault.
 - Gmail disconnect can revoke the OAuth token and delete the local DPAPI vault via the alpha executable.
+- The localhost dashboard can expose a token-protected Gmail disconnect control wired to the same revoke/delete path.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
 - Gmail live smoke and alpha mode preflight the Gmail drafts API before creating a draft.
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
@@ -290,12 +291,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 176 passed, 0 failed.
+Total: 181 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 13 passed, 0 failed |
+| `EngineHarness` | 18 passed, 0 failed |
 | `ResearcherHarness` | 21 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
 | `StoreParityHarness` | 12 passed, 0 failed |
@@ -392,6 +393,7 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - Local OAuth implementation added without external NuGet packages.
 - DPAPI token vault added for local OAuth token storage.
 - Gmail disconnect added to revoke refresh tokens and delete local DPAPI token material.
+- Local dashboard Gmail disconnect control added with per-process form token plus loopback, Host, Origin, and Referer checks.
 - Gmail draft API preflight added before live draft creation.
 - Gmail live harness added.
 - L1 Gmail labels deferred to preserve `gmail.compose` only.
@@ -468,7 +470,7 @@ Status: substantially complete.
 - Windows Service host around `EngineHost`.
 - WinUI 3 tray app.
 - Kill switch.
-- Local dashboard polish.
+- Local dashboard evidence polish beyond status counters and the Gmail disconnect control.
 - Installer and Azure Artifact Signing/OV code signing.
 - Startup smoke test for config, keys, API reachability, and DB health.
 
@@ -536,8 +538,8 @@ Status: substantially complete.
 
 Highest priority:
 
-- Add a product-shell control that calls the existing Gmail disconnect path from the tray/dashboard.
 - Implement the real web research adapter so company hooks and legitimacy signals can graduate from fake/offline to live.
+- Add visible local dashboard evidence: jobs found, rejected, blocked, drafted, last audit verification.
 
 Near-term connector work:
 
@@ -632,6 +634,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past eight important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, and real ATS-clean PDF draft attachments. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be real web research and then product-shell controls around the existing Gmail disconnect and local evidence surfaces.
+CareerSeeker is now past nine important proof points: real job ingestion, real Gmail draft creation, restored SQLite source/parity coverage, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, and a dashboard-accessible Gmail disconnect control. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be real web research and then broader local evidence surfaces.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

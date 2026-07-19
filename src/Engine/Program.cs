@@ -34,6 +34,11 @@ async Task<int> RunDemoAsync()
     var port = IntArg("--port", 7777);
     var intervalSeconds = IntArg("--interval-seconds", 30);
     var once = HasFlag("--once");
+    var gmailVaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
+    var gmailClientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+    var dashboardActions = HasFlag("--gmail-control") || File.Exists(gmailVaultPath)
+        ? BuildGmailDashboardActions(gmailClientPath, gmailVaultPath)
+        : null;
 
     var store = await SeededStoreAsync().ConfigureAwait(false);
     var counters = new EngineCounters();
@@ -46,7 +51,7 @@ async Task<int> RunDemoAsync()
         return 0;
     }
 
-    await using var host = new EngineHost(cycle, counters, TimeSpan.FromSeconds(intervalSeconds), port);
+    await using var host = new EngineHost(cycle, counters, TimeSpan.FromSeconds(intervalSeconds), port, dashboardActions);
     using var stop = new CancellationTokenSource();
     var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -56,6 +61,8 @@ async Task<int> RunDemoAsync()
         host.Start();
         Console.WriteLine("CareerSeeker alpha demo host is running.");
         Console.WriteLine($"Dashboard: http://localhost:{port}/");
+        if (dashboardActions is not null)
+            Console.WriteLine("Dashboard Gmail disconnect control: available");
         Console.WriteLine("Press Enter or Ctrl+C to stop.");
 
         var readLine = Task.Run(Console.ReadLine, stop.Token);
@@ -208,18 +215,9 @@ async Task<int> RunDisconnectGmailAsync()
 {
     var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
     var clientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
-    var client = !string.IsNullOrWhiteSpace(clientPath) && File.Exists(clientPath)
-        ? GoogleOAuthClient.Load(clientPath)
-        : new GoogleOAuthClient(
-            "",
-            null,
-            "https://accounts.google.com/o/oauth2/auth",
-            "https://oauth2.googleapis.com/token",
-            "https://oauth2.googleapis.com/revoke");
 
     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-    var vault = new DpapiTokenVault(vaultPath);
-    var tokens = new GoogleOAuthTokenSource(http, client, vault);
+    var tokens = new GoogleOAuthTokenSource(http, LoadDisconnectGoogleClient(clientPath), new DpapiTokenVault(vaultPath));
 
     Console.WriteLine("CareerSeeker Gmail disconnect");
     Console.WriteLine($"  token vault: {vaultPath}");
@@ -240,6 +238,31 @@ async Task<int> RunDisconnectGmailAsync()
         return 1;
     }
 }
+
+LocalDashboardActions BuildGmailDashboardActions(string? clientPath, string vaultPath) =>
+    new(async ct =>
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        var tokens = new GoogleOAuthTokenSource(
+            http,
+            LoadDisconnectGoogleClient(clientPath),
+            new DpapiTokenVault(vaultPath));
+
+        var disconnected = await tokens.DisconnectAsync(ct).ConfigureAwait(false);
+        return disconnected
+            ? new DashboardControlResult(true, "Gmail token revoked and local vault deleted.")
+            : new DashboardControlResult(false, "No local Gmail token was found.");
+    });
+
+GoogleOAuthClient LoadDisconnectGoogleClient(string? clientPath) =>
+    !string.IsNullOrWhiteSpace(clientPath) && File.Exists(clientPath)
+        ? GoogleOAuthClient.Load(clientPath)
+        : new GoogleOAuthClient(
+            "",
+            null,
+            "https://accounts.google.com/o/oauth2/auth",
+            "https://oauth2.googleapis.com/token",
+            "https://oauth2.googleapis.com/revoke");
 
 async Task RunFastByokGatePreflightAsync(LlmGateway gateway)
 {
@@ -485,7 +508,7 @@ void PrintUsage()
     Console.WriteLine("CareerSeeker alpha executable");
     Console.WriteLine();
     Console.WriteLine("Usage:");
-    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30]");
+    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");

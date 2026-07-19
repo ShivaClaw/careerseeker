@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using SeekerSvc.Dispatcher;
@@ -104,7 +105,13 @@ Console.WriteLine("\n[ scheduler ]");
 // ── 3) live localhost dashboard over HTTP ──────────────────────────────────────────────────────────
 Console.WriteLine("\n[ localhost dashboard ]");
 {
-    var dash = new LocalDashboard(counters, 7777);
+    var disconnects = 0;
+    var actions = new LocalDashboardActions(_ =>
+    {
+        Interlocked.Increment(ref disconnects);
+        return Task.FromResult(new DashboardControlResult(true, "Gmail disconnected."));
+    });
+    var dash = new LocalDashboard(counters, 7777, actions);
     var listenerOk = true;
     try { dash.Start(); } catch (Exception e) { listenerOk = false; Console.WriteLine("    (HttpListener unavailable in sandbox: " + e.GetType().Name + ")"); }
 
@@ -114,15 +121,45 @@ Console.WriteLine("\n[ localhost dashboard ]");
         var json = await http.GetStringAsync("http://localhost:7777/status");
         using var doc = JsonDocument.Parse(json);
         Check("/status serves JSON with live counters", doc.RootElement.GetProperty("drafted").GetInt64() == 1, json);
+        Check("/status reports Gmail control availability", doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean(), json);
         var html = await http.GetStringAsync("http://localhost:7777/");
         Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
+        Check("/ exposes configured Gmail disconnect control", html.Contains("Disconnect Gmail"));
+
+        using var noRedirect = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+            { Timeout = TimeSpan.FromSeconds(3) };
+        var forged = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/gmail/disconnect",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = "wrong" }));
+        Check("Gmail disconnect control rejects a bad token",
+            forged.StatusCode == HttpStatusCode.Forbidden && disconnects == 0,
+            $"{forged.StatusCode}, calls={disconnects}");
+
+        var token = DashboardToken(html);
+        using var wrongHost = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/gmail/disconnect")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }),
+        };
+        wrongHost.Headers.Host = "evil.test";
+        var wrongHostResp = await noRedirect.SendAsync(wrongHost);
+        Check("Gmail disconnect control rejects a foreign Host header",
+            (int)wrongHostResp.StatusCode >= 400 && disconnects == 0,
+            $"{wrongHostResp.StatusCode}, calls={disconnects}");
+
+        var post = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/gmail/disconnect",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }));
+        Check("Gmail disconnect control invokes the configured action",
+            post.StatusCode == HttpStatusCode.SeeOther && disconnects == 1,
+            $"{post.StatusCode}, calls={disconnects}");
     }
     else
     {
         // fall back to verifying the renderers directly (the listener binds at integration)
         using var doc = JsonDocument.Parse(dash.StatusJson());
         Check("/status JSON renders live counters (direct)", doc.RootElement.GetProperty("drafted").GetInt64() == 1);
-        Check("HTML renderer produces the status page (direct)", dash.StatusJson().Contains("drafted"));
+        Check("HTML renderer exposes configured controls (direct)",
+            doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean());
     }
     await dash.DisposeAsync();
 }
@@ -160,6 +197,16 @@ return failed == 0 ? 0 : 1;
 Dispatcher MakeDispatcher(FakeGmail g) => new(
     new FakePostings(new PostingDispatchInfo(DispatchChannel.Email, "jobs@feed.com")),
     new FakeRenderer(), g, new DispatcherConfig("Jordan Lee", "jordan@gmail.com"));
+
+string DashboardToken(string html)
+{
+    const string marker = "name=\"token\" value=\"";
+    var start = html.IndexOf(marker, StringComparison.Ordinal);
+    if (start < 0) return "";
+    start += marker.Length;
+    var end = html.IndexOf('"', start);
+    return end > start ? WebUtility.HtmlDecode(html[start..end]) : "";
+}
 
 sealed class FakeFeed : IJobFeed
 {

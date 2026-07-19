@@ -20,6 +20,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - Alpha BYOK Gate verification defaults to the top 3 semantic source candidates per claim to bound live entailment calls while failing closed.
 - The unconstrained alpha `--llm byok` path now creates a real Gmail draft after live Tailor and live Gate verification.
 - Engine alpha drafts attach a real ATS-clean resume PDF.
+- The localhost dashboard can expose a token-protected Gmail disconnect control backed by the same local DPAPI revoke/delete path as the CLI.
 
 ## Alpha target
 

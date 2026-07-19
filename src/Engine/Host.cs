@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -6,8 +7,8 @@ namespace SeekerSvc.Engine;
 
 /// <summary>
 /// Runs a tick immediately, then every interval, until stopped. BCL-only (<see cref="PeriodicTimer"/>),
-/// so it's verifiable offline; the production host swaps in Quartz for cron schedules and misfire policy
-/// without changing the cycle. A throwing tick is swallowed so one bad cycle never kills the loop.
+/// so it is verifiable offline; the production host can swap in Quartz for cron schedules and misfire
+/// policy without changing the cycle. A throwing tick is swallowed so one bad cycle never kills the loop.
 /// </summary>
 public sealed class PeriodicScheduler : IAsyncDisposable
 {
@@ -56,23 +57,32 @@ public sealed class PeriodicScheduler : IAsyncDisposable
     }
 }
 
+public sealed record DashboardControlResult(bool Performed, string Message);
+
+public sealed record LocalDashboardActions(
+    Func<CancellationToken, Task<DashboardControlResult>> DisconnectGmailAsync);
+
 /// <summary>
-/// The free local dashboard (spec §4: "nobody is ever blind"). A tiny <see cref="HttpListener"/> on
-/// localhost serving the live counters as HTML at <c>/</c> and JSON at <c>/status</c> — no framework, no
-/// auth surface, loopback only. The paid Android app is the same data remoted; this proves the engine is
-/// never a black box even on the free tier.
+/// The free local dashboard (spec section 4: nobody is ever blind). It serves live counters at
+/// <c>/status</c> and the HTML dashboard at <c>/</c>. Optional control actions are protected by a
+/// per-process form token and loopback/origin checks.
 /// </summary>
 public sealed class LocalDashboard : IAsyncDisposable
 {
     private readonly HttpListener _listener = new();
     private readonly EngineCounters _counters;
+    private readonly LocalDashboardActions? _actions;
+    private readonly string _controlToken;
     private readonly int _port;
+    private string? _lastActionMessage;
     private CancellationTokenSource? _cts;
     private Task? _loop;
 
-    public LocalDashboard(EngineCounters counters, int port = 7777)
+    public LocalDashboard(EngineCounters counters, int port = 7777, LocalDashboardActions? actions = null)
     {
         _counters = counters;
+        _actions = actions;
+        _controlToken = NewControlToken();
         _port = port;
         _listener.Prefixes.Add($"http://localhost:{port}/");
     }
@@ -91,16 +101,27 @@ public sealed class LocalDashboard : IAsyncDisposable
             blocked = c.Blocked,
             rejected = c.Rejected,
             errors = c.Errors,
+            gmailDisconnectAvailable = _actions is not null,
         });
     }
 
     private string Html()
     {
         var c = _counters;
+        var notice = string.IsNullOrWhiteSpace(_lastActionMessage)
+            ? ""
+            : $@"<p class=""notice"">{WebUtility.HtmlEncode(_lastActionMessage)}</p>";
+        var controls = _actions is null
+            ? ""
+            : $@"<h2>Controls</h2><form method=""post"" action=""/controls/gmail/disconnect"">
+<input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(_controlToken)}"">
+<button type=""submit"">Disconnect Gmail</button>
+</form>";
+
         return $@"<!doctype html><html><head><meta charset=""utf-8""><title>CareerSeeker</title>
 <meta http-equiv=""refresh"" content=""5""><style>body{{font:14px system-ui;margin:2rem;max-width:40rem}}
-h1{{font-size:1.1rem}}.g{{display:grid;grid-template-columns:1fr auto;gap:.3rem .8rem}}.n{{font-variant-numeric:tabular-nums;font-weight:600}}</style></head>
-<body><h1>CareerSeeker — engine status</h1><div class=""g"">
+h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;grid-template-columns:1fr auto;gap:.3rem .8rem}}.n{{font-variant-numeric:tabular-nums;font-weight:600}}button{{font:inherit;padding:.45rem .7rem}}.notice{{padding:.6rem .7rem;background:#eef7ee;border-left:3px solid #22863a}}</style></head>
+<body><h1>CareerSeeker - engine status</h1>{notice}<div class=""g"">
 <div>Cycles</div><div class=""n"">{c.Cycles}</div>
 <div>Discovered</div><div class=""n"">{c.Discovered}</div>
 <div>Acted</div><div class=""n"">{c.Acted}</div>
@@ -108,7 +129,7 @@ h1{{font-size:1.1rem}}.g{{display:grid;grid-template-columns:1fr auto;gap:.3rem 
 <div>Blocked (fabrication)</div><div class=""n"">{c.Blocked}</div>
 <div>Rejected (engine)</div><div class=""n"">{c.Rejected}</div>
 <div>Errors</div><div class=""n"">{c.Errors}</div>
-</div><p>Last cycle: {c.LastCycleUtc?.ToString("u") ?? "—"}</p></body></html>";
+</div><p>Last cycle: {c.LastCycleUtc?.ToString("u") ?? "-"}</p>{controls}</body></html>";
     }
 
     public void Start()
@@ -130,16 +151,148 @@ h1{{font-size:1.1rem}}.g{{display:grid;grid-template-columns:1fr auto;gap:.3rem 
 
             try
             {
-                var isStatus = ctx.Request.Url?.AbsolutePath == "/status";
-                var body = Encoding.UTF8.GetBytes(isStatus ? StatusJson() : Html());
-                ctx.Response.ContentType = isStatus ? "application/json" : "text/html; charset=utf-8";
-                ctx.Response.ContentLength64 = body.Length;
-                await ctx.Response.OutputStream.WriteAsync(body, ct).ConfigureAwait(false);
+                await HandleAsync(ctx, ct).ConfigureAwait(false);
             }
             catch { /* client went away */ }
             finally { try { ctx.Response.Close(); } catch { } }
         }
     }
+
+    private async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
+    {
+        var path = ctx.Request.Url?.AbsolutePath ?? "/";
+        if (ctx.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) && path == "/status")
+        {
+            await WriteAsync(ctx, "application/json", StatusJson(), ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (ctx.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) && path == "/")
+        {
+            await WriteAsync(ctx, "text/html; charset=utf-8", Html(), ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (ctx.Request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
+            path == "/controls/gmail/disconnect")
+        {
+            await HandleGmailDisconnectAsync(ctx, ct).ConfigureAwait(false);
+            return;
+        }
+
+        ctx.Response.StatusCode = path == "/controls/gmail/disconnect"
+            ? (int)HttpStatusCode.MethodNotAllowed
+            : (int)HttpStatusCode.NotFound;
+        await WriteAsync(ctx, "text/plain; charset=utf-8", "Not found.", ct).ConfigureAwait(false);
+    }
+
+    private async Task HandleGmailDisconnectAsync(HttpListenerContext ctx, CancellationToken ct)
+    {
+        if (_actions is null)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "No Gmail disconnect action is configured.", ct)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!RequestCameFromThisDashboard(ctx) || !await HasValidControlTokenAsync(ctx).ConfigureAwait(false))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var result = await _actions.DisconnectGmailAsync(ct).ConfigureAwait(false);
+            _lastActionMessage = result.Message;
+            RedirectHome(ctx);
+        }
+        catch (Exception ex)
+        {
+            _lastActionMessage = "Gmail disconnect did not complete cleanly: " + ex.Message;
+            RedirectHome(ctx);
+        }
+    }
+
+    private async Task<bool> HasValidControlTokenAsync(HttpListenerContext ctx)
+    {
+        if (ctx.Request.ContentLength64 is < 0 or > 4096) return false;
+        var form = await ReadBodyAsync(ctx).ConfigureAwait(false);
+        return ParseForm(form).TryGetValue("token", out var token) &&
+               CryptographicOperations.FixedTimeEquals(
+                   Encoding.UTF8.GetBytes(token),
+                   Encoding.UTF8.GetBytes(_controlToken));
+    }
+
+    private async Task<string> ReadBodyAsync(HttpListenerContext ctx)
+    {
+        using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding ?? Encoding.UTF8);
+        return await reader.ReadToEndAsync().ConfigureAwait(false);
+    }
+
+    private static Dictionary<string, string> ParseForm(string body)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in body.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var idx = pair.IndexOf('=');
+            var key = idx >= 0 ? pair[..idx] : pair;
+            var value = idx >= 0 ? pair[(idx + 1)..] : "";
+            values[Uri.UnescapeDataString(key.Replace('+', ' '))] =
+                Uri.UnescapeDataString(value.Replace('+', ' '));
+        }
+        return values;
+    }
+
+    private bool RequestCameFromThisDashboard(HttpListenerContext ctx)
+    {
+        if (ctx.Request.RemoteEndPoint is { Address: { } address } && !IPAddress.IsLoopback(address))
+            return false;
+
+        return LocalHostName(ctx.Request.UserHostName) &&
+               LocalHeader(ctx.Request.Headers["Origin"]) &&
+               LocalHeader(ctx.Request.Headers["Referer"]);
+    }
+
+    private bool LocalHeader(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return true;
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)) return false;
+        if (uri.Port != -1 && uri.Port != _port) return false;
+        if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return true;
+        return IPAddress.TryParse(uri.Host, out var ip) && IPAddress.IsLoopback(ip);
+    }
+
+    private static bool LocalHostName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        var host = value.Split(':', 2)[0];
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return true;
+        return IPAddress.TryParse(host, out var ip) && IPAddress.IsLoopback(ip);
+    }
+
+    private static async Task WriteAsync(
+        HttpListenerContext ctx,
+        string contentType,
+        string text,
+        CancellationToken ct)
+    {
+        var body = Encoding.UTF8.GetBytes(text);
+        ctx.Response.ContentType = contentType;
+        ctx.Response.ContentLength64 = body.Length;
+        await ctx.Response.OutputStream.WriteAsync(body, ct).ConfigureAwait(false);
+    }
+
+    private static void RedirectHome(HttpListenerContext ctx)
+    {
+        ctx.Response.StatusCode = (int)HttpStatusCode.SeeOther;
+        ctx.Response.RedirectLocation = "/";
+    }
+
+    private static string NewControlToken() =>
+        Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
     public async ValueTask DisposeAsync()
     {
@@ -163,11 +316,16 @@ public sealed class EngineHost : IAsyncDisposable
     private readonly LocalDashboard _dashboard;
     public EngineCounters Counters { get; }
 
-    public EngineHost(EngineCycle cycle, EngineCounters counters, TimeSpan interval, int dashboardPort = 7777)
+    public EngineHost(
+        EngineCycle cycle,
+        EngineCounters counters,
+        TimeSpan interval,
+        int dashboardPort = 7777,
+        LocalDashboardActions? dashboardActions = null)
     {
         Counters = counters;
         _scheduler = new PeriodicScheduler(cycle.TickAsync, interval);
-        _dashboard = new LocalDashboard(counters, dashboardPort);
+        _dashboard = new LocalDashboard(counters, dashboardPort, dashboardActions);
     }
 
     public void Start() { _dashboard.Start(); _scheduler.Start(); }
