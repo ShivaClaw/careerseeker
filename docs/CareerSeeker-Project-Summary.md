@@ -28,6 +28,7 @@ Completed:
 - OAuth token storage works through a local DPAPI-backed token vault.
 - Gmail disconnect can revoke the OAuth token and delete the local DPAPI vault via the alpha executable.
 - The localhost dashboard can expose a token-protected Gmail disconnect control wired to the same revoke/delete path.
+- The localhost dashboard exposes audit-chain status and recent audit event metadata at `/evidence`.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
 - Gmail live smoke and alpha mode preflight the Gmail drafts API before creating a draft.
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
@@ -293,12 +294,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 186 passed, 0 failed.
+Total: 190 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 18 passed, 0 failed |
+| `EngineHarness` | 22 passed, 0 failed |
 | `ResearcherHarness` | 26 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
 | `StoreParityHarness` | 12 passed, 0 failed |
@@ -396,6 +397,7 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - DPAPI token vault added for local OAuth token storage.
 - Gmail disconnect added to revoke refresh tokens and delete local DPAPI token material.
 - Local dashboard Gmail disconnect control added with per-process form token plus loopback, Host, Origin, and Referer checks.
+- Local dashboard evidence endpoint added; `/evidence` verifies the audit chain and returns recent event metadata without payload bodies.
 - Brave Search web-research adapter added; it uses search results only to select URLs, fetches public result pages, strips HTML/script noise, skips localhost/private/non-text results, and leaves final trust to the grounding filter.
 - `research-company` command added for live Brave + BYOK dossier runs when `BRAVE_SEARCH_API_KEY` is available.
 - Gmail draft API preflight added before live draft creation.
@@ -474,7 +476,7 @@ Status: substantially complete.
 - Windows Service host around `EngineHost`.
 - WinUI 3 tray app.
 - Kill switch.
-- Local dashboard evidence polish beyond status counters and the Gmail disconnect control.
+- Local dashboard drill-down polish beyond status counters, audit evidence, and the Gmail disconnect control.
 - Installer and Azure Artifact Signing/OV code signing.
 - Startup smoke test for config, keys, API reachability, and DB health.
 
@@ -543,7 +545,7 @@ Status: substantially complete.
 Highest priority:
 
 - Live-verify `research-company` with a real Brave Search key so company hooks and legitimacy signals can graduate from source-present to live-proven.
-- Add visible local dashboard evidence: jobs found, rejected, blocked, drafted, last audit verification.
+- Add richer local dashboard drill-down: jobs found, rejected, blocked, drafted, and document links.
 
 Near-term connector work:
 
@@ -564,7 +566,7 @@ Product recommendations:
 - Keep L1 free, local-first, and reviewable.
 - Treat the first public promise as "real drafts, zero sends."
 - Make privacy copy concrete: resume and OAuth tokens never leave the device.
-- Add visible local dashboard evidence: jobs found, rejected, blocked, drafted, last audit verification.
+- Add richer local dashboard drill-down: jobs found, rejected, blocked, drafted, and document links.
 - Add a prominent "show me everything CareerSeeker did" export early.
 
 Security recommendations:

@@ -54,7 +54,13 @@ async Task<int> RunDemoAsync()
         return 0;
     }
 
-    await using var host = new EngineHost(cycle, counters, TimeSpan.FromSeconds(intervalSeconds), port, dashboardActions);
+    await using var host = new EngineHost(
+        cycle,
+        counters,
+        TimeSpan.FromSeconds(intervalSeconds),
+        port,
+        dashboardActions,
+        LocalDashboardEvidence.FromStore(store));
     using var stop = new CancellationTokenSource();
     var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 

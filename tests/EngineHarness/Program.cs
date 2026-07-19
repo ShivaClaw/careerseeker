@@ -111,7 +111,9 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Interlocked.Increment(ref disconnects);
         return Task.FromResult(new DashboardControlResult(true, "Gmail disconnected."));
     });
-    var dash = new LocalDashboard(counters, 7777, actions);
+    var evidenceStore = await SeededStoreAsync();
+    await evidenceStore.AppendEventAsync(new EventInput("engine", "dashboard-test", "application", "1"));
+    var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore));
     var listenerOk = true;
     try { dash.Start(); } catch (Exception e) { listenerOk = false; Console.WriteLine("    (HttpListener unavailable in sandbox: " + e.GetType().Name + ")"); }
 
@@ -122,9 +124,20 @@ Console.WriteLine("\n[ localhost dashboard ]");
         using var doc = JsonDocument.Parse(json);
         Check("/status serves JSON with live counters", doc.RootElement.GetProperty("drafted").GetInt64() == 1, json);
         Check("/status reports Gmail control availability", doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean(), json);
+        Check("/status reports evidence availability", doc.RootElement.GetProperty("evidenceAvailable").GetBoolean(), json);
         var html = await http.GetStringAsync("http://localhost:7777/");
         Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
         Check("/ exposes configured Gmail disconnect control", html.Contains("Disconnect Gmail"));
+        Check("/ links to audit evidence", html.Contains("/evidence") && html.Contains("audit-chain"));
+
+        var evidenceJson = await http.GetStringAsync("http://localhost:7777/evidence");
+        using var evidenceDoc = JsonDocument.Parse(evidenceJson);
+        Check("/evidence reports intact audit chain",
+            evidenceDoc.RootElement.GetProperty("auditOk").GetBoolean(), evidenceJson);
+        Check("/evidence exposes recent audit event metadata without payloads",
+            evidenceDoc.RootElement.GetProperty("recentEvents").GetArrayLength() > 0 &&
+            !evidenceJson.Contains("PayloadJson", StringComparison.OrdinalIgnoreCase),
+            evidenceJson);
 
         using var noRedirect = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
             { Timeout = TimeSpan.FromSeconds(3) };
@@ -160,6 +173,9 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/status JSON renders live counters (direct)", doc.RootElement.GetProperty("drafted").GetInt64() == 1);
         Check("HTML renderer exposes configured controls (direct)",
             doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean());
+        using var evidenceDoc = JsonDocument.Parse(await dash.EvidenceJsonAsync());
+        Check("evidence renderer reports audit verification (direct)",
+            evidenceDoc.RootElement.GetProperty("auditOk").GetBoolean());
     }
     await dash.DisposeAsync();
 }
