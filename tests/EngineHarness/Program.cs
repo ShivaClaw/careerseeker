@@ -179,11 +179,13 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/status reports Gmail control availability", doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean(), json);
         Check("/status reports application control availability", doc.RootElement.GetProperty("applicationControlAvailable").GetBoolean(), json);
         Check("/status reports evidence availability", doc.RootElement.GetProperty("evidenceAvailable").GetBoolean(), json);
+        Check("/status reports job evidence availability", doc.RootElement.GetProperty("jobsAvailable").GetBoolean(), json);
         var html = await http.GetStringAsync("http://localhost:7777/");
         Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
         Check("/ exposes configured Gmail disconnect control", html.Contains("Disconnect Gmail"));
         Check("/ links to audit evidence", html.Contains("/evidence") && html.Contains("audit-chain"));
         Check("/ links to recent applications", html.Contains("/applications"));
+        Check("/ links to recent jobs", html.Contains("/jobs"));
 
         var applicationsHtml = await http.GetStringAsync("http://localhost:7777/applications");
         Check("/applications serves recent job/state drill-down",
@@ -198,6 +200,13 @@ Console.WriteLine("\n[ localhost dashboard ]");
             applicationsHtml.Contains("value=\"kill\""),
             applicationsHtml);
 
+        var jobsHtml = await http.GetStringAsync("http://localhost:7777/jobs");
+        Check("/jobs serves recent job drill-down",
+            jobsHtml.Contains("Senior Software Engineer") &&
+            jobsHtml.Contains("Remote") &&
+            jobsHtml.Contains("feed:"),
+            jobsHtml);
+
         var evidenceJson = await http.GetStringAsync("http://localhost:7777/evidence");
         using var evidenceDoc = JsonDocument.Parse(evidenceJson);
         Check("/evidence reports intact audit chain",
@@ -210,6 +219,11 @@ Console.WriteLine("\n[ localhost dashboard ]");
             evidenceDoc.RootElement.GetProperty("recentApplications").GetArrayLength() > 0 &&
             evidenceJson.Contains("Senior Software Engineer") &&
             !evidenceJson.Contains("resume\":\"", StringComparison.OrdinalIgnoreCase),
+            evidenceJson);
+        Check("/evidence includes recent job metadata without descriptions",
+            evidenceDoc.RootElement.GetProperty("recentJobs").GetArrayLength() > 0 &&
+            evidenceJson.Contains("Senior Software Engineer") &&
+            !evidenceJson.Contains("DescriptionText", StringComparison.OrdinalIgnoreCase),
             evidenceJson);
 
         using var noRedirect = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
@@ -275,6 +289,8 @@ Console.WriteLine("\n[ localhost dashboard ]");
             doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean());
         Check("HTML renderer exposes configured application controls (direct)",
             doc.RootElement.GetProperty("applicationControlAvailable").GetBoolean());
+        Check("HTML renderer exposes configured job evidence (direct)",
+            doc.RootElement.GetProperty("jobsAvailable").GetBoolean());
         using var evidenceDoc = JsonDocument.Parse(await dash.EvidenceJsonAsync());
         Check("evidence renderer reports audit verification (direct)",
             evidenceDoc.RootElement.GetProperty("auditOk").GetBoolean());

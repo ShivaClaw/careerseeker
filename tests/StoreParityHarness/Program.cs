@@ -38,6 +38,15 @@ Check("recent application summary joins job, company, and score",
     sqlite.Summaries.Count == 1 &&
     sqlite.Summaries[0] is { JobTitle: "Senior Software Engineer", CompanyName: "Acme" } &&
     sqlite.Summaries[0].Total == 4.4);
+Check("recent job summary joins job and company metadata",
+    sqlite.JobSummaries.Count >= 1 &&
+    sqlite.JobSummaries[0] is
+    {
+        Title: "Senior Software Engineer",
+        CompanyName: "Acme",
+        ApplyUrl: "mailto:apply-updated@example.com",
+        RepostCount: 1
+    });
 Check("application artifact metadata persists into app and summary rows",
     sqlite.App is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", AnswersJson: "{\"q\":\"a\"}" } &&
     sqlite.Summaries[0] is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", HasAnswers: true });
@@ -157,6 +166,7 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
             Claims: (await store.GetClaimsAsync(profileId)).ToList(),
             App: await store.GetApplicationAsync(appId),
             Summaries: (await store.GetRecentApplicationsAsync()).ToList(),
+            JobSummaries: (await store.GetRecentJobsAsync()).ToList(),
             Events: (await store.GetEventsAsync()).ToList(),
             Audit: await store.VerifyAuditAsync(),
             ConfigValue: await store.GetConfigAsync("autonomy.level"));
@@ -207,6 +217,7 @@ sealed record StoreSnapshot(
     IReadOnlyList<ClaimRow> Claims,
     ApplicationRow? App,
     IReadOnlyList<ApplicationSummaryRow> Summaries,
+    IReadOnlyList<JobSummaryRow> JobSummaries,
     IReadOnlyList<EventRow> Events,
     AuditVerification Audit,
     string? ConfigValue)
@@ -239,6 +250,7 @@ sealed record StoreSnapshot(
         if (!Claims.SequenceEqual(other.Claims)) return "claim rows differ";
         if (App != other.App) return $"application row: {App} != {other.App}";
         if (!Summaries.SequenceEqual(other.Summaries)) return "application summaries differ";
+        if (!JobSummaries.SequenceEqual(other.JobSummaries)) return "job summaries differ";
         if (!Events.SequenceEqual(other.Events)) return "event rows differ";
         if (Audit != other.Audit) return $"audit result: {Audit} != {other.Audit}";
         if (ConfigValue != other.ConfigValue) return $"config value: {ConfigValue} != {other.ConfigValue}";

@@ -82,10 +82,10 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 207 passed, 0 failed.
+- Latest offline harness total: 212 passed, 0 failed.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
-  in-memory/SQLite behavior parity plus the recent-application read model, and `EngineHarness` covering a
-  SQLite-backed engine cycle.
+  in-memory/SQLite behavior parity plus the recent-application and recent-job read models, and
+  `EngineHarness` covering a SQLite-backed engine cycle.
 - Live connector status: Scout ingestion, Gmail draft creation, BYOK provider calls, full alpha BYOK
   Gmail/PDF draft creation, alpha Gmail/PDF smoke, and dashboard Gmail disconnect wiring are verified.
 - `scout-boards` gives the alpha executable a live ATS ingest path for Greenhouse, Lever, and Ashby boards;
@@ -97,6 +97,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 - Dashboard `/applications` exposes recent job/application state, scores, draft refs, generated resume/cover
   document links, safe job/apply links, and token-protected pause/resume/kill controls; `/evidence` exposes
   audit-chain status and recent audit event metadata without payload bodies.
+- Dashboard `/jobs` exposes recently discovered jobs, compensation metadata, source, safe job/apply links,
+  repost count, and prompt-injection flags without raw job descriptions.
 - `export-audit` writes a local audit JSON package; payloads are hash-only by default and opt-in with
   `--include-payloads`.
 - `doctor` checks local SQLite/audit health, artifact writability, Gmail OAuth/vault presence when required,

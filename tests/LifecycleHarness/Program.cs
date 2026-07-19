@@ -345,6 +345,7 @@ sealed class FaultingStore : ISeekerStore
     public Task<long> UpsertCompanyAsync(CompanyUpsert company, CancellationToken ct = default) => _inner.UpsertCompanyAsync(company, ct);
     public Task<JobWriteResult> UpsertJobAsync(long companyId, JobUpsert job, CancellationToken ct = default) => _inner.UpsertJobAsync(companyId, job, ct);
     public Task<JobRow?> GetJobAsync(long jobId, CancellationToken ct = default) => _inner.GetJobAsync(jobId, ct);
+    public Task<IReadOnlyList<JobSummaryRow>> GetRecentJobsAsync(int limit = 25, CancellationToken ct = default) => _inner.GetRecentJobsAsync(limit, ct);
     public Task SaveScoreAsync(ScoreRow score, CancellationToken ct = default) => _inner.SaveScoreAsync(score, ct);
     public Task<long> CreateApplicationAsync(long jobId, string autonomyLevel, CancellationToken ct = default) => _inner.CreateApplicationAsync(jobId, autonomyLevel, ct);
     public Task TransitionApplicationAsync(long applicationId, string newState, string actor, string? payloadJson = null, CancellationToken ct = default)

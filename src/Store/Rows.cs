@@ -117,6 +117,28 @@ public sealed record ApplicationSummaryRow(
     string? CoverPath,
     bool HasAnswers);
 
+/// <summary>Read-only dashboard summary for recent discovered jobs. The full JD body stays out of this row.</summary>
+public sealed record JobSummaryRow(
+    long JobId,
+    string Source,
+    string ExternalId,
+    string Title,
+    string? CompanyName,
+    string? CompanyDomain,
+    string Remote,
+    string? Location,
+    string JobUrl,
+    string? ApplyUrl,
+    decimal? CompMin,
+    decimal? CompMax,
+    string? CompCurrency,
+    string? CompInterval,
+    string? CompSource,
+    bool Injected,
+    string? InjectionSignals,
+    string LastVerified,
+    int RepostCount);
+
 /// <summary>
 /// A durable side-effect attempt record bracketing an external call (Gmail draft, ATS submit).
 /// PENDING is written before the call, SUCCEEDED/FAILED after — so after a crash, PENDING means

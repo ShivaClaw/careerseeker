@@ -71,7 +71,8 @@ public sealed record DashboardEvidence(
     string? Reason,
     int EventCount,
     IReadOnlyList<DashboardEvidenceEvent> RecentEvents,
-    IReadOnlyList<ApplicationSummaryRow> RecentApplications);
+    IReadOnlyList<ApplicationSummaryRow> RecentApplications,
+    IReadOnlyList<JobSummaryRow> RecentJobs);
 
 public sealed record DashboardEvidenceEvent(
     long Seq,
@@ -87,12 +88,14 @@ public sealed record LocalDashboardEvidence(
     public static LocalDashboardEvidence FromStore(
         ISeekerStore store,
         int recentEventLimit = 12,
-        int recentApplicationLimit = 25) =>
+        int recentApplicationLimit = 25,
+        int recentJobLimit = 25) =>
         new(async ct =>
         {
             var verification = await store.VerifyAuditAsync(ct).ConfigureAwait(false);
             var events = await store.GetEventsAsync(ct).ConfigureAwait(false);
             var applications = await store.GetRecentApplicationsAsync(recentApplicationLimit, ct).ConfigureAwait(false);
+            var jobs = await store.GetRecentJobsAsync(recentJobLimit, ct).ConfigureAwait(false);
             var recent = events
                 .OrderByDescending(e => e.Seq)
                 .Take(Math.Max(1, recentEventLimit))
@@ -106,7 +109,8 @@ public sealed record LocalDashboardEvidence(
                 verification.Reason,
                 events.Count,
                 recent,
-                applications);
+                applications,
+                jobs);
         });
 }
 
@@ -159,6 +163,7 @@ public sealed class LocalDashboard : IAsyncDisposable
             applicationControlAvailable = _actions?.ControlApplicationAsync is not null,
             evidenceAvailable = _evidence is not null,
             applicationsAvailable = _evidence is not null,
+            jobsAvailable = _evidence is not null,
         });
     }
 
@@ -176,7 +181,7 @@ public sealed class LocalDashboard : IAsyncDisposable
 </form>";
         var evidence = _evidence is null
             ? ""
-            : @"<h2>Evidence</h2><p><a href=""/applications"">View recent applications</a></p><p><a href=""/evidence"">View audit-chain status and recent events</a></p>";
+            : @"<h2>Evidence</h2><p><a href=""/jobs"">View recent jobs</a></p><p><a href=""/applications"">View recent applications</a></p><p><a href=""/evidence"">View audit-chain status and recent events</a></p>";
 
         return $@"<!doctype html><html><head><meta charset=""utf-8""><title>CareerSeeker</title>
 <meta http-equiv=""refresh"" content=""5""><style>body{{font:14px system-ui;margin:2rem;max-width:40rem}}
@@ -245,6 +250,12 @@ h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;gri
             return;
         }
 
+        if (ctx.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) && path == "/jobs")
+        {
+            await HandleJobsAsync(ctx, ct).ConfigureAwait(false);
+            return;
+        }
+
         if (ctx.Request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
             path == "/controls/gmail/disconnect")
         {
@@ -259,7 +270,7 @@ h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;gri
             return;
         }
 
-        ctx.Response.StatusCode = path is "/controls/gmail/disconnect" or "/controls/application" or "/evidence" or "/applications"
+        ctx.Response.StatusCode = path is "/controls/gmail/disconnect" or "/controls/application" or "/evidence" or "/applications" or "/jobs"
             ? (int)HttpStatusCode.MethodNotAllowed
             : (int)HttpStatusCode.NotFound;
         await WriteAsync(ctx, "text/plain; charset=utf-8", "Not found.", ct).ConfigureAwait(false);
@@ -280,6 +291,7 @@ h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;gri
             eventCount = evidence.EventCount,
             recentEvents = evidence.RecentEvents,
             recentApplications = evidence.RecentApplications,
+            recentJobs = evidence.RecentJobs,
         });
     }
 
@@ -386,6 +398,67 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
         }
 
         await WriteAsync(ctx, "text/html; charset=utf-8", await ApplicationsHtmlAsync(ct).ConfigureAwait(false), ct)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<string> JobsHtmlAsync(CancellationToken ct = default)
+    {
+        if (_evidence is null)
+            return "<!doctype html><html><body><p>No job evidence source is configured.</p></body></html>";
+
+        var evidence = await _evidence.LoadAsync(ct).ConfigureAwait(false);
+        var rows = evidence.RecentJobs.Count == 0
+            ? @"<tr><td colspan=""8"">No jobs yet.</td></tr>"
+            : string.Concat(evidence.RecentJobs.Select(JobRowHtml));
+
+        return $@"<!doctype html><html><head><meta charset=""utf-8""><title>CareerSeeker Jobs</title>
+<meta http-equiv=""refresh"" content=""5""><style>body{{font:14px system-ui;margin:2rem;max-width:76rem}}
+h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-align:left;border-bottom:1px solid #ddd;padding:.45rem .55rem;vertical-align:top}}
+.n{{font-variant-numeric:tabular-nums}}.warn{{font-weight:600;color:#9a3412}}a{{color:#075985}}</style></head>
+<body><h1>Recent jobs</h1><table><thead><tr><th>Job</th><th>Company</th><th>Source</th><th>Remote</th><th>Comp</th><th>Updated</th><th>Flags</th><th>Links</th></tr></thead>
+<tbody>{rows}</tbody></table><p><a href=""/"">Back to status</a></p></body></html>";
+    }
+
+    private static string JobRowHtml(JobSummaryRow row)
+    {
+        var job = WebUtility.HtmlEncode(row.Title);
+        var company = WebUtility.HtmlEncode(row.CompanyName ?? row.CompanyDomain ?? "-");
+        var source = WebUtility.HtmlEncode($"{row.Source}:{row.ExternalId}");
+        var remote = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(row.Location)
+            ? row.Remote
+            : $"{row.Remote} / {row.Location}");
+        var comp = row.CompMin is null && row.CompMax is null
+            ? "-"
+            : WebUtility.HtmlEncode($"{row.CompCurrency ?? "?"} {row.CompMin?.ToString("0") ?? "?"}-{row.CompMax?.ToString("0") ?? "?"} {row.CompInterval ?? ""} {row.CompSource ?? ""}".Trim());
+        var flags = row.Injected
+            ? $@"<span class=""warn"">injection</span>{(string.IsNullOrWhiteSpace(row.InjectionSignals) ? "" : " " + WebUtility.HtmlEncode(row.InjectionSignals))}"
+            : "-";
+        var updated = WebUtility.HtmlEncode(row.LastVerified);
+        var links = JobLinksHtml(row);
+        return $@"<tr><td>{job}</td><td>{company}</td><td>{source}</td><td>{remote}</td><td class=""n"">{comp}</td><td class=""n"">{updated}</td><td>{flags}</td><td>{links}</td></tr>";
+    }
+
+    private static string JobLinksHtml(JobSummaryRow row)
+    {
+        var links = new List<string>();
+        if (Uri.TryCreate(row.JobUrl, UriKind.Absolute, out var jobUri) && jobUri.Scheme is "http" or "https")
+            links.Add($@"<a href=""{WebUtility.HtmlEncode(jobUri.ToString())}"">job</a>");
+        if (Uri.TryCreate(row.ApplyUrl, UriKind.Absolute, out var applyUri) && applyUri.Scheme is "http" or "https" or "mailto")
+            links.Add($@"<a href=""{WebUtility.HtmlEncode(applyUri.ToString())}"">apply</a>");
+        return links.Count == 0 ? "-" : string.Join(" ", links);
+    }
+
+    private async Task HandleJobsAsync(HttpListenerContext ctx, CancellationToken ct)
+    {
+        if (_evidence is null)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "No job evidence source is configured.", ct)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await WriteAsync(ctx, "text/html; charset=utf-8", await JobsHtmlAsync(ct).ConfigureAwait(false), ct)
             .ConfigureAwait(false);
     }
 

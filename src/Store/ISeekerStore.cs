@@ -17,6 +17,7 @@ public interface ISeekerStore
     Task<long> UpsertCompanyAsync(CompanyUpsert company, CancellationToken ct = default);
     Task<JobWriteResult> UpsertJobAsync(long companyId, JobUpsert job, CancellationToken ct = default);
     Task<JobRow?> GetJobAsync(long jobId, CancellationToken ct = default);
+    Task<IReadOnlyList<JobSummaryRow>> GetRecentJobsAsync(int limit = 25, CancellationToken ct = default);
 
     // ---- scoring ----
     Task SaveScoreAsync(ScoreRow score, CancellationToken ct = default);

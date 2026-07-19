@@ -106,6 +106,47 @@ public sealed class InMemorySeekerStore : ISeekerStore
         finally { _mutex.Release(); }
     }
 
+    public async Task<IReadOnlyList<JobSummaryRow>> GetRecentJobsAsync(
+        int limit = 25,
+        CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var safeLimit = Math.Clamp(limit, 1, 100);
+            return _jobs.Values
+                .OrderByDescending(j => j.LastVerified)
+                .ThenByDescending(j => j.Id)
+                .Take(safeLimit)
+                .Select(job =>
+                {
+                    _companies.TryGetValue(job.CompanyId, out var company);
+                    return new JobSummaryRow(
+                        job.Id,
+                        job.Source,
+                        job.ExternalId,
+                        job.Title,
+                        company?.Name,
+                        company?.Domain,
+                        job.Remote,
+                        job.Location,
+                        job.Url,
+                        job.ApplyUrl,
+                        job.CompMin,
+                        job.CompMax,
+                        job.CompCurrency,
+                        job.CompInterval,
+                        job.CompSource,
+                        job.Injected,
+                        job.InjectionSignals,
+                        job.LastVerified,
+                        job.RepostCount);
+                })
+                .ToList();
+        }
+        finally { _mutex.Release(); }
+    }
+
     public async Task SaveScoreAsync(ScoreRow score, CancellationToken ct = default)
     {
         await _mutex.WaitAsync(ct).ConfigureAwait(false);
