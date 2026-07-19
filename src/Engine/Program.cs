@@ -24,6 +24,8 @@ if (mode.Equals("alpha", StringComparison.OrdinalIgnoreCase))
     return await RunAlphaAsync().ConfigureAwait(false);
 if (mode.Equals("research-company", StringComparison.OrdinalIgnoreCase))
     return await RunResearchCompanyAsync().ConfigureAwait(false);
+if (mode.Equals("export-audit", StringComparison.OrdinalIgnoreCase))
+    return await RunExportAuditAsync().ConfigureAwait(false);
 if (mode.Equals("import-byok", StringComparison.OrdinalIgnoreCase))
     return RunImportByok();
 if (mode.Equals("clear-byok", StringComparison.OrdinalIgnoreCase))
@@ -240,6 +242,41 @@ async Task<int> RunResearchCompanyAsync()
         Console.WriteLine($"  - {fact.Topic}: {fact.Text} ({fact.SourceUrl})");
 
     return 0;
+}
+
+async Task<int> RunExportAuditAsync()
+{
+    var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var outPath = StringArg("--out");
+    var includePayloads = HasFlag("--include-payloads");
+
+    if (!File.Exists(dbPath))
+        return Fail($"export-audit cannot find SQLite database at '{dbPath}'.");
+
+    await using var store = SqliteSeekerStore.ForFile(dbPath);
+    await store.InitializeAsync().ConfigureAwait(false);
+    var json = await AuditExport.BuildJsonAsync(
+        store,
+        new AuditExportOptions(includePayloads)).ConfigureAwait(false);
+
+    var verification = await store.VerifyAuditAsync().ConfigureAwait(false);
+    if (string.IsNullOrWhiteSpace(outPath))
+    {
+        Console.WriteLine(json);
+    }
+    else
+    {
+        var dir = Path.GetDirectoryName(outPath);
+        if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(outPath, json).ConfigureAwait(false);
+        Console.WriteLine("CareerSeeker audit export");
+        Console.WriteLine($"  db: {dbPath}");
+        Console.WriteLine($"  output: {outPath}");
+        Console.WriteLine($"  audit chain: {(verification.Ok ? "ok" : "FAILED")}");
+        Console.WriteLine($"  payloads: {(includePayloads ? "included" : "hashes only")}");
+    }
+
+    return verification.Ok ? 0 : 1;
 }
 
 int RunImportByok()
@@ -574,6 +611,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
+    Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe disconnect-gmail [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");

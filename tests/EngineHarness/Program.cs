@@ -181,6 +181,28 @@ Console.WriteLine("\n[ localhost dashboard ]");
 }
 
 // ── 4) gateway budget safety invariant ────────────────────────────────────────────────────────────
+Console.WriteLine("\n[ audit export ]");
+{
+    var store = await SeededStoreAsync();
+    await store.AppendEventAsync(new EventInput("engine", "export-test", "application", "1", "{\"secret\":\"local payload\"}"));
+
+    var safe = await AuditExport.BuildJsonAsync(store);
+    using var safeDoc = JsonDocument.Parse(safe);
+    Check("audit export reports intact chain", safeDoc.RootElement.GetProperty("audit").GetProperty("ok").GetBoolean(), safe);
+    Check("audit export omits payloads by default",
+        !safeDoc.RootElement.GetProperty("payloadsIncluded").GetBoolean() &&
+        !safe.Contains("local payload") &&
+        safe.Contains("PayloadSha256"),
+        safe);
+
+    var full = await AuditExport.BuildJsonAsync(store, new AuditExportOptions(IncludePayloads: true));
+    using var fullDoc = JsonDocument.Parse(full);
+    Check("audit export can include payloads when explicitly requested",
+        fullDoc.RootElement.GetProperty("payloadsIncluded").GetBoolean() &&
+        full.Contains("local payload"),
+        full);
+}
+
 Console.WriteLine("\n[ gateway safety ]");
 {
     var meter = new BudgetMeter(0.001m);

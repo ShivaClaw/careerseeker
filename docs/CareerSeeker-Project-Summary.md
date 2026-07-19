@@ -29,6 +29,7 @@ Completed:
 - Gmail disconnect can revoke the OAuth token and delete the local DPAPI vault via the alpha executable.
 - The localhost dashboard can expose a token-protected Gmail disconnect control wired to the same revoke/delete path.
 - The localhost dashboard exposes audit-chain status and recent audit event metadata at `/evidence`.
+- The alpha executable can export a local audit JSON package; raw payloads are opt-in.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
 - Gmail live smoke and alpha mode preflight the Gmail drafts API before creating a draft.
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
@@ -294,12 +295,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 190 passed, 0 failed.
+Total: 193 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 22 passed, 0 failed |
+| `EngineHarness` | 25 passed, 0 failed |
 | `ResearcherHarness` | 26 passed, 0 failed |
 | `HookHarness` | 10 passed, 0 failed |
 | `StoreParityHarness` | 12 passed, 0 failed |
@@ -398,6 +399,7 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - Gmail disconnect added to revoke refresh tokens and delete local DPAPI token material.
 - Local dashboard Gmail disconnect control added with per-process form token plus loopback, Host, Origin, and Referer checks.
 - Local dashboard evidence endpoint added; `/evidence` verifies the audit chain and returns recent event metadata without payload bodies.
+- Local `export-audit` command added; default export includes audit-chain status, event metadata, hashes, and payload lengths, while raw payloads require `--include-payloads`.
 - Brave Search web-research adapter added; it uses search results only to select URLs, fetches public result pages, strips HTML/script noise, skips localhost/private/non-text results, and leaves final trust to the grounding filter.
 - `research-company` command added for live Brave + BYOK dossier runs when `BRAVE_SEARCH_API_KEY` is available.
 - Gmail draft API preflight added before live draft creation.
@@ -567,7 +569,7 @@ Product recommendations:
 - Treat the first public promise as "real drafts, zero sends."
 - Make privacy copy concrete: resume and OAuth tokens never leave the device.
 - Add richer local dashboard drill-down: jobs found, rejected, blocked, drafted, and document links.
-- Add a prominent "show me everything CareerSeeker did" export early.
+- Add import/migration packaging around the audit export when the workspace export story broadens.
 
 Security recommendations:
 

@@ -82,7 +82,7 @@ CareerSeeker does not:
 | **Revoke Gmail access** | Use Google Account permissions, then delete the local DPAPI token vault for the authorized Gmail account. |
 | **Revoke LLM provider keys** | Delete provider keys from the local vault or environment where you configured them. |
 | **Delete all local data** | Delete the configured local database, generated artifact directory, and `.appdata` test vaults. |
-| **Export audit log** | Use the local store/export tooling once wired; the audit chain is currently verifiable by harness. |
+| **Export audit log** | Use the local `export-audit` command; raw payloads are opt-in. |
 | **Remove verified claims** | Edit the local profile/claims source and rerun affected applications through the Gate. |
 
 ## 9. Data Retention

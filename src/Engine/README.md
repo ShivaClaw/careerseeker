@@ -71,7 +71,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 190 passed, 0 failed.
+- Latest offline harness total: 193 passed, 0 failed.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
   in-memory/SQLite behavior parity.
 - Live connector status: Scout ingestion, Gmail draft creation, BYOK provider calls, full alpha BYOK
@@ -81,6 +81,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 - Brave web-research adapter source and the `research-company` alpha command are implemented and offline
   verified; live verification is pending a Brave Search key.
 - Dashboard `/evidence` exposes audit-chain status and recent audit event metadata without payload bodies.
+- `export-audit` writes a local audit JSON package; payloads are hash-only by default and opt-in with
+  `--include-payloads`.
 
 ## Not Yet Built
 

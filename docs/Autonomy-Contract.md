@@ -70,7 +70,7 @@ State transitions, gate decisions, scoring events, and engine actions are record
 | Edit claims | Edit the local source profile/claims and rerun affected work through the Gate. |
 | Blocklist employers | Configure local preferences/rails when the product shell is wired. |
 | Set daily cap | Planned product control; current harnesses exercise bounded local runs. |
-| Export audit log | Planned product command; audit-chain verification is implemented in the store and harnesses. |
+| Export audit log | Available through the local `export-audit` command; audit-chain verification is implemented in the store and harnesses. |
 | Delete all data | Delete local databases, generated artifacts, and `.appdata` test vaults. |
 
 ## Future Autonomy Levels

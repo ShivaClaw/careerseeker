@@ -43,7 +43,7 @@ Future installer builds will use a documented product data directory and uninsta
 
 ### Verify the Audit Log
 
-The Store implements hash-chain verification and the offline harnesses exercise it. Product UI for audit export is planned; until then, use the local store/harness code when validating alpha data.
+The Store implements hash-chain verification and the offline harnesses exercise it. The alpha executable also supports `export-audit` for local JSON audit packages.
 
 ### Report a Fabrication Gate Issue
 
