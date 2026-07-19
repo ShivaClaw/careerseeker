@@ -39,6 +39,8 @@ Completed:
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
 - The alpha executable has `draft-job` for a selected stored job row, including posting-body loading from
   `jd_path` and a `--dry-run` package/artifact/audit verification path that does not touch Gmail.
+- `scripts/Verify-Alpha.ps1` provides a repeatable build/offline-harness verification entrypoint, with optional
+  live BYOK/Gmail and win-x64 publish checks.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
 - Gmail live smoke and alpha mode preflight the Gmail drafts API before creating a draft.
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
@@ -417,6 +419,7 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
   dispatch packaging as untrusted data when `jd_path` is available.
 - Standalone `dashboard` command added for serving `/jobs`, `/applications`, `/evidence`, Gmail disconnect,
   and application controls over an existing SQLite alpha DB without running a demo cycle.
+- `scripts/Verify-Alpha.ps1` added as the repeatable alpha verification entrypoint for audit agents.
 - Local dashboard `/jobs` drilldown added with recent discovered jobs, source/compensation metadata, safe
   links, repost counts, and prompt-injection flags without raw descriptions.
 - Brave Search web-research adapter added; it uses search results only to select URLs, fetches public result pages, strips HTML/script noise, skips localhost/private/non-text results, and leaves final trust to the grounding filter.

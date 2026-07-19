@@ -20,6 +20,8 @@ Trust/OAuth docs:
   `GatewayGateHarness` (29), `DispatcherNoSendHarness` (21), `LifecycleHarness` (37), and
   `RendererHarness` (6). Latest offline total: 214 assertions. Run each with
   `dotnet run -c Release`.
+- `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. Add `-IncludeLive` for local
+  BYOK/Gmail checks and `-IncludePublish` for the win-x64 single-file publish smoke.
 
 ## Build
 `dotnet build CareerSeeker.sln -c Release`

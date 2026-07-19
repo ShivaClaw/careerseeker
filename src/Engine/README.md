@@ -89,6 +89,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
 - Latest offline harness total: 214 passed, 0 failed.
+- `scripts/Verify-Alpha.ps1` runs the repeatable build plus offline harness suite; optional switches add live
+  BYOK/Gmail checks and the win-x64 publish smoke.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
   in-memory/SQLite behavior parity plus the recent-application and recent-job read models, and
   `EngineHarness` covering a SQLite-backed engine cycle.
