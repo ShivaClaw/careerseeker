@@ -32,9 +32,9 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   Gmail vault presence, and BYOK provider availability.
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
 - The alpha executable has a `scout-boards` command for live Greenhouse/Lever/Ashby board ingestion into SQLite,
-  including a hash-chained ingest event and repost refresh behavior.
+  including local full-posting JD artifacts, a hash-chained ingest event, and repost refresh behavior.
 - The alpha executable has a `draft-job` command for creating an L1 draft package from a selected stored job id,
-  with a `--dry-run` path for package/artifact/audit verification without Gmail.
+  with posting-body loading from `jd_path` and a `--dry-run` path for package/artifact/audit verification without Gmail.
 - A real Brave Search web-research adapter and `research-company` alpha command are implemented; live verification is pending a Brave Search key.
 
 ## Alpha target
@@ -93,8 +93,8 @@ Verified:
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --fast-smoke --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- doctor --require-gmail --require-byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --artifacts .appdata/artifacts --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
-- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- scout-boards --board greenhouse:remotecom --board lever:mistral --db .appdata/scout-boards-smoke.db`
-- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- draft-job --job-id 1 --dry-run --db .appdata/scout-boards-smoke.db`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- scout-boards --board greenhouse:remotecom --board lever:mistral --db .appdata/scout-boards-smoke.db --jd-dir .appdata/job-descriptions`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- draft-job --job-id 1 --dry-run --llm byok --db .appdata/scout-boards-smoke.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- control-app --db .appdata/careerseeker-alpha.db --application-id 1 --action pause`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project tests/RendererHarness/RendererHarness.csproj --no-build`

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using SeekerSvc.Dispatcher;
@@ -281,6 +282,8 @@ async Task<int> RunResearchCompanyAsync()
 async Task<int> RunScoutBoardsAsync()
 {
     var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var jdDirectory = StringArg("--jd-dir")
+                      ?? Path.Combine(Path.GetDirectoryName(dbPath) ?? ".appdata", "job-descriptions");
     var boardInputs = BoardArgValues().ToList();
     if (boardInputs.Count == 0)
         boardInputs.AddRange(DefaultLiveBoardInputs());
@@ -306,6 +309,7 @@ async Task<int> RunScoutBoardsAsync()
 
     Console.WriteLine("CareerSeeker live Scout board ingest");
     Console.WriteLine($"  db: {dbPath}");
+    Console.WriteLine($"  job descriptions: {jdDirectory}");
     Console.WriteLine("  boards: " + string.Join(", ", boards.Select(b => $"{b.Ats}:{b.Handle}")));
 
     await using var store = SqliteSeekerStore.ForFile(dbPath);
@@ -329,7 +333,10 @@ async Task<int> RunScoutBoardsAsync()
     var reposts = 0;
     foreach (var job in result.Jobs)
     {
-        var write = await store.IngestAsync(job).ConfigureAwait(false);
+        var jdPath = WriteJobDescriptionArtifact(job, jdDirectory);
+        var (company, jobUpsert) = Ingest.From(job, jdPath);
+        var companyId = await store.UpsertCompanyAsync(company).ConfigureAwait(false);
+        var write = await store.UpsertJobAsync(companyId, jobUpsert).ConfigureAwait(false);
         if (write.Inserted) inserted++;
         else reposts++;
     }
@@ -409,6 +416,7 @@ async Task<int> RunDraftJobAsync()
     await using var store = SqliteSeekerStore.ForFile(dbPath);
     await store.InitializeAsync().ConfigureAwait(false);
     var summary = await store.GetJobSummaryAsync(jobId).ConfigureAwait(false);
+    var storedJob = await store.GetJobAsync(jobId).ConfigureAwait(false);
     if (summary is null)
         return Fail($"draft-job could not find job {jobId} in '{dbPath}'. Run scout-boards first or choose an existing job id from /jobs.");
     if (summary.Injected && !HasFlag("--allow-injected"))
@@ -450,13 +458,14 @@ async Task<int> RunDraftJobAsync()
     email ??= "alpha@careerseeker.app";
     var gateway = BuildGateway(llmMode, envFilePath, keyVaultPath, http, out var keySourceName, out var byokProviders);
     var applyUrl = string.IsNullOrWhiteSpace(summary.ApplyUrl) ? summary.JobUrl : summary.ApplyUrl;
+    var postingText = await ReadJobDescriptionArtifactAsync(storedJob?.JdPath).ConfigureAwait(false);
     var dispatchInfo = new PostingDispatchInfo(
-        ChannelDetector.Detect(applyUrl, null),
+        ChannelDetector.Detect(applyUrl, postingText),
         ApplicationEmail: null,
         ApplyUrl: applyUrl,
-        PostingText: null);
+        PostingText: postingText);
     var company = summary.CompanyName ?? summary.CompanyDomain ?? $"{summary.Source}:{summary.ExternalId}";
-    var job = new PipelineJob(summary.JobId, summary.Title, company, applyUrl);
+    var job = new PipelineJob(summary.JobId, summary.Title, company, applyUrl, postingText);
     var dispatcher = new SeekerSvc.Dispatcher.Dispatcher(
         new DemoPostingSource(dispatchInfo),
         new AtsPdfDocumentRenderer(new AtsPdfRendererOptions("CareerSeeker Alpha")),
@@ -478,6 +487,7 @@ async Task<int> RunDraftJobAsync()
     Console.WriteLine($"  db: {dbPath}");
     Console.WriteLine($"  job: {job.JobId} - {job.Title} at {job.Company}");
     Console.WriteLine($"  apply: {applyUrl}");
+    Console.WriteLine($"  posting body: {(string.IsNullOrWhiteSpace(postingText) ? "metadata only" : "loaded from jd_path")}");
     Console.WriteLine($"  channel: {dispatchInfo.Channel}");
     Console.WriteLine($"  dry run: {(dryRun ? "yes" : "no")}");
     Console.WriteLine($"  llm mode: {llmMode}");
@@ -499,6 +509,47 @@ async Task<int> RunDraftJobAsync()
     Console.WriteLine($"  cover: {app?.CoverPath ?? "<none>"}");
     Console.WriteLine($"  audit chain: {(audit.Ok ? "ok" : "FAILED")}");
     return result.FinalState == AppState.DRAFTED && result.Dispatch?.Ok == true && audit.Ok ? 0 : 1;
+}
+
+static string? WriteJobDescriptionArtifact(DiscoveredJob job, string directory)
+{
+    if (string.IsNullOrWhiteSpace(job.DescriptionText))
+        return null;
+
+    var bytes = Encoding.UTF8.GetBytes(job.DescriptionText);
+    var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    var dir = Path.Combine(
+        directory,
+        job.Source.ToString().ToLowerInvariant(),
+        SafePathSegment(job.BoardHandle));
+    Directory.CreateDirectory(dir);
+
+    var path = Path.Combine(dir, hash[..16] + ".txt");
+    if (!File.Exists(path))
+        File.WriteAllText(path, job.DescriptionText, Encoding.UTF8);
+    return Path.GetFullPath(path);
+}
+
+static async Task<string?> ReadJobDescriptionArtifactAsync(string? path)
+{
+    if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        return null;
+
+    const int maxChars = 12000;
+    var text = await File.ReadAllTextAsync(path).ConfigureAwait(false);
+    if (text.Length <= maxChars)
+        return text;
+    return text[..maxChars] + "\n[Posting text truncated for prompt budget.]";
+}
+
+static string SafePathSegment(string value)
+{
+    var invalid = Path.GetInvalidFileNameChars();
+    var chars = value
+        .Select(ch => invalid.Contains(ch) || char.IsWhiteSpace(ch) ? '-' : char.ToLowerInvariant(ch))
+        .ToArray();
+    var segment = new string(chars).Trim('-');
+    return string.IsNullOrWhiteSpace(segment) ? "board" : segment;
 }
 
 async Task<int> RunExportAuditAsync()
@@ -1065,7 +1116,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
     Console.WriteLine("  SeekerSvc.Engine.exe draft-job --job-id 123 [--dry-run] [--llm fake|byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
-    Console.WriteLine("  SeekerSvc.Engine.exe scout-boards [--board greenhouse:remotecom] [--board lever:mistral] [--db .appdata/careerseeker-alpha.db] [--timeout-seconds 240]");
+    Console.WriteLine("  SeekerSvc.Engine.exe scout-boards [--board greenhouse:remotecom] [--board lever:mistral] [--db .appdata/careerseeker-alpha.db] [--jd-dir .appdata/job-descriptions] [--timeout-seconds 240]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");
     Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");

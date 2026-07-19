@@ -96,6 +96,7 @@ ON CONFLICT(source, external_id) DO UPDATE SET
   repost_count  = jobs.repost_count + 1,
   url           = excluded.url,
   apply_url     = excluded.apply_url,
+  jd_path       = COALESCE(excluded.jd_path, jobs.jd_path),
   comp_min      = COALESCE(excluded.comp_min, jobs.comp_min),
   comp_max      = COALESCE(excluded.comp_max, jobs.comp_max)
 RETURNING id, repost_count;";

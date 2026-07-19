@@ -79,6 +79,7 @@ public sealed class InMemorySeekerStore : ISeekerStore
                     ApplyUrl = job.ApplyUrl,
                     CompMin = job.CompMin ?? existing.CompMin,
                     CompMax = job.CompMax ?? existing.CompMax,
+                    JdPath = job.JdPath ?? existing.JdPath,
                     LastVerified = now,
                     RepostCount = repost,
                 };

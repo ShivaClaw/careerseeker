@@ -3,7 +3,12 @@ using SeekerSvc.Verifier;
 namespace SeekerSvc.Pipeline;
 
 /// <summary>The slice of a job the tailor and dispatcher need. Carried through the pipeline.</summary>
-public sealed record PipelineJob(long JobId, string Title, string Company, string? ApplyUrl = null);
+public sealed record PipelineJob(
+    long JobId,
+    string Title,
+    string Company,
+    string? ApplyUrl = null,
+    string? DescriptionText = null);
 
 /// <summary>
 /// A tailored application produced by the Tailor (not yet built). <see cref="Claims"/> are the atomic

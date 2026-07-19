@@ -25,6 +25,7 @@ Check("audit chain intact in-memory", memory.Audit.Ok, memory.Audit.Reason);
 Check("audit chain intact SQLite", sqlite.Audit.Ok, sqlite.Audit.Reason);
 Check("repost upsert preserves existing null-coalesced comp_min", sqlite.Job?.CompMin == 170000m, sqlite.Job?.CompMin?.ToString());
 Check("repost upsert refreshes apply_url", sqlite.Job?.ApplyUrl == "mailto:apply-updated@example.com", sqlite.Job?.ApplyUrl);
+Check("repost upsert refreshes jd_path", sqlite.Job?.JdPath == "jd-new.txt", sqlite.Job?.JdPath);
 Check("claim confidence normalized before storage", sqlite.Claims.All(c => c.Confidence is "verified" or "weak"));
 Check("config round-trips", sqlite.ConfigValue == "L1", sqlite.ConfigValue);
 Check("CAS refuses a wrong expected state in both stores", !sqlite.CasWrong && !memory.CasWrong);
@@ -104,6 +105,7 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
             CompCurrency: "USD",
             CompInterval: "Year",
             CompSource: "Structured",
+            JdPath: "jd-old.txt",
             Injected: true,
             InjectionSignals: "ignore_previous_instructions"));
 
@@ -123,7 +125,8 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
             CompMax: 225000m,
             CompCurrency: "USD",
             CompInterval: "Year",
-            CompSource: "Structured"));
+            CompSource: "Structured",
+            JdPath: "jd-new.txt"));
 
         await store.SaveScoreAsync(new ScoreRow(first.JobId, 4.4, 4.7, 1.0, 4.4, "{\"cv\":4.4}", "fake"));
 

@@ -10,7 +10,7 @@ namespace SeekerSvc.Store;
 /// </summary>
 public static class Ingest
 {
-    public static (CompanyUpsert Company, JobUpsert Job) From(DiscoveredJob j)
+    public static (CompanyUpsert Company, JobUpsert Job) From(DiscoveredJob j, string? jdPath = null)
     {
         var company = new CompanyUpsert(
             AtsKind: j.Source.ToString(),
@@ -35,7 +35,7 @@ public static class Ingest
             CompCurrency: comp?.Currency,
             CompInterval: comp is null ? null : comp.Interval.ToString(),
             CompSource: comp is null ? null : comp.Source.ToString(),
-            JdPath: null, // the full JD is content-addressed on disk later; Scout holds only the text
+            JdPath: jdPath,
             Injected: j.DescriptionLikelyInjected,
             InjectionSignals: j.InjectionSignals.Count == 0 ? null : string.Join(",", j.InjectionSignals));
 

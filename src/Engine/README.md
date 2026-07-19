@@ -39,7 +39,7 @@ The engine shell adds:
 - Alpha Gmail smoke, live but one-shot:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
 - Live ATS board ingest into the local SQLite store:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- scout-boards --board greenhouse:remotecom --board lever:mistral --db .appdata/careerseeker-alpha.db`
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- scout-boards --board greenhouse:remotecom --board lever:mistral --db .appdata/careerseeker-alpha.db --jd-dir .appdata/job-descriptions`
 - Draft a selected stored job row, with `--dry-run` available for local package/audit verification without Gmail:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- draft-job --job-id 123 --dry-run --db .appdata/careerseeker-alpha.db`
 - Import real BYOK provider keys into the local DPAPI vault:
@@ -84,16 +84,18 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 213 passed, 0 failed.
+- Latest offline harness total: 214 passed, 0 failed.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
   in-memory/SQLite behavior parity plus the recent-application and recent-job read models, and
   `EngineHarness` covering a SQLite-backed engine cycle.
 - Live connector status: Scout ingestion, Gmail draft creation, BYOK provider calls, full alpha BYOK
   Gmail/PDF draft creation, alpha Gmail/PDF smoke, and dashboard Gmail disconnect wiring are verified.
 - `scout-boards` gives the alpha executable a live ATS ingest path for Greenhouse, Lever, and Ashby boards;
-  it writes postings into SQLite, records a hash-chained ingest event, and treats repeat sightings as reposts.
+  it writes postings into SQLite, stores full posting bodies as ignored local JD artifacts, records a hash-chained
+  ingest event, and treats repeat sightings as reposts.
 - `draft-job` lets testers create an L1 draft package for a selected stored job id; the dry-run path verifies
   package/artifact/audit behavior without touching Gmail, and the normal path uses the same Gmail draft port.
+  When a selected job has a `jd_path`, Tailor and dispatch packaging receive the posting body as untrusted data.
 - Bounded BYOK alpha smoke is verified for live Gate, live Tailor, Gmail draft creation, PDF attachment
   packaging, and SQLite audit.
 - Brave web-research adapter source and the `research-company` alpha command are implemented and offline
