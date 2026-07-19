@@ -48,6 +48,8 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --fast-smoke --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
 - Startup doctor for local DB, artifact folder, Gmail config, and BYOK readiness:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- doctor --require-gmail --require-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --artifacts .appdata/artifacts`
+- Local application control:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- control-app --db .appdata/careerseeker-alpha.db --application-id 123 --action pause|resume|kill`
 - Disconnect Gmail, revoking OAuth and deleting the local vault:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`
 - Clear imported BYOK provider keys from the local vault:
@@ -95,6 +97,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   `--include-payloads`.
 - `doctor` checks local SQLite/audit health, artifact writability, Gmail OAuth/vault presence when required,
   and BYOK provider availability without printing secret values.
+- `control-app` gives testers a local audited pause, resume, and kill switch for a specific application row.
 
 ## Not Yet Built
 

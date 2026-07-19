@@ -33,6 +33,7 @@ Completed:
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
   Gmail vault presence, and BYOK provider availability.
+- The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
 - Gmail live smoke and alpha mode preflight the Gmail drafts API before creating a draft.
 - Alpha mode can run Tailor and Gate through real BYOK Anthropic/Gemini providers with `--llm byok`.
@@ -481,7 +482,7 @@ Status: substantially complete.
 
 - Windows Service host around `EngineHost`.
 - WinUI 3 tray app.
-- Kill switch.
+- Tray/dashboard kill switch polish around the implemented `control-app` local control.
 - Broader dashboard polish beyond the current local status, evidence, application, and document-link views.
 - Installer and Azure Artifact Signing/OV code signing.
 - Broader startup smoke can add live API reachability; local DB, artifacts, Gmail config/vault, and BYOK checks are covered by `doctor`.
@@ -551,6 +552,7 @@ Status: substantially complete.
 Highest priority:
 
 - Live-verify `research-company` with a real Brave Search key so company hooks and legitimacy signals can graduate from source-present to live-proven.
+- Surface the implemented application controls in the dashboard/tray when the Windows product shell lands.
 - Live-verify dashboard document links in an interactive hosted demo session before wider tester distribution.
 
 Near-term connector work:

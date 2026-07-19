@@ -28,6 +28,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - The alpha executable can export a local audit JSON package with payload hashes by default.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
   Gmail vault presence, and BYOK provider availability.
+- The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
 - A real Brave Search web-research adapter and `research-company` alpha command are implemented; live verification is pending a Brave Search key.
 
 ## Alpha target
@@ -86,6 +87,7 @@ Verified:
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --fast-smoke --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- doctor --require-gmail --require-byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --artifacts .appdata/artifacts --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- control-app --db .appdata/careerseeker-alpha.db --application-id 1 --action pause`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project tests/RendererHarness/RendererHarness.csproj --no-build`
 

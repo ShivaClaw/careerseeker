@@ -28,6 +28,8 @@ if (mode.Equals("export-audit", StringComparison.OrdinalIgnoreCase))
     return await RunExportAuditAsync().ConfigureAwait(false);
 if (mode.Equals("doctor", StringComparison.OrdinalIgnoreCase))
     return await RunDoctorAsync().ConfigureAwait(false);
+if (mode.Equals("control-app", StringComparison.OrdinalIgnoreCase))
+    return await RunControlAppAsync().ConfigureAwait(false);
 if (mode.Equals("import-byok", StringComparison.OrdinalIgnoreCase))
     return RunImportByok();
 if (mode.Equals("clear-byok", StringComparison.OrdinalIgnoreCase))
@@ -327,6 +329,60 @@ async Task<int> RunDoctorAsync()
     return report.Ok ? 0 : 1;
 }
 
+async Task<int> RunControlAppAsync()
+{
+    var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var action = StringArg("--action");
+    var appIdText = StringArg("--application-id") ?? StringArg("--app-id");
+    if (!long.TryParse(appIdText, out var appId) || appId <= 0)
+        return Fail("control-app requires --application-id <positive integer>.");
+    if (string.IsNullOrWhiteSpace(action))
+        return Fail("control-app requires --action pause|resume|kill.");
+
+    await using var store = SqliteSeekerStore.ForFile(dbPath);
+    await store.InitializeAsync().ConfigureAwait(false);
+    var before = await store.GetApplicationAsync(appId).ConfigureAwait(false);
+    if (before is null)
+        return Fail($"No application {appId} exists in '{dbPath}'.");
+
+    var pipeline = BuildControlPipeline(store);
+    AppState? resumed = null;
+    try
+    {
+        switch (action.Trim().ToLowerInvariant())
+        {
+            case "pause":
+                await pipeline.PauseAsync(appId).ConfigureAwait(false);
+                break;
+            case "resume":
+                resumed = await pipeline.ResumeAsync(appId).ConfigureAwait(false);
+                break;
+            case "kill":
+                await pipeline.KillAsync(appId).ConfigureAwait(false);
+                break;
+            default:
+                return Fail("Unsupported --action. Use pause, resume, or kill.");
+        }
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Fail(ex.Message);
+    }
+
+    var after = await store.GetApplicationAsync(appId).ConfigureAwait(false);
+    var audit = await store.VerifyAuditAsync().ConfigureAwait(false);
+    Console.WriteLine("CareerSeeker application control");
+    Console.WriteLine($"  db: {dbPath}");
+    Console.WriteLine($"  application: {appId}");
+    Console.WriteLine($"  action: {action.Trim().ToLowerInvariant()}");
+    Console.WriteLine($"  prior state: {before.State}");
+    Console.WriteLine($"  final state: {after?.State ?? "<missing>"}");
+    if (resumed is not null)
+        Console.WriteLine($"  resumed to: {resumed}");
+    Console.WriteLine($"  audit chain: {(audit.Ok ? "ok" : "FAILED")}");
+    return audit.Ok ? 0 : 1;
+}
+
 int RunImportByok()
 {
     var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
@@ -482,6 +538,23 @@ EngineCycle BuildDemoCycleCore(
         pipeline,
         new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email, profileId, companyHandle, companyName),
         counters);
+}
+
+ApplicationPipeline BuildControlPipeline(ISeekerStore store)
+{
+    var gateway = BuildFakeGateway();
+    var dispatcher = new SeekerSvc.Dispatcher.Dispatcher(
+        new DemoPostingSource(new PostingDispatchInfo(DispatchChannel.Email, "control@careerseeker.app")),
+        new AtsPdfDocumentRenderer(new AtsPdfRendererOptions("CareerSeeker Control")),
+        new DemoGmailDraftClient(),
+        new DispatcherConfig("CareerSeeker Control", "control@careerseeker.app"));
+
+    return new ApplicationPipeline(
+        store,
+        new SeekerSvc.Tailor.Tailor(new GatewayTailorModel(gateway)),
+        dispatcher,
+        new GatewaySemanticMatcher(gateway),
+        new PipelineOptions { Channel = DispatchChannel.Email });
 }
 
 static GateVerificationOptions GateOptionsFrom(int semanticCandidates) =>
@@ -680,6 +753,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");
     Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe control-app --application-id 123 --action pause|resume|kill [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe disconnect-gmail [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
