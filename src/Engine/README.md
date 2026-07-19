@@ -38,6 +38,10 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once --db .appdata/careerseeker-demo.db --artifacts .appdata/artifacts`
 - Alpha Gmail smoke, live but one-shot:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
+- Standalone dashboard over the real local alpha DB:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --db .appdata/careerseeker-alpha.db --gmail-control`
+- One-shot dashboard/evidence smoke:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --once --db .appdata/careerseeker-alpha.db --gmail-control`
 - Live ATS board ingest into the local SQLite store:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- scout-boards --board greenhouse:remotecom --board lever:mistral --db .appdata/careerseeker-alpha.db --jd-dir .appdata/job-descriptions`
 - Draft a selected stored job row, with `--dry-run` available for local package/audit verification without Gmail:
@@ -105,6 +109,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   audit-chain status and recent audit event metadata without payload bodies.
 - Dashboard `/jobs` exposes recently discovered jobs, compensation metadata, source, safe job/apply links,
   repost count, and prompt-injection flags without raw job descriptions.
+- `dashboard` serves the same `/jobs`, `/applications`, `/evidence`, Gmail disconnect, and application controls
+  against an existing SQLite alpha DB without starting a demo cycle.
 - `export-audit` writes a local audit JSON package; payloads are hash-only by default and opt-in with
   `--include-payloads`.
 - `doctor` checks local SQLite/audit health, artifact writability, Gmail OAuth/vault presence when required,

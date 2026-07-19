@@ -23,6 +23,8 @@ if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase))
     return await RunDemoAsync().ConfigureAwait(false);
 if (mode.Equals("alpha", StringComparison.OrdinalIgnoreCase))
     return await RunAlphaAsync().ConfigureAwait(false);
+if (mode.Equals("dashboard", StringComparison.OrdinalIgnoreCase))
+    return await RunDashboardAsync().ConfigureAwait(false);
 if (mode.Equals("draft-job", StringComparison.OrdinalIgnoreCase))
     return await RunDraftJobAsync().ConfigureAwait(false);
 if (mode.Equals("scout-boards", StringComparison.OrdinalIgnoreCase))
@@ -277,6 +279,71 @@ async Task<int> RunResearchCompanyAsync()
         Console.WriteLine($"  - {fact.Topic}: {fact.Text} ({fact.SourceUrl})");
 
     return 0;
+}
+
+async Task<int> RunDashboardAsync()
+{
+    var port = IntArg("--port", 7777);
+    var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var gmailVaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
+    var gmailClientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+    var gmailControlRequested = HasFlag("--gmail-control");
+
+    var dbDir = Path.GetDirectoryName(dbPath);
+    if (!string.IsNullOrWhiteSpace(dbDir)) Directory.CreateDirectory(dbDir);
+
+    await using var store = SqliteSeekerStore.ForFile(dbPath);
+    await store.InitializeAsync().ConfigureAwait(false);
+
+    var evidence = LocalDashboardEvidence.FromStore(store);
+    var counters = new EngineCounters();
+    var actions = BuildDashboardActions(store, gmailClientPath, gmailVaultPath, gmailControlRequested);
+
+    if (HasFlag("--once"))
+    {
+        var snapshot = await evidence.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+        Console.WriteLine("CareerSeeker local dashboard smoke");
+        Console.WriteLine($"  db: {dbPath}");
+        Console.WriteLine($"  audit chain: {(snapshot.AuditOk ? "ok" : "FAILED")}");
+        Console.WriteLine($"  events: {snapshot.EventCount}");
+        Console.WriteLine($"  recent applications: {snapshot.RecentApplications.Count}");
+        Console.WriteLine($"  recent jobs: {snapshot.RecentJobs.Count}");
+        Console.WriteLine($"  Gmail disconnect control: {(actions.DisconnectGmailAsync is null ? "unavailable" : "available")}");
+        Console.WriteLine($"  application controls: {(actions.ControlApplicationAsync is null ? "unavailable" : "available")}");
+        return snapshot.AuditOk ? 0 : 1;
+    }
+
+    await using var dashboard = new LocalDashboard(counters, port, actions, evidence);
+    using var stop = new CancellationTokenSource();
+    var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    Console.CancelKeyPress += OnCancel;
+    try
+    {
+        dashboard.Start();
+        Console.WriteLine("CareerSeeker local dashboard is running.");
+        Console.WriteLine($"Dashboard: http://localhost:{port}/");
+        Console.WriteLine($"SQLite db: {dbPath}");
+        if (actions.DisconnectGmailAsync is not null)
+            Console.WriteLine("Dashboard Gmail disconnect control: available");
+        Console.WriteLine("Dashboard application controls: available");
+        Console.WriteLine("Press Enter or Ctrl+C to stop.");
+
+        var readLine = Task.Run(Console.ReadLine, stop.Token);
+        await Task.WhenAny(readLine, stopped.Task).ConfigureAwait(false);
+        return 0;
+    }
+    finally
+    {
+        Console.CancelKeyPress -= OnCancel;
+        stop.Cancel();
+    }
+
+    void OnCancel(object? sender, ConsoleCancelEventArgs e)
+    {
+        e.Cancel = true;
+        stopped.TrySetResult();
+    }
 }
 
 async Task<int> RunScoutBoardsAsync()
@@ -1115,6 +1182,7 @@ void PrintUsage()
     Console.WriteLine("Usage:");
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
+    Console.WriteLine("  SeekerSvc.Engine.exe dashboard [--once] [--port 7777] [--db .appdata/careerseeker-alpha.db] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe draft-job --job-id 123 [--dry-run] [--llm fake|byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe scout-boards [--board greenhouse:remotecom] [--board lever:mistral] [--db .appdata/careerseeker-alpha.db] [--jd-dir .appdata/job-descriptions] [--timeout-seconds 240]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
