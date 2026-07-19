@@ -24,6 +24,10 @@ const string outageJson =
     "{\"resume\":\"Senior Software Engineer.\"," +
     "\"cover\":\"I drove platform leadership across the organization.\"," +
     "\"claims\":[],\"answers\":{}}";
+const string metricJson =
+    "{\"resume\":\"Reduced p99 latency 30%.\"," +
+    "\"cover\":\"I have built reliable distributed systems in Go.\"," +
+    "\"claims\":[{\"kind\":\"Metric\",\"text\":\"reduced p99 latency 30%\",\"number\":30,\"unit\":\"%\"}],\"answers\":{}}";
 
 // ── shared builders ───────────────────────────────────────────────────────────────────────────────
 LlmGateway GatewayReturning(string canned) => new(
@@ -229,6 +233,19 @@ Console.WriteLine("[ happy path -> DRAFTED ]");
     Check("dispatch outcome Ok via Email channel", result.Dispatch is { Ok: true, Channel: DispatchChannel.Email });
     Check("a Gmail draft was created", gmail.Drafts == 1);
     Check("audit chain intact", (await store.VerifyAuditAsync()).Ok);
+}
+{
+    var store = await SeededStoreAsync();
+    var p = HealthyPosting();
+    var jobId = await StoreJobAsync(store, p);
+    var job = new PipelineJob(jobId, p.Title, "Acme", "mailto:jobs@acme.com");
+    var gmail = new FakeGmail();
+    var pipeline = new ApplicationPipeline(store, TailorReturning(metricJson), MakeDispatcher(gmail),
+        matcher: new DefaultSemanticMatcher(), options: new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+
+    var result = await pipeline.AdmitAsync(job, AutonomyLevel.L1, Dispatch.Act);
+    Check("stored text metric claim supports exact quantified draft", result.FinalState == AppState.DRAFTED,
+        result.Gate?.Violations.FirstOrDefault()?.Explanation ?? result.FinalState.ToString());
 }
 
 // ── 2) FABRICATION: an unsupported metric is caught; nothing is drafted ────────────────────────────

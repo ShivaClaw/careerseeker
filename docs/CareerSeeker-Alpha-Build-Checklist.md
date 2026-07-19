@@ -18,6 +18,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - Live BYOK provider smoke is green for Anthropic, Gemini, Tailor, Gate entailment, and Gateway accounting.
 - Engine alpha mode has a bounded `--fast-smoke` BYOK path that verifies live Gate, live Tailor, Gmail draft creation, PDF attachment packaging, and SQLite audit in one routine command.
 - Alpha BYOK Gate verification defaults to the top 3 semantic source candidates per claim to bound live entailment calls while failing closed.
+- The unconstrained alpha `--llm byok` path now creates a real Gmail draft after live Tailor and live Gate verification.
 - Engine alpha drafts attach a real ATS-clean resume PDF.
 
 ## Alpha target
@@ -73,6 +74,7 @@ Verified:
 - `dotnet run -c Release --project tests/ByokLiveHarness/ByokLiveHarness.csproj -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --fast-smoke --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project tests/RendererHarness/RendererHarness.csproj --no-build`
 
@@ -80,7 +82,6 @@ Verified:
 
 Status: after technical alpha
 
-- Harden live Tailor prompt/output constraints so the unconstrained production-like BYOK alpha path produces Gate-supported content more reliably.
 - Add a polished HTML/Chromium renderer when visual templates become product-facing.
 
 Exit:

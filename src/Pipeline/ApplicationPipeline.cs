@@ -127,12 +127,12 @@ public sealed class ApplicationPipeline
             if (lastResult.Deferred)
             {
                 await TransitionAsync(appId, AppState.GATE_UNAVAILABLE, "engine",
-                    $"\"unavailableClaims\":{lastResult.UnavailableClaims}", ct).ConfigureAwait(false);
+                    GateUnavailablePayload(lastResult), ct).ConfigureAwait(false);
                 return (AppState.GATE_UNAVAILABLE, tailored, lastResult);
             }
 
             await TransitionAsync(appId, AppState.BLOCKED_FABRICATION, "engine",
-                $"\"violations\":{lastResult.Violations.Count}", ct).ConfigureAwait(false);
+                GateBlockedPayload(lastResult), ct).ConfigureAwait(false);
             prior = lastResult.Violations;
         }
 
@@ -398,4 +398,18 @@ public sealed class ApplicationPipeline
         return await _store.TryTransitionApplicationAsync(appId, from.ToString(), to.ToString(), actor,
             payload, recordPausedFrom, ct).ConfigureAwait(false);
     }
+
+    private static string GateUnavailablePayload(VerificationResult result) =>
+        $"\"unavailableClaims\":{result.UnavailableClaims},\"claimsChecked\":{result.ClaimsChecked}";
+
+    private static string GateBlockedPayload(VerificationResult result) =>
+        "\"violations\":" + result.Violations.Count +
+        ",\"claimsChecked\":" + result.ClaimsChecked +
+        ",\"violationSamples\":" + JsonSerializer.Serialize(result.Violations.Take(3).Select(v => new
+        {
+            kind = v.Claim.Kind.ToString(),
+            claim = v.Claim.Text,
+            reason = v.Kind.ToString(),
+            nearest = v.NearestSource,
+        }).ToArray());
 }

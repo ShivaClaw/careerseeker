@@ -59,8 +59,7 @@ provider-key vault, environment variables, or `secrets/env.secrets`. `--email` i
 profile lookup is available. For quick routine validation, use `--llm byok --fast-smoke`; it performs one
 bounded live Gate entailment check, one bounded live Tailor call, then runs the normal Gmail/PDF draft path.
 In BYOK alpha mode, the Gate defaults to the top 3 semantically relevant source candidates per claim to
-keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exhaustive comparison. The
-unconstrained BYOK alpha command can still block when the live model writes unsupported draft claims.
+keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exhaustive comparison.
 
 ## Injected Ports
 
@@ -72,17 +71,16 @@ unconstrained BYOK alpha command can still block when the live model writes unsu
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 175 passed, 0 failed.
+- Latest offline harness total: 176 passed, 0 failed.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
   in-memory/SQLite behavior parity.
-- Live connector status: Scout ingestion, Gmail draft creation, BYOK provider calls, and alpha Gmail/PDF
-  smoke are verified.
+- Live connector status: Scout ingestion, Gmail draft creation, BYOK provider calls, full alpha BYOK
+  Gmail/PDF draft creation, and alpha Gmail/PDF smoke are verified.
 - Bounded BYOK alpha smoke is verified for live Gate, live Tailor, Gmail draft creation, PDF attachment
   packaging, and SQLite audit.
 
 ## Not Yet Built
 
 - Real Researcher/dossier from grounded web sources.
-- Prompt/draft-quality hardening for the unconstrained production-like BYOK alpha path.
 - Windows Service host, tray controls, and local dashboard polish around `EngineHost`.
 - Onboarding, WinUI tray, OAuth/CASA, installer, and code signing.

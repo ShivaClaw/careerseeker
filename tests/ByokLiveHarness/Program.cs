@@ -81,15 +81,19 @@ try
 
     using var tailorTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
     var tailor = new GatewayTailorModel(gateway);
+    var profile = new[]
+    {
+        new SourceClaim("title", ClaimKind.Title, "Senior Software Engineer", Confidence.Verified),
+        new SourceClaim("skill-go", ClaimKind.Skill, "Go", Confidence.Verified),
+        new SourceClaim("skill-dist", ClaimKind.Skill, "distributed systems", Confidence.Verified),
+        new SourceClaim("skill-reliable", ClaimKind.Skill, "reliable", Confidence.Verified),
+        new SourceClaim("skill-team", ClaimKind.Skill, "team", Confidence.Verified),
+        new SourceClaim("summary", ClaimKind.Other, "Senior Software Engineer experienced in Go and distributed systems", Confidence.Verified),
+        new SourceClaim("cover", ClaimKind.Other, "I have built reliable distributed systems in Go and would bring that experience to your team", Confidence.Verified),
+    };
     var draft = await tailor.GenerateAsync(new TailorModelRequest(
         new PipelineJob(1, "Senior Software Engineer", "Acme"),
-        new[]
-        {
-            new SourceClaim("title", ClaimKind.Title, "Senior Software Engineer", Confidence.Verified),
-            new SourceClaim("skill-go", ClaimKind.Skill, "Go", Confidence.Verified),
-            new SourceClaim("skill-dist", ClaimKind.Skill, "distributed systems", Confidence.Verified),
-            new SourceClaim("summary", ClaimKind.Other, "Senior Software Engineer experienced in Go and distributed systems", Confidence.Verified),
-        },
+        profile,
         Array.Empty<string>(),
         StyleCard.Default,
         Array.Empty<string>()),
@@ -109,6 +113,16 @@ try
     Check("Gateway live accounting recorded Gate spend",
         gateway.Accounting.ByStage.ContainsKey(Stage.VerifierEntailment)
         && gateway.Budget.SpentUsd > 0);
+
+    var tailored = Decomposer.FromDraft(draft);
+    var gate = await FabricationGate.VerifyAsync(
+        profile,
+        tailored,
+        matcher,
+        options: GateVerificationOptions.BoundedSemantic(3));
+    Check("Gateway Tailor live draft passes bounded Gate",
+        gate.Passed,
+        string.Join(" | ", gate.Violations.Take(3).Select(v => v.Claim.Text)));
 }
 catch (Exception ex)
 {

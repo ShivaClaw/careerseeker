@@ -31,7 +31,7 @@ public static class Text
     public static readonly HashSet<string> Stop = new(StringComparer.Ordinal)
     {
         "the", "a", "an", "of", "in", "at", "to", "and", "with", "for", "on",
-        "by", "as", "is", "was", "i", "we", "my", "our", "this", "that",
+        "by", "as", "is", "am", "was", "i", "we", "my", "our", "this", "that",
     };
 
     public static string Normalize(string text)
