@@ -24,6 +24,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - The localhost dashboard can expose a token-protected Gmail disconnect control backed by the same local DPAPI revoke/delete path as the CLI.
 - The localhost dashboard exposes `/applications` with recent application state, scores, draft refs, generated
   resume/cover document links, safe job/apply links, and token-protected pause/resume/kill controls.
+- Dashboard resume/cover document links are served through token-protected localhost document routes instead
+  of raw `file://` links, and the Engine harness verifies the linked resume PDF bytes.
 - The localhost dashboard exposes `/jobs` with recent discovered jobs, compensation/source metadata, safe
   job/apply links, repost counts, and prompt-injection flags.
 - The localhost dashboard exposes `/evidence` with audit-chain status and recent audit event metadata.

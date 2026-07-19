@@ -256,6 +256,13 @@ h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;gri
             return;
         }
 
+        if (ctx.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) &&
+            path.StartsWith("/documents/", StringComparison.OrdinalIgnoreCase))
+        {
+            await HandleDocumentAsync(ctx, path, ct).ConfigureAwait(false);
+            return;
+        }
+
         if (ctx.Request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
             path == "/controls/gmail/disconnect")
         {
@@ -343,7 +350,7 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
                 ? row.DraftStatus
                 : $"{row.DraftStatus} ({row.DraftExternalRef})");
         var updated = WebUtility.HtmlEncode(row.UpdatedAt);
-        var links = LinksHtml(row);
+        var links = LinksHtml(row, token);
         var controls = canControl ? ApplicationControlsHtml(row, token) : "-";
         return $@"<tr><td class=""state"">{WebUtility.HtmlEncode(row.State)}</td><td>{job}</td><td>{company}</td><td class=""n"">{score}</td><td>{draft}</td><td class=""n"">{updated}</td><td>{links}</td><td>{controls}</td></tr>";
     }
@@ -365,26 +372,22 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
     private static string ControlButton(long applicationId, string action, string token, string label) =>
         $@"<form method=""post"" action=""/controls/application""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><input type=""hidden"" name=""applicationId"" value=""{applicationId}""><input type=""hidden"" name=""action"" value=""{WebUtility.HtmlEncode(action)}""><button type=""submit"">{WebUtility.HtmlEncode(label)}</button></form>";
 
-    private static string LinksHtml(ApplicationSummaryRow row)
+    private static string LinksHtml(ApplicationSummaryRow row, string token)
     {
         var links = new List<string>();
         if (Uri.TryCreate(row.JobUrl, UriKind.Absolute, out var jobUri) && jobUri.Scheme is "http" or "https")
             links.Add($@"<a href=""{WebUtility.HtmlEncode(jobUri.ToString())}"">job</a>");
         if (Uri.TryCreate(row.ApplyUrl, UriKind.Absolute, out var applyUri) && applyUri.Scheme is "http" or "https" or "mailto")
             links.Add($@"<a href=""{WebUtility.HtmlEncode(applyUri.ToString())}"">apply</a>");
-        AddFileLink(links, row.ResumePath, "resume");
-        AddFileLink(links, row.CoverPath, "cover");
+        AddFileLink(links, row.ApplicationId, row.ResumePath, "resume", token);
+        AddFileLink(links, row.ApplicationId, row.CoverPath, "cover", token);
         return links.Count == 0 ? "-" : string.Join(" ", links);
     }
 
-    private static void AddFileLink(List<string> links, string? path, string label)
+    private static void AddFileLink(List<string> links, long applicationId, string? path, string label, string token)
     {
         if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path)) return;
-        try
-        {
-            links.Add($@"<a href=""{WebUtility.HtmlEncode(new Uri(path).AbsoluteUri)}"">{label}</a>");
-        }
-        catch (UriFormatException) { }
+        links.Add($@"<a href=""/documents/{applicationId}/{WebUtility.UrlEncode(label)}?token={WebUtility.UrlEncode(token)}"">{label}</a>");
     }
 
     private async Task HandleApplicationsAsync(HttpListenerContext ctx, CancellationToken ct)
@@ -460,6 +463,61 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
 
         await WriteAsync(ctx, "text/html; charset=utf-8", await JobsHtmlAsync(ct).ConfigureAwait(false), ct)
             .ConfigureAwait(false);
+    }
+
+    private async Task HandleDocumentAsync(HttpListenerContext ctx, string path, CancellationToken ct)
+    {
+        if (_evidence is null)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "No application evidence source is configured.", ct)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length != 3 ||
+            !segments[0].Equals("documents", StringComparison.OrdinalIgnoreCase) ||
+            !long.TryParse(segments[1], out var applicationId))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Document not found.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        var kind = Uri.UnescapeDataString(segments[2]);
+        if (!HasValidControlToken(ctx.Request.QueryString["token"]))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        var evidence = await _evidence.LoadAsync(ct).ConfigureAwait(false);
+        var row = evidence.RecentApplications.FirstOrDefault(a => a.ApplicationId == applicationId);
+        var documentPath = kind.Equals("resume", StringComparison.OrdinalIgnoreCase)
+            ? row?.ResumePath
+            : kind.Equals("cover", StringComparison.OrdinalIgnoreCase)
+                ? row?.CoverPath
+                : null;
+
+        if (string.IsNullOrWhiteSpace(documentPath) ||
+            !Path.IsPathRooted(documentPath) ||
+            !File.Exists(documentPath))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Document not found.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        var fileName = Path.GetFileName(documentPath).Replace("\"", "", StringComparison.Ordinal);
+        ctx.Response.ContentType = Path.GetExtension(documentPath).Equals(".pdf", StringComparison.OrdinalIgnoreCase)
+            ? "application/pdf"
+            : "application/octet-stream";
+        ctx.Response.Headers["Content-Disposition"] = $@"inline; filename=""{fileName}""";
+        await using var file = File.OpenRead(documentPath);
+        ctx.Response.ContentLength64 = file.Length;
+        await file.CopyToAsync(ctx.Response.OutputStream, ct).ConfigureAwait(false);
     }
 
     private async Task HandleGmailDisconnectAsync(HttpListenerContext ctx, CancellationToken ct)
@@ -555,11 +613,14 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
 
     private bool HasValidControlToken(Dictionary<string, string> form)
     {
-        return form.TryGetValue("token", out var token) &&
-            CryptographicOperations.FixedTimeEquals(
-                Encoding.UTF8.GetBytes(token),
-                Encoding.UTF8.GetBytes(_controlToken));
+        return form.TryGetValue("token", out var token) && HasValidControlToken(token);
     }
+
+    private bool HasValidControlToken(string? token) =>
+        !string.IsNullOrWhiteSpace(token) &&
+        CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(token),
+            Encoding.UTF8.GetBytes(_controlToken));
 
     private async Task<string> ReadBodyAsync(HttpListenerContext ctx)
     {

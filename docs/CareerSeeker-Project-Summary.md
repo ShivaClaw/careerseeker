@@ -29,6 +29,8 @@ Completed:
 - Gmail disconnect can revoke the OAuth token and delete the local DPAPI vault via the alpha executable.
 - The localhost dashboard can expose a token-protected Gmail disconnect control wired to the same revoke/delete path.
 - The localhost dashboard exposes recent application state, scores, draft refs, generated resume/cover document links, safe job/apply links, and token-protected pause/resume/kill controls at `/applications`.
+- Dashboard resume/cover links are served through narrow localhost `/documents/{applicationId}/resume|cover`
+  routes and verified with live HTTP harness coverage.
 - The localhost dashboard exposes recent discovered jobs, source/compensation metadata, safe job/apply links, repost counts, and prompt-injection flags at `/jobs`.
 - The localhost dashboard exposes audit-chain status and recent audit event metadata at `/evidence`.
 - The alpha executable has standalone `dashboard` mode for inspecting and controlling an existing SQLite alpha
@@ -315,12 +317,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 219 passed, 0 failed.
+Total: 222 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 40 passed, 0 failed |
+| `EngineHarness` | 43 passed, 0 failed |
 | `ResearcherHarness` | 29 passed, 0 failed |
 | `HookHarness` | 12 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
@@ -577,7 +579,6 @@ Status: substantially complete.
 Highest priority:
 
 - Surface the implemented local controls in a tray app when the Windows product shell lands.
-- Live-verify dashboard document links in an interactive hosted demo session before wider tester distribution.
 
 Near-term connector work:
 
@@ -598,7 +599,6 @@ Product recommendations:
 - Keep L1 free, local-first, and reviewable.
 - Treat the first public promise as "real drafts, zero sends."
 - Make privacy copy concrete: resume and OAuth tokens never leave the device.
-- Live-verify dashboard document links in an interactive hosted demo session before wider tester distribution.
 - Add import/migration packaging around the audit export when the workspace export story broadens.
 
 Security recommendations:

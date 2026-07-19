@@ -186,6 +186,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/ links to audit evidence", html.Contains("/evidence") && html.Contains("audit-chain"));
         Check("/ links to recent applications", html.Contains("/applications"));
         Check("/ links to recent jobs", html.Contains("/jobs"));
+        var token = DashboardToken(html);
 
         var applicationsHtml = await http.GetStringAsync("http://localhost:7777/applications");
         Check("/applications serves recent job/state drill-down",
@@ -194,6 +195,23 @@ Console.WriteLine("\n[ localhost dashboard ]");
             applicationsHtml.Contains("SUCCEEDED") &&
             applicationsHtml.Contains(">resume</a>"),
             applicationsHtml);
+        Check("/applications links documents through localhost dashboard",
+            applicationsHtml.Contains($@"/documents/{applicationId}/resume") &&
+            applicationsHtml.Contains("token=") &&
+            !applicationsHtml.Contains("file://", StringComparison.OrdinalIgnoreCase),
+            applicationsHtml);
+        var badDocument = await http.GetAsync($"http://localhost:7777/documents/{applicationId}/resume?token=wrong");
+        Check("/documents rejects a bad token",
+            badDocument.StatusCode == HttpStatusCode.Forbidden,
+            badDocument.StatusCode.ToString());
+        var resumePdf = await http.GetByteArrayAsync($"http://localhost:7777/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}");
+        Check("/documents serves generated resume PDF bytes",
+            resumePdf.Length >= 4 &&
+            resumePdf[0] == 0x25 &&
+            resumePdf[1] == 0x50 &&
+            resumePdf[2] == 0x44 &&
+            resumePdf[3] == 0x46,
+            Convert.ToHexString(resumePdf));
         Check("/applications exposes local application controls",
             applicationsHtml.Contains("action=\"/controls/application\"") &&
             applicationsHtml.Contains("value=\"pause\"") &&
@@ -235,7 +253,6 @@ Console.WriteLine("\n[ localhost dashboard ]");
             forged.StatusCode == HttpStatusCode.Forbidden && disconnects == 0,
             $"{forged.StatusCode}, calls={disconnects}");
 
-        var token = DashboardToken(html);
         using var wrongHost = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/gmail/disconnect")
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }),
