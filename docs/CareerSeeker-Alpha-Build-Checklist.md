@@ -29,6 +29,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - The localhost dashboard exposes `/evidence` with audit-chain status and recent audit event metadata.
 - The alpha executable has a standalone `dashboard` mode for inspecting and controlling an existing SQLite
   alpha DB without starting a demo cycle.
+- `scripts/Start-AlphaDashboard.ps1` gives trusted testers a Windows-friendly launcher for the same dashboard
+  mode, including one-shot smoke checks and published-executable startup.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
   Gmail vault presence, and BYOK provider availability.
@@ -96,6 +98,8 @@ Verified:
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --fast-smoke --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --once --db .appdata/careerseeker-alpha.db --gmail-control --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
+- `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1 -Once`
+- `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1 -Published -PublishIfMissing -Once`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- doctor --require-gmail --require-byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --artifacts .appdata/artifacts --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- scout-boards --board greenhouse:remotecom --board lever:mistral --db .appdata/scout-boards-smoke.db --jd-dir .appdata/job-descriptions`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- draft-job --job-id 1 --dry-run --llm byok --db .appdata/scout-boards-smoke.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`

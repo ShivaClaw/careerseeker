@@ -40,6 +40,8 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
 - Standalone dashboard over the real local alpha DB:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --db .appdata/careerseeker-alpha.db --gmail-control`
+- Windows-friendly dashboard launcher, from source or published executable:
+  `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1`
 - One-shot dashboard/evidence smoke:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --once --db .appdata/careerseeker-alpha.db --gmail-control`
 - Live ATS board ingest into the local SQLite store:
@@ -91,6 +93,9 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 - Latest offline harness total: 216 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build plus offline harness suite; optional switches add live
   BYOK/Gmail checks and the win-x64 publish smoke.
+- `scripts/Start-AlphaDashboard.ps1` wraps the standalone dashboard mode for trusted testers; it can smoke-check
+  the local dashboard with `-Once`, run from source, or run the published single-file executable with
+  `-Published -PublishIfMissing`.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
   in-memory/SQLite behavior parity plus the recent-application and recent-job read models, and
   `EngineHarness` covering a SQLite-backed engine cycle.

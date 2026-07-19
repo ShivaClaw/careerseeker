@@ -22,6 +22,8 @@ Trust/OAuth docs:
   `dotnet run -c Release`.
 - `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. Add `-IncludeLive` for local
   BYOK/Gmail checks and `-IncludePublish` for the win-x64 single-file publish smoke.
+- `scripts/Start-AlphaDashboard.ps1`: Windows-friendly alpha dashboard launcher. Use `-Once` for a
+  one-shot smoke check or `-Published -PublishIfMissing` to run the self-contained executable.
 
 ## Build
 `dotnet build CareerSeeker.sln -c Release`

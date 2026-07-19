@@ -19,7 +19,7 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, standalone SQLite dashboard mode, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, Gmail disconnect, dashboard disconnect/control views, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, Brave web-research adapter source, and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, standalone SQLite dashboard mode, Windows-friendly dashboard launcher, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, Gmail disconnect, dashboard disconnect/control views, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, Brave web-research adapter source, and parity coverage verified.
 
 Completed:
 
@@ -33,6 +33,8 @@ Completed:
 - The localhost dashboard exposes audit-chain status and recent audit event metadata at `/evidence`.
 - The alpha executable has standalone `dashboard` mode for inspecting and controlling an existing SQLite alpha
   DB without starting a demo cycle.
+- `scripts/Start-AlphaDashboard.ps1` wraps dashboard startup for trusted testers, including source-mode and
+  published-executable launch plus a `-Once` smoke-check mode.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
   Gmail vault presence, and BYOK provider availability.
