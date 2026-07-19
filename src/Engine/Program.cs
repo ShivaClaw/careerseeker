@@ -236,11 +236,13 @@ async Task<int> RunResearchCompanyAsync()
     var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
     var braveKey = StringArg("--brave-key")
                    ?? Environment.GetEnvironmentVariable("BRAVE_SEARCH_API_KEY")
+                   ?? Environment.GetEnvironmentVariable("BRAVE_SEARCH_API")
                    ?? Environment.GetEnvironmentVariable("CAREERSEEKER_BRAVE_SEARCH_API_KEY")
                    ?? EnvFileValue(envFilePath, "BRAVE_SEARCH_API_KEY")
+                   ?? EnvFileValue(envFilePath, "BRAVE_SEARCH_API")
                    ?? EnvFileValue(envFilePath, "CAREERSEEKER_BRAVE_SEARCH_API_KEY");
     if (string.IsNullOrWhiteSpace(braveKey))
-        return Fail($"research-company could not find BRAVE_SEARCH_API_KEY in arguments, environment, or '{envFilePath}'.");
+        return Fail($"research-company could not find BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY in arguments, environment, or '{envFilePath}'.");
 
     var llmMode = StringArg("--llm") ?? "byok";
     if (!llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase))
@@ -269,6 +271,8 @@ async Task<int> RunResearchCompanyAsync()
 
     Console.WriteLine();
     Console.WriteLine("Dossier");
+    Console.WriteLine($"  retrieved docs: {researcher.LastRetrievedDocs}");
+    Console.WriteLine($"  proposed facts: {researcher.LastProposedFacts}");
     Console.WriteLine($"  facts: {dossier.Facts.Count}");
     Console.WriteLine($"  dropped ungrounded: {researcher.LastDroppedUngrounded}");
     Console.WriteLine($"  domain verified: {dossier.Signals.CompanyDomainVerified?.ToString() ?? "unknown"}");

@@ -16,14 +16,16 @@ Trust/OAuth docs:
   references Pipeline, Tailor, Dispatcher, and Researcher for alpha composition commands. `TailorHookBridge`
   joins Tailor<->Researcher so neither core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
-  `EngineHarness` (40), `ResearcherHarness` (26), `HookHarness` (12), `StoreParityHarness` (17),
+  `EngineHarness` (40), `ResearcherHarness` (28), `HookHarness` (12), `StoreParityHarness` (17),
   `GatewayGateHarness` (29), `DispatcherNoSendHarness` (21), `LifecycleHarness` (37), and
-  `RendererHarness` (6). Latest offline total: 216 assertions. Run each with
+  `RendererHarness` (6). Latest offline total: 218 assertions. Run each with
   `dotnet run -c Release`.
 - `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. Add `-IncludeLive` for local
   BYOK/Gmail checks and `-IncludePublish` for the win-x64 single-file publish smoke.
 - `scripts/Start-AlphaDashboard.ps1`: Windows-friendly alpha dashboard launcher. Use `-Once` for a
   one-shot smoke check or `-Published -PublishIfMissing` to run the self-contained executable.
+- `scripts/Manage-AlphaDashboardTask.ps1`: optional per-user Windows startup task helper for the alpha
+  dashboard. Use `-Action Install -DryRun` to preview it before registering anything.
 
 ## Build
 `dotnet build CareerSeeker.sln -c Release`

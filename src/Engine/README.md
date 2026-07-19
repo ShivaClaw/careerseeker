@@ -42,6 +42,8 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --db .appdata/careerseeker-alpha.db --gmail-control`
 - Windows-friendly dashboard launcher, from source or published executable:
   `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1`
+- Optional per-user Windows logon task helper for the alpha dashboard:
+  `powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -Action Install -DryRun`
 - One-shot dashboard/evidence smoke:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --once --db .appdata/careerseeker-alpha.db --gmail-control`
 - Live ATS board ingest into the local SQLite store:
@@ -90,12 +92,14 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 216 passed, 0 failed.
+- Latest offline harness total: 218 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build plus offline harness suite; optional switches add live
   BYOK/Gmail checks and the win-x64 publish smoke.
 - `scripts/Start-AlphaDashboard.ps1` wraps the standalone dashboard mode for trusted testers; it can smoke-check
   the local dashboard with `-Once`, run from source, or run the published single-file executable with
   `-Published -PublishIfMissing`.
+- `scripts/Manage-AlphaDashboardTask.ps1` can register, remove, start, stop, and inspect a per-user Windows
+  logon task for the alpha dashboard while the full service/tray/installer stack remains future work.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
   in-memory/SQLite behavior parity plus the recent-application and recent-job read models, and
   `EngineHarness` covering a SQLite-backed engine cycle.
@@ -109,8 +113,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   When a selected job has a `jd_path`, Tailor and dispatch packaging receive the posting body as untrusted data.
 - Bounded BYOK alpha smoke is verified for live Gate, live Tailor, Gmail draft creation, PDF attachment
   packaging, and SQLite audit.
-- Brave web-research adapter source and the `research-company` alpha command are implemented and offline
-  verified; live verification is pending a Brave Search key.
+- Brave web-research adapter source and the `research-company` alpha command are implemented, offline
+  verified, and live-verified with Brave Search plus BYOK dossier modeling.
 - Dashboard `/applications` exposes recent job/application state, scores, draft refs, generated resume/cover
   document links, safe job/apply links, and token-protected pause/resume/kill controls; `/evidence` exposes
   audit-chain status and recent audit event metadata without payload bodies.
@@ -126,6 +130,5 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 
 ## Not Yet Built
 
-- Live `research-company` verification with a real Brave Search key.
 - Windows Service host, tray controls, and broader dashboard polish around `EngineHost`.
 - Onboarding, WinUI tray, OAuth/CASA, installer, and code signing.

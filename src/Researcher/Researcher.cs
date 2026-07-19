@@ -39,6 +39,10 @@ public sealed class Researcher
 
     /// <summary>Number of proposed facts the last build dropped for lack of grounding (observability).</summary>
     public int LastDroppedUngrounded { get; private set; }
+    /// <summary>Number of retrieved source documents used by the last uncached build.</summary>
+    public int LastRetrievedDocs { get; private set; }
+    /// <summary>Number of model-proposed facts before grounding in the last uncached build.</summary>
+    public int LastProposedFacts { get; private set; }
 
     public async Task<Dossier> BuildAsync(CompanyRef company, bool forceRefresh = false, CancellationToken ct = default)
     {
@@ -49,14 +53,18 @@ public sealed class Researcher
             var cached = await _cache.GetAsync(key, ct).ConfigureAwait(false);
             if (cached is not null && _clock() - cached.BuiltUtc < _opt.DossierTtl)
             {
+                LastRetrievedDocs = 0;
+                LastProposedFacts = 0;
                 LastDroppedUngrounded = 0;
                 return cached;
             }
         }
 
         var docs = await GatherAsync(company, ct).ConfigureAwait(false);
+        LastRetrievedDocs = docs.Count;
 
         var proposed = await _model.ProposeAsync(company, docs, ct).ConfigureAwait(false);
+        LastProposedFacts = proposed.Count;
         var grounded = GroundingFilter.Apply(proposed, docs);
         LastDroppedUngrounded = grounded.Dropped;
 

@@ -39,7 +39,10 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   including local full-posting JD artifacts, a hash-chained ingest event, and repost refresh behavior.
 - The alpha executable has a `draft-job` command for creating an L1 draft package from a selected stored job id,
   with posting-body loading from `jd_path` and a `--dry-run` path for package/artifact/audit verification without Gmail.
-- A real Brave Search web-research adapter and `research-company` alpha command are implemented; live verification is pending a Brave Search key.
+- A real Brave Search web-research adapter and `research-company` alpha command are implemented and live-verified
+  with Brave Search plus BYOK dossier modeling.
+- `scripts/Manage-AlphaDashboardTask.ps1` can optionally register a per-user Windows logon task for keeping
+  the alpha dashboard available without claiming the full Windows Service/tray/installer work is done.
 
 ## Alpha target
 
@@ -100,6 +103,7 @@ Verified:
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --once --db .appdata/careerseeker-alpha.db --gmail-control --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
 - `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1 -Once`
 - `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1 -Published -PublishIfMissing -Once`
+- `powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -Action Install -DryRun`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- doctor --require-gmail --require-byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --artifacts .appdata/artifacts --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- scout-boards --board greenhouse:remotecom --board lever:mistral --db .appdata/scout-boards-smoke.db --jd-dir .appdata/job-descriptions`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- draft-job --job-id 1 --dry-run --llm byok --db .appdata/scout-boards-smoke.db --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`

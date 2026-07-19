@@ -19,7 +19,7 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, standalone SQLite dashboard mode, Windows-friendly dashboard launcher, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, Gmail disconnect, dashboard disconnect/control views, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, Brave web-research adapter source, and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, standalone SQLite dashboard mode, Windows-friendly dashboard launcher, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, Gmail disconnect, dashboard disconnect/control views, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, live Brave/BYOK company research, and parity coverage verified.
 
 Completed:
 
@@ -35,6 +35,8 @@ Completed:
   DB without starting a demo cycle.
 - `scripts/Start-AlphaDashboard.ps1` wraps dashboard startup for trusted testers, including source-mode and
   published-executable launch plus a `-Once` smoke-check mode.
+- `scripts/Manage-AlphaDashboardTask.ps1` can register a per-user Windows logon task for keeping the alpha
+  dashboard available until the service/tray/installer work lands.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
   Gmail vault presence, and BYOK provider availability.
@@ -56,6 +58,8 @@ Completed:
 - Dispatcher has a real deterministic ATS-clean PDF renderer for resume attachments, with optional cover PDFs.
 - Researcher has a real Brave Search adapter that fetches public result pages before docs can ground dossier facts.
 - Engine has a `research-company` alpha command that composes Brave Search, BYOK Gateway dossier modeling, and the grounding filter when a Brave key is available.
+- Live `research-company` is verified against GitLab with Brave Search plus BYOK dossier modeling: 10 retrieved
+  docs, 7 proposed facts, 7 grounded facts, 0 dropped ungrounded facts, domain verified, recruiter identifiable.
 - L1 compose-only correction is in place: custom Gmail labels are skipped by default because label management requires broader Gmail scope than `gmail.compose`.
 - SQLite provider source is restored to the Store project and covered by `StoreParityHarness`, including the recent-application, recent-job, and artifact-metadata read models.
 - Gateway pinned-Gate and Dispatcher no-send invariants now have named offline harnesses.
@@ -63,7 +67,6 @@ Completed:
 
 Not complete yet:
 
-- Live real-company Researcher verification with a Brave Search key.
 - Headless Chromium/HTML document renderer polish beyond the current ATS-clean text PDF renderer.
 - Windows Service, tray, installer, and code signing.
 - OAuth production verification and CASA assessment.
@@ -310,13 +313,13 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 216 passed, 0 failed.
+Total: 218 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
 | `EngineHarness` | 40 passed, 0 failed |
-| `ResearcherHarness` | 26 passed, 0 failed |
+| `ResearcherHarness` | 28 passed, 0 failed |
 | `HookHarness` | 12 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
 | `GatewayGateHarness` | 29 passed, 0 failed |
@@ -564,7 +567,6 @@ Status: substantially complete.
 - The executable demo and alpha paths are wired to SQLite; no Windows service/tray composition root exists yet.
 - OAuth production verification and CASA remain long-lead launch blockers.
 - Current PDF renderer is ATS-clean text; not yet a polished HTML/Chromium resume template.
-- Live real-company web research has not been run yet because no Brave Search key is present locally.
 - No Windows service/tray composition root yet.
 - Live ATS feeds are volatile; some configured boards can be empty while still reachable.
 
@@ -572,7 +574,6 @@ Status: substantially complete.
 
 Highest priority:
 
-- Live-verify `research-company` with a real Brave Search key so company hooks and legitimacy signals can graduate from source-present to live-proven.
 - Surface the implemented local controls in a tray app when the Windows product shell lands.
 - Live-verify dashboard document links in an interactive hosted demo session before wider tester distribution.
 
@@ -669,6 +670,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past seventeen important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, Tailor profile-claim minimization, offline-verified real web-research adapter code, and local-first JD artifact persistence. The architecture remains local-first and L1 compose-only. The immediate next engineering work should be live Brave-key verification for `research-company` and then Windows product-shell polish.
+CareerSeeker is now past eighteen important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, and local-first JD artifact persistence. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

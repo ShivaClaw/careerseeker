@@ -92,6 +92,7 @@ Console.WriteLine("\n[ orchestrator + cache ]");
 
     var dossier = await researcher.BuildAsync(company);
     Check("dossier built with only grounded facts", dossier.Facts.Count == 2 && researcher.LastDroppedUngrounded == 1);
+    Check("research observability counts docs and proposals", researcher.LastRetrievedDocs > 0 && researcher.LastProposedFacts == 3);
     Check("best hook is grounded", dossier.BestHook?.Text.Contains("Series B") == true);
     Check("signals attached", dossier.Signals.CompanyDomainVerified == true);
     Check("content hash present", dossier.ContentHash.Length == 64);
@@ -109,6 +110,7 @@ Console.WriteLine("\n[ orchestrator + cache ]");
 Console.WriteLine("\n[ gateway bridge ]");
 {
     Check("Parse handles JSON array", GatewayDossierModel.Parse("[{\"topic\":\"Hook\",\"text\":\"t\",\"sourceUrl\":\"u\"}]").Count == 1);
+    Check("Parse handles facts wrapper", GatewayDossierModel.Parse("{\"facts\":[{\"topic\":\"Hook\",\"text\":\"t\",\"sourceUrl\":\"u\"}]}").Count == 1);
     Check("Parse strips fences", GatewayDossierModel.Parse("```json\n[{\"topic\":\"Overview\",\"text\":\"t\",\"sourceUrl\":\"u\"}]\n```").Count == 1);
     Check("Parse tolerates junk (no throw, empty)", GatewayDossierModel.Parse("not json").Count == 0);
 
