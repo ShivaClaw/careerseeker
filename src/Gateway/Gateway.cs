@@ -80,7 +80,15 @@ public sealed class LlmGateway
                 _budget.Record(cost);                    // pinned spend recorded even if over cap
                 _accounting.Record(req.Stage, spec.ModelId, result.Usage, cost);
 
-                return new LlmResponse(result.Text, spec.Provider, spec.ModelId, req.Stage, result.Usage, cost, degraded);
+                return new LlmResponse(
+                    result.Text,
+                    spec.Provider,
+                    spec.ModelId,
+                    req.Stage,
+                    result.Usage,
+                    cost,
+                    degraded,
+                    _routes.PricingAsOf);
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)

@@ -35,7 +35,8 @@ public sealed record LlmResponse(
     Stage Stage,
     LlmUsage Usage,
     decimal CostUsd,
-    bool Degraded = false)
+    bool Degraded = false,
+    string PricingAsOf = "")
 {
     /// <summary>True when a non-pinned stage was served below its nominal class (e.g. Local-max). Never true for the Gate.</summary>
     public bool WasDegraded => Degraded;

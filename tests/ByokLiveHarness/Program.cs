@@ -28,6 +28,10 @@ var keys = LoadKeys();
 var providersPresent = keys.ProvidersPresent();
 Check("BYOK providers available", providersPresent.Contains("anthropic") && providersPresent.Contains("google"),
     "providers: " + string.Join(", ", providersPresent));
+var liveRoutes = RoutingTable.Default();
+var liveAnthropicModel = liveRoutes.Candidates(CapabilityClass.StrongCloud)
+    .First(m => m.Provider == "anthropic")
+    .ModelId;
 
 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
 
@@ -37,7 +41,7 @@ if (keys.HasKey("anthropic"))
     {
         var provider = new AnthropicProvider(http, keys);
         var result = await provider.CompleteAsync(new ProviderCall(
-            "claude-sonnet-4-6",
+            liveAnthropicModel,
             new[] { LlmMessage.User("Return exactly: ok") },
             MaxOutputTokens: 16,
             Temperature: 0));
@@ -74,7 +78,7 @@ if (keys.HasKey("google"))
 try
 {
     var gateway = new LlmGateway(
-        RoutingTable.Default(),
+        liveRoutes,
         GatewayMode.Byok,
         new BudgetMeter(1000m),
         new ILlmProvider[] { new AnthropicProvider(http, keys), new GoogleProvider(http, keys) });

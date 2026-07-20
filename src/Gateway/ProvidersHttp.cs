@@ -141,8 +141,7 @@ public sealed class AnthropicProvider : ILlmProvider
 /// <summary>
 /// Google Gemini generateContent provider. Body uses contents[]/parts[] with systemInstruction; usage
 /// from usageMetadata.promptTokenCount/candidatesTokenCount. Compile-verified here; live HTTP at
-/// integration. Pricing for the default model (gemini-2.5-flash-lite, $0.10/$0.40 per 1M) was confirmed
-/// current at build time and lives in the routing table, not here.
+/// integration. Pricing metadata lives in the routing table, not here.
 /// </summary>
 public sealed class GoogleProvider : ILlmProvider
 {

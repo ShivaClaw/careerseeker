@@ -637,7 +637,7 @@ Near-term connector work:
 - B2 BYOK provider wiring:
   - Keep provider keys in the local DPAPI vault after import.
   - Keep `ByokLiveHarness` green for Anthropic, Gemini, Tailor, Gate, and accounting.
-  - Confirm StrongCloud failover order remains `claude-sonnet-4-6 -> gemini-3.1-pro-preview`.
+  - Confirm StrongCloud failover order remains `claude-sonnet-4-6 -> claude-sonnet-5 -> gemini-3.1-pro-preview`.
   - Verify Gate fails closed on provider outage and records `GATE_UNAVAILABLE`, not fabrication.
 - B4 document rendering:
   - Add Playwright/Chromium renderer when visual template polish matters.

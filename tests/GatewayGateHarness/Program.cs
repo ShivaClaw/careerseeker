@@ -48,6 +48,23 @@ Check("VerifierEntailment is pinned", GatewayPolicy.IsPinned(Stage.VerifierEntai
 Check("pinned throttle priority is int.MaxValue",
     GatewayPolicy.ThrottlePriority(Stage.VerifierEntailment) == int.MaxValue);
 Check("Gate nominal class is StrongCloud", routes.NominalClass(Stage.VerifierEntailment) == CapabilityClass.StrongCloud);
+Check("routing price list is dated", routes.PricingAsOf == "2026-07-20");
+Check("routing price list names official provider sources",
+    routes.PricingSources.Any(u => u.Host.Contains("claude", StringComparison.OrdinalIgnoreCase))
+    && routes.PricingSources.Any(u => u.Host.Contains("google", StringComparison.OrdinalIgnoreCase)));
+var strong = routes.Candidates(CapabilityClass.StrongCloud);
+Check("StrongCloud primary is live-verified Anthropic Sonnet",
+    strong[0].Provider == "anthropic"
+    && strong[0].ModelId == "claude-sonnet-4-6"
+    && strong[0].InputPerMTok == 3.00m
+    && strong[0].OutputPerMTok == 15.00m);
+Check("StrongCloud retains Sonnet 5 and Gemini failovers",
+    strong.Select(s => s.ModelId).SequenceEqual(new[]
+    {
+        "claude-sonnet-4-6",
+        "claude-sonnet-5",
+        "gemini-3.1-pro-preview",
+    }));
 foreach (var mode in new[] { GatewayMode.Managed, GatewayMode.Byok, GatewayMode.LocalMax })
     Check($"Gate effective class stays StrongCloud in {mode}",
         routes.EffectiveClass(Stage.VerifierEntailment, mode) == CapabilityClass.StrongCloud);
@@ -74,6 +91,7 @@ Console.WriteLine("\n[ end-to-end over-cap behavior ]");
     Check("Gate still completes at 500% of cap", resp.ModelId.Length > 0);
     Check("Gate served by cloud provider", resp.Provider is "anthropic" or "google");
     Check("Gate response is not degraded", !resp.WasDegraded);
+    Check("Gate response carries pricing date", resp.PricingAsOf == routes.PricingAsOf);
     Check("Gate over-cap spend is still recorded", budget.SpentUsd > budget.CapUsd);
 
     var (threw, ex) = await Throws(() => gw.CompleteAsync(Req(Stage.QuickScore)));

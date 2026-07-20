@@ -19,7 +19,7 @@
 #### Three modes, one visible default
 
 - **Managed *(default)*** — onboarding shows a single line: *"Inference: CareerSeeker handles it."* Ships with a **starter credit** (≈ first two weeks / first N tailored applications, free). When the credit runs low the engine surfaces exactly one choice — *add your own key (free)* or *upgrade to Pro* — instead of forcing a mode decision at minute three of the wizard.
-- **BYOK *(advanced)*** — behind an "Advanced inference" expander. User's Anthropic / OpenAI / Google key lives in the DPAPI vault; calls go direct to the provider; genuinely **$0 to us**. The hacker tier.
+- **BYOK *(advanced)*** — behind an "Advanced inference" expander. User's Anthropic / Gemini (Google) key lives in the DPAPI vault; calls go direct to the provider; genuinely **$0 to us**. The hacker tier.
 - **Local-max *(advanced)*** — everything that can run on-device does; tailoring quality degrades gracefully and the UI says so plainly. This is the *"your resume never leaves your machine for ~80% of the pipeline"* privacy path.
 
 #### Who pays — the honest version

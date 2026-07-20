@@ -14,14 +14,25 @@ public sealed class RoutingTable
 {
     private readonly IReadOnlyDictionary<Stage, CapabilityClass> _stageClass;
     private readonly IReadOnlyDictionary<CapabilityClass, IReadOnlyList<ModelSpec>> _candidates;
+    private readonly IReadOnlyList<Uri> _pricingSources;
 
     public RoutingTable(
         IReadOnlyDictionary<Stage, CapabilityClass> stageClass,
-        IReadOnlyDictionary<CapabilityClass, IReadOnlyList<ModelSpec>> candidates)
+        IReadOnlyDictionary<CapabilityClass, IReadOnlyList<ModelSpec>> candidates,
+        string pricingAsOf = "unknown",
+        IReadOnlyList<Uri>? pricingSources = null)
     {
         _stageClass = stageClass;
         _candidates = candidates;
+        PricingAsOf = pricingAsOf;
+        _pricingSources = pricingSources ?? Array.Empty<Uri>();
     }
+
+    /// <summary>Date the default model IDs and prices were checked against provider docs.</summary>
+    public string PricingAsOf { get; }
+
+    /// <summary>Provider pricing/model-list references used for the current table.</summary>
+    public IReadOnlyList<Uri> PricingSources => _pricingSources;
 
     /// <summary>The nominal (un-moded) class for a stage.</summary>
     public CapabilityClass NominalClass(Stage stage) => _stageClass[stage];
@@ -51,19 +62,22 @@ public sealed class RoutingTable
         _candidates.TryGetValue(cls, out var list) ? list : Array.Empty<ModelSpec>();
 
     /// <summary>
-    /// Default table, July 2026 (pricing verified against provider docs on July 18, 2026). Every tier names a
+    /// Default table. Every tier names a
     /// default <i>and</i> a cross-vendor failover, so a single vendor's outage, ban, or price change
     /// swaps the model for a class without touching pipeline code (spec §5.6: vendor plurality).
     /// Email identity, inference, and sync deliberately do not all terminate at one vendor.
     /// </summary>
     public static RoutingTable Default()
     {
+        const string pricingAsOf = "2026-07-20";
+
         // Prices are USD / 1M tokens (input, output). Local = 0.
         var local      = new ModelSpec("local",     "llama-3.x-8b-instruct",  0m,    0m,    IsLocal: true);
         var flashLite  = new ModelSpec("google",    "gemini-2.5-flash-lite",  0.10m, 0.40m);
         var haiku      = new ModelSpec("anthropic", "claude-haiku-4-5",       1.00m, 5.00m);
         var flash      = new ModelSpec("google",    "gemini-2.5-flash",       0.30m, 2.50m);
-        var sonnet     = new ModelSpec("anthropic", "claude-sonnet-4-6",      3.00m, 15.00m);
+        var sonnet5    = new ModelSpec("anthropic", "claude-sonnet-5",        2.00m, 10.00m);
+        var sonnet46   = new ModelSpec("anthropic", "claude-sonnet-4-6",      3.00m, 15.00m);
         var gem31pro   = new ModelSpec("google",    "gemini-3.1-pro-preview", 2.00m, 12.00m);
 
         var stageClass = new Dictionary<Stage, CapabilityClass>
@@ -83,9 +97,15 @@ public sealed class RoutingTable
             [CapabilityClass.CheapCloud]    = new[] { flashLite, haiku },
             [CapabilityClass.MidCloud]      = new[] { flash, haiku },
             // two strong vendors, neither alone load-bearing. The Gate draws from this list too.
-            [CapabilityClass.StrongCloud]   = new[] { sonnet, gem31pro },
+            [CapabilityClass.StrongCloud]   = new[] { sonnet46, sonnet5, gem31pro },
         };
 
-        return new RoutingTable(stageClass, candidates);
+        return new RoutingTable(stageClass, candidates, pricingAsOf, new[]
+        {
+            new Uri("https://platform.claude.com/docs/en/about-claude/models/overview"),
+            new Uri("https://platform.claude.com/docs/en/about-claude/pricing"),
+            new Uri("https://ai.google.dev/gemini-api/docs/gemini-3"),
+            new Uri("https://ai.google.dev/gemini-api/docs/pricing"),
+        });
     }
 }

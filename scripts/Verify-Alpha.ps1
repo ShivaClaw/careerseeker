@@ -210,6 +210,34 @@ Invoke-Step "L2 Gmail relay scope smoke" {
     ) "docs/CareerSeeker-Spec.md"
 }
 
+Invoke-Step "LLM provider registry smoke" {
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    Assert-Contains $spec @(
+        'Anthropic/Gemini (Google) API key'
+    ) "docs/CareerSeeker-Spec.md"
+    Assert-DoesNotContain $spec @(
+        'Anthropic/OpenAI API key'
+    ) "docs/CareerSeeker-Spec.md"
+
+    $gatewayAddendum = Get-Content -LiteralPath "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md" -Raw
+    Assert-Contains $gatewayAddendum @(
+        'Anthropic / Gemini (Google) key'
+    ) "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md"
+    Assert-DoesNotContain $gatewayAddendum @(
+        'Anthropic / OpenAI / Google key'
+    ) "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md"
+
+    $routing = Get-Content -LiteralPath "src/Gateway/Routing.cs" -Raw
+    Assert-Contains $routing @(
+        'const string pricingAsOf = "2026-07-20"',
+        'claude-sonnet-5',
+        'claude-sonnet-4-6',
+        'gemini-3.1-pro-preview',
+        'https://platform.claude.com/docs/en/about-claude/pricing',
+        'https://ai.google.dev/gemini-api/docs/gemini-3'
+    ) "src/Gateway/Routing.cs"
+}
+
 Invoke-Step "Code-signing guidance smoke" {
     $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
     Assert-Contains $spec @(
