@@ -156,9 +156,10 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 - `Start-CareerSeeker-Alpha.cmd` wraps that published dashboard path for double-click tester startup from the
   extracted release ZIP.
 - `Install-CareerSeeker-DashboardTask.cmd` wraps the scheduled-task helper for double-click per-user dashboard
-  startup at Windows sign-in.
+  startup at Windows sign-in and requires typing `INSTALL`.
 - `Status-CareerSeeker-DashboardTask.cmd` reports whether that per-user dashboard startup task is installed.
-- `Uninstall-CareerSeeker-DashboardTask.cmd` removes that per-user dashboard startup task.
+- `Uninstall-CareerSeeker-DashboardTask.cmd` removes that per-user dashboard startup task and requires typing
+  `UNINSTALL`.
 - `Setup-CareerSeeker-Alpha.cmd` wraps the workspace initializer for double-click tester setup from the
   extracted release ZIP, then opens the generated profile template.
 - `Import-CareerSeeker-Profile.cmd` wraps `import-profile` for double-click tester profile setup from the
@@ -169,9 +170,10 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   extracted release ZIP; it preflights Gmail draft access without creating a draft.
 - `Check-CareerSeeker-LiveReadiness.cmd` wraps `doctor --require-gmail --require-byok` for double-click live
   Gmail/BYOK readiness checks without printing secret values.
-- `Clear-CareerSeeker-Providers.cmd` wraps `clear-byok` for double-click local BYOK vault clearing.
+- `Clear-CareerSeeker-Providers.cmd` wraps `clear-byok` for double-click local BYOK vault clearing and requires
+  typing `CLEAR`.
 - `Disconnect-CareerSeeker-Gmail.cmd` wraps `disconnect-gmail` for double-click Gmail revoke/local token-vault
-  clearing.
+  clearing and requires typing `DISCONNECT`.
 - `Run-CareerSeeker-Demo.cmd` wraps a one-shot SQLite demo cycle for double-click tester evidence generation
   from the extracted release ZIP without creating a Gmail draft.
 - `Run-CareerSeeker-Scout.cmd` wraps public ATS board ingestion for double-click tester job discovery from the
@@ -180,8 +182,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   from the extracted release ZIP without creating a Gmail draft.
 - `Draft-CareerSeeker-Job.cmd` wraps selected stored-job drafting; it defaults to a no-Gmail dry-run package and
   requires typing `LIVE` before creating a Gmail draft.
-- `Run-CareerSeeker-Live.cmd` wraps `alpha --llm byok --fast-smoke` for one double-click live L1 Gmail draft
-  cycle from the extracted release ZIP.
+- `Run-CareerSeeker-Live.cmd` wraps `alpha --llm byok --fast-smoke`; it defaults to a no-Gmail dry-run preview
+  and requires typing `LIVE` before creating a Gmail draft.
 - `Export-CareerSeeker-Audit.cmd` wraps `export-audit` for double-click hash-only audit JSON handoff from the
   extracted release ZIP; raw payloads require explicitly typing `PAYLOADS`.
 - `Export-CareerSeeker-Evidence.cmd` wraps `export-alpha-package` for double-click tester audit handoff from

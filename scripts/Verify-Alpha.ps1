@@ -229,12 +229,19 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $summary @(
         'Total: 250 passed, 0 failed.',
         '| `EngineHarness` | 65 passed, 0 failed |',
-        '| `GatewayGateHarness` | 34 passed, 0 failed |'
+        '| `GatewayGateHarness` | 34 passed, 0 failed |',
+        'typed confirmations for `LIVE`, `CLEAR`, `DISCONNECT`, `INSTALL`, and `UNINSTALL`',
+        'typed confirmation for live/dangerous/persistent actions'
     ) "docs/CareerSeeker-Project-Summary.md"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 250 passed, 0 failed.'
+        'Latest offline harness total: 250 passed, 0 failed.',
+        '`INSTALL`',
+        '`UNINSTALL`',
+        '`CLEAR`',
+        '`DISCONNECT`',
+        '`LIVE` before creating a Gmail draft'
     ) "src/Engine/README.md"
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
