@@ -143,6 +143,26 @@ Check("Dispatcher attaches rendered PDF documents to the Gmail draft",
     && decodedMessage.Contains("Jordan Lee - Acme - Resume.pdf", StringComparison.Ordinal)
     && decodedMessage.Contains("Jordan Lee - Acme - Cover Letter.pdf", StringComparison.Ordinal));
 
+var hostileMime = MimeBuilder.BuildMessage(
+    "Jordan\r\nX-CareerSeeker-Injected: from",
+    "jordan@example.com\r\nBcc: attacker@example.com",
+    "jobs@example.com\r\nBcc: attacker@example.com",
+    "Application\r\nX-CareerSeeker-Injected: subject",
+    "body",
+    new[]
+    {
+        new Attachment(
+            "resume.pdf\"\r\nX-CareerSeeker-Injected: file",
+            "application/pdf\r\nX-CareerSeeker-Injected: type",
+            new byte[] { 1, 2, 3 }),
+    },
+    DateTimeOffset.UnixEpoch);
+Check("MIME builder neutralizes header injection inputs",
+    !hostileMime.Contains("\r\nX-CareerSeeker-Injected:", StringComparison.Ordinal)
+    && !hostileMime.Contains("\r\nBcc:", StringComparison.Ordinal)
+    && hostileMime.Contains("Content-Type: application/octet-stream; name=\"resume.pdf\\\" X-CareerSeeker-Injected: file\"", StringComparison.Ordinal),
+    hostileMime);
+
 var artifactRoot = Path.Combine(Path.GetTempPath(), "CareerSeeker-DispatcherArtifacts-" + Guid.NewGuid().ToString("N"));
 try
 {
