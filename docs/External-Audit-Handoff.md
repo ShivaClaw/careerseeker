@@ -37,6 +37,19 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   `support@` / `privacy@` forwarding destinations receive mail.
 - The PR is open against `main` and GitHub reports checks passing.
 
+## Evidence Map
+
+| Invariant or capability | Primary surfaces | Repeatable evidence |
+| --- | --- | --- |
+| L1 cannot send or submit applications | `src/Dispatcher/Dispatch.cs`, `src/Dispatcher/Dispatcher.cs`, `src/Pipeline/ApplicationPipeline.cs` | `DispatcherNoSendHarness`; offline `Verify-Alpha.ps1` |
+| Gmail is draft-only in the application even though `gmail.compose` can authorize sends | `src/Dispatcher/GoogleOAuth.cs`, `src/Dispatcher/Providers.cs`, trust docs | `DispatcherNoSendHarness`; trust wording smoke |
+| Tailor output is checked against local profile evidence before drafting | `src/Tailor`, `src/Verifier`, `src/Pipeline` | `HookHarness`, `GatewayGateHarness`, `Slice`; live BYOK Gate smoke |
+| ATS-clean resume PDF is rendered and attached to Gmail drafts | `src/Dispatcher/AtsPdfDocumentRenderer.cs`, `src/Dispatcher/Packaging.cs`, `src/Dispatcher/Mime.cs` | `RendererHarness`, `DispatcherNoSendHarness`; package selected-job dry-run smoke |
+| Real BYOK Tailor and Gate providers are wired through the Gateway | `src/Gateway/ProvidersHttp.cs`, `src/Gateway/Routing.cs`, `src/Engine/Program.cs` | `Verify-Alpha.ps1 -IncludeLive`; BYOK live provider smoke |
+| Brave Search company research is grounded and fails closed on missing keys | `src/Researcher/BraveSearchWebResearch.cs`, `src/Researcher/Researcher.cs`, `src/Engine/StartupDoctor.cs` | `Verify-Alpha.ps1 -IncludeResearch`; startup doctor Brave check |
+| Local state, OAuth tokens, provider keys, and generated artifacts stay out of source control | `.gitignore`, `scripts/Initialize-AlphaWorkspace.ps1`, `src/Engine/StartupDoctor.cs` | initializer dry run; package manifest/checksum smoke; secret path filters |
+| Dashboard controls are loopback, token-protected, and evidence-oriented | `src/Engine/Host.cs`, `src/Engine/Program.cs`, package helper scripts | dashboard one-shot smoke; packaged dashboard-task and evidence export/import smokes |
+
 ## Repeatable Commands
 
 Trusted-tester walkthrough:

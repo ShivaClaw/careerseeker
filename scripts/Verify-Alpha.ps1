@@ -211,7 +211,12 @@ Invoke-Step "Public README and harness count smoke" {
         'BYOK live provider smoke',
         'live Brave/BYOK company research',
         'Cloudflare Email Routing MX records',
-        'does not prove the final'
+        'does not prove the final',
+        '## Evidence Map',
+        'ATS-clean resume PDF is rendered and attached to Gmail drafts',
+        'Real BYOK Tailor and Gate providers are wired through the Gateway',
+        'Brave Search company research is grounded and fails closed on missing keys',
+        'Dashboard controls are loopback, token-protected, and evidence-oriented'
     ) "docs/External-Audit-Handoff.md"
 
     Assert-Contains $summary @(
