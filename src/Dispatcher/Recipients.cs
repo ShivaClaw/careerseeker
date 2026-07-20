@@ -105,4 +105,17 @@ public static class ChannelDetector
             ? recipient
             : null;
     }
+
+    /// <summary>
+    /// Resolve an email recipient for selected-job drafting without letting incidental posting contact
+    /// addresses override a concrete HTTP apply URL.
+    /// </summary>
+    public static string? ResolveApplicationEmail(string? applyUrl, string? postingText)
+    {
+        var mailto = MailtoAddress(applyUrl);
+        if (!string.IsNullOrWhiteSpace(mailto)) return mailto;
+        return string.IsNullOrWhiteSpace(applyUrl)
+            ? RecipientExtractor.Extract(postingText)
+            : null;
+    }
 }

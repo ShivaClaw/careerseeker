@@ -366,7 +366,7 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 286 passed, 0 failed.
+Total: 290 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
@@ -376,7 +376,7 @@ Total: 286 passed, 0 failed.
 | `HookHarness` | 14 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
 | `GatewayGateHarness` | 34 passed, 0 failed |
-| `DispatcherNoSendHarness` | 31 passed, 0 failed |
+| `DispatcherNoSendHarness` | 35 passed, 0 failed |
 | `LifecycleHarness` | 37 passed, 0 failed |
 | `RendererHarness` | 6 passed, 0 failed |
 

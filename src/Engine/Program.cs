@@ -619,7 +619,7 @@ async Task<int> RunDraftJobAsync()
     var gateway = BuildGateway(llmMode, envFilePath, keyVaultPath, http, out var keySourceName, out var byokProviders);
     var applyUrl = string.IsNullOrWhiteSpace(summary.ApplyUrl) ? summary.JobUrl : summary.ApplyUrl;
     var postingText = await ReadJobDescriptionArtifactAsync(storedJob?.JdPath).ConfigureAwait(false);
-    var applicationEmail = ChannelDetector.MailtoAddress(applyUrl) ?? RecipientExtractor.Extract(postingText);
+    var applicationEmail = ChannelDetector.ResolveApplicationEmail(applyUrl, postingText);
     var dispatchInfo = new PostingDispatchInfo(
         ChannelDetector.Detect(applyUrl, applicationEmail),
         ApplicationEmail: applicationEmail,

@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `286 passed, 0 failed`.
+- Latest local offline verifier: `290 passed, 0 failed`.
 - Fresh optional verifier, 2026-07-20: `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch`
   passed locally on this branch. It covered the offline harness suite, win-x64 single-file publish smoke,
   BYOK key import, BYOK live provider smoke, required Gmail/BYOK startup doctor, dashboard one-shot smoke,

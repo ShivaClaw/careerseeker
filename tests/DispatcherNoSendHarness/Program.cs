@@ -155,6 +155,14 @@ Check("Mailto recipient parser refuses blank recipients",
     ChannelDetector.MailtoAddress("mailto:?subject=Application") is null);
 Check("Mailto recipient parser refuses multi-recipient paths",
     ChannelDetector.MailtoAddress("mailto:jobs@example.com,attacker@example.com") is null);
+Check("Selected-job resolver accepts mailto recipient",
+    ChannelDetector.ResolveApplicationEmail("mailto:jobs@example.com?subject=Application", "Contact recruiting@example.com") == "jobs@example.com");
+Check("Selected-job resolver extracts posting email only without apply URL",
+    ChannelDetector.ResolveApplicationEmail(null, "Email your resume to careers@example.com.") == "careers@example.com");
+Check("Selected-job resolver ignores no-reply-only posting without apply URL",
+    ChannelDetector.ResolveApplicationEmail(null, "Email your resume to no-reply@example.com.") is null);
+Check("Selected-job resolver does not let contact email override HTTP apply URL",
+    ChannelDetector.ResolveApplicationEmail("https://boards.greenhouse.io/acme/jobs/10", "Contact hr@example.com for accommodations.") is null);
 
 var noReplyPackage = PackageBuilder.Build(
     new PipelineJob(10, "Security Engineer", "Acme"),
