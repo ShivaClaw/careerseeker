@@ -18,9 +18,10 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
 - Latest local offline verifier: `250 passed, 0 failed`.
-- `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish` passed locally after the current alpha wiring:
-  offline harnesses, win-x64 single-file publish smoke, BYOK live provider smoke, startup doctor, and
-  dashboard smoke.
+- Fresh optional verifier, 2026-07-20: `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch`
+  passed locally on this branch. It covered the offline harness suite, win-x64 single-file publish smoke,
+  BYOK key import, BYOK live provider smoke, required Gmail/BYOK startup doctor, dashboard one-shot smoke,
+  and live Brave/BYOK company research.
 - `scripts/Verify-Alpha.ps1 -IncludePackage` passed locally and produced a trusted-tester ZIP with the alpha
   executable, native runtime dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/audit-export/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper
   self-check scripts, quickstart, tester walkthrough, package-local audit snapshot, release manifest, checksums,
@@ -28,9 +29,8 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   packaged dashboard logon-task install/uninstall, smokes dashboard task status, previews company research, exports packaged audit JSON, restores a packaged evidence ZIP, provider-key clear, and Gmail disconnect command paths
   against isolated temp vault paths, and checks the
   bundled Privacy, Support, and Autonomy docs for the real alpha off-ramp and evidence-package commands.
-- `scripts/Verify-Alpha.ps1 -IncludeResearch` passed locally with live Brave Search plus BYOK dossier
-  modeling. Latest GitLab smoke retrieved 10 docs, used 3 deterministic grounded fallback facts after the model
-  proposed 0 facts, and dropped 0 ungrounded facts.
+- Latest GitLab research smoke retrieved 10 docs, used 3 deterministic grounded fallback facts after the model
+  proposed 0 facts, dropped 0 ungrounded facts, verified the domain, and identified recruiter signals.
 - DNS mail-routing check, 2026-07-20: `careerseeker.app` publishes Cloudflare Email Routing MX records
   (`route1.mx.cloudflare.net`, `route2.mx.cloudflare.net`, `route3.mx.cloudflare.net`) and SPF includes
   `_spf.mx.cloudflare.net`. This confirms domain-level routing is present; it does not prove the final

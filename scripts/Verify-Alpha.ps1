@@ -207,9 +207,16 @@ Invoke-Step "Public README and harness count smoke" {
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
         'Latest local offline verifier: `250 passed, 0 failed`.',
+        'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
+        'BYOK live provider smoke',
+        'live Brave/BYOK company research',
         'Cloudflare Email Routing MX records',
         'does not prove the final'
     ) "docs/External-Audit-Handoff.md"
+
+    Assert-Contains $summary @(
+        'Live BYOK harness, 2026-07-20:'
+    ) "docs/CareerSeeker-Project-Summary.md"
 }
 
 Invoke-Step "Local API security spec smoke" {

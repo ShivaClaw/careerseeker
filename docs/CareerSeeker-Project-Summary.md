@@ -399,7 +399,7 @@ Live Gmail harness, 2026-07-08:
 - Real draft created: true
 - Draft ID: redacted real draft ID
 
-Live BYOK harness, 2026-07-19:
+Live BYOK harness, 2026-07-20:
 
 - Result: 7 passed, 0 failed.
 - Provider-key source: local DPAPI vault imported from `secrets/env.secrets`.
