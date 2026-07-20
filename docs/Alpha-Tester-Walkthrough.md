@@ -48,7 +48,7 @@ Double-click `Status-CareerSeeker-DashboardTask.cmd` to check it, or
 Use the demo path when you want deterministic local evidence without Gmail:
 
 1. Double-click `Run-CareerSeeker-Demo.cmd`.
-2. Open the dashboard and inspect Applications, Jobs, Documents, and Evidence.
+2. Open the dashboard and inspect Applications, Jobs, Documents, and the Evidence page (`/evidence.html`).
 3. Double-click `Export-CareerSeeker-Audit.cmd` when you only need hash-only audit JSON.
 4. Double-click `Export-CareerSeeker-Evidence.cmd` to package local evidence for review.
 5. Double-click `Import-CareerSeeker-Package.cmd` only when you want to restore an evidence package into a

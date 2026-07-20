@@ -483,6 +483,7 @@ try {
         "BRAVE_SEARCH_API",
         "Research-CareerSeeker-Company.cmd",
         "Draft-CareerSeeker-Job.cmd",
+        "/evidence.html",
         'type `LIVE`',
         "L1 alpha does not send applications",
         "Secret values are not packaged",
