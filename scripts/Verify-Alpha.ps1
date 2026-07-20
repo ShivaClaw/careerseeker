@@ -415,6 +415,25 @@ if ($IncludePackage) {
             throw "Packaged live alpha helper dry run failed."
         }
 
+        $offrampSecretsDir = Join-Path $extractRoot ".appdata/package-offramp-secrets"
+        $offrampOauthDir = Join-Path $extractRoot ".appdata/package-offramp-oauth"
+        New-Item -ItemType Directory -Force -Path $offrampSecretsDir | Out-Null
+        New-Item -ItemType Directory -Force -Path $offrampOauthDir | Out-Null
+        & (Join-Path $extractRoot "SeekerSvc.Engine.exe") `
+            "clear-byok" `
+            "--key-vault" (Join-Path $offrampSecretsDir "byok-keys.dpapi")
+        if ($LASTEXITCODE -ne 0) {
+            throw "Packaged provider-key clear command smoke failed."
+        }
+
+        & (Join-Path $extractRoot "SeekerSvc.Engine.exe") `
+            "disconnect-gmail" `
+            "--client" (Join-Path $extractRoot "secrets/google-oauth-client.json") `
+            "--vault" (Join-Path $offrampOauthDir "gmail-token.dpapi")
+        if ($LASTEXITCODE -ne 0) {
+            throw "Packaged Gmail disconnect command smoke failed."
+        }
+
         & (Join-Path $extractRoot "scripts/Export-AlphaEvidencePackage.ps1") `
             -Published `
             -DbPath ".appdata/package-evidence-smoke.db" `

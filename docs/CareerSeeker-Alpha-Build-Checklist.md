@@ -65,6 +65,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   checksum, secret-path, and dashboard smoke validation.
 - `Start-CareerSeeker-Alpha.cmd` gives trusted testers a double-click launcher in the release ZIP that starts
   the packaged dashboard path.
+- Extracted-package verification smokes the packaged provider-key clear and Gmail disconnect command paths
+  against isolated temp vault paths.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
   dependencies, double-click setup/profile/provider/Gmail/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
   snapshot, release manifest, SHA-256 checksums, and selected docs while excluding local databases, vaults,

@@ -24,7 +24,8 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 - `scripts/Verify-Alpha.ps1 -IncludePackage` passed locally and produced a trusted-tester ZIP with the alpha
   executable, native runtime dependencies, double-click setup/profile/provider/Gmail/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard launchers, workspace initializer, dashboard/helper
   self-check scripts, quickstart, tester walkthrough, package-local audit snapshot, release manifest, checksums,
-  and selected docs.
+  and selected docs. The extracted-package verifier also smokes the packaged provider-key clear and Gmail
+  disconnect command paths against isolated temp vault paths.
 - `scripts/Verify-Alpha.ps1 -IncludeResearch` passed locally with live Brave Search plus BYOK dossier
   modeling. Latest GitLab smoke retrieved 10 docs, used 3 deterministic grounded fallback facts after the model
   proposed 0 facts, and dropped 0 ungrounded facts.
