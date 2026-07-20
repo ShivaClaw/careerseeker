@@ -21,8 +21,10 @@ Trust/OAuth docs:
   `RendererHarness` (6). Latest offline total: 228 assertions. Run each with
   `dotnet run -c Release`.
 - `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. Add `-IncludeLive` for local
-  BYOK/Gmail checks, `-IncludePublish` for the win-x64 single-file publish smoke, and `-IncludeResearch`
-  for the live Brave/BYOK company-research smoke.
+  BYOK/Gmail checks, `-IncludePublish` for the win-x64 single-file publish smoke, `-IncludePackage` for
+  the trusted-tester release ZIP, and `-IncludeResearch` for the live Brave/BYOK company-research smoke.
+- `scripts/Package-AlphaRelease.ps1`: builds a self-contained trusted-tester ZIP with the alpha executable,
+  quickstart, checksums, and selected docs; it does not package local databases, vaults, or generated artifacts.
 - `scripts/Start-AlphaDashboard.ps1`: Windows-friendly alpha dashboard launcher. Use `-Once` for a
   one-shot smoke check or `-Published -PublishIfMissing` to run the self-contained executable.
 - `scripts/Manage-AlphaDashboardTask.ps1`: optional per-user Windows startup task helper for the alpha

@@ -1,8 +1,10 @@
 param(
     [switch] $IncludeLive,
     [switch] $IncludePublish,
+    [switch] $IncludePackage,
     [switch] $IncludeResearch,
     [string] $Configuration = "Release",
+    [string] $PackageOutputDirectory = "output/release",
     [string] $DbPath = ".appdata/careerseeker-alpha.db",
     [string] $ArtifactsPath = ".appdata/artifacts",
     [string] $SecretsPath = "secrets/env.secrets",
@@ -118,6 +120,23 @@ if ($IncludePublish) {
         & $exe demo --once --db ".appdata/publish-smoke.db" --artifacts ".appdata/publish-smoke-artifacts"
         if ($LASTEXITCODE -ne 0) {
             throw "Published executable demo smoke failed."
+        }
+    }
+}
+
+if ($IncludePackage) {
+    Invoke-Step "Package trusted-tester alpha ZIP" {
+        $packageArgs = @{
+            Configuration = $Configuration
+            OutputDirectory = $PackageOutputDirectory
+        }
+        if ($IncludePublish) {
+            $packageArgs["NoPublish"] = $true
+        }
+
+        & (Join-Path $PSScriptRoot "Package-AlphaRelease.ps1") @packageArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Alpha release package creation failed."
         }
     }
 }
