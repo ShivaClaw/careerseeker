@@ -48,6 +48,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 | Real BYOK Tailor and Gate providers are wired through the Gateway | `src/Gateway/ProvidersHttp.cs`, `src/Gateway/Routing.cs`, `src/Engine/Program.cs` | `Verify-Alpha.ps1 -IncludeLive`; BYOK live provider smoke |
 | Brave Search company research is grounded and fails closed on missing keys | `src/Researcher/BraveSearchWebResearch.cs`, `src/Researcher/Researcher.cs`, `src/Engine/StartupDoctor.cs` | `Verify-Alpha.ps1 -IncludeResearch`; startup doctor Brave check |
 | Local state, OAuth tokens, provider keys, and generated artifacts stay out of source control | `.gitignore`, `scripts/Initialize-AlphaWorkspace.ps1`, `src/Engine/StartupDoctor.cs` | source-control hygiene smoke; initializer dry run; package manifest/checksum smoke; secret path filters |
+| Trusted-tester ZIP carries source provenance and payload checksums | `scripts/Package-AlphaRelease.ps1`, `scripts/Test-AlphaReleasePackage.ps1` | release manifest source commit checks; audit snapshot provenance checks; SHA-256 checksum smoke |
 | Dashboard controls are loopback, token-protected, and evidence-oriented | `src/Engine/Host.cs`, `src/Engine/Program.cs`, package helper scripts | dashboard one-shot smoke; packaged dashboard-task and evidence export/import smokes |
 
 ## Repeatable Commands

@@ -135,6 +135,21 @@ try {
     if ($manifest.format -ne "careerseeker-alpha-release-v1") {
         throw "Unexpected release manifest format '$($manifest.format)'."
     }
+    if ([string]::IsNullOrWhiteSpace($manifest.source.branch)) {
+        throw "Release manifest does not record a source branch."
+    }
+    if (-not ($manifest.source.commit -match "^[0-9a-f]{40}$")) {
+        throw "Release manifest does not record a full 40-character source commit."
+    }
+    if (-not ($manifest.source.shortCommit -match "^[0-9a-f]{7,40}$")) {
+        throw "Release manifest does not record a source short commit."
+    }
+    if (-not $manifest.source.commit.StartsWith($manifest.source.shortCommit, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Release manifest source short commit does not match the full commit."
+    }
+    if ($manifest.source.dirty -isnot [bool]) {
+        throw "Release manifest source dirty flag is not boolean."
+    }
     if ($manifest.includes.nativeRuntimeDependencies -notcontains "e_sqlite3.dll") {
         throw "Release manifest does not list e_sqlite3.dll."
     }
@@ -275,6 +290,9 @@ try {
     $auditSnapshot = Get-Content -LiteralPath (Resolve-RootPath "AUDIT-SNAPSHOT.txt") -Raw
     foreach ($snippet in @(
         "CareerSeeker Alpha Audit Snapshot",
+        "Source branch:",
+        "Source commit:",
+        "Dirty working tree:",
         "Package-local verification commands",
         "Import-CareerSeeker-Profile.cmd",
         "Connect-CareerSeeker-Providers.cmd",
@@ -295,6 +313,7 @@ try {
         "Uninstall-CareerSeeker-DashboardTask.cmd",
         "L1 creates Gmail drafts only",
         "Secret values are not included",
+        "RELEASE-MANIFEST.json records the packaged files and source commit",
         "docs/Alpha-Tester-Walkthrough.md"
     )) {
         if (-not $auditSnapshot.Contains($snippet)) {
