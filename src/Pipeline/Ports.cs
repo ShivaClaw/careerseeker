@@ -11,7 +11,7 @@ public sealed record PipelineJob(
     string? DescriptionText = null);
 
 /// <summary>
-/// A tailored application produced by the Tailor (not yet built). <see cref="Claims"/> are the atomic
+/// A tailored application produced by the Tailor. <see cref="Claims"/> are the atomic
 /// claims the Fabrication Gate verifies against the profile; the rendered text is what gets drafted or
 /// submitted once (and only once) the gate passes.
 /// </summary>
@@ -34,9 +34,9 @@ public sealed record DispatchOutcome(
     string? AnswersJson = null);
 
 /// <summary>
-/// Produces a tailored application for a job from the Source-of-Truth claims. The real implementation
-/// (spec section 5.5) is a later module; the pipeline only depends on this contract. On a rework loop
-/// the prior gate violations are passed back so the tailor can correct rather than repeat.
+/// Produces a tailored application for a job from the Source-of-Truth claims. The pipeline only depends on
+/// this contract; Engine wires the concrete Tailor adapter for alpha runs. On a rework loop the prior gate
+/// violations are passed back so the tailor can correct rather than repeat.
 /// </summary>
 public interface ITailor
 {
