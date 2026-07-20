@@ -775,6 +775,38 @@ Console.WriteLine("\n[ alpha package export ]");
         }
         Check("alpha package import rejects duplicate zip entries", duplicateRejected);
 
+        var ambiguousDatabasePackage = Path.Combine(root, "ambiguous-database.zip");
+        using (var stream = File.Create(ambiguousDatabasePackage))
+        using (var ambiguousZip = new ZipArchive(stream, ZipArchiveMode.Create))
+        {
+            var manifest = ambiguousZip.CreateEntry("manifest.json");
+            await using (var writer = new StreamWriter(manifest.Open()))
+                await writer.WriteAsync("""{"format":"careerseeker-alpha-package-v1"}""");
+
+            foreach (var dbName in new[] { "database/alpha.db", "database/other.db" })
+            {
+                var dbEntry = ambiguousZip.CreateEntry(dbName);
+                await using var writer = new StreamWriter(dbEntry.Open());
+                await writer.WriteAsync("not sqlite");
+            }
+        }
+
+        var ambiguousDatabaseRejected = false;
+        try
+        {
+            await AlphaPackageImport.ImportAsync(
+                ambiguousDatabasePackage,
+                new AlphaPackageImportOptions(
+                    Path.Combine(root, "ambiguous.db"),
+                    Path.Combine(root, "ambiguous-artifacts"),
+                    Path.Combine(root, "ambiguous-jds")));
+        }
+        catch (InvalidOperationException)
+        {
+            ambiguousDatabaseRejected = true;
+        }
+        Check("alpha package import rejects ambiguous database entries", ambiguousDatabaseRejected);
+
         var unsupportedPackage = Path.Combine(root, "unsupported-entry.zip");
         using (var stream = File.Create(unsupportedPackage))
         using (var unsupportedZip = new ZipArchive(stream, ZipArchiveMode.Create))

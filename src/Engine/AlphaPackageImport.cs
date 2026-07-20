@@ -61,6 +61,7 @@ public static class AlphaPackageImport
     private static void ValidateEntries(ZipArchive zip)
     {
         var seenEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var databaseEntries = 0;
         foreach (var entry in zip.Entries)
         {
             var name = NormalizeEntryName(entry.FullName);
@@ -76,6 +77,9 @@ public static class AlphaPackageImport
 
             if (!IsSupportedEntry(name))
                 throw new InvalidOperationException($"Refusing unsupported alpha package entry '{entry.FullName}'.");
+
+            if (IsDatabaseEntry(name) && ++databaseEntries > 1)
+                throw new InvalidOperationException($"Refusing ambiguous alpha package database entry '{entry.FullName}'.");
 
             if (!seenEntries.Add(name))
                 throw new InvalidOperationException($"Refusing duplicate alpha package entry '{entry.FullName}'.");
@@ -190,9 +194,13 @@ public static class AlphaPackageImport
     private static bool IsSupportedEntry(string name) =>
         name.Equals("manifest.json", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("audit.json", StringComparison.OrdinalIgnoreCase) ||
-        name.StartsWith("database/", StringComparison.OrdinalIgnoreCase) ||
+        IsDatabaseEntry(name) ||
         name.StartsWith("artifacts/", StringComparison.OrdinalIgnoreCase) ||
         name.StartsWith("job-descriptions/", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDatabaseEntry(string name) =>
+        name.StartsWith("database/", StringComparison.OrdinalIgnoreCase) &&
+        name.EndsWith(".db", StringComparison.OrdinalIgnoreCase);
 
     private static bool LooksSecretPath(string path)
     {
