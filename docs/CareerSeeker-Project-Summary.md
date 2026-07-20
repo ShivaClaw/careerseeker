@@ -104,8 +104,8 @@ Completed:
   the grounding filter when `BRAVE_SEARCH_API_KEY`, `BRAVE_SEARCH_API`, or
   `CAREERSEEKER_BRAVE_SEARCH_API_KEY` is available.
 - Live `research-company` is verified against GitLab with Brave Search plus BYOK dossier modeling: 10 retrieved
-  docs, 0 proposed facts, 3 deterministic fallback facts, 3 grounded facts, 0 dropped ungrounded facts, domain
-  verified, recruiter identifiable.
+  docs, 7 proposed facts, 0 fallback facts, 7 grounded facts, 0 dropped ungrounded facts, domain verified,
+  recruiter identifiable, and a grounded hiring-signal hook.
 - L1 compose-only correction is in place: custom Gmail labels are skipped by default because label management requires broader Gmail scope than `gmail.compose`.
 - SQLite provider source is restored to the Store project and covered by `StoreParityHarness`, including the recent-application, recent-job, and artifact-metadata read models.
 - Gateway pinned-Gate and Dispatcher no-send invariants now have named offline harnesses.

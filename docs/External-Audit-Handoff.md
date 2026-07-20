@@ -31,8 +31,9 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   bundled Privacy, Support, and Autonomy docs for the real alpha off-ramp and evidence-package commands.
   The package self-check also asserts typed confirmation prompts for live Gmail draft creation, destructive
   local vault off-ramps, and persistent dashboard logon-task changes.
-- Latest GitLab research smoke retrieved 10 docs, used 3 deterministic grounded fallback facts after the model
-  proposed 0 facts, dropped 0 ungrounded facts, verified the domain, and identified recruiter signals.
+- Latest GitLab research smoke retrieved 10 docs, used 7 grounded model-proposed facts with 0 fallback facts,
+  dropped 0 ungrounded facts, verified the domain, identified recruiter signals, and produced a grounded
+  hiring-signal hook.
 - DNS mail-routing check, 2026-07-20: `careerseeker.app` publishes Cloudflare Email Routing MX records
   (`route1.mx.cloudflare.net`, `route2.mx.cloudflare.net`, `route3.mx.cloudflare.net`) and SPF includes
   `_spf.mx.cloudflare.net`. This confirms domain-level routing is present; it does not prove the final
