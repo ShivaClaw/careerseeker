@@ -83,6 +83,8 @@ try {
         "Export-CareerSeeker-Evidence.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
         "Start-CareerSeeker-Alpha.cmd",
+        "Install-CareerSeeker-DashboardTask.cmd",
+        "Uninstall-CareerSeeker-DashboardTask.cmd",
         "e_sqlite3.dll",
         "README-alpha.txt",
         "AUDIT-SNAPSHOT.txt",
@@ -192,6 +194,12 @@ try {
     if ($manifest.includes.launchers -notcontains "Verify-CareerSeeker-Alpha.cmd") {
         throw "Release manifest does not list the double-click release verification launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Install-CareerSeeker-DashboardTask.cmd") {
+        throw "Release manifest does not list the double-click dashboard task install launcher."
+    }
+    if ($manifest.includes.launchers -notcontains "Uninstall-CareerSeeker-DashboardTask.cmd") {
+        throw "Release manifest does not list the double-click dashboard task uninstall launcher."
+    }
     if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {
         throw "Release manifest does not reference SHA256SUMS.txt."
     }
@@ -201,6 +209,9 @@ try {
         "First-run flow",
         "Off-ramp command equivalents",
         "Verify-CareerSeeker-Alpha.cmd",
+        "Install-CareerSeeker-DashboardTask.cmd",
+        "Uninstall-CareerSeeker-DashboardTask.cmd",
+        "Manage-AlphaDashboardTask.ps1",
         "Check-CareerSeeker-LiveReadiness.cmd",
         "BRAVE_SEARCH_API",
         "clear-byok",
@@ -226,6 +237,8 @@ try {
         "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
+        "Install-CareerSeeker-DashboardTask.cmd",
+        "Uninstall-CareerSeeker-DashboardTask.cmd",
         "L1 creates Gmail drafts only",
         "Secret values are not included",
         "docs/Alpha-Tester-Walkthrough.md"

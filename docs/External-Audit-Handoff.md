@@ -22,10 +22,11 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   offline harnesses, win-x64 single-file publish smoke, BYOK live provider smoke, startup doctor, and
   dashboard smoke.
 - `scripts/Verify-Alpha.ps1 -IncludePackage` passed locally and produced a trusted-tester ZIP with the alpha
-  executable, native runtime dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard launchers, workspace initializer, dashboard/helper
+  executable, native runtime dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper
   self-check scripts, quickstart, tester walkthrough, package-local audit snapshot, release manifest, checksums,
-  and selected docs. The extracted-package verifier also smokes the packaged live readiness helper plus
-  provider-key clear and Gmail disconnect command paths against isolated temp vault paths, and checks the
+  and selected docs. The extracted-package verifier also smokes the packaged live readiness helper, dry-runs
+  packaged dashboard logon-task install/uninstall, smokes provider-key clear and Gmail disconnect command paths
+  against isolated temp vault paths, and checks the
   bundled Privacy, Support, and Autonomy docs for the real alpha off-ramp and evidence-package commands.
 - `scripts/Verify-Alpha.ps1 -IncludeResearch` passed locally with live Brave Search plus BYOK dossier
   modeling. Latest GitLab smoke retrieved 10 docs, used 3 deterministic grounded fallback facts after the model
@@ -176,7 +177,7 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
   job-description artifacts; secret/token/key-looking paths are filtered, unsafe ZIP paths are rejected, and
   import verifies the restored SQLite audit chain.
 - Trusted-tester release ZIP packaging for the published executable, native runtime dependencies, workspace
-  initializer, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard launchers, quickstart, tester walkthrough, package-local audit snapshot, release manifest, dashboard/helper
+  initializer, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard and dashboard-task launchers, quickstart, tester walkthrough, package-local audit snapshot, release manifest, dashboard/helper
   self-check scripts, SHA-256 checksums, and selected trust/audit docs without local databases, vaults, provider
   keys, or generated artifacts.
 - GitHub CI mirrors the offline alpha verifier for `main`, `agent/**`, `codex/**`, and PRs into `main`.
@@ -199,3 +200,4 @@ These are not hidden pass conditions for the current L1 technical alpha:
 - Historical audit context: `docs/repo-audit-2026-07-13.md`
 - Trust docs: `docs/Privacy-Policy.md`, `docs/Support.md`, `docs/Autonomy-Contract.md`
 - Verification script: `scripts/Verify-Alpha.ps1`
+

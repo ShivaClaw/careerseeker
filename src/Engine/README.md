@@ -140,12 +140,12 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 237 passed, 0 failed.
+- Latest offline harness total: 240 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
-  dependencies, quickstart, tester walkthrough, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard launchers,
+  dependencies, quickstart, tester walkthrough, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard and dashboard-task launchers,
   workspace initializer, dashboard/helper self-check scripts, checksums, and selected docs without bundling local
   databases, vaults, provider keys, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
@@ -155,6 +155,9 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   `-Published -PublishIfMissing`, or run from the packaged release root with `-Published`.
 - `Start-CareerSeeker-Alpha.cmd` wraps that published dashboard path for double-click tester startup from the
   extracted release ZIP.
+- `Install-CareerSeeker-DashboardTask.cmd` wraps the scheduled-task helper for double-click per-user dashboard
+  startup at Windows sign-in.
+- `Uninstall-CareerSeeker-DashboardTask.cmd` removes that per-user dashboard startup task.
 - `Setup-CareerSeeker-Alpha.cmd` wraps the workspace initializer for double-click tester setup from the
   extracted release ZIP, then opens the generated profile template.
 - `Import-CareerSeeker-Profile.cmd` wraps `import-profile` for double-click tester profile setup from the
@@ -222,3 +225,4 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 
 - Windows Service host, tray controls, and broader dashboard polish around `EngineHost`.
 - Full onboarding UI, WinUI tray, OAuth/CASA, installer, and code signing.
+

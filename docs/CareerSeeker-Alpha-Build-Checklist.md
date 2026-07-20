@@ -66,11 +66,16 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   checksum, secret-path, and dashboard smoke validation.
 - `Start-CareerSeeker-Alpha.cmd` gives trusted testers a double-click launcher in the release ZIP that starts
   the packaged dashboard path.
+- `Install-CareerSeeker-DashboardTask.cmd` gives trusted testers a double-click helper to register the packaged
+  dashboard as a per-user Windows logon task.
+- `Uninstall-CareerSeeker-DashboardTask.cmd` gives trusted testers a double-click helper to remove that logon
+  task.
 - Extracted-package verification smokes the packaged provider-key clear and Gmail disconnect command paths
   against isolated temp vault paths.
 - Extracted-package verification smokes the packaged live readiness helper with optional Gmail/BYOK checks off.
+- Extracted-package verification dry-runs packaged dashboard logon-task install and uninstall commands.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
-  dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
+  dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
   snapshot, release manifest, SHA-256 checksums, and selected docs while excluding local databases, vaults,
   provider keys, and generated artifacts.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
@@ -211,3 +216,4 @@ BRAVE_SEARCH_API_KEY=...
 ```
 
 `research-company` also accepts `BRAVE_SEARCH_API` and `CAREERSEEKER_BRAVE_SEARCH_API_KEY` as local aliases.
+
