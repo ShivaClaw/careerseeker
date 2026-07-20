@@ -2,7 +2,7 @@
 
 This project is the runnable alpha entrypoint for the local-first CareerSeeker engine. It hosts the
 scheduled engine shell, the localhost dashboard, and the one-shot alpha smoke path that can create a
-reviewable Gmail draft without any send capability.
+reviewable Gmail draft while the L1 application contains no Gmail send implementation.
 
 ## What Got Proven
 

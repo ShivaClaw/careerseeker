@@ -72,6 +72,20 @@ function Assert-Contains {
     }
 }
 
+function Assert-DoesNotContain {
+    param(
+        [string] $Content,
+        [string[]] $Snippets,
+        [string] $Label
+    )
+
+    foreach ($snippet in $Snippets) {
+        if ($Content.Contains($snippet)) {
+            throw "$Label still contains stale wording '$snippet'."
+        }
+    }
+}
+
 $offlineProjects = @(
     "tests/Slice/Slice.csproj",
     "tests/EngineHarness/EngineHarness.csproj",
@@ -151,6 +165,21 @@ Invoke-Step "Docs-site trust copy smoke" {
 
     $index = Get-Content -LiteralPath "docs-site/index.html" -Raw
     Assert-Contains $index @("privacy.html", "support.html", "autonomy-contract.html") "docs-site/index.html"
+}
+
+Invoke-Step "Trust wording smoke" {
+    foreach ($relative in @(
+        "README.md",
+        "src/Engine/README.md",
+        "docs/Privacy-Policy.md",
+        "docs/Autonomy-Contract.md",
+        "docs/External-Audit-Handoff.md",
+        "docs-site/privacy.md",
+        "docs-site/autonomy-contract.md"
+    )) {
+        $content = Get-Content -LiteralPath $relative -Raw
+        Assert-DoesNotContain $content @("without any send capability") $relative
+    }
 }
 
 $totalPassed = 0
