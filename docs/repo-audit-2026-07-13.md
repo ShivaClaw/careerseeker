@@ -3,6 +3,14 @@
 **Scope:** `ShivaClaw/careerseeker` @ HEAD `3fa65f5` · `ShivaClaw/ShivaClaw.github.io` @ `1f59084`
 **Note on method:** one model ran six sequential lens passes (provenance, Windows systems, security, Google compliance, Android/Play, product coherence). No literal subagent spawning is available in this environment; the structure below reflects those passes.
 
+> Current-status note, 2026-07-20: this is preserved as historical audit input, not as current status for
+> this branch. Several findings below are now closed or materially changed on PR `#1` / branch
+> `agent/repo-cleanup`: CI is present and green; `GatewayGateHarness` and `DispatcherNoSendHarness` are in the
+> offline verifier; the default verifier reports 258 passed / 0 failed; live Scout, BYOK Tailor/Gate, Brave
+> research, package export/import, and draft-only Gmail paths have fresh evidence in
+> `docs/External-Audit-Handoff.md`. Treat the finding text below as dated evidence from commit `3fa65f5`
+> unless the current handoff or current source confirms it still applies.
+
 ---
 
 ## 0. Verified-good (evidence, not vibes)

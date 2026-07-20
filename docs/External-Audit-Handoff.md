@@ -230,7 +230,7 @@ These are not hidden pass conditions for the current L1 technical alpha:
 
 - Product/spec handoff: `docs/CareerSeeker-Project-Summary.md`
 - Alpha checklist: `docs/CareerSeeker-Alpha-Build-Checklist.md`
-- Historical audit context: `docs/repo-audit-2026-07-13.md`
+- Historical audit context, with a supersession note at the top: `docs/repo-audit-2026-07-13.md`
 - Trust docs: `docs/Privacy-Policy.md`, `docs/Support.md`, `docs/Autonomy-Contract.md`
 - Verification script: `scripts/Verify-Alpha.ps1`
 

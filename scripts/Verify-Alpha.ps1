@@ -278,8 +278,16 @@ Invoke-Step "Public README and harness count smoke" {
         'Confirmation variables are cleared before prompting and evaluated through',
         'environment-backed PowerShell checks',
         'Free-form tester inputs in selected-job draft, company research, and package import launchers are forwarded',
-        'through environment-backed PowerShell argument arrays instead of interpolated directly into batch command lines'
+        'through environment-backed PowerShell argument arrays instead of interpolated directly into batch command lines',
+        'Historical audit context, with a supersession note at the top'
     ) "docs/External-Audit-Handoff.md"
+
+    $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw
+    Assert-Contains $historicalAudit @(
+        'Current-status note, 2026-07-20',
+        'this is preserved as historical audit input, not as current status for',
+        'the default verifier reports 258 passed / 0 failed'
+    ) "docs/repo-audit-2026-07-13.md"
 
     Assert-Contains $summary @(
         'Live BYOK harness, 2026-07-20:'
