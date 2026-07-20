@@ -341,6 +341,22 @@ Invoke-Step "Per-user storage guidance smoke" {
     ) "docs/CareerSeeker-Integration-Windows-Roadmap.md"
 }
 
+Invoke-Step "Alpha secrets checklist smoke" {
+    $checklist = Get-Content -LiteralPath "docs/CareerSeeker-Alpha-Build-Checklist.md" -Raw
+    Assert-Contains $checklist @(
+        'Suggested entries for the current alpha verification path:',
+        'ANTHROPIC_API_KEY=...',
+        'GEMINI_API_KEY=...',
+        'BRAVE_SEARCH_API_KEY=...',
+        '`research-company` also accepts `BRAVE_SEARCH_API` and `CAREERSEEKER_BRAVE_SEARCH_API_KEY` as local aliases.'
+    ) "docs/CareerSeeker-Alpha-Build-Checklist.md"
+    Assert-DoesNotContain $checklist @(
+        'CLOUDFLARE_API_TOKEN=...',
+        'CLOUDFLARE_ZONE_NAME=careerseeker.app',
+        'CAREERSEEKER_GMAIL_TEST_EMAIL=...'
+    ) "docs/CareerSeeker-Alpha-Build-Checklist.md"
+}
+
 $totalPassed = 0
 $totalFailed = 0
 foreach ($project in $offlineProjects) {
