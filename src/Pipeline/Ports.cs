@@ -48,9 +48,10 @@ public interface ITailor
 }
 
 /// <summary>
-/// Delivers an application. The real implementation drives Gmail drafts / Gmail send / Playwright
-/// form-fill (spec section 5.7); the pipeline only needs these two verbs. Nothing here is reachable
-/// until the gate has passed and the lifecycle has entered an action state.
+/// Delivers an application after the Fabrication Gate passes. The L1 implementation creates Gmail drafts
+/// only; submit/send automation belongs to a later gated capability and throws in the alpha dispatcher.
+/// The pipeline keeps both verbs so higher autonomy levels can be designed explicitly instead of smuggled
+/// through the draft-only port.
 /// </summary>
 public interface IDispatcher
 {
