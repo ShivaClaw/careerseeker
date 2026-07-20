@@ -784,6 +784,37 @@ Console.WriteLine("\n[ profile import ]");
             wrongFormatRejected = true;
         }
         Check("profile import requires alpha profile format", wrongFormatRejected);
+
+        var duplicateIdPath = Path.Combine(root, "duplicate-id-profile.json");
+        await File.WriteAllTextAsync(duplicateIdPath, """
+        {
+          "format": "careerseeker-alpha-profile-v1",
+          "claims": [
+            {
+              "id": "same-claim",
+              "kind": "Skill",
+              "text": "Kubernetes",
+              "confidence": "verified"
+            },
+            {
+              "id": "same-claim",
+              "kind": "Skill",
+              "text": "Go",
+              "confidence": "verified"
+            }
+          ]
+        }
+        """);
+        var duplicateIdRejected = false;
+        try
+        {
+            await AlphaProfileImport.ImportAsync(sqlite, duplicateIdPath, "alpha.profileId");
+        }
+        catch (InvalidOperationException)
+        {
+            duplicateIdRejected = true;
+        }
+        Check("profile import rejects duplicate claim ids", duplicateIdRejected);
     }
     finally
     {

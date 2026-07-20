@@ -106,7 +106,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
 - The alpha executable has `profile-template` and `import-profile` commands so testers can replace the local
   Tailor/Gate source-of-truth profile without mixing in seeded demo claims; imports require the CareerSeeker
-  alpha profile format.
+  alpha profile format and unique claim ids.
 - The alpha executable has a `scout-boards` command for live Greenhouse/Lever/Ashby board ingestion into SQLite,
   including local full-posting JD artifacts, a hash-chained ingest event, and repost refresh behavior.
 - The alpha executable has a `draft-job` command for creating an L1 draft package from a selected stored job id,

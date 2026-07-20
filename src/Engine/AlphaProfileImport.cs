@@ -87,12 +87,15 @@ public static class AlphaProfileImport
         if (claims.Count == 0)
             throw new InvalidOperationException("Profile import must include at least one claim.");
 
+        var preparedRows = claims.Select((claim, index) => ToRow(claim, profileId: 0, index)).ToList();
+        ValidateUniqueClaimIds(preparedRows);
+
         var profileJson = parsed.Profile.ValueKind == JsonValueKind.Undefined ||
                           parsed.Profile.ValueKind == JsonValueKind.Null
             ? "{}"
             : parsed.Profile.GetRawText();
         var profileId = await store.UpsertProfileAsync(profileJson, ct).ConfigureAwait(false);
-        var rows = claims.Select((claim, index) => ToRow(claim, profileId, index)).ToList();
+        var rows = preparedRows.Select(row => row with { ProfileId = profileId }).ToList();
         await store.ReplaceClaimsAsync(profileId, rows, ct).ConfigureAwait(false);
         await store.SetConfigAsync(configKey, profileId.ToString(), ct).ConfigureAwait(false);
         return new AlphaProfileImportResult(
@@ -117,6 +120,16 @@ public static class AlphaProfileImport
             ? DeterministicClaimId(index, kind, text)
             : claim.Id.Trim();
         return new ClaimRow(id, profileId, kind, text, confidence, TrimToNull(claim.SourceDoc));
+    }
+
+    private static void ValidateUniqueClaimIds(IReadOnlyList<ClaimRow> claims)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var claim in claims)
+        {
+            if (!seen.Add(claim.Id))
+                throw new InvalidOperationException($"Profile import contains duplicate claim id '{claim.Id}'.");
+        }
     }
 
     private static string DeterministicClaimId(int index, string kind, string text)

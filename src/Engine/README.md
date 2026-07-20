@@ -140,7 +140,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 265 passed, 0 failed.
+- Latest offline harness total: 266 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
@@ -235,7 +235,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   and BYOK provider availability without printing secret values.
 - `control-app` gives testers a local audited pause, resume, and kill switch for a specific application row.
 - `profile-template` and `import-profile` let testers replace the local Tailor/Gate source-of-truth profile
-  with their own verified/stated/weak claims; imports require the CareerSeeker alpha profile format.
+  with their own verified/stated/weak claims; imports require the CareerSeeker alpha profile format and unique
+  claim ids.
 
 ## Not Yet Built
 

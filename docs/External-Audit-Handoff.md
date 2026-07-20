@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `265 passed, 0 failed`.
+- Latest local offline verifier: `266 passed, 0 failed`.
 - Fresh optional verifier, 2026-07-20: `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch`
   passed locally on this branch. It covered the offline harness suite, win-x64 single-file publish smoke,
   BYOK key import, BYOK live provider smoke, required Gmail/BYOK startup doctor, dashboard one-shot smoke,
@@ -50,7 +50,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 | L1 cannot send or submit applications | `src/Dispatcher/Dispatch.cs`, `src/Dispatcher/Dispatcher.cs`, `src/Pipeline/ApplicationPipeline.cs` | `DispatcherNoSendHarness`; offline `Verify-Alpha.ps1` |
 | Gmail is draft-only in the application even though `gmail.compose` can authorize sends | `src/Dispatcher/GoogleOAuth.cs`, `src/Dispatcher/Providers.cs`, trust docs | `DispatcherNoSendHarness`; trust wording smoke |
 | Tailor output is checked against local profile evidence before drafting | `src/Tailor`, `src/Verifier`, `src/Pipeline` | `HookHarness`, `GatewayGateHarness`, `Slice`; live BYOK Gate smoke |
-| Source-of-truth profile import replaces the claim oracle and refuses non-alpha profile artifacts | `src/Engine/AlphaProfileImport.cs`, `src/Engine/Program.cs`, `scripts/Import-AlphaProfile.ps1` | `EngineHarness`; package profile-import launcher checks |
+| Source-of-truth profile import replaces the claim oracle and refuses non-alpha profile artifacts or duplicate claim ids | `src/Engine/AlphaProfileImport.cs`, `src/Engine/Program.cs`, `scripts/Import-AlphaProfile.ps1` | `EngineHarness`; package profile-import launcher checks |
 | Live ATS board ingest discovers and stores real jobs | `src/Scout`, `src/Engine/Program.cs`, `src/Store` | `ScoutLiveHarness`; `Run-CareerSeeker-Scout.cmd` package preview |
 | Selected-job drafting refuses prompt-injection-flagged jobs unless explicitly overridden after manual review | `src/Engine/Program.cs`, `scripts/Draft-AlphaJob.ps1`, `Draft-CareerSeeker-Job.cmd` | `EngineHarness`; package selected-job preview and launcher checks |
 | ATS-clean resume PDF is rendered and attached to Gmail drafts | `src/Dispatcher/AtsPdfDocumentRenderer.cs`, `src/Dispatcher/Packaging.cs`, `src/Dispatcher/Mime.cs` | `RendererHarness`, `DispatcherNoSendHarness`; package selected-job dry-run smoke |
@@ -178,7 +178,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 - Tailor minimization: generation receives only posting-relevant profile claims; Gate verification still checks
   against the local source profile.
 - Profile import: `import-profile` requires the CareerSeeker alpha profile format and replaces the local profile
-  claim oracle instead of mixing imported claims with seeded demo facts.
+  claim oracle instead of mixing imported claims with seeded demo facts; duplicate claim ids are refused before
+  replacement.
 - Local dashboard controls: loopback dashboard has token-protected Gmail disconnect, application controls,
   hash-only audit JSON export, alpha package export, and token-protected document downloads. Application
   controls are hidden for terminal rows. Dashboard/document responses carry no-store, nosniff, no-referrer,
