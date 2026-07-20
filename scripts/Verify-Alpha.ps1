@@ -204,6 +204,22 @@ Invoke-Step "Code-signing guidance smoke" {
     Assert-DoesNotContain $spec @('Azure Artifact Signing/OV/EV') "docs/CareerSeeker-Spec.md"
 }
 
+Invoke-Step "Per-user storage guidance smoke" {
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    Assert-Contains $spec @(
+        '%LOCALAPPDATA%\CareerSeeker\seeker.db',
+        'must not default to a machine-global `%ProgramData%` path',
+        'per-user DPAPI vaults'
+    ) "docs/CareerSeeker-Spec.md"
+
+    $roadmap = Get-Content -LiteralPath "docs/CareerSeeker-Integration-Windows-Roadmap.md" -Raw
+    Assert-Contains $roadmap @(
+        'explicit per-user identity/task model',
+        '%LOCALAPPDATA%\CareerSeeker\seeker.db',
+        'not a machine-global `%ProgramData%` default'
+    ) "docs/CareerSeeker-Integration-Windows-Roadmap.md"
+}
+
 $totalPassed = 0
 $totalFailed = 0
 foreach ($project in $offlineProjects) {

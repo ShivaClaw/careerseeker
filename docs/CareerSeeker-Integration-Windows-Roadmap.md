@@ -101,8 +101,10 @@ slice's wiring, productionized. **Exit:** a console "run one cycle for real" tha
 application end-to-end.
 
 **C2. Windows Service host.** Wrap `EngineHost` in a `Microsoft.Extensions.Hosting` `BackgroundService`;
-install as a Windows Service (auto-start on boot, graceful stop). SQLite at
-`%ProgramData%\CareerSeeker\seeker.db` (WAL). The localhost dashboard (already built) serves status.
+install it under an explicit per-user identity/task model (auto-start on sign-in, graceful stop) unless a
+separate broker/migration design is approved. SQLite lives under a per-user root such as
+`%LOCALAPPDATA%\CareerSeeker\seeker.db` (WAL), not a machine-global `%ProgramData%` default. The localhost
+dashboard (already built) serves status.
 **Exit:** the service runs cycles unattended across a reboot; dashboard shows live counters.
 
 **C3. Resilience.** Nightly encrypted SQLite backup (14-day rotation), export/import-workspace commands
