@@ -202,6 +202,7 @@ try {
         "Off-ramp command equivalents",
         "Verify-CareerSeeker-Alpha.cmd",
         "Check-CareerSeeker-LiveReadiness.cmd",
+        "BRAVE_SEARCH_API",
         "clear-byok",
         "disconnect-gmail"
     )) {

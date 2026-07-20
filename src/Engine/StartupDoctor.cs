@@ -31,6 +31,7 @@ public static class StartupDoctor
         checks.Add(CheckOAuthClient(options.OAuthClientPath, options.RequireGmail));
         checks.Add(CheckGmailVault(options.GmailTokenVaultPath, options.RequireGmail));
         checks.Add(CheckByok(options.EnvFilePath, options.KeyVaultPath, options.RequireByok));
+        checks.Add(CheckBraveSearch(options.EnvFilePath));
         return new StartupDoctorReport(checks);
     }
 
@@ -115,5 +116,42 @@ public static class StartupDoctor
         {
             return new StartupCheck("byok_providers", !required, required ? ex.GetType().Name + ": " + ex.Message : "not configured");
         }
+    }
+
+    private static StartupCheck CheckBraveSearch(string envFilePath)
+    {
+        var names = new[]
+        {
+            "BRAVE_SEARCH_API_KEY",
+            "BRAVE_SEARCH_API",
+            "CAREERSEEKER_BRAVE_SEARCH_API_KEY",
+        };
+
+        var configuredName = names.FirstOrDefault(name =>
+            !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(name)) ||
+            EnvFileHasValue(envFilePath, name));
+
+        return new StartupCheck(
+            "brave_search",
+            true,
+            configuredName is null ? "not configured (optional for company research)" : $"configured via {configuredName}");
+    }
+
+    private static bool EnvFileHasValue(string path, string name)
+    {
+        if (!File.Exists(path)) return false;
+
+        foreach (var line in File.ReadLines(path))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0 || trimmed.StartsWith('#')) continue;
+            var idx = trimmed.IndexOf('=');
+            if (idx <= 0) continue;
+            if (!trimmed[..idx].Trim().Equals(name, StringComparison.OrdinalIgnoreCase)) continue;
+            var value = trimmed[(idx + 1)..].Trim().Trim('"');
+            return !string.IsNullOrWhiteSpace(value);
+        }
+
+        return false;
     }
 }

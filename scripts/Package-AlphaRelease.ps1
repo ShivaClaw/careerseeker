@@ -144,6 +144,8 @@ Off-ramp command equivalents:
 
 The L1 alpha creates Gmail drafts only. It has no send path.
 
+For optional company research, add Brave Search as BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY in secrets\env.secrets.
+
 Read docs\Alpha-Tester-Walkthrough.md for the intended first-run order, safety rails, and evidence locations.
 
 Do not place OAuth tokens, provider keys, resumes, local databases, or generated artifacts in source control.

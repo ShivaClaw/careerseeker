@@ -548,6 +548,7 @@ Console.WriteLine("\n[ startup doctor ]");
         await File.WriteAllTextAsync(envPath, """
         ANTHROPIC_API_KEY=fake-anthropic
         GEMINI_API_KEY=fake-gemini
+        BRAVE_SEARCH_API=fake-brave
         """);
 
         var report = await StartupDoctor.RunAsync(new StartupDoctorOptions(
@@ -559,6 +560,8 @@ Console.WriteLine("\n[ startup doctor ]");
             KeyVaultPath: Path.Combine(root, "missing-keys.dpapi")));
         Check("startup doctor passes optional Gmail/BYOK checks with usable local resources",
             report.Ok && report.Checks.Any(c => c.Name == "byok_providers" && c.Detail.Contains("anthropic")));
+        Check("startup doctor reports optional Brave Search readiness",
+            report.Checks.Any(c => c.Name == "brave_search" && c.Detail.Contains("BRAVE_SEARCH_API")));
 
         var strict = await StartupDoctor.RunAsync(new StartupDoctorOptions(
             DbPath: Path.Combine(root, "doctor-strict.db"),
