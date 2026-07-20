@@ -199,6 +199,11 @@ Invoke-Step "Public README and harness count smoke" {
         '| `GatewayGateHarness` | 34 passed, 0 failed |'
     ) "docs/CareerSeeker-Project-Summary.md"
 
+    $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
+    Assert-Contains $engineReadme @(
+        'Latest offline harness total: 250 passed, 0 failed.'
+    ) "src/Engine/README.md"
+
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
         'Latest local offline verifier: `250 passed, 0 failed`.',
