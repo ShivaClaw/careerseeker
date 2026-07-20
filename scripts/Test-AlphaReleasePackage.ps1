@@ -254,6 +254,43 @@ try {
         }
     }
 
+    $support = Get-Content -LiteralPath (Resolve-RootPath "docs/Support.md") -Raw
+    foreach ($snippet in @(
+        "Disconnect-CareerSeeker-Gmail.cmd",
+        "Clear-CareerSeeker-Providers.cmd",
+        "export-audit",
+        "export-alpha-package",
+        "import-alpha-package"
+    )) {
+        if (-not $support.Contains($snippet)) {
+            throw "Support doc missing '$snippet'."
+        }
+    }
+
+    $privacy = Get-Content -LiteralPath (Resolve-RootPath "docs/Privacy-Policy.md") -Raw
+    foreach ($snippet in @(
+        "disconnect-gmail",
+        "Clear-CareerSeeker-Providers.cmd",
+        "export-alpha-package",
+        "raw event payloads are opt-in"
+    )) {
+        if (-not $privacy.Contains($snippet)) {
+            throw "Privacy policy missing '$snippet'."
+        }
+    }
+
+    $autonomy = Get-Content -LiteralPath (Resolve-RootPath "docs/Autonomy-Contract.md") -Raw
+    foreach ($snippet in @(
+        "disconnect-gmail",
+        "packaged disconnect helper",
+        "export-alpha-package",
+        "import-alpha-package"
+    )) {
+        if (-not $autonomy.Contains($snippet)) {
+            throw "Autonomy contract missing '$snippet'."
+        }
+    }
+
     $checksumCount = 0
     foreach ($line in Get-Content -LiteralPath (Resolve-RootPath "SHA256SUMS.txt")) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
