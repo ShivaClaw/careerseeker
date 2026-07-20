@@ -82,6 +82,7 @@ try {
         "Draft-CareerSeeker-Job.cmd",
         "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
+        "Import-CareerSeeker-Package.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
         "Start-CareerSeeker-Alpha.cmd",
         "Install-CareerSeeker-DashboardTask.cmd",
@@ -97,6 +98,7 @@ try {
         "scripts/Connect-AlphaProviders.ps1",
         "scripts/Draft-AlphaJob.ps1",
         "scripts/Export-AlphaEvidencePackage.ps1",
+        "scripts/Import-AlphaPackage.ps1",
         "scripts/Import-AlphaProfile.ps1",
         "scripts/Run-AlphaDemoCycle.ps1",
         "scripts/Run-AlphaScoutBoards.ps1",
@@ -155,6 +157,9 @@ try {
     if ($manifest.includes.scripts -notcontains "scripts/Export-AlphaEvidencePackage.ps1") {
         throw "Release manifest does not list the evidence export helper."
     }
+    if ($manifest.includes.scripts -notcontains "scripts/Import-AlphaPackage.ps1") {
+        throw "Release manifest does not list the alpha package import helper."
+    }
     if ($manifest.includes.scripts -notcontains "scripts/Test-AlphaReleasePackage.ps1") {
         throw "Release manifest does not list the package self-check script."
     }
@@ -200,6 +205,9 @@ try {
     if ($manifest.includes.launchers -notcontains "Export-CareerSeeker-Evidence.cmd") {
         throw "Release manifest does not list the double-click evidence export launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Import-CareerSeeker-Package.cmd") {
+        throw "Release manifest does not list the double-click alpha package import launcher."
+    }
     if ($manifest.includes.launchers -notcontains "Verify-CareerSeeker-Alpha.cmd") {
         throw "Release manifest does not list the double-click release verification launcher."
     }
@@ -227,6 +235,8 @@ try {
         "Manage-AlphaDashboardTask.ps1",
         "Research-CareerSeeker-Company.cmd",
         "Run-AlphaCompanyResearch.ps1",
+        "Import-CareerSeeker-Package.cmd",
+        "Import-AlphaPackage.ps1",
         "Check-CareerSeeker-LiveReadiness.cmd",
         "BRAVE_SEARCH_API",
         "clear-byok",
@@ -252,6 +262,7 @@ try {
         "Draft-CareerSeeker-Job.cmd",
         "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
+        "Import-CareerSeeker-Package.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
         "Install-CareerSeeker-DashboardTask.cmd",
         "Status-CareerSeeker-DashboardTask.cmd",

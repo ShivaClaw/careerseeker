@@ -58,6 +58,8 @@ Trust/OAuth docs:
   ZIP.
 - `Export-CareerSeeker-Evidence.cmd`: double-click local evidence package helper copied into the trusted-tester
   release ZIP.
+- `Import-CareerSeeker-Package.cmd`: double-click local evidence package restore helper copied into the
+  trusted-tester release ZIP.
 - `Verify-CareerSeeker-Alpha.cmd`: double-click release package self-check copied into the trusted-tester
   release ZIP.
 - `Start-CareerSeeker-Alpha.cmd`: double-click dashboard launcher copied into the trusted-tester release ZIP.

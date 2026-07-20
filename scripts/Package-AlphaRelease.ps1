@@ -111,6 +111,7 @@ First-run flow:
   Double-click Draft-CareerSeeker-Job.cmd after choosing a job id in the dashboard.
   Double-click Run-CareerSeeker-Live.cmd to create one Gmail draft for review.
   Double-click Export-CareerSeeker-Evidence.cmd to package local evidence for review.
+  Double-click Import-CareerSeeker-Package.cmd to restore a local evidence package into .appdata\imported.
   Double-click Start-CareerSeeker-Alpha.cmd to open the local dashboard.
   Double-click Install-CareerSeeker-DashboardTask.cmd to start the dashboard when you sign in.
   Double-click Status-CareerSeeker-DashboardTask.cmd to check the dashboard logon task.
@@ -135,6 +136,7 @@ Command equivalents:
   powershell -ExecutionPolicy Bypass -File .\scripts\Draft-AlphaJob.ps1 -Published -PreviewOnly
   powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published
   powershell -ExecutionPolicy Bypass -File .\scripts\Export-AlphaEvidencePackage.ps1 -Published
+  powershell -ExecutionPolicy Bypass -File .\scripts\Import-AlphaPackage.ps1 -Published -PreviewOnly
   powershell -ExecutionPolicy Bypass -File .\scripts\Test-AlphaReleasePackage.ps1 -RunDashboardSmoke
   .\$exeName doctor --db .appdata\careerseeker-alpha.db --artifacts .appdata\artifacts
   powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published -Once -NoGmailControl
@@ -174,6 +176,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     Copy-Item -LiteralPath (Join-Path $repoRoot "Draft-CareerSeeker-Job.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Run-CareerSeeker-Live.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Export-CareerSeeker-Evidence.cmd") -Destination $stageDir
+    Copy-Item -LiteralPath (Join-Path $repoRoot "Import-CareerSeeker-Package.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Verify-CareerSeeker-Alpha.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Install-CareerSeeker-DashboardTask.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Status-CareerSeeker-DashboardTask.cmd") -Destination $stageDir
@@ -186,6 +189,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
         "scripts/Connect-AlphaProviders.ps1",
         "scripts/Draft-AlphaJob.ps1",
         "scripts/Export-AlphaEvidencePackage.ps1",
+        "scripts/Import-AlphaPackage.ps1",
         "scripts/Import-AlphaProfile.ps1",
         "scripts/Run-AlphaDemoCycle.ps1",
         "scripts/Run-AlphaScoutBoards.ps1",
@@ -252,6 +256,7 @@ Double-click helper entrypoints:
   Draft-CareerSeeker-Job.cmd
   Run-CareerSeeker-Live.cmd
   Export-CareerSeeker-Evidence.cmd
+  Import-CareerSeeker-Package.cmd
   Verify-CareerSeeker-Alpha.cmd
   Start-CareerSeeker-Alpha.cmd
   Install-CareerSeeker-DashboardTask.cmd
@@ -294,7 +299,7 @@ Cross-checks:
             scripts = @(Get-ChildItem -LiteralPath $scriptsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "scripts/$($_.Name)" })
-            launchers = @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Check-CareerSeeker-LiveReadiness.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Research-CareerSeeker-Company.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd", "Install-CareerSeeker-DashboardTask.cmd", "Status-CareerSeeker-DashboardTask.cmd", "Uninstall-CareerSeeker-DashboardTask.cmd")
+            launchers = @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Check-CareerSeeker-LiveReadiness.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Research-CareerSeeker-Company.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Import-CareerSeeker-Package.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd", "Install-CareerSeeker-DashboardTask.cmd", "Status-CareerSeeker-DashboardTask.cmd", "Uninstall-CareerSeeker-DashboardTask.cmd")
             docs = if ($NoDocs) { @() } else { @(Get-ChildItem -LiteralPath $docsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "docs/$($_.Name)" }) }

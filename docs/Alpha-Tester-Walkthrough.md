@@ -48,6 +48,8 @@ Use the demo path when you want deterministic local evidence without Gmail:
 1. Double-click `Run-CareerSeeker-Demo.cmd`.
 2. Open the dashboard and inspect Applications, Jobs, Documents, and Evidence.
 3. Double-click `Export-CareerSeeker-Evidence.cmd` to package local evidence for review.
+4. Double-click `Import-CareerSeeker-Package.cmd` only when you want to restore an evidence package into a
+   separate `.appdata\imported` workspace.
 
 Use the Scout path when you want real public ATS job discovery:
 
@@ -83,6 +85,8 @@ Use the live alpha path when you want one end-to-end Gmail draft smoke:
 - The Fabrication Gate is fail-closed. Unsupported claims block; unavailable verification defers.
 - Evidence packages omit payloads by default. Use payload-inclusive exports only when you intentionally want to
   share local content for audit.
+- `Import-CareerSeeker-Package.cmd` restores into `.appdata\imported` by default and preserves existing files
+  unless you explicitly type `OVERWRITE`.
 
 ## Useful Files
 

@@ -145,7 +145,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
-  dependencies, quickstart, tester walkthrough, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/evidence/verify/dashboard and dashboard-task launchers,
+  dependencies, quickstart, tester walkthrough, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers,
   workspace initializer, dashboard/helper self-check scripts, checksums, and selected docs without bundling local
   databases, vaults, provider keys, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
@@ -184,6 +184,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   cycle from the extracted release ZIP.
 - `Export-CareerSeeker-Evidence.cmd` wraps `export-alpha-package` for double-click tester audit handoff from
   the extracted release ZIP after a demo or live alpha cycle.
+- `Import-CareerSeeker-Package.cmd` wraps `import-alpha-package` for double-click tester/auditor restore into
+  a separate import workspace.
 - `Verify-CareerSeeker-Alpha.cmd` wraps the package self-check and dashboard smoke for double-click tester
   verification from the extracted release ZIP.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register, remove, start, stop, and inspect a per-user Windows
@@ -218,7 +220,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   artifacts, and saved job-description artifacts while filtering secret/token/key-looking paths.
 - `import-alpha-package` restores a local ZIP package into a safe default `.appdata/imported` workspace,
   rejects unsafe entries, preserves existing files unless `--overwrite` is passed, and verifies the restored
-  SQLite audit chain.
+  SQLite audit chain. The package helper exposes the same restore path without hand-typed commands.
 - `doctor` checks local SQLite/audit health, artifact writability, Gmail OAuth/vault presence when required,
   and BYOK provider availability without printing secret values.
 - `control-app` gives testers a local audited pause, resume, and kill switch for a specific application row.
