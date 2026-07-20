@@ -41,6 +41,9 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   (`route1.mx.cloudflare.net`, `route2.mx.cloudflare.net`, `route3.mx.cloudflare.net`) and SPF includes
   `_spf.mx.cloudflare.net`. This confirms domain-level routing is present; it does not prove the final
   `support@` / `privacy@` forwarding destinations receive mail.
+- Live trust-site deployment, 2026-07-20: `https://careerseeker.app/privacy/` now includes Google API
+  Limited Use language and the no-training statement; `https://careerseeker.app/autonomy-contract/` is live;
+  and the homepage links to the Autonomy Contract.
 - The PR is open against `main` and GitHub reports checks passing.
 
 ## Evidence Map
@@ -60,6 +63,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 | Local state, OAuth tokens, provider keys, and generated artifacts stay out of source control | `.gitignore`, `scripts/Initialize-AlphaWorkspace.ps1`, `src/Engine/StartupDoctor.cs` | source-control hygiene smoke; initializer dry run; package manifest/checksum smoke; secret path filters |
 | Trusted-tester ZIP carries source provenance, payload checksums, and provider-key quickstart guidance, plus typed confirmations for live/dangerous actions | `scripts/Package-AlphaRelease.ps1`, `scripts/Test-AlphaReleasePackage.ps1`, `Run-CareerSeeker-Live.cmd`, `Clear-CareerSeeker-Providers.cmd`, `Disconnect-CareerSeeker-Gmail.cmd`, `Install-CareerSeeker-DashboardTask.cmd`, `Uninstall-CareerSeeker-DashboardTask.cmd` | release manifest source commit checks; audit snapshot provenance checks; README-alpha provider-key checks; live draft confirmation checks; off-ramp confirmation checks; dashboard task confirmation checks; SHA-256 checksum smoke |
 | Dashboard controls are loopback, token-protected, evidence-oriented, and served with no-store/nosniff/no-referrer/CSP headers | `src/Engine/Host.cs`, `src/Engine/Program.cs`, package helper scripts | dashboard one-shot smoke; packaged dashboard-task and evidence export/import smokes; `EngineHarness` header assertions |
+| Public trust copy matches the L1 alpha privacy/scope posture | `docs-site`, `docs/Privacy-Policy.md`, `docs/Autonomy-Contract.md`, `ShivaClaw/ShivaClaw.github.io` | deployed `careerseeker.app/privacy/` and `/autonomy-contract/` checks, 2026-07-20 |
 
 ## Repeatable Commands
 
