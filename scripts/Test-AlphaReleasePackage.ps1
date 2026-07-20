@@ -74,6 +74,7 @@ try {
         "Import-CareerSeeker-Profile.cmd",
         "Setup-CareerSeeker-Alpha.cmd",
         "Run-CareerSeeker-Demo.cmd",
+        "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
         "Start-CareerSeeker-Alpha.cmd",
@@ -86,6 +87,7 @@ try {
         "scripts/Export-AlphaEvidencePackage.ps1",
         "scripts/Import-AlphaProfile.ps1",
         "scripts/Run-AlphaDemoCycle.ps1",
+        "scripts/Run-AlphaLiveCycle.ps1",
         "scripts/Initialize-AlphaWorkspace.ps1",
         "scripts/Start-AlphaDashboard.ps1",
         "scripts/Manage-AlphaDashboardTask.ps1",
@@ -118,6 +120,9 @@ try {
     if ($manifest.includes.scripts -notcontains "scripts/Run-AlphaDemoCycle.ps1") {
         throw "Release manifest does not list the demo cycle helper."
     }
+    if ($manifest.includes.scripts -notcontains "scripts/Run-AlphaLiveCycle.ps1") {
+        throw "Release manifest does not list the live alpha helper."
+    }
     if ($manifest.includes.scripts -notcontains "scripts/Export-AlphaEvidencePackage.ps1") {
         throw "Release manifest does not list the evidence export helper."
     }
@@ -142,6 +147,9 @@ try {
     if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Demo.cmd") {
         throw "Release manifest does not list the double-click demo cycle launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Live.cmd") {
+        throw "Release manifest does not list the double-click live alpha launcher."
+    }
     if ($manifest.includes.launchers -notcontains "Export-CareerSeeker-Evidence.cmd") {
         throw "Release manifest does not list the double-click evidence export launcher."
     }
@@ -159,6 +167,7 @@ try {
         "Import-CareerSeeker-Profile.cmd",
         "Connect-CareerSeeker-Providers.cmd",
         "Run-CareerSeeker-Demo.cmd",
+        "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
         "L1 creates Gmail drafts only",

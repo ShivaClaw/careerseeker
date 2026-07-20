@@ -104,6 +104,7 @@ Quick checks:
   Double-click Connect-CareerSeeker-Providers.cmd to import AI provider keys without printing them.
   Double-click Connect-CareerSeeker-Gmail.cmd to connect Gmail without creating a draft.
   Double-click Run-CareerSeeker-Demo.cmd to create local demo evidence without Gmail.
+  Double-click Run-CareerSeeker-Live.cmd to create one Gmail draft for review.
   Double-click Export-CareerSeeker-Evidence.cmd to package local evidence for review.
   Double-click Verify-CareerSeeker-Alpha.cmd to verify the extracted release package.
   Double-click Start-CareerSeeker-Alpha.cmd to open the local dashboard.
@@ -114,6 +115,7 @@ Quick checks:
   powershell -ExecutionPolicy Bypass -File .\scripts\Connect-AlphaProviders.ps1 -Published
   .\$exeName connect-gmail --client secrets\google-oauth-client.json --vault .appdata\oauth\gmail-token.dpapi
   powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaDemoCycle.ps1 -Published
+  powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published
   powershell -ExecutionPolicy Bypass -File .\scripts\Export-AlphaEvidencePackage.ps1 -Published
   powershell -ExecutionPolicy Bypass -File .\scripts\Test-AlphaReleasePackage.ps1 -RunDashboardSmoke
   .\$exeName doctor --db .appdata\careerseeker-alpha.db --artifacts .appdata\artifacts
@@ -133,6 +135,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     Copy-Item -LiteralPath (Join-Path $repoRoot "Connect-CareerSeeker-Providers.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Connect-CareerSeeker-Gmail.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Run-CareerSeeker-Demo.cmd") -Destination $stageDir
+    Copy-Item -LiteralPath (Join-Path $repoRoot "Run-CareerSeeker-Live.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Export-CareerSeeker-Evidence.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Verify-CareerSeeker-Alpha.cmd") -Destination $stageDir
 
@@ -143,6 +146,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
         "scripts/Export-AlphaEvidencePackage.ps1",
         "scripts/Import-AlphaProfile.ps1",
         "scripts/Run-AlphaDemoCycle.ps1",
+        "scripts/Run-AlphaLiveCycle.ps1",
         "scripts/Initialize-AlphaWorkspace.ps1",
         "scripts/Start-AlphaDashboard.ps1",
         "scripts/Manage-AlphaDashboardTask.ps1",
@@ -195,6 +199,7 @@ Double-click helper entrypoints:
   Connect-CareerSeeker-Providers.cmd
   Connect-CareerSeeker-Gmail.cmd
   Run-CareerSeeker-Demo.cmd
+  Run-CareerSeeker-Live.cmd
   Export-CareerSeeker-Evidence.cmd
   Verify-CareerSeeker-Alpha.cmd
   Start-CareerSeeker-Alpha.cmd
@@ -234,7 +239,7 @@ Cross-checks:
             scripts = @(Get-ChildItem -LiteralPath $scriptsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "scripts/$($_.Name)" })
-            launchers = @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd")
+            launchers = @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd")
             docs = if ($NoDocs) { @() } else { @(Get-ChildItem -LiteralPath $docsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "docs/$($_.Name)" }) }
