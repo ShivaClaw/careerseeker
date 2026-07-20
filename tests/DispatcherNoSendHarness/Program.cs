@@ -145,6 +145,31 @@ Check("Email draft subject includes title and company without claim prose",
     emailPackage.Subject == "Application for Data Engineer at Acme",
     emailPackage.Subject);
 
+Check("Recipient extractor refuses no-reply-only postings",
+    RecipientExtractor.Extract("Please email your resume to no-reply@example.com.") is null);
+Check("Recipient extractor prefers real role mailbox over no-reply",
+    RecipientExtractor.Extract("Do not use no-reply@example.com. Email your resume to careers@example.com.") == "careers@example.com");
+Check("Mailto recipient parser strips query strings",
+    ChannelDetector.MailtoAddress("mailto:jobs@example.com?subject=Application") == "jobs@example.com");
+Check("Mailto recipient parser refuses blank recipients",
+    ChannelDetector.MailtoAddress("mailto:?subject=Application") is null);
+Check("Mailto recipient parser refuses multi-recipient paths",
+    ChannelDetector.MailtoAddress("mailto:jobs@example.com,attacker@example.com") is null);
+
+var noReplyPackage = PackageBuilder.Build(
+    new PipelineJob(10, "Security Engineer", "Acme"),
+    new TailoredApplication(Array.Empty<TailoredClaim>(), "resume", "cover", new Dictionary<string, string>()),
+    new PostingDispatchInfo(
+        DispatchChannel.Email,
+        PostingText: "Email your resume to no-reply@example.com."),
+    new DispatcherConfig("Jordan Lee", "jordan@example.com"),
+    new Attachment("resume.pdf", "application/pdf", new byte[] { 0x25, 0x50, 0x44, 0x46 }));
+Check("Email package downgrades no-reply-only postings to manual finish",
+    noReplyPackage.Channel == DispatchChannel.ManualFinish
+    && noReplyPackage.Recipient == "jordan@example.com"
+    && noReplyPackage.BodyText.Contains("can't be automated safely", StringComparison.OrdinalIgnoreCase),
+    $"channel={noReplyPackage.Channel} recipient={noReplyPackage.Recipient} body={noReplyPackage.BodyText}");
+
 Console.WriteLine("\n[ PDF renderer ]");
 var pdfRenderer = new AtsPdfDocumentRenderer(new AtsPdfRendererOptions("Jordan Lee", RenderCoverPdf: true));
 var pdfJob = new PipelineJob(42, "Software Engineer", "Acme");

@@ -47,11 +47,12 @@ public static class PackageBuilder
         // ATS form / read-only board: everything-but-submit. A self-addressed draft the user opens on any
         // device — download the resume, click the link, paste the answers, submit. Addressed to the user,
         // so the instructional body carries no employer-facing claims.
+        var manualInfo = info with { Channel = channel };
         return new DraftPackage(
             channel,
             config.CandidateEmail,
             $"Finish: {job.Title} at {job.Company} (2 min)",
-            ManualBody(job, app, info),
+            ManualBody(job, app, manualInfo),
             attachments,
             ApplyUrl: info.ApplyUrl,
             ManualSteps: ManualSteps(channel, info.ApplyUrl));

@@ -6,7 +6,7 @@ namespace SeekerSvc.Dispatcher;
 /// <summary>
 /// Pulls the application email out of an email-channel posting ("send your resume to jobs@acme.com").
 /// Deterministic: address regex, ranked by proximity to apply keywords, with no-reply addresses
-/// demoted. Returns null when nothing credible is found — the packager then refuses to build a blank
+/// ignored. Returns null when nothing credible is found — the packager then refuses to build a blank
 /// email draft and downgrades to a manual-finish package instead.
 /// </summary>
 public static class RecipientExtractor
@@ -28,20 +28,30 @@ public static class RecipientExtractor
             var addr = m.Value;
             var score = 0;
 
+            if (IsNoReplyMailbox(addr)) continue;
+
             // proximity: any apply keyword within ~40 chars before the address
             var windowStart = Math.Max(0, m.Index - 40);
             var window = postingText.Substring(windowStart, m.Index - windowStart).ToLowerInvariant();
             if (Keywords.Any(k => window.Contains(k))) score += 10;
 
-            // demote bot mailboxes; prefer role mailboxes
+            // prefer role mailboxes
             var low = addr.ToLowerInvariant();
-            if (low.Contains("noreply") || low.Contains("no-reply") || low.Contains("donotreply")) score -= 20;
             if (low.StartsWith("jobs@") || low.StartsWith("careers@") || low.StartsWith("recruiting@") ||
                 low.StartsWith("hr@") || low.StartsWith("hiring@")) score += 5;
 
             if (score > bestScore) { bestScore = score; best = addr; }
         }
         return best;
+    }
+
+    private static bool IsNoReplyMailbox(string addr)
+    {
+        var low = addr.ToLowerInvariant();
+        return low.Contains("noreply")
+            || low.Contains("no-reply")
+            || low.Contains("donotreply")
+            || low.Contains("do-not-reply");
     }
 }
 
@@ -78,6 +88,21 @@ public static class ChannelDetector
         if (!applyUrl.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)) return null;
         var addr = applyUrl.Substring("mailto:".Length);
         var q = addr.IndexOf('?');
-        return q >= 0 ? addr[..q] : addr;
+        var path = q >= 0 ? addr[..q] : addr;
+        string decoded;
+        try
+        {
+            decoded = Uri.UnescapeDataString(path).Trim();
+        }
+        catch (UriFormatException)
+        {
+            return null;
+        }
+
+        if (decoded.Contains('\r') || decoded.Contains('\n')) return null;
+        var recipient = RecipientExtractor.Extract(decoded);
+        return string.Equals(decoded, recipient, StringComparison.OrdinalIgnoreCase)
+            ? recipient
+            : null;
     }
 }
