@@ -86,6 +86,16 @@ function Assert-DoesNotContain {
     }
 }
 
+function Get-GitValue {
+    param([string[]] $Arguments)
+
+    $output = & git @Arguments 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        return $null
+    }
+    return ($output -join "`n").Trim()
+}
+
 $offlineProjects = @(
     "tests/Slice/Slice.csproj",
     "tests/EngineHarness/EngineHarness.csproj",
@@ -600,6 +610,14 @@ if ($IncludePackage) {
             }
             if ([string]::IsNullOrWhiteSpace($manifest.source.shortCommit)) {
                 throw "Alpha release manifest missing source short commit."
+            }
+            $expectedSourceCommit = Get-GitValue @("rev-parse", "HEAD")
+            if (-not [string]::IsNullOrWhiteSpace($expectedSourceCommit) -and
+                -not $manifest.source.commit.Equals($expectedSourceCommit, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Alpha release manifest source commit '$($manifest.source.commit)' does not match current HEAD '$expectedSourceCommit'."
+            }
+            if ($manifest.source.dirty -ne $false) {
+                throw "Alpha release manifest was generated from a dirty working tree."
             }
             if ($manifest.includes.nativeRuntimeDependencies -notcontains "e_sqlite3.dll") {
                 throw "Alpha release manifest missing native SQLite dependency."
