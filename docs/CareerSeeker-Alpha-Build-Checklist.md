@@ -34,7 +34,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   of raw `file://` links, and the Engine harness verifies the linked resume PDF bytes.
 - The localhost dashboard exposes `/jobs` with recent discovered jobs, compensation/source metadata, safe
   job/apply links, repost counts, and prompt-injection flags.
-- The localhost dashboard exposes `/evidence` with audit-chain status and recent audit event metadata.
+- The localhost dashboard exposes `/evidence.html` for human audit-chain review and `/evidence` for recent
+  audit event metadata JSON.
 - The localhost dashboard exposes token-protected hash-only audit JSON and alpha package export controls when
   running against a SQLite DB.
 - The alpha executable has a standalone `dashboard` mode for inspecting and controlling an existing SQLite

@@ -201,7 +201,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/ exposes configured Gmail disconnect control", html.Contains("Disconnect Gmail"));
         Check("/ exposes configured audit export control", html.Contains("Export Audit JSON"));
         Check("/ exposes configured alpha package export control", html.Contains("Export Alpha Package"));
-        Check("/ links to audit evidence", html.Contains("/evidence") && html.Contains("audit-chain"));
+        Check("/ links to audit evidence", html.Contains("/evidence.html") && html.Contains("audit-chain"));
         Check("/ links to recent applications", html.Contains("/applications"));
         Check("/ links to recent jobs", html.Contains("/jobs"));
         var token = DashboardToken(html);
@@ -242,6 +242,14 @@ Console.WriteLine("\n[ localhost dashboard ]");
             jobsHtml.Contains("Remote") &&
             jobsHtml.Contains("feed:"),
             jobsHtml);
+
+        var evidenceHtml = await http.GetStringAsync("http://localhost:7777/evidence.html");
+        Check("/evidence.html serves human audit evidence",
+            evidenceHtml.Contains("Audit evidence") &&
+            evidenceHtml.Contains("Hash chain verified") &&
+            evidenceHtml.Contains("dashboard-test") &&
+            evidenceHtml.Contains("/evidence"),
+            evidenceHtml);
 
         var evidenceJson = await http.GetStringAsync("http://localhost:7777/evidence");
         using var evidenceDoc = JsonDocument.Parse(evidenceJson);

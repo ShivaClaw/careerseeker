@@ -220,15 +220,16 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $readme @(
         'no open-source license',
         'all rights are reserved',
-        'EngineHarness` (65)',
+        'EngineHarness` (66)',
         'GatewayGateHarness` (34)',
-        'Latest offline total: 250 assertions'
+        'Latest offline total: 251 assertions'
     ) "README.md"
 
     $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
     Assert-Contains $summary @(
-        'Total: 250 passed, 0 failed.',
-        '| `EngineHarness` | 65 passed, 0 failed |',
+        'Total: 251 passed, 0 failed.',
+        '| `EngineHarness` | 66 passed, 0 failed |',
+        '`/evidence.html`',
         '| `GatewayGateHarness` | 34 passed, 0 failed |',
         'typed confirmations for `LIVE`, `CLEAR`, `DISCONNECT`, `INSTALL`, and `UNINSTALL`',
         'typed confirmation for live/dangerous/persistent actions'
@@ -236,7 +237,8 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 250 passed, 0 failed.',
+        'Latest offline harness total: 251 passed, 0 failed.',
+        '`/evidence.html` exposes a human audit-chain page',
         '`INSTALL`',
         '`UNINSTALL`',
         '`CLEAR`',
@@ -246,7 +248,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `250 passed, 0 failed`.',
+        'Latest local offline verifier: `251 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'BYOK live provider smoke',
         'live Brave/BYOK company research',
@@ -260,6 +262,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Trusted-tester ZIP carries source provenance, payload checksums, and provider-key quickstart guidance',
         'README-alpha provider-key checks',
         'Dashboard controls are loopback, token-protected, and evidence-oriented',
+        '`/evidence.html`',
         'audit payload export requires `PAYLOADS`',
         'Confirmation variables are cleared before prompting and evaluated through',
         'environment-backed PowerShell checks',

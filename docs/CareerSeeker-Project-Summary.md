@@ -36,7 +36,8 @@ Completed:
 - Dashboard resume/cover links are served through narrow localhost `/documents/{applicationId}/resume|cover`
   routes and verified with live HTTP harness coverage.
 - The localhost dashboard exposes recent discovered jobs, source/compensation metadata, safe job/apply links, repost counts, and prompt-injection flags at `/jobs`.
-- The localhost dashboard exposes audit-chain status and recent audit event metadata at `/evidence`.
+- The localhost dashboard exposes human audit-chain review at `/evidence.html` and recent audit event metadata
+  JSON at `/evidence`.
 - The localhost dashboard exposes token-protected hash-only audit JSON and alpha package export controls when
   running against a SQLite DB.
 - The alpha executable has standalone `dashboard` mode for inspecting and controlling an existing SQLite alpha
@@ -359,12 +360,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 250 passed, 0 failed.
+Total: 251 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 65 passed, 0 failed |
+| `EngineHarness` | 66 passed, 0 failed |
 | `ResearcherHarness` | 29 passed, 0 failed |
 | `HookHarness` | 12 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
@@ -462,7 +463,8 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - DPAPI token vault added for local OAuth token storage.
 - Gmail disconnect added to revoke refresh tokens and delete local DPAPI token material.
 - Local dashboard Gmail disconnect control added with per-process form token plus loopback, Host, Origin, and Referer checks.
-- Local dashboard evidence endpoint added; `/evidence` verifies the audit chain and returns recent event metadata without payload bodies.
+- Local dashboard evidence views added; `/evidence.html` gives testers a human audit-chain page, while
+  `/evidence` verifies the audit chain and returns recent event metadata JSON without payload bodies.
 - Local `export-audit` command added; default export includes audit-chain status, event metadata, hashes, and payload lengths, while raw payloads require `--include-payloads`.
 - Local `export-alpha-package` command added; it writes a ZIP bundle with a manifest, audit export, SQLite
   snapshot, generated draft artifacts, and saved job-description artifacts while filtering secret/token/key-looking

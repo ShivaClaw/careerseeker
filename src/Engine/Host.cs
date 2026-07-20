@@ -147,7 +147,7 @@ h1{font-size:1.35rem;line-height:1.2;margin:0}h2{font-size:1rem;margin:1.2rem 0 
 button{font:inherit;font-weight:650;padding:.45rem .65rem;border:1px solid var(--line);border-radius:.35rem;background:#fff;color:var(--ink);cursor:pointer}button:hover{border-color:#8fa19a}.danger button{color:var(--danger)}
 .links{display:flex;gap:.55rem;flex-wrap:wrap}.table-wrap{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:.45rem}
 table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;border-bottom:1px solid var(--line);padding:.5rem .6rem;vertical-align:top}th{font-size:.78rem;text-transform:uppercase;color:var(--muted);background:#fbfbf9}tr:last-child td{border-bottom:0}
-.state{font-weight:700}.warn{font-weight:700;color:var(--warn)}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.15rem .45rem;background:#fff}
+.state{font-weight:700}.ok{color:#166534;font-weight:700}.bad{color:var(--danger);font-weight:700}.warn{font-weight:700;color:var(--warn)}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.15rem .45rem;background:#fff}
 @media (max-width:720px){.hero{display:block}.top-inner{align-items:flex-start}.shell{padding:1rem}table{min-width:46rem}}
 """;
 
@@ -198,7 +198,7 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
         var controls = ControlsHtml();
         var evidence = _evidence is null
             ? ""
-            : @"<h2>Evidence</h2><div class=""links""><a href=""/jobs"">Recent jobs</a><a href=""/applications"">Recent applications</a><a href=""/evidence"">audit-chain status</a></div>";
+            : @"<h2>Evidence</h2><div class=""links""><a href=""/jobs"">Recent jobs</a><a href=""/applications"">Recent applications</a><a href=""/evidence.html"">audit-chain status</a><a href=""/evidence"">audit JSON</a></div>";
 
         var body = $@"<section class=""hero""><div><h1>CareerSeeker engine status</h1><div class=""muted"">Last cycle: {WebUtility.HtmlEncode(c.LastCycleUtc?.ToString("u") ?? "-")}</div></div><span class=""pill"">running</span></section>
 {notice}<section class=""cards"">
@@ -220,7 +220,7 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
     {
         return $@"<!doctype html><html><head><meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width, initial-scale=1""><title>{WebUtility.HtmlEncode(title)}</title>
 <meta http-equiv=""refresh"" content=""5""><style>{DashboardCss}</style></head><body>
-<header class=""top""><div class=""top-inner""><div><div class=""brand"">CareerSeeker</div><div class=""sub"">Local alpha dashboard</div></div><nav class=""nav"">{NavLink("/", "Status", active == "status")}{NavLink("/jobs", "Jobs", active == "jobs")}{NavLink("/applications", "Applications", active == "applications")}{NavLink("/evidence", "Evidence", active == "evidence")}</nav></div></header>
+<header class=""top""><div class=""top-inner""><div><div class=""brand"">CareerSeeker</div><div class=""sub"">Local alpha dashboard</div></div><nav class=""nav"">{NavLink("/", "Status", active == "status")}{NavLink("/jobs", "Jobs", active == "jobs")}{NavLink("/applications", "Applications", active == "applications")}{NavLink("/evidence.html", "Evidence", active == "evidence")}</nav></div></header>
 <main class=""shell"">{body}</main></body></html>";
     }
 
@@ -301,6 +301,12 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
         if (ctx.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) && path == "/evidence")
         {
             await HandleEvidenceAsync(ctx, ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (ctx.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) && path == "/evidence.html")
+        {
+            await HandleEvidencePageAsync(ctx, ct).ConfigureAwait(false);
             return;
         }
 
@@ -387,6 +393,54 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
         }
 
         await WriteAsync(ctx, "application/json", await EvidenceJsonAsync(ct).ConfigureAwait(false), ct)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<string> EvidenceHtmlAsync(CancellationToken ct = default)
+    {
+        if (_evidence is null)
+            return "<!doctype html><html><body><p>No dashboard evidence source is configured.</p></body></html>";
+
+        var evidence = await _evidence.LoadAsync(ct).ConfigureAwait(false);
+        var auditText = evidence.AuditOk
+            ? "intact"
+            : $"broken at {evidence.FirstBrokenSeq?.ToString() ?? "unknown"}";
+        var auditDetail = evidence.AuditOk
+            ? "Hash chain verified"
+            : WebUtility.HtmlEncode(evidence.Reason ?? "Audit chain verification failed");
+        var auditClass = evidence.AuditOk ? "ok" : "bad";
+        var eventRows = evidence.RecentEvents.Count == 0
+            ? @"<tr><td colspan=""6"">No audit events yet.</td></tr>"
+            : string.Concat(evidence.RecentEvents.Select(EvidenceEventRowHtml));
+
+        var body = $@"<section class=""hero""><div><h1>Audit evidence</h1><div class=""muted"">Local metadata only; raw event payloads stay out of this page.</div></div><a href=""/"">Back to status</a></section>
+<section class=""cards"">
+<div class=""card""><div class=""label"">Audit chain</div><div class=""big {auditClass}"">{WebUtility.HtmlEncode(auditText)}</div><div class=""muted"">{auditDetail}</div></div>
+{MetricCard("Events", evidence.EventCount)}
+{MetricCard("Applications", evidence.RecentApplications.Count)}
+{MetricCard("Jobs", evidence.RecentJobs.Count)}
+</section>
+<h2>Recent audit events</h2>
+<div class=""table-wrap""><table><thead><tr><th>Seq</th><th>Time</th><th>Actor</th><th>Kind</th><th>Entity</th><th>Id</th></tr></thead>
+<tbody>{eventRows}</tbody></table></div>
+<h2>Evidence views</h2><div class=""links""><a href=""/applications"">Recent applications</a><a href=""/jobs"">Recent jobs</a><a href=""/evidence"">audit JSON</a></div>";
+        return PageHtml("CareerSeeker Evidence", "evidence", body);
+    }
+
+    private static string EvidenceEventRowHtml(DashboardEvidenceEvent row) =>
+        $@"<tr><td class=""n"">{row.Seq}</td><td class=""n"">{WebUtility.HtmlEncode(row.Ts)}</td><td>{WebUtility.HtmlEncode(row.Actor)}</td><td>{WebUtility.HtmlEncode(row.Kind)}</td><td>{WebUtility.HtmlEncode(row.Entity)}</td><td>{WebUtility.HtmlEncode(row.EntityId)}</td></tr>";
+
+    private async Task HandleEvidencePageAsync(HttpListenerContext ctx, CancellationToken ct)
+    {
+        if (_evidence is null)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "No dashboard evidence source is configured.", ct)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await WriteAsync(ctx, "text/html; charset=utf-8", await EvidenceHtmlAsync(ct).ConfigureAwait(false), ct)
             .ConfigureAwait(false);
     }
 
