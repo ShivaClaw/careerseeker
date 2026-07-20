@@ -137,7 +137,7 @@ Command equivalents:
   powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaScoutBoards.ps1 -Published
   powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaCompanyResearch.ps1 -Published -Company GitLab -Domain gitlab.com -PreviewOnly
   powershell -ExecutionPolicy Bypass -File .\scripts\Draft-AlphaJob.ps1 -Published -PreviewOnly
-  powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published
+  powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published -DryRun
   powershell -ExecutionPolicy Bypass -File .\scripts\Export-AlphaAudit.ps1 -Published
   powershell -ExecutionPolicy Bypass -File .\scripts\Export-AlphaEvidencePackage.ps1 -Published
   powershell -ExecutionPolicy Bypass -File .\scripts\Import-AlphaPackage.ps1 -Published -PreviewOnly

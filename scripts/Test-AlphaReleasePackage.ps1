@@ -282,6 +282,7 @@ try {
         "Check-CareerSeeker-LiveReadiness.cmd",
         "requires typing LIVE before creating a Gmail draft",
         "Draft-CareerSeeker-Job.cmd and Run-CareerSeeker-Live.cmd double-click helpers default to no-Gmail dry-run previews",
+        "powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published -DryRun",
         "Provider key file: secrets\env.secrets accepts ANTHROPIC_API_KEY, GEMINI_API_KEY or GOOGLE_API_KEY",
         "For company research, add Brave Search",
         "BRAVE_SEARCH_API",
@@ -295,6 +296,10 @@ try {
         if (-not $readme.Contains($snippet)) {
             throw "README-alpha.txt missing '$snippet'."
         }
+    }
+    if ($readme.Contains("powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published`r`n") -or
+        $readme.Contains("powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published`n")) {
+        throw "README-alpha.txt shows the live alpha command equivalent without -DryRun."
     }
 
     $liveLauncher = Get-Content -LiteralPath (Resolve-RootPath "Run-CareerSeeker-Live.cmd") -Raw

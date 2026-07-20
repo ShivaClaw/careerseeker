@@ -585,6 +585,13 @@ if ($IncludePackage) {
                     throw "Alpha release quickstart missing '$snippet'."
                 }
             }
+            if (-not $readme.Contains("powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published -DryRun")) {
+                throw "Alpha release quickstart must show the live helper command equivalent in dry-run mode."
+            }
+            if ($readme.Contains("powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published`r`n") -or
+                $readme.Contains("powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published`n")) {
+                throw "Alpha release quickstart shows the live alpha command equivalent without -DryRun."
+            }
 
             $auditSnapshotEntry = $zip.GetEntry("AUDIT-SNAPSHOT.txt")
             if ($null -eq $auditSnapshotEntry) {
