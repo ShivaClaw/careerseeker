@@ -775,6 +775,38 @@ Console.WriteLine("\n[ alpha package export ]");
         }
         Check("alpha package import rejects duplicate zip entries", duplicateRejected);
 
+        var tooManyEntriesPackage = Path.Combine(root, "too-many-entries.zip");
+        using (var stream = File.Create(tooManyEntriesPackage))
+        using (var tooManyEntriesZip = new ZipArchive(stream, ZipArchiveMode.Create))
+        {
+            var manifest = tooManyEntriesZip.CreateEntry("manifest.json");
+            await using (var writer = new StreamWriter(manifest.Open()))
+                await writer.WriteAsync("""{"format":"careerseeker-alpha-package-v1"}""");
+
+            for (var i = 0; i < 2048; i++)
+            {
+                var artifact = tooManyEntriesZip.CreateEntry($"artifacts/file-{i}.txt");
+                await using var writer = new StreamWriter(artifact.Open());
+                await writer.WriteAsync("evidence");
+            }
+        }
+
+        var tooManyEntriesRejected = false;
+        try
+        {
+            await AlphaPackageImport.ImportAsync(
+                tooManyEntriesPackage,
+                new AlphaPackageImportOptions(
+                    Path.Combine(root, "too-many-entries.db"),
+                    Path.Combine(root, "too-many-entries-artifacts"),
+                    Path.Combine(root, "too-many-entries-jds")));
+        }
+        catch (InvalidOperationException)
+        {
+            tooManyEntriesRejected = true;
+        }
+        Check("alpha package import rejects too many entries", tooManyEntriesRejected);
+
         var ambiguousDatabasePackage = Path.Combine(root, "ambiguous-database.zip");
         using (var stream = File.Create(ambiguousDatabasePackage))
         using (var ambiguousZip = new ZipArchive(stream, ZipArchiveMode.Create))

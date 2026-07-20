@@ -22,6 +22,9 @@ public sealed record AlphaPackageImportResult(
 public static class AlphaPackageImport
 {
     private const int MaxManifestBytes = 64 * 1024;
+    private const int MaxEntries = 2048;
+    private const long MaxEntryBytes = 128L * 1024 * 1024;
+    private const long MaxPackageUncompressedBytes = 512L * 1024 * 1024;
     private const string ExpectedFormat = "careerseeker-alpha-package-v1";
 
     public static async Task<AlphaPackageImportResult> ImportAsync(
@@ -62,10 +65,25 @@ public static class AlphaPackageImport
     {
         var seenEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var databaseEntries = 0;
+        var fileEntries = 0;
+        var uncompressedBytes = 0L;
         foreach (var entry in zip.Entries)
         {
             var name = NormalizeEntryName(entry.FullName);
             if (string.IsNullOrWhiteSpace(name) || name.EndsWith("/", StringComparison.Ordinal)) continue;
+
+            fileEntries++;
+            if (fileEntries > MaxEntries)
+                throw new InvalidOperationException($"Refusing alpha package with more than {MaxEntries} file entries.");
+
+            if (entry.Length > MaxEntryBytes)
+                throw new InvalidOperationException($"Refusing oversized alpha package entry '{entry.FullName}'.");
+
+            if (entry.Length > MaxPackageUncompressedBytes - uncompressedBytes)
+                throw new InvalidOperationException("Refusing alpha package with oversized uncompressed contents.");
+
+            uncompressedBytes += entry.Length;
+
             if (Path.IsPathFullyQualified(name) ||
                 name.Contains("../", StringComparison.Ordinal) ||
                 name.StartsWith("..", StringComparison.Ordinal) ||
