@@ -650,7 +650,7 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
             return;
         }
 
-        if (ctx.Request.ContentLength64 is < 0 or > 4096)
+        if (!IsDashboardFormPost(ctx.Request) || ctx.Request.ContentLength64 is < 0 or > 4096)
         {
             ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
             await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
@@ -689,9 +689,19 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
 
     private async Task<bool> HasValidControlTokenAsync(HttpListenerContext ctx)
     {
+        if (!IsDashboardFormPost(ctx.Request)) return false;
         if (ctx.Request.ContentLength64 is < 0 or > 4096) return false;
         var form = await ReadBodyAsync(ctx).ConfigureAwait(false);
         return HasValidControlToken(ParseForm(form));
+    }
+
+    private static bool IsDashboardFormPost(HttpListenerRequest request)
+    {
+        if (!request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase)) return false;
+        var contentType = request.ContentType;
+        if (string.IsNullOrWhiteSpace(contentType)) return false;
+        var mediaType = contentType.Split(';', 2)[0].Trim();
+        return mediaType.Equals("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool HasValidControlToken(Dictionary<string, string> form)

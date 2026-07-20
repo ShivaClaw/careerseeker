@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
 using SeekerSvc.Dispatcher;
 using SeekerSvc.Engine;
@@ -272,6 +273,13 @@ Console.WriteLine("\n[ localhost dashboard ]");
             (int)wrongHostResp.StatusCode >= 400 && disconnects == 0,
             $"{wrongHostResp.StatusCode}, calls={disconnects}");
 
+        var wrongContentType = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/gmail/disconnect",
+            new StringContent($"token={Uri.EscapeDataString(token)}", Encoding.UTF8, "text/plain"));
+        Check("Gmail disconnect control rejects non-form content",
+            wrongContentType.StatusCode == HttpStatusCode.Forbidden && disconnects == 0,
+            $"{wrongContentType.StatusCode}, calls={disconnects}");
+
         var post = await noRedirect.PostAsync(
             "http://localhost:7777/controls/gmail/disconnect",
             new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }));
@@ -304,6 +312,16 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("application control rejects a bad token",
             forgedApp.StatusCode == HttpStatusCode.Forbidden && appControls == 0,
             $"{forgedApp.StatusCode}, calls={appControls}");
+
+        var wrongAppContentType = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/application",
+            new StringContent(
+                $"token={Uri.EscapeDataString(token)}&applicationId={applicationId}&action=pause",
+                Encoding.UTF8,
+                "text/plain"));
+        Check("application control rejects non-form content",
+            wrongAppContentType.StatusCode == HttpStatusCode.Forbidden && appControls == 0,
+            $"{wrongAppContentType.StatusCode}, calls={appControls}");
 
         var appPost = await noRedirect.PostAsync(
             "http://localhost:7777/controls/application",
