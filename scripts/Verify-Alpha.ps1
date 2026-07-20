@@ -169,6 +169,67 @@ if ($IncludePackage) {
         if ($LASTEXITCODE -ne 0) {
             throw "Alpha release package creation failed."
         }
+
+        $packagePath = Join-Path $PackageOutputDirectory "CareerSeeker-alpha-win-x64.zip"
+        if (-not (Test-Path -LiteralPath $packagePath)) {
+            throw "Alpha release package was not created: $packagePath"
+        }
+
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $zipPath = (Resolve-Path -LiteralPath $packagePath).Path
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+        try {
+            $entries = @($zip.Entries | ForEach-Object { $_.FullName.Replace("\", "/") })
+            foreach ($required in @(
+                "SeekerSvc.Engine.exe",
+                "e_sqlite3.dll",
+                "README-alpha.txt",
+                "SHA256SUMS.txt",
+                "scripts/Initialize-AlphaWorkspace.ps1",
+                "scripts/Start-AlphaDashboard.ps1",
+                "scripts/Manage-AlphaDashboardTask.ps1"
+            )) {
+                if ($entries -notcontains $required) {
+                    throw "Alpha release package missing '$required'."
+                }
+            }
+
+            $readmeEntry = $zip.GetEntry("README-alpha.txt")
+            if ($null -eq $readmeEntry) {
+                throw "Alpha release package missing README-alpha.txt."
+            }
+            $reader = [System.IO.StreamReader]::new($readmeEntry.Open())
+            try {
+                $readme = $reader.ReadToEnd()
+            }
+            finally {
+                $reader.Dispose()
+            }
+            foreach ($snippet in @("import-profile", "Start-AlphaDashboard.ps1", "NoGmailControl")) {
+                if (-not $readme.Contains($snippet)) {
+                    throw "Alpha release quickstart missing '$snippet'."
+                }
+            }
+        }
+        finally {
+            $zip.Dispose()
+        }
+
+        $extractRoot = Join-Path "tmp" "verify-alpha-package-run"
+        if (Test-Path -LiteralPath $extractRoot) {
+            Remove-Item -LiteralPath $extractRoot -Recurse -Force
+        }
+        New-Item -ItemType Directory -Force -Path $extractRoot | Out-Null
+        Expand-Archive -LiteralPath $packagePath -DestinationPath $extractRoot -Force
+
+        & (Join-Path $extractRoot "scripts/Start-AlphaDashboard.ps1") `
+            -Published `
+            -Once `
+            -NoGmailControl `
+            -DbPath ".appdata/package-smoke.db"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Packaged dashboard launcher smoke failed."
+        }
     }
 }
 

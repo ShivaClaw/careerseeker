@@ -15,6 +15,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $engineProject = "src/Engine/SeekerSvc.Engine.csproj"
+$packagedExe = "SeekerSvc.Engine.exe"
 $publishExe = "src/Engine/bin/$Configuration/net8.0/win-x64/publish/SeekerSvc.Engine.exe"
 
 function Invoke-Checked {
@@ -38,10 +39,12 @@ function Test-CommandAvailable {
 Push-Location $repoRoot
 try {
     if ($Published -or $PublishIfMissing) {
-        $exePath = Join-Path $repoRoot $publishExe
+        $packagedExePath = Join-Path $repoRoot $packagedExe
+        $publishExePath = Join-Path $repoRoot $publishExe
+        $exePath = if (Test-Path -LiteralPath $packagedExePath) { $packagedExePath } else { $publishExePath }
         if (-not (Test-Path -LiteralPath $exePath)) {
             if (-not $PublishIfMissing) {
-                throw "Published alpha executable not found at '$publishExe'. Re-run with -PublishIfMissing or publish it first."
+                throw "Published alpha executable not found at '$packagedExe' or '$publishExe'. Re-run with -PublishIfMissing or publish it first."
             }
 
             if (-not (Test-CommandAvailable "dotnet")) {
@@ -57,6 +60,7 @@ try {
                 "--self-contained", "true",
                 "/p:PublishSingleFile=true"
             )
+            $exePath = $publishExePath
         }
 
         $command = $exePath

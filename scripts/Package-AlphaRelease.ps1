@@ -76,7 +76,11 @@ try {
     }
     New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
 
-    Copy-Item -LiteralPath $exePath -Destination (Join-Path $stageDir $exeName)
+    Get-ChildItem -LiteralPath (Join-Path $repoRoot $publishDir) -File |
+        Where-Object { $_.Extension -ne ".pdb" } |
+        ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $stageDir $_.Name)
+        }
 
     $quickstart = @"
 CareerSeeker Alpha
@@ -86,8 +90,11 @@ This package contains the local-first L1 Drafts alpha executable.
 Quick checks:
 
   powershell -ExecutionPolicy Bypass -File .\scripts\Initialize-AlphaWorkspace.ps1
+  notepad .appdata\profile.template.json
+  .\$exeName import-profile --profile .appdata\profile.template.json --db .appdata\careerseeker-alpha.db
   .\$exeName doctor --db .appdata\careerseeker-alpha.db --artifacts .appdata\artifacts
-  .\$exeName dashboard --db .appdata\careerseeker-alpha.db
+  powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published -Once -NoGmailControl
+  powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published
   .\$exeName export-alpha-package --db .appdata\careerseeker-alpha.db --out output\careerseeker-alpha-package.zip
   .\$exeName import-alpha-package --package output\careerseeker-alpha-package.zip
 
@@ -99,7 +106,13 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
 
     $scriptsDir = Join-Path $stageDir "scripts"
     New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
-    Copy-Item -LiteralPath (Join-Path $repoRoot "scripts/Initialize-AlphaWorkspace.ps1") -Destination $scriptsDir
+    foreach ($script in @(
+        "scripts/Initialize-AlphaWorkspace.ps1",
+        "scripts/Start-AlphaDashboard.ps1",
+        "scripts/Manage-AlphaDashboardTask.ps1"
+    )) {
+        Copy-Item -LiteralPath (Join-Path $repoRoot $script) -Destination $scriptsDir
+    }
 
     if (-not $NoDocs) {
         $docsDir = Join-Path $stageDir "docs"
@@ -135,7 +148,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     Write-Host "  executable: $exePath"
     Write-Host "  package: $packagePath"
     Write-Host "  bytes: $((Get-Item -LiteralPath $packagePath).Length)"
-    $contents = "executable, README-alpha.txt, SHA256SUMS.txt"
+    $contents = "executable, native runtime dependencies, README-alpha.txt, SHA256SUMS.txt"
     if (-not $NoDocs) {
         $contents += ", docs"
     }

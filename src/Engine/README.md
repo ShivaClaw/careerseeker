@@ -103,14 +103,14 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
-- `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, quickstart,
-  workspace initializer, checksums, and selected docs without bundling local databases, vaults, provider keys,
-  or generated artifacts.
+- `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
+  dependencies, quickstart, workspace initializer, dashboard helper scripts, checksums, and selected docs without
+  bundling local databases, vaults, provider keys, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
   and a blank env-secrets placeholder, and can run the startup doctor after setup.
 - `scripts/Start-AlphaDashboard.ps1` wraps the standalone dashboard mode for trusted testers; it can smoke-check
-  the local dashboard with `-Once`, run from source, or run the published single-file executable with
-  `-Published -PublishIfMissing`.
+  the local dashboard with `-Once`, run from source, run the published single-file executable with
+  `-Published -PublishIfMissing`, or run from the packaged release root with `-Published`.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register, remove, start, stop, and inspect a per-user Windows
   logon task for the alpha dashboard while the full service/tray/installer stack remains future work.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
