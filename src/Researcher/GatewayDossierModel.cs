@@ -70,7 +70,7 @@ public sealed class GatewayDossierModel : IDossierModel
 
     public static IReadOnlyList<ProposedFact> Parse(string raw)
     {
-        var json = Strip(raw).Trim();
+        var json = ExtractJson(Strip(raw).Trim());
         var list = new List<ProposedFact>();
         try
         {
@@ -79,10 +79,10 @@ public sealed class GatewayDossierModel : IDossierModel
             foreach (var e in facts)
             {
                 var topic = Enum.TryParse<DossierTopic>(Str(e, "topic"), ignoreCase: true, out var t) ? t : DossierTopic.Overview;
-                var text = Str(e, "text");
-                var url = Str(e, "sourceUrl");
+                var text = Str(e, "text", "fact", "summary");
+                var url = Str(e, "sourceUrl", "source_url", "source", "url");
                 if (text.Length == 0) continue;
-                list.Add(new ProposedFact(topic, text, url, Str(e, "sourceTitle")));
+                list.Add(new ProposedFact(topic, text, url, Str(e, "sourceTitle", "source_title", "title")));
             }
         }
         catch (JsonException) { /* a malformed proposal yields no facts; the dossier is simply leaner */ }
@@ -96,6 +96,9 @@ public sealed class GatewayDossierModel : IDossierModel
 
         if (root.ValueKind == JsonValueKind.Object)
         {
+            if (root.TryGetProperty("text", out _) || root.TryGetProperty("fact", out _) || root.TryGetProperty("summary", out _))
+                return new[] { root };
+
             foreach (var name in new[] { "facts", "dossier", "items" })
                 if (root.TryGetProperty(name, out var wrapped) && wrapped.ValueKind == JsonValueKind.Array)
                     return wrapped.EnumerateArray();
@@ -104,8 +107,13 @@ public sealed class GatewayDossierModel : IDossierModel
         return Array.Empty<JsonElement>();
     }
 
-    private static string Str(JsonElement e, string name) =>
-        e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+    private static string Str(JsonElement e, params string[] names)
+    {
+        foreach (var name in names)
+            if (e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String)
+                return v.GetString() ?? "";
+        return "";
+    }
 
     private static string Strip(string s)
     {
@@ -115,5 +123,71 @@ public sealed class GatewayDossierModel : IDossierModel
         if (nl >= 0) s = s[(nl + 1)..];
         var fence = s.LastIndexOf("```", StringComparison.Ordinal);
         return fence >= 0 ? s[..fence] : s;
+    }
+
+    private static string ExtractJson(string s)
+    {
+        if (s.Length == 0 || s[0] is '[' or '{') return s;
+
+        for (var i = 0; i < s.Length; i++)
+        {
+            if (s[i] is not ('[' or '{')) continue;
+            if (TryFindJsonEnd(s, i, out var end))
+                return s[i..(end + 1)];
+        }
+
+        return s;
+    }
+
+    private static bool TryFindJsonEnd(string s, int start, out int end)
+    {
+        var stack = new Stack<char>();
+        var inString = false;
+        var escaped = false;
+        end = -1;
+
+        for (var i = start; i < s.Length; i++)
+        {
+            var ch = s[i];
+            if (inString)
+            {
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+                if (ch == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (ch == '"') inString = false;
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                inString = true;
+                continue;
+            }
+
+            if (ch is '[' or '{')
+            {
+                stack.Push(ch is '[' ? ']' : '}');
+                continue;
+            }
+
+            if (ch is ']' or '}')
+            {
+                if (stack.Count == 0 || stack.Pop() != ch) return false;
+                if (stack.Count == 0)
+                {
+                    end = i;
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

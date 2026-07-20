@@ -119,6 +119,9 @@ Console.WriteLine("\n[ gateway bridge ]");
     Check("Parse handles JSON array", GatewayDossierModel.Parse("[{\"topic\":\"Hook\",\"text\":\"t\",\"sourceUrl\":\"u\"}]").Count == 1);
     Check("Parse handles facts wrapper", GatewayDossierModel.Parse("{\"facts\":[{\"topic\":\"Hook\",\"text\":\"t\",\"sourceUrl\":\"u\"}]}").Count == 1);
     Check("Parse strips fences", GatewayDossierModel.Parse("```json\n[{\"topic\":\"Overview\",\"text\":\"t\",\"sourceUrl\":\"u\"}]\n```").Count == 1);
+    Check("Parse extracts prose-wrapped JSON", GatewayDossierModel.Parse("Here are the facts:\n[{\"topic\":\"Hook\",\"text\":\"t\",\"sourceUrl\":\"u\"}]").Count == 1);
+    Check("Parse handles single fact object", GatewayDossierModel.Parse("{\"topic\":\"Hook\",\"text\":\"t\",\"sourceUrl\":\"u\"}").Count == 1);
+    Check("Parse handles source aliases", GatewayDossierModel.Parse("[{\"topic\":\"Hook\",\"fact\":\"t\",\"source_url\":\"u\",\"source_title\":\"s\"}]").Single().SourceUrl == "u");
     Check("Parse tolerates junk (no throw, empty)", GatewayDossierModel.Parse("not json").Count == 0);
 
     const string canned = "[{\"topic\":\"Hook\",\"text\":\"Acme recently raised a Series B to expand its platform team.\",\"sourceUrl\":\"https://techcrunch.com/acme-series-b\",\"sourceTitle\":\"Acme raises Series B\"}]";

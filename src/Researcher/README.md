@@ -43,14 +43,15 @@ Retrieved document text is treated as untrusted data, never instructions.
 - `Grounding.cs`: grounded-or-dropped invariant.
 - `Signals.cs`: deterministic researched-signal derivation.
 - `Researcher.cs`: orchestrator, options, and in-memory cache.
-- `GatewayDossierModel.cs`: `IDossierModel` over `Stage.FullEvaluation`.
+- `GatewayDossierModel.cs`: `IDossierModel` over `Stage.FullEvaluation`; parser accepts clean JSON,
+  fenced JSON, prose-wrapped JSON, single fact objects, and common source aliases before grounding.
 - `BraveSearchWebResearch.cs`: Brave Search API adapter that fetches result pages before returning docs.
 - `tests/ResearcherHarness`: offline plain-assertion runner.
 
 ## Verified Status
 
 - Compiles clean against the Gateway: `dotnet build -c Release` returns 0 warnings, 0 errors.
-- `ResearcherHarness`: 30 passed, 0 failed.
+- `ResearcherHarness`: 33 passed, 0 failed.
 - Coverage includes the grounding invariant, positive-only signals, cache behavior, Gateway model bridge,
   dossier-to-Scorer seam, and the Brave adapter's auth/query shape, public-page fetch, HTML stripping,
   localhost refusal, non-text skipping, wrapper-shaped live model responses, deterministic source fallback,
