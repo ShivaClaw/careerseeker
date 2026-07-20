@@ -39,6 +39,8 @@ Trust/OAuth docs:
 - `Connect-CareerSeeker-Providers.cmd`: double-click BYOK provider-key import and doctor helper copied into
   the trusted-tester release ZIP.
 - `Connect-CareerSeeker-Gmail.cmd`: double-click Gmail OAuth helper copied into the trusted-tester release ZIP.
+- `Run-CareerSeeker-Demo.cmd`: double-click safe local demo cycle helper copied into the trusted-tester
+  release ZIP.
 - `Start-CareerSeeker-Alpha.cmd`: double-click dashboard launcher copied into the trusted-tester release ZIP.
 - `connect-gmail`: first-class alpha command that opens Gmail OAuth, stores the local DPAPI token, and
   preflights draft access without creating a draft.

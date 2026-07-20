@@ -22,7 +22,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   offline harnesses, win-x64 single-file publish smoke, BYOK live provider smoke, startup doctor, and
   dashboard smoke.
 - `scripts/Verify-Alpha.ps1 -IncludePackage` passed locally and produced a trusted-tester ZIP with the alpha
-  executable, native runtime dependencies, double-click setup/profile/provider/Gmail/dashboard launchers, workspace initializer, dashboard/helper
+  executable, native runtime dependencies, double-click setup/profile/provider/Gmail/demo/dashboard launchers, workspace initializer, dashboard/helper
   self-check scripts, quickstart, package-local audit snapshot, release manifest, checksums, and selected docs.
 - `scripts/Verify-Alpha.ps1 -IncludeResearch` passed locally with live Brave Search plus BYOK dossier
   modeling. Latest GitLab smoke retrieved 10 docs, used 3 deterministic grounded fallback facts after the model
@@ -81,6 +81,12 @@ Trusted-tester dashboard launcher:
 powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1
 ```
 
+Safe local demo cycle:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/Run-AlphaDemoCycle.ps1
+```
+
 Local alpha evidence package:
 
 ```powershell
@@ -136,7 +142,7 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
   job-description artifacts; secret/token/key-looking paths are filtered, unsafe ZIP paths are rejected, and
   import verifies the restored SQLite audit chain.
 - Trusted-tester release ZIP packaging for the published executable, native runtime dependencies, workspace
-  initializer, double-click setup/profile/provider/Gmail/dashboard launchers, quickstart, package-local audit snapshot, release
+  initializer, double-click setup/profile/provider/Gmail/demo/dashboard launchers, quickstart, package-local audit snapshot, release
   manifest, dashboard/helper self-check scripts, SHA-256 checksums, and selected trust/audit docs without local databases, vaults, provider keys, or generated
   artifacts.
 - GitHub CI mirrors the offline alpha verifier for `main`, `agent/**`, `codex/**`, and PRs into `main`.

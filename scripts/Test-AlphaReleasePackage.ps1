@@ -73,6 +73,7 @@ try {
         "Connect-CareerSeeker-Gmail.cmd",
         "Import-CareerSeeker-Profile.cmd",
         "Setup-CareerSeeker-Alpha.cmd",
+        "Run-CareerSeeker-Demo.cmd",
         "Start-CareerSeeker-Alpha.cmd",
         "e_sqlite3.dll",
         "README-alpha.txt",
@@ -81,6 +82,7 @@ try {
         "SHA256SUMS.txt",
         "scripts/Connect-AlphaProviders.ps1",
         "scripts/Import-AlphaProfile.ps1",
+        "scripts/Run-AlphaDemoCycle.ps1",
         "scripts/Initialize-AlphaWorkspace.ps1",
         "scripts/Start-AlphaDashboard.ps1",
         "scripts/Manage-AlphaDashboardTask.ps1",
@@ -110,6 +112,9 @@ try {
     if ($manifest.includes.scripts -notcontains "scripts/Import-AlphaProfile.ps1") {
         throw "Release manifest does not list the profile import helper."
     }
+    if ($manifest.includes.scripts -notcontains "scripts/Run-AlphaDemoCycle.ps1") {
+        throw "Release manifest does not list the demo cycle helper."
+    }
     if ($manifest.includes.scripts -notcontains "scripts/Test-AlphaReleasePackage.ps1") {
         throw "Release manifest does not list the package self-check script."
     }
@@ -128,6 +133,9 @@ try {
     if ($manifest.includes.launchers -notcontains "Connect-CareerSeeker-Gmail.cmd") {
         throw "Release manifest does not list the double-click Gmail connect launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Demo.cmd") {
+        throw "Release manifest does not list the double-click demo cycle launcher."
+    }
     if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {
         throw "Release manifest does not reference SHA256SUMS.txt."
     }
@@ -138,6 +146,7 @@ try {
         "Package-local verification commands",
         "Import-CareerSeeker-Profile.cmd",
         "Connect-CareerSeeker-Providers.cmd",
+        "Run-CareerSeeker-Demo.cmd",
         "L1 creates Gmail drafts only",
         "Secret values are not included"
     )) {
