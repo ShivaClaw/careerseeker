@@ -9,6 +9,7 @@ param(
     [int] $Port = 7777,
     [string] $Configuration = "Release",
     [string] $DbPath = ".appdata/careerseeker-alpha.db",
+    [string] $AuditOutPath = "output/careerseeker-audit.json",
     [string] $GmailClientPath = "secrets/google-oauth-client.json",
     [string] $GmailVaultPath = ".appdata/oauth/gmail-token.dpapi"
 )
@@ -42,6 +43,7 @@ function Get-LauncherArguments {
         "-Port", $Port.ToString(),
         "-Configuration", $Configuration,
         "-DbPath", $DbPath,
+        "-AuditOutPath", $AuditOutPath,
         "-GmailClientPath", $GmailClientPath,
         "-GmailVaultPath", $GmailVaultPath
     )
