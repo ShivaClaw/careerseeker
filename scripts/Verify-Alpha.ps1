@@ -222,12 +222,12 @@ Invoke-Step "Public README and harness count smoke" {
         'all rights are reserved',
         'EngineHarness` (68)',
         'GatewayGateHarness` (34)',
-        'Latest offline total: 254 assertions'
+        'Latest offline total: 255 assertions'
     ) "README.md"
 
     $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
     Assert-Contains $summary @(
-        'Total: 254 passed, 0 failed.',
+        'Total: 255 passed, 0 failed.',
         '| `EngineHarness` | 68 passed, 0 failed |',
         '`/evidence.html`',
         '| `GatewayGateHarness` | 34 passed, 0 failed |',
@@ -237,7 +237,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 254 passed, 0 failed.',
+        'Latest offline harness total: 255 passed, 0 failed.',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
         '`INSTALL`',
@@ -249,7 +249,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `254 passed, 0 failed`.',
+        'Latest local offline verifier: `255 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'BYOK live provider smoke',
         'live Brave/BYOK company research',
@@ -286,10 +286,14 @@ Invoke-Step "Public README and harness count smoke" {
 
     $packaging = Get-Content -LiteralPath "src/Dispatcher/Packaging.cs" -Raw
     Assert-Contains $packaging @(
-        'sb.AppendLine("- " + step);'
+        'sb.AppendLine("- " + step);',
+        'Review the form, complete any remaining fields, and submit when ready.'
     ) "src/Dispatcher/Packaging.cs"
     if ($packaging.Contains('sb.AppendLine("' + [char]0x2022 + ' " + step);')) {
         throw "src/Dispatcher/Packaging.cs reintroduced a non-ASCII manual-finish bullet."
+    }
+    if ($packaging.Contains('Review the auto-filled fields and submit.')) {
+        throw "src/Dispatcher/Packaging.cs overclaims ATS auto-fill in L1 manual draft instructions."
     }
 }
 

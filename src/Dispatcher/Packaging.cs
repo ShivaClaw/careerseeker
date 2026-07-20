@@ -68,7 +68,7 @@ public static class PackageBuilder
         steps.Add("Paste the prepared answers below into the matching fields.");
         steps.Add(channel == DispatchChannel.ManualFinish
             ? "Complete any remaining fields and submit (this board can't be automated safely)."
-            : "Review the auto-filled fields and submit.");
+            : "Review the form, complete any remaining fields, and submit when ready.");
         return steps;
     }
 

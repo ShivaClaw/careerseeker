@@ -124,6 +124,17 @@ Check("Manual-finish draft body uses clean ASCII bullets",
     manualPackage.BodyText.IndexOf((char)0x2022) < 0,
     manualPackage.BodyText);
 
+var atsPackage = PackageBuilder.Build(
+    new PipelineJob(8, "Backend Engineer", "Acme"),
+    new TailoredApplication(Array.Empty<TailoredClaim>(), "resume", "cover", new Dictionary<string, string>()),
+    new PostingDispatchInfo(DispatchChannel.AtsForm, ApplyUrl: "https://boards.greenhouse.io/acme/jobs/8"),
+    new DispatcherConfig("Jordan Lee", "jordan@example.com"),
+    new Attachment("resume.pdf", "application/pdf", new byte[] { 0x25, 0x50, 0x44, 0x46 }));
+Check("ATS-form draft body does not claim fields were auto-filled",
+    !atsPackage.BodyText.Contains("auto-filled", StringComparison.OrdinalIgnoreCase) &&
+    atsPackage.BodyText.Contains("complete any remaining fields", StringComparison.OrdinalIgnoreCase),
+    atsPackage.BodyText);
+
 Console.WriteLine("\n[ PDF renderer ]");
 var pdfRenderer = new AtsPdfDocumentRenderer(new AtsPdfRendererOptions("Jordan Lee", RenderCoverPdf: true));
 var pdfJob = new PipelineJob(42, "Software Engineer", "Acme");
