@@ -136,8 +136,9 @@ quality, cost/user. **Exit:** a cohort runs for weeks with zero fabrication esca
 move the OAuth app to production. **Flag:** the gate to public launch. **Exit:** verified app, unlimited
 users for `gmail.compose`.
 
-**E3. Public L1 launch.** Free Windows .exe, Drafts mode, daily digest. Managed-inference billing if the
-Managed tier ships (else BYOK-only at launch). **Exit:** v0.1 live.
+**E3. Public L1 launch.** Free Windows .exe, Drafts mode, localhost dashboard/evidence review. Email digest
+and magic-link approvals remain L2/relay scope unless an explicit send-capable product path is designed and
+verified. Managed-inference billing if the Managed tier ships (else BYOK-only at launch). **Exit:** v0.1 live.
 
 ---
 
