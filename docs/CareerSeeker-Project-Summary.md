@@ -19,7 +19,7 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, local source-of-truth profile import, local alpha workspace initialization, standalone SQLite dashboard mode, Windows-friendly dashboard launcher, trusted-tester release ZIP packaging, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, local alpha package export/import, Gmail disconnect, dashboard disconnect/control views, dashboard alpha package export control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, live Brave/BYOK company research, and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, local source-of-truth profile import, local alpha workspace initialization, standalone SQLite dashboard mode, responsive localhost dashboard shell, Windows-friendly and double-click trusted-tester launchers, trusted-tester release ZIP packaging, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, local alpha package export/import, Gmail OAuth connect/disconnect, dashboard disconnect/control views, dashboard alpha package export control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, live Brave/BYOK company research, and parity coverage verified.
 
 Completed:
 
@@ -27,8 +27,12 @@ Completed:
 - B5 Gmail draft client verified with a real Google OAuth token and a real Gmail draft in the test account.
 - OAuth token storage works through a local DPAPI-backed token vault.
 - Gmail disconnect can revoke the OAuth token and delete the local DPAPI vault via the alpha executable.
+- `connect-gmail` can create/refresh the local Gmail DPAPI token vault, preflight Gmail draft access, and print
+  the connected Gmail profile without creating a draft.
 - The localhost dashboard can expose a token-protected Gmail disconnect control wired to the same revoke/delete path.
 - The localhost dashboard exposes recent application state, scores, draft refs, generated resume/cover document links, safe job/apply links, and token-protected pause/resume/kill controls at `/applications`.
+- The localhost dashboard uses a responsive shared alpha shell with stable navigation, metric cards, and readable
+  recent-job/application tables.
 - Dashboard resume/cover links are served through narrow localhost `/documents/{applicationId}/resume|cover`
   routes and verified with live HTTP harness coverage.
 - The localhost dashboard exposes recent discovered jobs, source/compensation metadata, safe job/apply links, repost counts, and prompt-injection flags at `/jobs`.
@@ -41,9 +45,9 @@ Completed:
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
   and a blank env-secrets placeholder, and can run the startup doctor after setup.
 - `scripts/Package-AlphaRelease.ps1` builds a trusted-tester ZIP with the published executable, native runtime
-  dependencies, workspace initializer, dashboard/helper self-check scripts, quickstart, release manifest,
-  SHA-256 checksums, and selected docs while excluding local databases, vaults, provider keys, and generated
-  artifacts.
+  dependencies, double-click setup/Gmail/dashboard launchers, workspace initializer, dashboard/helper
+  self-check scripts, quickstart, release manifest, SHA-256 checksums, and selected docs while excluding local
+  databases, vaults, provider keys, and generated artifacts.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register a per-user Windows logon task for keeping the alpha
   dashboard available until the service/tray/installer work lands.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
@@ -304,9 +308,9 @@ SQLite pragmas:
 | Connector | Status | Notes |
 | --- | --- | --- |
 | Scout | Live verified | Greenhouse, Lever, and Ashby public APIs. Board-level failures are isolated. |
-| Gmail OAuth | Live verified | `gmail.compose`; DPAPI local token vault; real draft created; custom labels skipped for L1. |
+| Gmail OAuth | Live verified | `gmail.compose`; DPAPI local token vault; no-draft `connect-gmail`; real draft created in alpha/live smoke; custom labels skipped for L1. |
 | LLM providers | Full alpha BYOK path verified | `--llm byok` reads local DPAPI/env/env.secrets keys and registers Anthropic/Gemini providers for Tailor and Gate; BYOK alpha defaults to top-3 Gate semantic candidates per claim; `--fast-smoke` remains a cheaper routine validator. |
-| Research web | Fake/offline only | Planned search API plus web fetch. |
+| Research web | Live verified | Brave Search adapter fetches public result pages and `research-company` composes Brave + BYOK dossier modeling with grounding/fallback facts. |
 | Document renderer | Offline verified | Deterministic single-column ATS-clean PDF renderer writes selectable resume text and attaches PDFs to drafts; Chromium/HTML polish remains future work. |
 | SQLite | Source restored | `Microsoft.Data.Sqlite` PackageReference active; `StoreParityHarness` passed. |
 | Windows service/tray | Engine shell only | Service/tray not yet implemented. |
@@ -458,6 +462,11 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - Brave Search web-research adapter added; it uses search results only to select URLs, fetches public result pages, strips HTML/script noise, skips localhost/private/non-text results, and leaves final trust to the grounding filter.
 - `research-company` command added for live Brave + BYOK dossier runs when `BRAVE_SEARCH_API_KEY` is available.
 - Gmail draft API preflight added before live draft creation.
+- `connect-gmail` command added for interactive Gmail OAuth setup and draft-access preflight without creating a draft.
+- Trusted-tester release ZIP now includes double-click setup, Gmail connect, and dashboard launchers, each
+  covered by package manifest/self-check verification.
+- Local dashboard shell polished with responsive navigation, metric cards, and readable recent-job/application
+  tables while preserving token-protected controls.
 - Gmail live harness added.
 - L1 Gmail labels deferred to preserve `gmail.compose` only.
 - `client_secret*.json` and `token*.json` added to `.gitignore`.
@@ -507,8 +516,8 @@ Status: substantially complete.
   - Gate semantic candidate minimization is implemented for alpha BYOK.
   - Confirm StrongCloud failover under real provider outage conditions.
 - B3 real Researcher:
-  - Implement `IWebResearch` with search API plus web fetch.
-  - Verify grounding drops unsupported facts on real pages.
+  - Brave Search `IWebResearch` adapter with public-page fetch is implemented.
+  - Live `research-company` verifies Brave + BYOK dossier grounding and deterministic fallback facts.
 - B4 document renderer:
   - Keep the current ATS-clean text PDF renderer for alpha.
   - Add headless Chromium/Playwright when HTML template polish is needed.
@@ -677,6 +686,7 @@ dotnet run --project tests/ScoutLiveHarness/ScoutLiveHarness.csproj -c Release -
 dotnet run --project tests/GmailLiveHarness/GmailLiveHarness.csproj -c Release --no-build -- --email you@gmail.com --client client_secret.json
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi
 dotnet run --project tests/ByokLiveHarness/ByokLiveHarness.csproj -c Release --no-build -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi
+dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- connect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- alpha --llm byok --fast-smoke --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- alpha --llm byok --gate-semantic-candidates 3 --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db
@@ -710,6 +720,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past twenty-seven important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, dashboard-accessible alpha package export, repeatable local alpha workspace initialization, local source-of-truth profile import, packaged dashboard helper scripts, release-manifest/checksum verification, and extracted-package self-checking. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
+CareerSeeker is now past thirty important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, no-draft Gmail OAuth connection, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, responsive standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, dashboard-accessible alpha package export, repeatable local alpha workspace initialization, local source-of-truth profile import, double-click setup/Gmail/dashboard launchers, packaged dashboard helper scripts, release-manifest/checksum verification, and extracted-package self-checking. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.
