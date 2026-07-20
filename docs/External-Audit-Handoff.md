@@ -179,6 +179,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
   should not be printed.
 - Tester launchers: live Gmail drafts require typing `LIVE`; provider-key clear requires `CLEAR`; Gmail
   disconnect requires `DISCONNECT`; dashboard task install/remove requires `INSTALL` or `UNINSTALL`.
+- Free-form tester inputs in selected-job draft, company research, and package import launchers are forwarded
+  through environment-backed PowerShell argument arrays instead of interpolated directly into batch command lines.
 
 ## Current Alpha Capabilities
 

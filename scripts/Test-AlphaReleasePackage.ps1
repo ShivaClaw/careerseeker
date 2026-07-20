@@ -350,6 +350,61 @@ try {
         }
     }
 
+    $draftJobLauncher = Get-Content -LiteralPath (Resolve-RootPath "Draft-CareerSeeker-Job.cmd") -Raw
+    foreach ($snippet in @(
+        "set `"CAREERSEEKER_JOB_ID=`"",
+        '$jobIdText = $env:CAREERSEEKER_JOB_ID',
+        '[int]::TryParse($jobIdText.Trim(), [ref]$jobId)',
+        "[string]::IsNullOrWhiteSpace(`$jobIdText)",
+        '$draftArgs = @(''-Published'', ''-JobId'', $jobId)',
+        '$env:CAREERSEEKER_DRAFT_MODE -ieq ''LIVE''',
+        '$env:CAREERSEEKER_DRAFT_SCRIPT'
+    )) {
+        if (-not $draftJobLauncher.Contains($snippet)) {
+            throw "Draft-CareerSeeker-Job.cmd missing hardened input snippet '$snippet'."
+        }
+    }
+    if ($draftJobLauncher.Contains('-JobId "%CAREERSEEKER_JOB_ID%"')) {
+        throw "Draft-CareerSeeker-Job.cmd still interpolates the job id directly into the batch command line."
+    }
+
+    $companyResearchLauncher = Get-Content -LiteralPath (Resolve-RootPath "Research-CareerSeeker-Company.cmd") -Raw
+    foreach ($snippet in @(
+        "set `"CAREERSEEKER_RESEARCH_COMPANY=`"",
+        '$company = $env:CAREERSEEKER_RESEARCH_COMPANY',
+        "[string]::IsNullOrWhiteSpace(`$company)",
+        "Write-Host 'A company name is required.'; exit 1",
+        '$researchArgs = @(''-Published'', ''-Company'', $company.Trim())',
+        '$env:CAREERSEEKER_RESEARCH_DOMAIN',
+        '$env:CAREERSEEKER_RESEARCH_SCRIPT'
+    )) {
+        if (-not $companyResearchLauncher.Contains($snippet)) {
+            throw "Research-CareerSeeker-Company.cmd missing hardened input snippet '$snippet'."
+        }
+    }
+    if ($companyResearchLauncher.Contains('-Company "%CAREERSEEKER_RESEARCH_COMPANY%"') -or
+        $companyResearchLauncher.Contains('-Domain "%CAREERSEEKER_RESEARCH_DOMAIN%"')) {
+        throw "Research-CareerSeeker-Company.cmd still interpolates typed research values directly into the batch command line."
+    }
+
+    $packageImportLauncher = Get-Content -LiteralPath (Resolve-RootPath "Import-CareerSeeker-Package.cmd") -Raw
+    foreach ($snippet in @(
+        "set `"CAREERSEEKER_IMPORT_PACKAGE=`"",
+        '$packagePath = if ([string]::IsNullOrWhiteSpace($env:CAREERSEEKER_IMPORT_PACKAGE))',
+        '$targetRoot = if ([string]::IsNullOrWhiteSpace($env:CAREERSEEKER_IMPORT_TARGET))',
+        '$importArgs = @(''-Published'', ''-PackagePath'', $packagePath, ''-TargetRoot'', $targetRoot)',
+        '$env:CAREERSEEKER_IMPORT_MODE -ieq ''OVERWRITE''',
+        '$env:CAREERSEEKER_IMPORT_SCRIPT'
+    )) {
+        if (-not $packageImportLauncher.Contains($snippet)) {
+            throw "Import-CareerSeeker-Package.cmd missing hardened input snippet '$snippet'."
+        }
+    }
+    if ($packageImportLauncher.Contains('-PackagePath "%CAREERSEEKER_IMPORT_PACKAGE%"') -or
+        $packageImportLauncher.Contains('-TargetRoot "%CAREERSEEKER_IMPORT_TARGET%"')) {
+        throw "Import-CareerSeeker-Package.cmd still interpolates typed import paths directly into the batch command line."
+    }
+
     $setupLauncher = Get-Content -LiteralPath (Resolve-RootPath "Setup-CareerSeeker-Alpha.cmd") -Raw
     foreach ($snippet in @(
         "Fill secrets\env.secrets locally with ANTHROPIC_API_KEY and GEMINI_API_KEY or GOOGLE_API_KEY",
