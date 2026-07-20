@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`.
-- Latest local offline verifier: `228 passed, 0 failed`.
+- Latest local offline verifier: `232 passed, 0 failed`.
 - `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish` passed locally after the current alpha wiring:
   offline harnesses, win-x64 single-file publish smoke, BYOK live provider smoke, startup doctor, and
   dashboard smoke.
@@ -109,8 +109,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 - Selected stored job drafting with posting-body context and dry-run verification.
 - Real ATS-clean resume PDF renderer and Gmail draft attachment packaging.
 - Standalone localhost dashboard over an existing SQLite alpha DB.
-- Dashboard `/applications`, `/jobs`, `/evidence`, application controls, Gmail disconnect, and local resume/cover
-  document routes.
+- Dashboard `/applications`, `/jobs`, `/evidence`, application controls, Gmail disconnect, token-protected alpha
+  package export, and local resume/cover document routes.
 - BYOK Anthropic/Gemini Tailor and Gate wiring through the Gateway.
 - Brave Search + BYOK company dossier command with deterministic grounding and fallback source snippets.
 - Local alpha ZIP package export/import with manifest, audit export, SQLite snapshot, draft artifacts, and saved

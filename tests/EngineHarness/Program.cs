@@ -144,6 +144,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
 {
     var disconnects = 0;
     var appControls = 0;
+    var packageExports = 0;
     var evidenceStore = await SeededStoreAsync();
     var artifactDir = Path.Combine(Path.GetTempPath(), "careerseeker-engineharness-artifacts-" + Guid.NewGuid().ToString("N"));
     var evidenceCounters = new EngineCounters();
@@ -166,6 +167,11 @@ Console.WriteLine("\n[ localhost dashboard ]");
             if (action == "pause")
                 await evidencePipeline.PauseAsync(id, ct);
             return new DashboardControlResult(true, "Application controlled.");
+        },
+        ExportAlphaPackageAsync: _ =>
+        {
+            Interlocked.Increment(ref packageExports);
+            return Task.FromResult(new DashboardControlResult(true, "Alpha package exported."));
         });
     var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore));
     var listenerOk = true;
@@ -179,11 +185,13 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/status serves JSON with live counters", doc.RootElement.GetProperty("drafted").GetInt64() == 1, json);
         Check("/status reports Gmail control availability", doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean(), json);
         Check("/status reports application control availability", doc.RootElement.GetProperty("applicationControlAvailable").GetBoolean(), json);
+        Check("/status reports alpha package export availability", doc.RootElement.GetProperty("alphaPackageExportAvailable").GetBoolean(), json);
         Check("/status reports evidence availability", doc.RootElement.GetProperty("evidenceAvailable").GetBoolean(), json);
         Check("/status reports job evidence availability", doc.RootElement.GetProperty("jobsAvailable").GetBoolean(), json);
         var html = await http.GetStringAsync("http://localhost:7777/");
         Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
         Check("/ exposes configured Gmail disconnect control", html.Contains("Disconnect Gmail"));
+        Check("/ exposes configured alpha package export control", html.Contains("Export Alpha Package"));
         Check("/ links to audit evidence", html.Contains("/evidence") && html.Contains("audit-chain"));
         Check("/ links to recent applications", html.Contains("/applications"));
         Check("/ links to recent jobs", html.Contains("/jobs"));
@@ -271,6 +279,20 @@ Console.WriteLine("\n[ localhost dashboard ]");
             post.StatusCode == HttpStatusCode.SeeOther && disconnects == 1,
             $"{post.StatusCode}, calls={disconnects}");
 
+        var forgedExport = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/package/export",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = "wrong" }));
+        Check("alpha package export control rejects a bad token",
+            forgedExport.StatusCode == HttpStatusCode.Forbidden && packageExports == 0,
+            $"{forgedExport.StatusCode}, calls={packageExports}");
+
+        var exportPost = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/package/export",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }));
+        Check("alpha package export control invokes the configured action",
+            exportPost.StatusCode == HttpStatusCode.SeeOther && packageExports == 1,
+            $"{exportPost.StatusCode}, calls={packageExports}");
+
         var forgedApp = await noRedirect.PostAsync(
             "http://localhost:7777/controls/application",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -307,6 +329,8 @@ Console.WriteLine("\n[ localhost dashboard ]");
             doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean());
         Check("HTML renderer exposes configured application controls (direct)",
             doc.RootElement.GetProperty("applicationControlAvailable").GetBoolean());
+        Check("HTML renderer exposes configured alpha package export controls (direct)",
+            doc.RootElement.GetProperty("alphaPackageExportAvailable").GetBoolean());
         Check("HTML renderer exposes configured job evidence (direct)",
             doc.RootElement.GetProperty("jobsAvailable").GetBoolean());
         using var evidenceDoc = JsonDocument.Parse(await dash.EvidenceJsonAsync());

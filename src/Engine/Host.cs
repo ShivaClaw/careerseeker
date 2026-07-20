@@ -63,7 +63,8 @@ public sealed record DashboardControlResult(bool Performed, string Message);
 
 public sealed record LocalDashboardActions(
     Func<CancellationToken, Task<DashboardControlResult>>? DisconnectGmailAsync = null,
-    Func<long, string, CancellationToken, Task<DashboardControlResult>>? ControlApplicationAsync = null);
+    Func<long, string, CancellationToken, Task<DashboardControlResult>>? ControlApplicationAsync = null,
+    Func<CancellationToken, Task<DashboardControlResult>>? ExportAlphaPackageAsync = null);
 
 public sealed record DashboardEvidence(
     bool AuditOk,
@@ -161,6 +162,7 @@ public sealed class LocalDashboard : IAsyncDisposable
             errors = c.Errors,
             gmailDisconnectAvailable = _actions?.DisconnectGmailAsync is not null,
             applicationControlAvailable = _actions?.ControlApplicationAsync is not null,
+            alphaPackageExportAvailable = _actions?.ExportAlphaPackageAsync is not null,
             evidenceAvailable = _evidence is not null,
             applicationsAvailable = _evidence is not null,
             jobsAvailable = _evidence is not null,
@@ -173,12 +175,7 @@ public sealed class LocalDashboard : IAsyncDisposable
         var notice = string.IsNullOrWhiteSpace(_lastActionMessage)
             ? ""
             : $@"<p class=""notice"">{WebUtility.HtmlEncode(_lastActionMessage)}</p>";
-        var controls = _actions?.DisconnectGmailAsync is null
-            ? ""
-            : $@"<h2>Controls</h2><form method=""post"" action=""/controls/gmail/disconnect"">
-<input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(_controlToken)}"">
-<button type=""submit"">Disconnect Gmail</button>
-</form>";
+        var controls = ControlsHtml();
         var evidence = _evidence is null
             ? ""
             : @"<h2>Evidence</h2><p><a href=""/jobs"">View recent jobs</a></p><p><a href=""/applications"">View recent applications</a></p><p><a href=""/evidence"">View audit-chain status and recent events</a></p>";
@@ -195,6 +192,28 @@ h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;gri
 <div>Rejected (engine)</div><div class=""n"">{c.Rejected}</div>
 <div>Errors</div><div class=""n"">{c.Errors}</div>
 </div><p>Last cycle: {c.LastCycleUtc?.ToString("u") ?? "-"}</p>{evidence}{controls}</body></html>";
+    }
+
+    private string ControlsHtml()
+    {
+        var forms = new List<string>();
+        if (_actions?.ExportAlphaPackageAsync is not null)
+        {
+            forms.Add($@"<form method=""post"" action=""/controls/package/export"">
+<input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(_controlToken)}"">
+<button type=""submit"">Export Alpha Package</button>
+</form>");
+        }
+
+        if (_actions?.DisconnectGmailAsync is not null)
+        {
+            forms.Add($@"<form method=""post"" action=""/controls/gmail/disconnect"">
+<input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(_controlToken)}"">
+<button type=""submit"">Disconnect Gmail</button>
+</form>");
+        }
+
+        return forms.Count == 0 ? "" : "<h2>Controls</h2>" + string.Concat(forms);
     }
 
     public void Start()
@@ -271,13 +290,20 @@ h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;gri
         }
 
         if (ctx.Request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
+            path == "/controls/package/export")
+        {
+            await HandlePackageExportAsync(ctx, ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (ctx.Request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
             path == "/controls/application")
         {
             await HandleApplicationControlAsync(ctx, ct).ConfigureAwait(false);
             return;
         }
 
-        ctx.Response.StatusCode = path is "/controls/gmail/disconnect" or "/controls/application" or "/evidence" or "/applications" or "/jobs"
+        ctx.Response.StatusCode = path is "/controls/gmail/disconnect" or "/controls/package/export" or "/controls/application" or "/evidence" or "/applications" or "/jobs"
             ? (int)HttpStatusCode.MethodNotAllowed
             : (int)HttpStatusCode.NotFound;
         await WriteAsync(ctx, "text/plain; charset=utf-8", "Not found.", ct).ConfigureAwait(false);
@@ -546,6 +572,36 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
         catch (Exception ex)
         {
             _lastActionMessage = "Gmail disconnect did not complete cleanly: " + ex.Message;
+            RedirectHome(ctx);
+        }
+    }
+
+    private async Task HandlePackageExportAsync(HttpListenerContext ctx, CancellationToken ct)
+    {
+        if (_actions?.ExportAlphaPackageAsync is null)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "No alpha package export action is configured.", ct)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!RequestCameFromThisDashboard(ctx) || !await HasValidControlTokenAsync(ctx).ConfigureAwait(false))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var result = await _actions.ExportAlphaPackageAsync(ct).ConfigureAwait(false);
+            _lastActionMessage = result.Message;
+            RedirectHome(ctx);
+        }
+        catch (Exception ex)
+        {
+            _lastActionMessage = "Alpha package export did not complete cleanly: " + ex.Message;
             RedirectHome(ctx);
         }
     }
