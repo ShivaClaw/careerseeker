@@ -278,6 +278,8 @@ try {
         "Export-CareerSeeker-Audit.cmd",
         "Export-AlphaAudit.ps1",
         "Check-CareerSeeker-LiveReadiness.cmd",
+        "Provider key file: secrets\env.secrets accepts ANTHROPIC_API_KEY, GEMINI_API_KEY or GOOGLE_API_KEY",
+        "For company research, add Brave Search",
         "BRAVE_SEARCH_API",
         "clear-byok",
         "disconnect-gmail"

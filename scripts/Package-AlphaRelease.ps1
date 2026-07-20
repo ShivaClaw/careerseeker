@@ -103,6 +103,7 @@ First-run flow:
   Double-click Setup-CareerSeeker-Alpha.cmd to create the local workspace.
   Double-click Import-CareerSeeker-Profile.cmd after editing .appdata\profile.template.json.
   Double-click Connect-CareerSeeker-Providers.cmd to import AI provider keys without printing them.
+    Provider key file: secrets\env.secrets accepts ANTHROPIC_API_KEY, GEMINI_API_KEY or GOOGLE_API_KEY, and optional Brave Search as BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY.
   Double-click Connect-CareerSeeker-Gmail.cmd to connect Gmail without creating a draft.
   Double-click Check-CareerSeeker-LiveReadiness.cmd to confirm live Gmail/BYOK readiness.
   Double-click Run-CareerSeeker-Demo.cmd to create local demo evidence without Gmail.
@@ -157,7 +158,7 @@ Off-ramp command equivalents:
 
 The L1 alpha creates Gmail drafts only. It has no send path.
 
-For optional company research, add Brave Search as BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY in secrets\env.secrets.
+For company research, add Brave Search as BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY in secrets\env.secrets.
 
 Read docs\Alpha-Tester-Walkthrough.md for the intended first-run order, safety rails, and evidence locations.
 
