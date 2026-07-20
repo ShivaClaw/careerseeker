@@ -75,7 +75,7 @@ Completed:
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
 - The alpha executable has `profile-template` and `import-profile` commands for replacing the local Tailor/Gate
   source-of-truth profile without mixing in seeded demo claims; imports require the CareerSeeker alpha profile
-  format and unique claim ids.
+  format, unique claim ids, and recognized claim kinds.
 - The alpha executable has `draft-job` for a selected stored job row, including posting-body loading from
   `jd_path` and a `--dry-run` package/artifact/audit verification path that does not touch Gmail.
 - `Run-CareerSeeker-Scout.cmd` wraps public ATS board ingestion for double-click trusted-tester job discovery
@@ -366,12 +366,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 272 passed, 0 failed.
+Total: 273 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 76 passed, 0 failed |
+| `EngineHarness` | 77 passed, 0 failed |
 | `ResearcherHarness` | 36 passed, 0 failed |
 | `HookHarness` | 13 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |

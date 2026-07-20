@@ -815,6 +815,30 @@ Console.WriteLine("\n[ profile import ]");
             duplicateIdRejected = true;
         }
         Check("profile import rejects duplicate claim ids", duplicateIdRejected);
+
+        var unknownKindPath = Path.Combine(root, "unknown-kind-profile.json");
+        await File.WriteAllTextAsync(unknownKindPath, """
+        {
+          "format": "careerseeker-alpha-profile-v1",
+          "claims": [
+            {
+              "kind": "Skills",
+              "text": "Kubernetes",
+              "confidence": "verified"
+            }
+          ]
+        }
+        """);
+        var unknownKindRejected = false;
+        try
+        {
+            await AlphaProfileImport.ImportAsync(sqlite, unknownKindPath, "alpha.profileId");
+        }
+        catch (InvalidOperationException)
+        {
+            unknownKindRejected = true;
+        }
+        Check("profile import rejects unknown claim kinds", unknownKindRejected);
     }
     finally
     {

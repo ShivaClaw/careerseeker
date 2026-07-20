@@ -29,6 +29,19 @@ public static class AlphaProfileImport
         "weak",
     };
 
+    private static readonly IReadOnlyDictionary<string, string> ValidKinds =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Employer"] = "Employer",
+            ["Title"] = "Title",
+            ["EmploymentDates"] = "EmploymentDates",
+            ["Metric"] = "Metric",
+            ["Skill"] = "Skill",
+            ["Credential"] = "Credential",
+            ["Education"] = "Education",
+            ["Other"] = "Other",
+        };
+
     public static string TemplateJson() =>
         JsonSerializer.Serialize(new AlphaProfileFile(
             "careerseeker-alpha-profile-v1",
@@ -107,7 +120,7 @@ public static class AlphaProfileImport
 
     private static ClaimRow ToRow(AlphaProfileClaim claim, long profileId, int index)
     {
-        var kind = RequireText(claim.Kind, $"claims[{index}].kind");
+        var kind = NormalizeKind(RequireText(claim.Kind, $"claims[{index}].kind"), index);
         var text = RequireText(claim.Text, $"claims[{index}].text");
         var confidence = string.IsNullOrWhiteSpace(claim.Confidence)
             ? "verified"
@@ -121,6 +134,12 @@ public static class AlphaProfileImport
             : claim.Id.Trim();
         return new ClaimRow(id, profileId, kind, text, confidence, TrimToNull(claim.SourceDoc));
     }
+
+    private static string NormalizeKind(string kind, int index) =>
+        ValidKinds.TryGetValue(kind, out var canonical)
+            ? canonical
+            : throw new InvalidOperationException(
+                $"claims[{index}].kind must be one of: {string.Join(", ", ValidKinds.Values)}.");
 
     private static void ValidateUniqueClaimIds(IReadOnlyList<ClaimRow> claims)
     {
