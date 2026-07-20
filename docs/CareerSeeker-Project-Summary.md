@@ -35,7 +35,8 @@ Completed:
   recent-job/application tables.
 - Dashboard resume/cover links are served through narrow localhost `/documents/{applicationId}/resume|cover`
   routes and verified with live HTTP harness coverage.
-- The localhost dashboard exposes recent discovered jobs, source/compensation metadata, safe job/apply links, repost counts, and prompt-injection flags at `/jobs`.
+- The localhost dashboard exposes visible job ids for selected-job drafting, recent discovered jobs,
+  source/compensation metadata, safe job/apply links, repost counts, and prompt-injection flags at `/jobs`.
 - The localhost dashboard exposes human audit-chain review at `/evidence.html` and recent audit event metadata
   JSON at `/evidence`.
 - The localhost dashboard exposes token-protected hash-only audit JSON and alpha package export controls when
@@ -360,12 +361,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 252 passed, 0 failed.
+Total: 253 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 67 passed, 0 failed |
+| `EngineHarness` | 68 passed, 0 failed |
 | `ResearcherHarness` | 29 passed, 0 failed |
 | `HookHarness` | 12 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
@@ -480,8 +481,9 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - Standalone `dashboard` command added for serving `/jobs`, `/applications`, `/evidence`, Gmail disconnect,
   and application controls over an existing SQLite alpha DB without running a demo cycle.
 - `scripts/Verify-Alpha.ps1` added as the repeatable alpha verification entrypoint for audit agents.
-- Local dashboard `/jobs` drilldown added with recent discovered jobs, source/compensation metadata, safe
-  links, repost counts, and prompt-injection flags without raw descriptions.
+- Local dashboard `/jobs` drilldown added with visible job ids for selected-job drafting, recent discovered
+  jobs, source/compensation metadata, safe links, repost counts, and prompt-injection flags without raw
+  descriptions.
 - Brave Search web-research adapter added; it uses search results only to select URLs, fetches public result pages, strips HTML/script noise, skips localhost/private/non-text results, and leaves final trust to the grounding filter.
 - `research-company` command added for live Brave + BYOK dossier runs when `BRAVE_SEARCH_API_KEY` is available.
 - Gmail draft API preflight added before live draft creation.

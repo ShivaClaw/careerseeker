@@ -32,8 +32,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   readable recent-job/application tables while preserving the token-protected control routes.
 - Dashboard resume/cover document links are served through token-protected localhost document routes instead
   of raw `file://` links, and the Engine harness verifies the linked resume PDF bytes.
-- The localhost dashboard exposes `/jobs` with recent discovered jobs, compensation/source metadata, safe
-  job/apply links, repost counts, and prompt-injection flags.
+- The localhost dashboard exposes `/jobs` with visible job ids for selected-job drafting, recent discovered
+  jobs, compensation/source metadata, safe job/apply links, repost counts, and prompt-injection flags.
 - The localhost dashboard exposes `/evidence.html` for human audit-chain review and `/evidence` for recent
   audit event metadata JSON.
 - The localhost dashboard exposes token-protected hash-only audit JSON and alpha package export controls when

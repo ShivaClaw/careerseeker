@@ -220,15 +220,15 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $readme @(
         'no open-source license',
         'all rights are reserved',
-        'EngineHarness` (67)',
+        'EngineHarness` (68)',
         'GatewayGateHarness` (34)',
-        'Latest offline total: 252 assertions'
+        'Latest offline total: 253 assertions'
     ) "README.md"
 
     $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
     Assert-Contains $summary @(
-        'Total: 252 passed, 0 failed.',
-        '| `EngineHarness` | 67 passed, 0 failed |',
+        'Total: 253 passed, 0 failed.',
+        '| `EngineHarness` | 68 passed, 0 failed |',
         '`/evidence.html`',
         '| `GatewayGateHarness` | 34 passed, 0 failed |',
         'typed confirmations for `LIVE`, `CLEAR`, `DISCONNECT`, `INSTALL`, and `UNINSTALL`',
@@ -237,8 +237,9 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 252 passed, 0 failed.',
+        'Latest offline harness total: 253 passed, 0 failed.',
         '`/evidence.html` exposes a human audit-chain page',
+        'visible job ids for selected-job drafting',
         '`INSTALL`',
         '`UNINSTALL`',
         '`CLEAR`',
@@ -248,7 +249,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `252 passed, 0 failed`.',
+        'Latest local offline verifier: `253 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'BYOK live provider smoke',
         'live Brave/BYOK company research',

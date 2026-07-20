@@ -140,7 +140,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 252 passed, 0 failed.
+- Latest offline harness total: 253 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
@@ -217,8 +217,9 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   without payload bodies.
 - Dashboard home exposes token-protected hash-only audit JSON and alpha package export controls when running
   against a SQLite DB.
-- Dashboard `/jobs` exposes recently discovered jobs, compensation metadata, source, safe job/apply links,
-  repost count, and prompt-injection flags without raw job descriptions.
+- Dashboard `/jobs` exposes visible job ids for selected-job drafting, recently discovered jobs,
+  compensation metadata, source, safe job/apply links, repost count, and prompt-injection flags without raw
+  job descriptions.
 - `dashboard` serves the same `/jobs`, `/applications`, `/evidence.html`, `/evidence`, Gmail disconnect, and
   application controls against an existing SQLite alpha DB without starting a demo cycle.
 - `export-audit` writes a local audit JSON package; payloads are hash-only by default and opt-in with

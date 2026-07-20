@@ -425,7 +425,10 @@ Console.WriteLine("\n[ localhost dashboard ]");
                 new ApplicationSummaryRow(101, AppState.REJECTED_BY_ENGINE.ToString(), "L1", "Email", now, now, null, 201, "Rejected sample", "Example", null, null, "Remote", "", null, null, null, null, null, null, null, null, false),
                 new ApplicationSummaryRow(102, AppState.DRAFTED.ToString(), "L1", "Email", now, now, null, 202, "Drafted sample", "Example", null, null, "Remote", "", null, null, null, null, "SUCCEEDED", "draft-102", null, null, false),
             },
-            Array.Empty<JobSummaryRow>()))));
+            new[]
+            {
+                new JobSummaryRow(303, "greenhouse", "draftable-303", "Draftable sample", "Example", null, "Remote", "Remote", "https://jobs.example/303", "https://apply.example/303", null, null, null, null, null, false, null, now, 0),
+            }))));
     var renderedApplications = await rendererOnlyDashboard.ApplicationsHtmlAsync();
     var rejectedApplicationRow = HtmlRowContaining(renderedApplications, "REJECTED_BY_ENGINE");
     var draftedApplicationRow = HtmlRowContaining(renderedApplications, "DRAFTED");
@@ -434,6 +437,11 @@ Console.WriteLine("\n[ localhost dashboard ]");
         !rejectedApplicationRow.Contains("action=\"/controls/application\"") &&
         draftedApplicationRow.Contains("action=\"/controls/application\""),
         renderedApplications);
+    var renderedJobs = await rendererOnlyDashboard.JobsHtmlAsync();
+    var draftableJobRow = HtmlRowContaining(renderedJobs, "Draftable sample");
+    Check("/jobs exposes job id for selected-job drafting",
+        draftableJobRow.Contains("<td class=\"n\">303</td>"),
+        renderedJobs);
     await rendererOnlyDashboard.DisposeAsync();
 }
 

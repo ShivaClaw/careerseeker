@@ -542,11 +542,11 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
 
         var evidence = await _evidence.LoadAsync(ct).ConfigureAwait(false);
         var rows = evidence.RecentJobs.Count == 0
-            ? @"<tr><td colspan=""8"">No jobs yet.</td></tr>"
+            ? @"<tr><td colspan=""9"">No jobs yet.</td></tr>"
             : string.Concat(evidence.RecentJobs.Select(JobRowHtml));
 
         var body = $@"<section class=""hero""><div><h1>Recent jobs</h1><div class=""muted"">{evidence.RecentJobs.Count} jobs shown</div></div><a href=""/"">Back to status</a></section>
-<div class=""table-wrap""><table><thead><tr><th>Job</th><th>Company</th><th>Source</th><th>Remote</th><th>Comp</th><th>Updated</th><th>Flags</th><th>Links</th></tr></thead>
+<div class=""table-wrap""><table><thead><tr><th>ID</th><th>Job</th><th>Company</th><th>Source</th><th>Remote</th><th>Comp</th><th>Updated</th><th>Flags</th><th>Links</th></tr></thead>
 <tbody>{rows}</tbody></table></div>";
         return PageHtml("CareerSeeker Jobs", "jobs", body);
     }
@@ -567,7 +567,7 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
             : "-";
         var updated = WebUtility.HtmlEncode(row.LastVerified);
         var links = JobLinksHtml(row);
-        return $@"<tr><td>{job}</td><td>{company}</td><td>{source}</td><td>{remote}</td><td class=""n"">{comp}</td><td class=""n"">{updated}</td><td>{flags}</td><td><div class=""links"">{links}</div></td></tr>";
+        return $@"<tr><td class=""n"">{row.JobId}</td><td>{job}</td><td>{company}</td><td>{source}</td><td>{remote}</td><td class=""n"">{comp}</td><td class=""n"">{updated}</td><td>{flags}</td><td><div class=""links"">{links}</div></td></tr>";
     }
 
     private static string JobLinksHtml(JobSummaryRow row)
