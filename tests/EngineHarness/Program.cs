@@ -760,6 +760,30 @@ Console.WriteLine("\n[ profile import ]");
         using var templateDoc = JsonDocument.Parse(template);
         Check("profile template is parseable and contains editable claims",
             templateDoc.RootElement.GetProperty("claims").GetArrayLength() >= 3);
+
+        var wrongFormatPath = Path.Combine(root, "wrong-format-profile.json");
+        await File.WriteAllTextAsync(wrongFormatPath, """
+        {
+          "format": "not-careerseeker",
+          "claims": [
+            {
+              "kind": "Skill",
+              "text": "untrusted imported claim",
+              "confidence": "verified"
+            }
+          ]
+        }
+        """);
+        var wrongFormatRejected = false;
+        try
+        {
+            await AlphaProfileImport.ImportAsync(sqlite, wrongFormatPath, "alpha.profileId");
+        }
+        catch (InvalidOperationException)
+        {
+            wrongFormatRejected = true;
+        }
+        Check("profile import requires alpha profile format", wrongFormatRejected);
     }
     finally
     {

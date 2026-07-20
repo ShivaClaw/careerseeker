@@ -13,6 +13,8 @@ public sealed record AlphaProfileImportResult(
 
 public static class AlphaProfileImport
 {
+    private const string ExpectedFormat = "careerseeker-alpha-profile-v1";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -78,6 +80,8 @@ public static class AlphaProfileImport
         var json = await File.ReadAllTextAsync(fullPath, ct).ConfigureAwait(false);
         var parsed = JsonSerializer.Deserialize<AlphaProfileFile>(json, JsonOptions)
                      ?? throw new InvalidOperationException("Profile import file is empty.");
+        if (!ExpectedFormat.Equals(parsed.Format, StringComparison.Ordinal))
+            throw new InvalidOperationException("Profile import file has an unrecognized format.");
 
         var claims = parsed.Claims ?? Array.Empty<AlphaProfileClaim>();
         if (claims.Count == 0)

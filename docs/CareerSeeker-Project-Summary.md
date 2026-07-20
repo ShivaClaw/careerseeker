@@ -74,7 +74,8 @@ Completed:
   Gmail vault presence, and BYOK provider availability.
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
 - The alpha executable has `profile-template` and `import-profile` commands for replacing the local Tailor/Gate
-  source-of-truth profile without mixing in seeded demo claims.
+  source-of-truth profile without mixing in seeded demo claims; imports require the CareerSeeker alpha profile
+  format.
 - The alpha executable has `draft-job` for a selected stored job row, including posting-body loading from
   `jd_path` and a `--dry-run` package/artifact/audit verification path that does not touch Gmail.
 - `Run-CareerSeeker-Scout.cmd` wraps public ATS board ingestion for double-click trusted-tester job discovery
@@ -365,12 +366,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 264 passed, 0 failed.
+Total: 265 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 74 passed, 0 failed |
+| `EngineHarness` | 75 passed, 0 failed |
 | `ResearcherHarness` | 30 passed, 0 failed |
 | `HookHarness` | 13 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
