@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `258 passed, 0 failed`.
+- Latest local offline verifier: `260 passed, 0 failed`.
 - Fresh optional verifier, 2026-07-20: `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch`
   passed locally on this branch. It covered the offline harness suite, win-x64 single-file publish smoke,
   BYOK key import, BYOK live provider smoke, required Gmail/BYOK startup doctor, dashboard one-shot smoke,
@@ -51,6 +51,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 | Gmail is draft-only in the application even though `gmail.compose` can authorize sends | `src/Dispatcher/GoogleOAuth.cs`, `src/Dispatcher/Providers.cs`, trust docs | `DispatcherNoSendHarness`; trust wording smoke |
 | Tailor output is checked against local profile evidence before drafting | `src/Tailor`, `src/Verifier`, `src/Pipeline` | `HookHarness`, `GatewayGateHarness`, `Slice`; live BYOK Gate smoke |
 | Live ATS board ingest discovers and stores real jobs | `src/Scout`, `src/Engine/Program.cs`, `src/Store` | `ScoutLiveHarness`; `Run-CareerSeeker-Scout.cmd` package preview |
+| Selected-job drafting refuses prompt-injection-flagged jobs unless explicitly overridden | `src/Engine/Program.cs`, `scripts/Draft-AlphaJob.ps1`, `Draft-CareerSeeker-Job.cmd` | `EngineHarness`; package selected-job preview |
 | ATS-clean resume PDF is rendered and attached to Gmail drafts | `src/Dispatcher/AtsPdfDocumentRenderer.cs`, `src/Dispatcher/Packaging.cs`, `src/Dispatcher/Mime.cs` | `RendererHarness`, `DispatcherNoSendHarness`; package selected-job dry-run smoke |
 | Real BYOK Tailor and Gate providers are wired through the Gateway | `src/Gateway/ProvidersHttp.cs`, `src/Gateway/Routing.cs`, `src/Engine/Program.cs` | `Verify-Alpha.ps1 -IncludeLive`; BYOK live provider smoke |
 | Brave Search company research is grounded and fails closed on missing keys | `src/Researcher/BraveSearchWebResearch.cs`, `src/Researcher/Researcher.cs`, `src/Engine/StartupDoctor.cs` | `Verify-Alpha.ps1 -IncludeResearch`; startup doctor Brave check |

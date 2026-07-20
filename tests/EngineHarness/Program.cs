@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.IO.Compression;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using SeekerSvc.Dispatcher;
@@ -134,7 +135,71 @@ Console.WriteLine("\n[ SQLite engine composition ]");
     }
 }
 
-// ── 2) scheduler runs repeatedly then stops cleanly ────────────────────────────────────────────────
+// ── 2) selected-job drafting refuses prompt-injection flags by default ─────────────────────────────
+Console.WriteLine("\n[ selected-job draft prompt-injection rail ]");
+{
+    var root = Path.Combine(Path.GetTempPath(), "careerseeker-draftjob-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var dbPath = Path.Combine(root, "alpha.db");
+        var artifacts = Path.Combine(root, "artifacts");
+        long jobId;
+        await using (var sqlite = SqliteSeekerStore.ForFile(dbPath))
+        {
+            await sqlite.InitializeAsync();
+            var companyId = await sqlite.UpsertCompanyAsync(
+                new CompanyUpsert("greenhouse", "injection-test", "Injection Test"));
+            var seeded = await sqlite.UpsertJobAsync(companyId, new JobUpsert(
+                Source: "greenhouse",
+                ExternalId: "injected-job",
+                Url: "https://jobs.example/injected-job",
+                Title: "Senior Software Engineer",
+                TitleCanon: "senior software engineer",
+                DedupKey: "injection-test|senior software engineer|remote",
+                Remote: "Remote",
+                SimHash: 42,
+                FirstSeen: DateTimeOffset.UtcNow.ToString("O"),
+                ApplyUrl: "https://apply.example/injected-job",
+                Location: "Remote",
+                Injected: true,
+                InjectionSignals: "ignore_previous_instructions"));
+            jobId = seeded.JobId;
+        }
+
+        var refused = await RunEngineCommandAsync(
+            "draft-job",
+            "--job-id", jobId.ToString(),
+            "--dry-run",
+            "--llm", "fake",
+            "--db", dbPath,
+            "--artifacts", artifacts);
+        Check("draft-job refuses prompt-injection flagged jobs by default",
+            refused.ExitCode != 0 &&
+            refused.Output.Contains("refused job", StringComparison.OrdinalIgnoreCase) &&
+            refused.Output.Contains("prompt-injection", StringComparison.OrdinalIgnoreCase),
+            refused.Output);
+
+        var allowed = await RunEngineCommandAsync(
+            "draft-job",
+            "--job-id", jobId.ToString(),
+            "--dry-run",
+            "--llm", "fake",
+            "--allow-injected",
+            "--db", dbPath,
+            "--artifacts", artifacts);
+        Check("draft-job allows flagged jobs only with explicit override",
+            allowed.ExitCode == 0 &&
+            allowed.Output.Contains("final state: DRAFTED", StringComparison.OrdinalIgnoreCase),
+            allowed.Output);
+    }
+    finally
+    {
+        try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch (IOException) { }
+    }
+}
+
+// ── 3) scheduler runs repeatedly then stops cleanly ────────────────────────────────────────────────
 Console.WriteLine("\n[ scheduler ]");
 {
     var ticks = 0;
@@ -727,6 +792,38 @@ string DashboardToken(string html)
     var end = html.IndexOf('"', start);
     return end > start ? WebUtility.HtmlDecode(html[start..end]) : "";
 }
+
+async Task<CommandResult> RunEngineCommandAsync(params string[] engineArgs)
+{
+    var psi = new ProcessStartInfo("dotnet")
+    {
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        WorkingDirectory = Directory.GetCurrentDirectory(),
+    };
+    foreach (var arg in new[]
+    {
+        "run",
+        "-c", "Release",
+        "--no-build",
+        "--project", "src/Engine/SeekerSvc.Engine.csproj",
+        "--",
+    })
+    {
+        psi.ArgumentList.Add(arg);
+    }
+    foreach (var arg in engineArgs)
+        psi.ArgumentList.Add(arg);
+
+    using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start Engine command.");
+    var stdout = process.StandardOutput.ReadToEndAsync();
+    var stderr = process.StandardError.ReadToEndAsync();
+    await process.WaitForExitAsync();
+    return new CommandResult(process.ExitCode, (await stdout) + (await stderr));
+}
+
+sealed record CommandResult(int ExitCode, string Output);
 
 sealed class FakeFeed : IJobFeed
 {
