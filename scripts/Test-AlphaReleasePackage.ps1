@@ -196,6 +196,20 @@ try {
         throw "Release manifest does not reference SHA256SUMS.txt."
     }
 
+    $readme = Get-Content -LiteralPath (Resolve-RootPath "README-alpha.txt") -Raw
+    foreach ($snippet in @(
+        "First-run flow",
+        "Off-ramp command equivalents",
+        "Verify-CareerSeeker-Alpha.cmd",
+        "Check-CareerSeeker-LiveReadiness.cmd",
+        "clear-byok",
+        "disconnect-gmail"
+    )) {
+        if (-not $readme.Contains($snippet)) {
+            throw "README-alpha.txt missing '$snippet'."
+        }
+    }
+
     $auditSnapshot = Get-Content -LiteralPath (Resolve-RootPath "AUDIT-SNAPSHOT.txt") -Raw
     foreach ($snippet in @(
         "CareerSeeker Alpha Audit Snapshot",

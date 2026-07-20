@@ -136,6 +136,9 @@ Command equivalents:
   powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published
   .\$exeName export-alpha-package --db .appdata\careerseeker-alpha.db --out output\careerseeker-alpha-package.zip
   .\$exeName import-alpha-package --package output\careerseeker-alpha-package.zip
+
+Off-ramp command equivalents:
+
   .\$exeName clear-byok --key-vault .appdata\secrets\byok-keys.dpapi
   .\$exeName disconnect-gmail --client secrets\google-oauth-client.json --vault .appdata\oauth\gmail-token.dpapi
 
