@@ -57,6 +57,8 @@ The engine shell adds:
   `Run-CareerSeeker-Demo.cmd`
 - Double-click public ATS board ingest helper included in the release ZIP:
   `Run-CareerSeeker-Scout.cmd`
+- Double-click selected-job draft helper included in the release ZIP:
+  `Draft-CareerSeeker-Job.cmd`
 - Double-click live L1 Gmail draft helper included in the release ZIP:
   `Run-CareerSeeker-Live.cmd`
 - Double-click local evidence package helper included in the release ZIP:
@@ -137,7 +139,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
-  dependencies, quickstart, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/demo/scout/live/evidence/verify/dashboard launchers,
+  dependencies, quickstart, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/demo/scout/selected-job/live/evidence/verify/dashboard launchers,
   workspace initializer, dashboard/helper self-check scripts, checksums, and selected docs without bundling local
   databases, vaults, provider keys, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
@@ -159,6 +161,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   from the extracted release ZIP without creating a Gmail draft.
 - `Run-CareerSeeker-Scout.cmd` wraps public ATS board ingestion for double-click tester job discovery from the
   extracted release ZIP without creating a Gmail draft.
+- `Draft-CareerSeeker-Job.cmd` wraps selected stored-job drafting; it defaults to a no-Gmail dry-run package and
+  requires typing `LIVE` before creating a Gmail draft.
 - `Run-CareerSeeker-Live.cmd` wraps `alpha --llm byok --fast-smoke` for one double-click live L1 Gmail draft
   cycle from the extracted release ZIP.
 - `Export-CareerSeeker-Evidence.cmd` wraps `export-alpha-package` for double-click tester audit handoff from

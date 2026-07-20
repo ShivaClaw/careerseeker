@@ -75,6 +75,7 @@ try {
         "Setup-CareerSeeker-Alpha.cmd",
         "Run-CareerSeeker-Demo.cmd",
         "Run-CareerSeeker-Scout.cmd",
+        "Draft-CareerSeeker-Job.cmd",
         "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
@@ -85,6 +86,7 @@ try {
         "RELEASE-MANIFEST.json",
         "SHA256SUMS.txt",
         "scripts/Connect-AlphaProviders.ps1",
+        "scripts/Draft-AlphaJob.ps1",
         "scripts/Export-AlphaEvidencePackage.ps1",
         "scripts/Import-AlphaProfile.ps1",
         "scripts/Run-AlphaDemoCycle.ps1",
@@ -115,6 +117,9 @@ try {
     }
     if ($manifest.includes.scripts -notcontains "scripts/Connect-AlphaProviders.ps1") {
         throw "Release manifest does not list the provider connect helper."
+    }
+    if ($manifest.includes.scripts -notcontains "scripts/Draft-AlphaJob.ps1") {
+        throw "Release manifest does not list the selected-job draft helper."
     }
     if ($manifest.includes.scripts -notcontains "scripts/Import-AlphaProfile.ps1") {
         throw "Release manifest does not list the profile import helper."
@@ -155,6 +160,9 @@ try {
     if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Scout.cmd") {
         throw "Release manifest does not list the double-click Scout ingest launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Draft-CareerSeeker-Job.cmd") {
+        throw "Release manifest does not list the double-click selected-job draft launcher."
+    }
     if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Live.cmd") {
         throw "Release manifest does not list the double-click live alpha launcher."
     }
@@ -176,6 +184,7 @@ try {
         "Connect-CareerSeeker-Providers.cmd",
         "Run-CareerSeeker-Demo.cmd",
         "Run-CareerSeeker-Scout.cmd",
+        "Draft-CareerSeeker-Job.cmd",
         "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
