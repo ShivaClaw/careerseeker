@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `262 passed, 0 failed`.
+- Latest local offline verifier: `264 passed, 0 failed`.
 - Fresh optional verifier, 2026-07-20: `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch`
   passed locally on this branch. It covered the offline harness suite, win-x64 single-file publish smoke,
   BYOK key import, BYOK live provider smoke, required Gmail/BYOK startup doctor, dashboard one-shot smoke,
@@ -57,7 +57,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 | Brave Search company research is grounded and fails closed on missing keys | `src/Researcher/BraveSearchWebResearch.cs`, `src/Researcher/Researcher.cs`, `src/Engine/StartupDoctor.cs` | `Verify-Alpha.ps1 -IncludeResearch`; startup doctor Brave check |
 | Local state, OAuth tokens, provider keys, and generated artifacts stay out of source control | `.gitignore`, `scripts/Initialize-AlphaWorkspace.ps1`, `src/Engine/StartupDoctor.cs` | source-control hygiene smoke; initializer dry run; package manifest/checksum smoke; secret path filters |
 | Trusted-tester ZIP carries source provenance, payload checksums, and provider-key quickstart guidance, plus typed confirmations for live/dangerous actions | `scripts/Package-AlphaRelease.ps1`, `scripts/Test-AlphaReleasePackage.ps1`, `Run-CareerSeeker-Live.cmd`, `Clear-CareerSeeker-Providers.cmd`, `Disconnect-CareerSeeker-Gmail.cmd`, `Install-CareerSeeker-DashboardTask.cmd`, `Uninstall-CareerSeeker-DashboardTask.cmd` | release manifest source commit checks; audit snapshot provenance checks; README-alpha provider-key checks; live draft confirmation checks; off-ramp confirmation checks; dashboard task confirmation checks; SHA-256 checksum smoke |
-| Dashboard controls are loopback, token-protected, and evidence-oriented | `src/Engine/Host.cs`, `src/Engine/Program.cs`, package helper scripts | dashboard one-shot smoke; packaged dashboard-task and evidence export/import smokes |
+| Dashboard controls are loopback, token-protected, evidence-oriented, and served with no-store/nosniff/no-referrer/CSP headers | `src/Engine/Host.cs`, `src/Engine/Program.cs`, package helper scripts | dashboard one-shot smoke; packaged dashboard-task and evidence export/import smokes; `EngineHarness` header assertions |
 
 ## Repeatable Commands
 
@@ -180,7 +180,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
   seeded demo facts.
 - Local dashboard controls: loopback dashboard has token-protected Gmail disconnect, application controls,
   hash-only audit JSON export, alpha package export, and token-protected document downloads. Application
-  controls are hidden for terminal rows.
+  controls are hidden for terminal rows. Dashboard/document responses carry no-store, nosniff, no-referrer,
+  and form-scoped CSP headers.
 - Store audit chain: local SQLite and in-memory stores share hash-chain verification and parity coverage.
 - Secret handling: `secrets/`, `.appdata/`, generated artifacts, OAuth tokens, and provider keys are ignored and
   should not be printed.

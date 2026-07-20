@@ -30,6 +30,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   resume/cover document links, safe job/apply links, and token-protected pause/resume/kill controls.
 - The localhost dashboard now uses a responsive shared alpha shell with stable navigation, metric cards, and
   readable recent-job/application tables while preserving the token-protected control routes.
+- Dashboard HTML and token-protected document responses carry no-store, nosniff, no-referrer, and form-scoped
+  CSP headers.
 - Dashboard resume/cover document links are served through token-protected localhost document routes instead
   of raw `file://` links, and the Engine harness verifies the linked resume PDF bytes.
 - The localhost dashboard exposes `/jobs` with visible job ids for selected-job drafting, recent discovered

@@ -27,6 +27,21 @@ string HtmlRowContaining(string html, string marker)
     return start >= 0 && end >= start ? html[start..(end + "</tr>".Length)] : "";
 }
 
+bool HeaderEquals(HttpResponseMessage response, string name, string expected) =>
+    response.Headers.TryGetValues(name, out var values) &&
+    values.Any(v => v.Equals(expected, StringComparison.OrdinalIgnoreCase));
+
+bool HeaderContains(HttpResponseMessage response, string name, string expected) =>
+    response.Headers.TryGetValues(name, out var values) &&
+    values.Any(v => v.Contains(expected, StringComparison.OrdinalIgnoreCase));
+
+bool HasDashboardSafetyHeaders(HttpResponseMessage response) =>
+    response.Headers.CacheControl?.NoStore == true &&
+    response.Headers.Pragma.Any(p => p.Name.Equals("no-cache", StringComparison.OrdinalIgnoreCase)) &&
+    HeaderEquals(response, "X-Content-Type-Options", "nosniff") &&
+    HeaderEquals(response, "Referrer-Policy", "no-referrer") &&
+    HeaderContains(response, "Content-Security-Policy", "form-action 'self'");
+
 const string clean =
     "{\"resume\":\"Senior Software Engineer experienced in distributed systems and Go.\"," +
     "\"cover\":\"I am excited to apply. I have built reliable distributed systems in Go and would bring that experience to your team.\",\"claims\":[],\"answers\":{}}";
@@ -270,8 +285,10 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/status reports alpha package export availability", doc.RootElement.GetProperty("alphaPackageExportAvailable").GetBoolean(), json);
         Check("/status reports evidence availability", doc.RootElement.GetProperty("evidenceAvailable").GetBoolean(), json);
         Check("/status reports job evidence availability", doc.RootElement.GetProperty("jobsAvailable").GetBoolean(), json);
-        var html = await http.GetStringAsync("http://localhost:7777/");
+        var homeResponse = await http.GetAsync("http://localhost:7777/");
+        var html = await homeResponse.Content.ReadAsStringAsync();
         Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
+        Check("/ sends dashboard safety headers", HasDashboardSafetyHeaders(homeResponse), homeResponse.Headers.ToString());
         Check("/ exposes configured Gmail disconnect control", html.Contains("Disconnect Gmail"));
         Check("/ exposes configured audit export control", html.Contains("Export Audit JSON"));
         Check("/ exposes configured alpha package export control", html.Contains("Export Alpha Package"));
@@ -296,7 +313,8 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/documents rejects a bad token",
             badDocument.StatusCode == HttpStatusCode.Forbidden,
             badDocument.StatusCode.ToString());
-        var resumePdf = await http.GetByteArrayAsync($"http://localhost:7777/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}");
+        var resumeResponse = await http.GetAsync($"http://localhost:7777/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}");
+        var resumePdf = await resumeResponse.Content.ReadAsByteArrayAsync();
         Check("/documents serves generated resume PDF bytes",
             resumePdf.Length >= 4 &&
             resumePdf[0] == 0x25 &&
@@ -304,6 +322,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
             resumePdf[2] == 0x44 &&
             resumePdf[3] == 0x46,
             Convert.ToHexString(resumePdf));
+        Check("/documents sends dashboard safety headers", HasDashboardSafetyHeaders(resumeResponse), resumeResponse.Headers.ToString());
         Check("/applications exposes local application controls",
             applicationsHtml.Contains("action=\"/controls/application\"") &&
             applicationsHtml.Contains("value=\"pause\"") &&

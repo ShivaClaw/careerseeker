@@ -33,6 +33,8 @@ Completed:
 - The localhost dashboard exposes recent application state, scores, draft refs, generated resume/cover document links, safe job/apply links, and token-protected pause/resume/kill controls at `/applications`.
 - The localhost dashboard uses a responsive shared alpha shell with stable navigation, metric cards, and readable
   recent-job/application tables.
+- Dashboard HTML and token-protected document responses carry no-store, nosniff, no-referrer, and form-scoped
+  CSP headers.
 - Dashboard resume/cover links are served through narrow localhost `/documents/{applicationId}/resume|cover`
   routes and verified with live HTTP harness coverage.
 - The localhost dashboard exposes visible job ids for selected-job drafting, recent discovered jobs,
@@ -363,12 +365,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 262 passed, 0 failed.
+Total: 264 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 72 passed, 0 failed |
+| `EngineHarness` | 74 passed, 0 failed |
 | `ResearcherHarness` | 30 passed, 0 failed |
 | `HookHarness` | 13 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |

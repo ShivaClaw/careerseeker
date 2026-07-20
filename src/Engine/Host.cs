@@ -640,6 +640,7 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         }
 
         var fileName = Path.GetFileName(documentPath).Replace("\"", "", StringComparison.Ordinal);
+        ApplyDashboardHeaders(ctx.Response);
         ctx.Response.ContentType = Path.GetExtension(documentPath).Equals(".pdf", StringComparison.OrdinalIgnoreCase)
             ? "application/pdf"
             : "application/octet-stream";
@@ -875,6 +876,7 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         CancellationToken ct)
     {
         var body = Encoding.UTF8.GetBytes(text);
+        ApplyDashboardHeaders(ctx.Response);
         ctx.Response.ContentType = contentType;
         ctx.Response.ContentLength64 = body.Length;
         await ctx.Response.OutputStream.WriteAsync(body, ct).ConfigureAwait(false);
@@ -882,14 +884,26 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
 
     private static void RedirectHome(HttpListenerContext ctx)
     {
+        ApplyDashboardHeaders(ctx.Response);
         ctx.Response.StatusCode = (int)HttpStatusCode.SeeOther;
         ctx.Response.RedirectLocation = "/";
     }
 
     private static void RedirectApplications(HttpListenerContext ctx)
     {
+        ApplyDashboardHeaders(ctx.Response);
         ctx.Response.StatusCode = (int)HttpStatusCode.SeeOther;
         ctx.Response.RedirectLocation = "/applications";
+    }
+
+    private static void ApplyDashboardHeaders(HttpListenerResponse response)
+    {
+        response.Headers["Cache-Control"] = "no-store";
+        response.Headers["Pragma"] = "no-cache";
+        response.Headers["X-Content-Type-Options"] = "nosniff";
+        response.Headers["Referrer-Policy"] = "no-referrer";
+        response.Headers["Content-Security-Policy"] =
+            "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
     }
 
     private static string NewControlToken() =>
