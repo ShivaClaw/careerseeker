@@ -19,7 +19,7 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, standalone SQLite dashboard mode, Windows-friendly dashboard launcher, trusted-tester release ZIP packaging, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, local alpha package export/import, Gmail disconnect, dashboard disconnect/control views, dashboard alpha package export control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, live Brave/BYOK company research, and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, local alpha workspace initialization, standalone SQLite dashboard mode, Windows-friendly dashboard launcher, trusted-tester release ZIP packaging, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, local alpha package export/import, Gmail disconnect, dashboard disconnect/control views, dashboard alpha package export control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, live Brave/BYOK company research, and parity coverage verified.
 
 Completed:
 
@@ -38,9 +38,11 @@ Completed:
   DB without starting a demo cycle.
 - `scripts/Start-AlphaDashboard.ps1` wraps dashboard startup for trusted testers, including source-mode and
   published-executable launch plus a `-Once` smoke-check mode.
-- `scripts/Package-AlphaRelease.ps1` builds a trusted-tester ZIP with the published executable, quickstart,
-  SHA-256 checksums, and selected docs while excluding local databases, vaults, provider keys, and generated
-  artifacts.
+- `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories and a blank env-secrets
+  placeholder, and can run the startup doctor after setup.
+- `scripts/Package-AlphaRelease.ps1` builds a trusted-tester ZIP with the published executable, workspace
+  initializer, quickstart, SHA-256 checksums, and selected docs while excluding local databases, vaults, provider
+  keys, and generated artifacts.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register a per-user Windows logon task for keeping the alpha
   dashboard available until the service/tray/installer work lands.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
@@ -54,8 +56,9 @@ Completed:
 - The alpha executable has `draft-job` for a selected stored job row, including posting-body loading from
   `jd_path` and a `--dry-run` package/artifact/audit verification path that does not touch Gmail.
 - Tailor generation now minimizes profile claims to posting-relevant facts while preserving Gate rework facts.
-- `scripts/Verify-Alpha.ps1` provides a repeatable build/offline-harness verification entrypoint, with optional
-  live BYOK/Gmail, live Brave/BYOK company research, win-x64 publish checks, and trusted-tester ZIP packaging.
+- `scripts/Verify-Alpha.ps1` provides a repeatable build/offline-harness verification entrypoint, including an
+  initializer dry-run smoke, with optional live BYOK/Gmail, live Brave/BYOK company research, win-x64 publish
+  checks, and trusted-tester ZIP packaging.
 - GitHub CI mirrors the local offline alpha verifier on `main`, `agent/**`, and `codex/**` pushes plus PRs,
   after a Release warnings-as-errors build.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
@@ -642,6 +645,13 @@ Build:
 dotnet build CareerSeeker.sln -c Release
 ```
 
+Initialize local alpha workspace:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/Initialize-AlphaWorkspace.ps1
+powershell -ExecutionPolicy Bypass -File scripts/Initialize-AlphaWorkspace.ps1 -RunDoctor
+```
+
 Offline harnesses:
 
 ```powershell
@@ -696,6 +706,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past twenty-two important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, and dashboard-accessible alpha package export. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
+CareerSeeker is now past twenty-three important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, dashboard-accessible alpha package export, and repeatable local alpha workspace initialization. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

@@ -97,7 +97,10 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   BYOK/Gmail checks, the win-x64 publish smoke, the trusted-tester release ZIP, and live Brave/BYOK company
   research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, quickstart,
-  checksums, and selected docs without bundling local databases, vaults, provider keys, or generated artifacts.
+  workspace initializer, checksums, and selected docs without bundling local databases, vaults, provider keys,
+  or generated artifacts.
+- `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories and a blank env-secrets
+  placeholder, and can run the startup doctor after setup.
 - `scripts/Start-AlphaDashboard.ps1` wraps the standalone dashboard mode for trusted testers; it can smoke-check
   the local dashboard with `-Once`, run from source, or run the published single-file executable with
   `-Published -PublishIfMissing`.

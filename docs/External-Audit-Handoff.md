@@ -22,7 +22,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   offline harnesses, win-x64 single-file publish smoke, BYOK live provider smoke, startup doctor, and
   dashboard smoke.
 - `scripts/Verify-Alpha.ps1 -IncludePackage` passed locally and produced a trusted-tester ZIP with the alpha
-  executable, quickstart, checksums, and selected docs.
+  executable, workspace initializer, quickstart, checksums, and selected docs.
 - `scripts/Verify-Alpha.ps1 -IncludeResearch` passed locally with live Brave Search plus BYOK dossier
   modeling. Latest GitLab smoke retrieved 10 docs, used 3 deterministic grounded fallback facts after the model
   proposed 0 facts, and dropped 0 ungrounded facts.
@@ -34,6 +34,12 @@ Default offline verifier:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1
+```
+
+Local workspace initialization:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/Initialize-AlphaWorkspace.ps1
 ```
 
 Live BYOK/Gmail checks, using ignored local secrets and vault files:
@@ -116,8 +122,9 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 - Local alpha ZIP package export/import with manifest, audit export, SQLite snapshot, draft artifacts, and saved
   job-description artifacts; secret/token/key-looking paths are filtered, unsafe ZIP paths are rejected, and
   import verifies the restored SQLite audit chain.
-- Trusted-tester release ZIP packaging for the published executable, quickstart, SHA-256 checksums, and selected
-  trust/audit docs without local databases, vaults, provider keys, or generated artifacts.
+- Trusted-tester release ZIP packaging for the published executable, workspace initializer, quickstart,
+  SHA-256 checksums, and selected trust/audit docs without local databases, vaults, provider keys, or generated
+  artifacts.
 - GitHub CI mirrors the offline alpha verifier for `main`, `agent/**`, `codex/**`, and PRs into `main`.
 
 ## Known Gaps

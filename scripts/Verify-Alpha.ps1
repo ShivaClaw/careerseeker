@@ -74,6 +74,22 @@ Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
 }
 
+Invoke-Step "Alpha workspace initializer dry run" {
+    & (Join-Path $PSScriptRoot "Initialize-AlphaWorkspace.ps1") `
+        -DryRun `
+        -DbPath "tmp/verify-alpha-init/alpha.db" `
+        -ArtifactsPath "tmp/verify-alpha-init/artifacts" `
+        -JobDescriptionDirectory "tmp/verify-alpha-init/job-descriptions" `
+        -SecretsPath "tmp/verify-alpha-init/secrets/env.secrets" `
+        -GmailClientPath "tmp/verify-alpha-init/secrets/google-oauth-client.json" `
+        -GmailVaultPath "tmp/verify-alpha-init/oauth/gmail-token.dpapi" `
+        -ByokVaultPath "tmp/verify-alpha-init/secrets/byok-keys.dpapi" `
+        -OutputDirectory "tmp/verify-alpha-init/output"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Alpha workspace initializer dry run failed."
+    }
+}
+
 $totalPassed = 0
 $totalFailed = 0
 foreach ($project in $offlineProjects) {

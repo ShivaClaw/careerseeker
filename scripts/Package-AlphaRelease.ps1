@@ -85,6 +85,7 @@ This package contains the local-first L1 Drafts alpha executable.
 
 Quick checks:
 
+  powershell -ExecutionPolicy Bypass -File .\scripts\Initialize-AlphaWorkspace.ps1
   .\$exeName doctor --db .appdata\careerseeker-alpha.db --artifacts .appdata\artifacts
   .\$exeName dashboard --db .appdata\careerseeker-alpha.db
   .\$exeName export-alpha-package --db .appdata\careerseeker-alpha.db --out output\careerseeker-alpha-package.zip
@@ -95,6 +96,10 @@ The L1 alpha creates Gmail drafts only. It has no send path.
 Do not place OAuth tokens, provider keys, resumes, local databases, or generated artifacts in source control.
 "@
     Set-Content -LiteralPath (Join-Path $stageDir "README-alpha.txt") -Value $quickstart -Encoding UTF8
+
+    $scriptsDir = Join-Path $stageDir "scripts"
+    New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
+    Copy-Item -LiteralPath (Join-Path $repoRoot "scripts/Initialize-AlphaWorkspace.ps1") -Destination $scriptsDir
 
     if (-not $NoDocs) {
         $docsDir = Join-Path $stageDir "docs"
@@ -134,6 +139,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     if (-not $NoDocs) {
         $contents += ", docs"
     }
+    $contents += ", scripts"
     Write-Host "  contents: $contents"
 }
 finally {

@@ -10,6 +10,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - Live Scout ingestion is already verified against real ATS feeds.
 - Live Gmail draft creation is already verified with `gmail.compose`.
 - `src/Engine` is now a runnable executable entrypoint with demo and alpha modes.
+- `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories and a blank env-secrets
+  placeholder, and can run the startup doctor after setup.
 - A self-contained `win-x64` single-file publish succeeds and the published `.exe` runs a demo cycle.
 - Demo mode can also run against a persistent SQLite database with audit export support and local draft artifacts.
 - Engine alpha mode can use SQLite + DPAPI OAuth + Gmail to create one real self-addressed L1 draft.
@@ -34,9 +36,9 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   alpha DB without starting a demo cycle.
 - `scripts/Start-AlphaDashboard.ps1` gives trusted testers a Windows-friendly launcher for the same dashboard
   mode, including one-shot smoke checks and published-executable startup.
-- `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, quickstart,
-  SHA-256 checksums, and selected docs while excluding local databases, vaults, provider keys, and generated
-  artifacts.
+- `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, workspace
+  initializer, quickstart, SHA-256 checksums, and selected docs while excluding local databases, vaults,
+  provider keys, and generated artifacts.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
 - The alpha executable can export a local alpha ZIP package with a manifest, audit export, SQLite snapshot,
   draft artifacts, and saved job-description artifacts while filtering secret-looking paths.
@@ -104,6 +106,7 @@ Exit:
 
 Verified:
 - `powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1`
+- `powershell -ExecutionPolicy Bypass -File scripts/Initialize-AlphaWorkspace.ps1 -DryRun`
 - `powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1 -IncludeResearch`
 - `dotnet run -c Release --project tests/GmailLiveHarness/GmailLiveHarness.csproj -- --email you@gmail.com --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
