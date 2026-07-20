@@ -55,7 +55,10 @@ signing setup. **Exit:** signing account/certificate profile ready and the insta
 documented.
 
 **A5. Secrets vault.** Implement the DPAPI-scoped vault file for OAuth refresh tokens, provider API keys,
-and E2E sync keys (spec §6) — `ProtectedData` scoped to the service account, nothing sensitive in the DB.
+and E2E sync keys (spec §5.2). The current alpha uses per-user DPAPI vaults because OAuth and the dashboard
+run in the user's Windows profile; a future Service + tray build must make the process owner explicit or add
+a broker/migration path because service-scoped and user-scoped DPAPI material are not interchangeable. Nothing
+sensitive belongs in the DB.
 **Exit:** round-trip store/load of a secret under DPAPI, verified on Windows.
 
 ---

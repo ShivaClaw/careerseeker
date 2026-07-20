@@ -126,7 +126,7 @@ Run that through the L2/L3 lens and the problem is sharp: the free tier would be
 
 The amended split keeps your exact price point and makes the paid app *more* compelling, because it gates the thing that makes autonomy pleasant rather than the thing that makes it safe:
 
-**Free (.exe alone):** full engine at every autonomy level, *with* full local visibility — a local web dashboard at `http://localhost:7777` (the engine already runs an HTTP server for IPC; rendering a status page is nearly free), Gmail drafts/labels as a natural audit trail, and a daily digest email where L2 gates can be approved via magic links. Nobody is ever blind.
+**Free (.exe alone):** full engine at every autonomy level, *with* full local visibility — a local web dashboard at `http://localhost:7777` (the engine already runs an HTTP server for IPC; rendering a status page is nearly free) and reviewable Gmail drafts as the L1 audit trail. Nobody is ever blind. Custom Gmail labels, digest email, and magic-link approvals are L2/relay capabilities because they require broader Gmail scope, an internet-reachable approval endpoint, or both.
 
 **Paid (.apk, $4.99 one-time):** the *remote, real-time, push-driven* experience — live dashboard anywhere, push-notification approval gates (the 10-second L2 loop), remote pause/kill switch, interview-day briefing cards, weekly analytics. The pitch writes itself: *"Your job search runs at home. Approve applications from the bus."* The localhost dashboard converts users to the apk instead of substituting for it, because the moment you leave the house, push approvals are the product.
 
@@ -246,7 +246,7 @@ A conversational form (chat-style UI, but every answer maps to a typed field —
 4. **Voice** — 3 short writing samples or a 5-question style elicitation so cover letters and emails sound like the user, not like a model. Stored as a style card (tone markers, sentence length, banned phrases like "I am thrilled").
 
 ### 4.3 Phase C — Accounts & channels (4 min)
-Google OAuth (incremental scopes: `gmail.compose` always; `gmail.send` + `gmail.modify` only if L2/L3; `calendar.events` only if scheduling enabled). The wizard creates the Gmail label tree (`CareerSeeker/Outbox`, `/Sent`, `/Replies`, `/Action-Needed`) and a dedicated calendar ("CareerSeeker Interviews"). Optional: pair the Android app now via QR (this performs the E2E key exchange, §8.3).
+Google OAuth is incremental. L1 requests `gmail.compose` only and creates reviewable drafts; the L1 application has no send implementation. `gmail.send`, `gmail.modify`, Gmail labels, inbox monitoring, and `calendar.events` are L2/L3 decisions that must be explicitly re-scoped, documented, tested, and priced for OAuth/CASA impact. If those scopes are enabled later, the wizard can create the Gmail label tree (`CareerSeeker/Outbox`, `/Sent`, `/Replies`, `/Action-Needed`) and a dedicated calendar ("CareerSeeker Interviews"). Optional Android pairing via QR performs the E2E key exchange (§8.3).
 
 ### 4.4 Phase D — The Autonomy Contract (3 min)
 Not a EULA-wall — an explicit, plain-language settings ritual the user will remember agreeing to:
@@ -275,7 +275,7 @@ EV specifically.
 - Auto-update via Squirrel/Velopack channel, delta updates, staged rollout flag.
 
 ### 5.2 Storage
-SQLite in WAL mode at `%ProgramData%\CareerSeeker\seeker.db` — the single source of truth (no markdown/CSV/TSV anywhere). Secrets (OAuth refresh tokens, API keys, E2E sync keys) in a separate vault file encrypted with **Windows DPAPI** scoped to the service account; nothing sensitive in the DB proper. Generated artifacts (PDFs, dossiers) on disk under content-addressed paths, rows hold hashes. Nightly encrypted local backup, 14-day rotation; export-workspace / import-workspace commands (job-hunter's portability idea) for machine migration.
+SQLite in WAL mode at `%ProgramData%\CareerSeeker\seeker.db` — the single source of truth (no markdown/CSV/TSV anywhere). Secrets (OAuth refresh tokens, API keys, E2E sync keys) live in a separate vault file encrypted with **Windows DPAPI**; the vault owner must match the process that needs the secret. The current trusted-tester alpha uses per-user DPAPI vaults because OAuth and the dashboard run in the user's Windows profile. A future Service + tray build must either keep a per-user service/task identity or add an explicit broker/migration design; service-scoped and user-scoped DPAPI material are not interchangeable. Nothing sensitive belongs in the DB proper. Generated artifacts (PDFs, dossiers) are on disk under content-addressed paths, rows hold hashes. Nightly encrypted local backup, 14-day rotation; export-workspace / import-workspace commands (job-hunter's portability idea) for machine migration.
 
 ### 5.3 Scout — discovery without ToS landmines
 Sources, in priority order:
@@ -318,7 +318,7 @@ tailoring/correspondence→ best available (Sonnet/Opus-class)                ~$
 Modes: **BYOK** (user key, stored in DPAPI vault, calls go direct to provider) · **Managed** (our metered proxy → future Pro subscription) · **Local-max** (everything possible on-device; tailoring quality degrades gracefully and the UI says so). Hard monthly budget setting with engine auto-throttle; per-stage token accounting surfaces in analytics ("this week cost $1.84 / 312 LLM calls").
 
 ### 5.7 Correspondent — the inbound brain (L2/L3)
-Watches the Gmail label via push (watch/webhook→relay) or 5-min poll. Pipeline: thread → classifier →
+This is not part of L1. It requires an explicit L2/L3 scope escalation for Gmail metadata/read access, and any push path requires a relay or another internet-reachable endpoint. Watches a Gmail label via push (watch/webhook→relay) or 5-min poll. Pipeline: thread → classifier →
 `{rejection, auto-ack, interview_request, info_request_template, info_request_novel, offer, scam/phish, other}`.
 - rejection → outcome harvested, optional gracious templated reply (user-toggle), state → REJECTED
 - interview_request → Schedulist
@@ -419,11 +419,11 @@ The bundled localhost dashboard and the tray app are both pure clients of this A
 
 **8.1 Threat model headline:** this product reads email, holds OAuth tokens, and acts in the user's name — it must be engineered like a password manager, marketed like one, and audited like one.
 
-**8.2 Secrets & scopes.** DPAPI-encrypted vault; incremental OAuth (never request `gmail.send` for an L1 user); refresh tokens revocable from a "Disconnect everything" button that actually calls the revocation endpoints. Google OAuth verification + restricted-scope security assessment is on the launch critical path (Gmail restricted scopes require it) — budget 6–10 weeks of calendar time.
+**8.2 Secrets & scopes.** DPAPI-encrypted vault; incremental OAuth (never request `gmail.send` for an L1 user). `gmail.compose` itself can authorize draft sending at the Google permission level, so L1 safety is structural: the application exposes draft creation only and contains no send implementation. Refresh tokens are revocable from a "Disconnect everything" button that actually calls the revocation endpoints. Google OAuth verification + restricted-scope security assessment is on the launch critical path (Gmail restricted scopes require it) — budget 6–10 weeks of calendar time.
 
 **8.3 Pairing & E2E.** QR code on the PC encodes a one-time X25519 exchange; derived symmetric keys never touch the relay. Re-pair invalidates old phone keys. Relay stores ciphertext with 30-day TTL.
 
-**8.4 Tamper-evident audit.** The hash-chained `events` table plus the Gmail Sent folder give the user two independent records of everything done in their name. "Show me everything you've ever sent" is a one-click export (PDF + JSON).
+**8.4 Tamper-evident audit.** The hash-chained `events` table plus Gmail Drafts/Sent records, depending on autonomy level, give the user independent records of everything prepared or done in their name. "Show me every draft or action you've ever produced" is a one-click export (PDF + JSON).
 
 **8.5 PII discipline.** The engine never transmits SSN/DOB/financial data — these are unparseable by policy (red-flag scorer treats *requests* for them pre-offer as scam signals). Resume content goes only to the user-chosen LLM endpoint; Local-max mode keeps it on-device for most stages. No telemetry by default; opt-in crash reports are scrubbed.
 
@@ -446,7 +446,7 @@ The bundled localhost dashboard and the tray app are both pure clients of this A
 
 ## Part 10 — Build Plan
 
-**MVP (v0.1, ~8–10 weeks of focused work):** engine service + tray + onboarding Phases A–C; Scout (Greenhouse/Lever/Ashby) + Scorer + Tailor + **Verifier** (the Gate ships in v0.1 or nothing ships); **L1 Drafts mode only**, Gmail drafts + daily digest; localhost dashboard; SQLite/event log. *This alone is a launchable, safe, genuinely useful product.*
+**MVP (v0.1, ~8–10 weeks of focused work):** engine service + tray + onboarding Phases A–C; Scout (Greenhouse/Lever/Ashby) + Scorer + Tailor + **Verifier** (the Gate ships in v0.1 or nothing ships); **L1 Drafts mode only**, Gmail drafts, localhost dashboard summary, SQLite/event log. Email digest and magic-link approvals move to L2/relay scope. *This alone is a launchable, safe, genuinely useful product.*
 
 **v0.2:** relay + apk read-only dashboard + push status. First Play Store release.
 **v0.3:** L2 gates (push approvals), Dispatcher form-fill on the big-three ATSs, Correspondent template-class replies, follow-up cadence.
