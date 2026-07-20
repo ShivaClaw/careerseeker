@@ -3,7 +3,8 @@
 Autonomous job-search engine: free Windows service (.exe) that discovers, verifies, tailors, and drafts
 job applications, plus a paid Android dashboard. Spec: `docs/CareerSeeker-Spec.md` (authoritative,
 v0.9). Sequencing: `docs/CareerSeeker-Integration-Windows-Roadmap.md`. Current handoff:
-`docs/CareerSeeker-Project-Summary.md`. External audit quickstart: `docs/External-Audit-Handoff.md`.
+`docs/CareerSeeker-Project-Summary.md`. Trusted-tester walkthrough: `docs/Alpha-Tester-Walkthrough.md`.
+External audit quickstart: `docs/External-Audit-Handoff.md`.
 
 Trust/OAuth docs:
 - `docs/Privacy-Policy.md`
@@ -26,8 +27,8 @@ Trust/OAuth docs:
   ZIP, and `-IncludeResearch` for the live Brave/BYOK company-research smoke.
 - `scripts/Package-AlphaRelease.ps1`: builds a self-contained trusted-tester ZIP with the alpha executable,
   native runtime dependencies, workspace initializer, dashboard/helper self-check scripts, quickstart, audit
-  snapshot, release manifest, checksums, and selected docs; it does not package local databases, vaults, or
-  generated artifacts.
+  snapshot, tester walkthrough, release manifest, checksums, and selected docs; it does not package local
+  databases, vaults, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1`: creates ignored local alpha directories, a starter profile
   template, and a blank env-secrets placeholder, with an optional startup doctor run.
 - `scripts/Start-AlphaDashboard.ps1`: Windows-friendly alpha dashboard launcher. Use `-Once` for a

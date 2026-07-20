@@ -85,6 +85,7 @@ try {
         "AUDIT-SNAPSHOT.txt",
         "RELEASE-MANIFEST.json",
         "SHA256SUMS.txt",
+        "docs/Alpha-Tester-Walkthrough.md",
         "scripts/Connect-AlphaProviders.ps1",
         "scripts/Draft-AlphaJob.ps1",
         "scripts/Export-AlphaEvidencePackage.ps1",
@@ -111,6 +112,9 @@ try {
     }
     if ($manifest.includes.auditSnapshot -ne "AUDIT-SNAPSHOT.txt") {
         throw "Release manifest does not reference AUDIT-SNAPSHOT.txt."
+    }
+    if ($manifest.includes.docs -notcontains "docs/Alpha-Tester-Walkthrough.md") {
+        throw "Release manifest does not list the alpha tester walkthrough."
     }
     if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
         throw "Release manifest does not list the dashboard launcher."
@@ -189,10 +193,27 @@ try {
         "Export-CareerSeeker-Evidence.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
         "L1 creates Gmail drafts only",
-        "Secret values are not included"
+        "Secret values are not included",
+        "docs/Alpha-Tester-Walkthrough.md"
     )) {
         if (-not $auditSnapshot.Contains($snippet)) {
             throw "Audit snapshot missing '$snippet'."
+        }
+    }
+
+    $walkthrough = Get-Content -LiteralPath (Resolve-RootPath "docs/Alpha-Tester-Walkthrough.md") -Raw
+    foreach ($snippet in @(
+        "CareerSeeker Alpha Tester Walkthrough",
+        "Verify-CareerSeeker-Alpha.cmd",
+        "Connect-CareerSeeker-Providers.cmd",
+        "BRAVE_SEARCH_API",
+        "Draft-CareerSeeker-Job.cmd",
+        "L1 alpha does not send applications",
+        "Secret values are not packaged",
+        "prompt-injection signals"
+    )) {
+        if (-not $walkthrough.Contains($snippet)) {
+            throw "Alpha tester walkthrough missing '$snippet'."
         }
     }
 

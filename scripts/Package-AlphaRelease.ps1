@@ -97,7 +97,7 @@ CareerSeeker Alpha
 
 This package contains the local-first L1 Drafts alpha executable.
 
-Quick checks:
+Trusted tester flow:
 
   Double-click Setup-CareerSeeker-Alpha.cmd to create the local workspace.
   Double-click Import-CareerSeeker-Profile.cmd after editing .appdata\profile.template.json.
@@ -129,6 +129,8 @@ Quick checks:
   .\$exeName import-alpha-package --package output\careerseeker-alpha-package.zip
 
 The L1 alpha creates Gmail drafts only. It has no send path.
+
+Read docs\Alpha-Tester-Walkthrough.md for the intended first-run order, safety rails, and evidence locations.
 
 Do not place OAuth tokens, provider keys, resumes, local databases, or generated artifacts in source control.
 "@
@@ -168,6 +170,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
         New-Item -ItemType Directory -Force -Path $docsDir | Out-Null
         foreach ($doc in @(
             "docs/External-Audit-Handoff.md",
+            "docs/Alpha-Tester-Walkthrough.md",
             "docs/CareerSeeker-Alpha-Build-Checklist.md",
             "docs/Privacy-Policy.md",
             "docs/Support.md",
@@ -224,6 +227,7 @@ Cross-checks:
 
   RELEASE-MANIFEST.json records the packaged files and source commit.
   SHA256SUMS.txt records per-file SHA-256 checksums for the packaged payload.
+  docs/Alpha-Tester-Walkthrough.md gives the intended first-run order, safety rails, and evidence locations.
   docs/External-Audit-Handoff.md contains the source-side audit map and repeatable verifier commands.
 "@
     Set-Content -LiteralPath (Join-Path $stageDir "AUDIT-SNAPSHOT.txt") -Value $auditSnapshot -Encoding UTF8

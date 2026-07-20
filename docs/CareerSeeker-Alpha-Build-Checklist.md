@@ -63,9 +63,9 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - `Start-CareerSeeker-Alpha.cmd` gives trusted testers a double-click launcher in the release ZIP that starts
   the packaged dashboard path.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
-  dependencies, double-click setup/profile/provider/Gmail/demo/scout/selected-job/live/evidence/verify/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, audit snapshot, release manifest,
-  SHA-256 checksums, and selected docs while excluding local databases, vaults, provider keys, and generated
-  artifacts.
+  dependencies, double-click setup/profile/provider/Gmail/demo/scout/selected-job/live/evidence/verify/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
+  snapshot, release manifest, SHA-256 checksums, and selected docs while excluding local databases, vaults,
+  provider keys, and generated artifacts.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
 - The alpha executable can export a local alpha ZIP package with a manifest, audit export, SQLite snapshot,
   draft artifacts, and saved job-description artifacts while filtering secret-looking paths.
