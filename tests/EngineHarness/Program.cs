@@ -410,6 +410,16 @@ Console.WriteLine("\n[ localhost dashboard ]");
             wrongAuditExportContentType.StatusCode == HttpStatusCode.Forbidden && auditExports == 0,
             $"{wrongAuditExportContentType.StatusCode}, calls={auditExports}");
 
+        using var wrongAuditExportOrigin = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/audit/export")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }),
+        };
+        wrongAuditExportOrigin.Headers.TryAddWithoutValidation("Origin", "https://evil.test");
+        var wrongAuditExportOriginResp = await noRedirect.SendAsync(wrongAuditExportOrigin);
+        Check("audit export control rejects a foreign Origin header",
+            wrongAuditExportOriginResp.StatusCode == HttpStatusCode.Forbidden && auditExports == 0,
+            $"{wrongAuditExportOriginResp.StatusCode}, calls={auditExports}");
+
         var auditExportPost = await noRedirect.PostAsync(
             "http://localhost:7777/controls/audit/export",
             new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }));
@@ -423,6 +433,16 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("alpha package export control rejects a bad token",
             forgedExport.StatusCode == HttpStatusCode.Forbidden && packageExports == 0,
             $"{forgedExport.StatusCode}, calls={packageExports}");
+
+        using var wrongPackageExportReferer = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/package/export")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }),
+        };
+        wrongPackageExportReferer.Headers.Referrer = new Uri("https://evil.test/dashboard");
+        var wrongPackageExportRefererResp = await noRedirect.SendAsync(wrongPackageExportReferer);
+        Check("alpha package export control rejects a foreign Referer header",
+            wrongPackageExportRefererResp.StatusCode == HttpStatusCode.Forbidden && packageExports == 0,
+            $"{wrongPackageExportRefererResp.StatusCode}, calls={packageExports}");
 
         var exportPost = await noRedirect.PostAsync(
             "http://localhost:7777/controls/package/export",
@@ -452,6 +472,21 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("application control rejects non-form content",
             wrongAppContentType.StatusCode == HttpStatusCode.Forbidden && appControls == 0,
             $"{wrongAppContentType.StatusCode}, calls={appControls}");
+
+        using var wrongAppHost = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/application")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["token"] = token,
+                ["applicationId"] = applicationId.ToString(),
+                ["action"] = "pause",
+            }),
+        };
+        wrongAppHost.Headers.Host = "evil.test";
+        var wrongAppHostResp = await noRedirect.SendAsync(wrongAppHost);
+        Check("application control rejects a foreign Host header",
+            (int)wrongAppHostResp.StatusCode >= 400 && appControls == 0,
+            $"{wrongAppHostResp.StatusCode}, calls={appControls}");
 
         var appPost = await noRedirect.PostAsync(
             "http://localhost:7777/controls/application",

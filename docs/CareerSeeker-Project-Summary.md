@@ -366,12 +366,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 277 passed, 0 failed.
+Total: 280 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 79 passed, 0 failed |
+| `EngineHarness` | 82 passed, 0 failed |
 | `ResearcherHarness` | 37 passed, 0 failed |
 | `HookHarness` | 14 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
@@ -470,7 +470,9 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - Local OAuth implementation added without external NuGet packages.
 - DPAPI token vault added for local OAuth token storage.
 - Gmail disconnect added to revoke refresh tokens and delete local DPAPI token material.
-- Local dashboard Gmail disconnect control added with per-process form token plus loopback, Host, Origin, and Referer checks.
+- Local dashboard controls added with per-process form token plus loopback, Host, Origin, and Referer checks;
+  EngineHarness covers those checks across Gmail disconnect, audit export, alpha package export, and
+  application controls.
 - Local dashboard evidence views added; `/evidence.html` gives testers a human audit-chain page, while
   `/evidence` verifies the audit chain and returns recent event metadata JSON without payload bodies.
 - Local `export-audit` command added; default export includes audit-chain status, event metadata, hashes, and payload lengths, while raw payloads require `--include-payloads`.
