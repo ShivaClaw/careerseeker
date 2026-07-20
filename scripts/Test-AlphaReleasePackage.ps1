@@ -78,6 +78,7 @@ try {
         "Setup-CareerSeeker-Alpha.cmd",
         "Run-CareerSeeker-Demo.cmd",
         "Run-CareerSeeker-Scout.cmd",
+        "Research-CareerSeeker-Company.cmd",
         "Draft-CareerSeeker-Job.cmd",
         "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
@@ -99,6 +100,7 @@ try {
         "scripts/Import-AlphaProfile.ps1",
         "scripts/Run-AlphaDemoCycle.ps1",
         "scripts/Run-AlphaScoutBoards.ps1",
+        "scripts/Run-AlphaCompanyResearch.ps1",
         "scripts/Run-AlphaLiveCycle.ps1",
         "scripts/Initialize-AlphaWorkspace.ps1",
         "scripts/Start-AlphaDashboard.ps1",
@@ -144,6 +146,9 @@ try {
     if ($manifest.includes.scripts -notcontains "scripts/Run-AlphaScoutBoards.ps1") {
         throw "Release manifest does not list the Scout ingest helper."
     }
+    if ($manifest.includes.scripts -notcontains "scripts/Run-AlphaCompanyResearch.ps1") {
+        throw "Release manifest does not list the company research helper."
+    }
     if ($manifest.includes.scripts -notcontains "scripts/Run-AlphaLiveCycle.ps1") {
         throw "Release manifest does not list the live alpha helper."
     }
@@ -183,6 +188,9 @@ try {
     if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Scout.cmd") {
         throw "Release manifest does not list the double-click Scout ingest launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Research-CareerSeeker-Company.cmd") {
+        throw "Release manifest does not list the double-click company research launcher."
+    }
     if ($manifest.includes.launchers -notcontains "Draft-CareerSeeker-Job.cmd") {
         throw "Release manifest does not list the double-click selected-job draft launcher."
     }
@@ -217,6 +225,8 @@ try {
         "Status-CareerSeeker-DashboardTask.cmd",
         "Uninstall-CareerSeeker-DashboardTask.cmd",
         "Manage-AlphaDashboardTask.ps1",
+        "Research-CareerSeeker-Company.cmd",
+        "Run-AlphaCompanyResearch.ps1",
         "Check-CareerSeeker-LiveReadiness.cmd",
         "BRAVE_SEARCH_API",
         "clear-byok",
@@ -238,6 +248,7 @@ try {
         "Disconnect-CareerSeeker-Gmail.cmd",
         "Run-CareerSeeker-Demo.cmd",
         "Run-CareerSeeker-Scout.cmd",
+        "Research-CareerSeeker-Company.cmd",
         "Draft-CareerSeeker-Job.cmd",
         "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
@@ -263,6 +274,7 @@ try {
         "Clear-CareerSeeker-Providers.cmd",
         "Disconnect-CareerSeeker-Gmail.cmd",
         "BRAVE_SEARCH_API",
+        "Research-CareerSeeker-Company.cmd",
         "Draft-CareerSeeker-Job.cmd",
         "L1 alpha does not send applications",
         "Secret values are not packaged",

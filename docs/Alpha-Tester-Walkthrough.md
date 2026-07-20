@@ -52,10 +52,12 @@ Use the demo path when you want deterministic local evidence without Gmail:
 Use the Scout path when you want real public ATS job discovery:
 
 1. Double-click `Run-CareerSeeker-Scout.cmd`.
-2. Open the dashboard Jobs page and choose a job id.
-3. Double-click `Draft-CareerSeeker-Job.cmd`.
-4. Press Enter for preview/dry-run mode, or type `LIVE` only when you intentionally want a Gmail draft.
-5. Double-click `Export-CareerSeeker-Evidence.cmd` after reviewing the result.
+2. Optionally double-click `Research-CareerSeeker-Company.cmd` to research a company with Brave/BYOK and no
+   Gmail draft.
+3. Open the dashboard Jobs page and choose a job id.
+4. Double-click `Draft-CareerSeeker-Job.cmd`.
+5. Press Enter for preview/dry-run mode, or type `LIVE` only when you intentionally want a Gmail draft.
+6. Double-click `Export-CareerSeeker-Evidence.cmd` after reviewing the result.
 
 Use the live alpha path when you want one end-to-end Gmail draft smoke:
 
@@ -77,6 +79,7 @@ Use the live alpha path when you want one end-to-end Gmail draft smoke:
   removable with `Uninstall-CareerSeeker-DashboardTask.cmd`.
 - Job descriptions and researched web pages are untrusted data. The app records prompt-injection signals, and
   selected-job drafting refuses flagged jobs unless explicitly allowed after manual review.
+- `Research-CareerSeeker-Company.cmd` reads public web pages and BYOK providers only; it creates no Gmail draft.
 - The Fabrication Gate is fail-closed. Unsupported claims block; unavailable verification defers.
 - Evidence packages omit payloads by default. Use payload-inclusive exports only when you intentionally want to
   share local content for audit.

@@ -145,7 +145,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
-  dependencies, quickstart, tester walkthrough, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard and dashboard-task launchers,
+  dependencies, quickstart, tester walkthrough, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/evidence/verify/dashboard and dashboard-task launchers,
   workspace initializer, dashboard/helper self-check scripts, checksums, and selected docs without bundling local
   databases, vaults, provider keys, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
@@ -176,6 +176,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   from the extracted release ZIP without creating a Gmail draft.
 - `Run-CareerSeeker-Scout.cmd` wraps public ATS board ingestion for double-click tester job discovery from the
   extracted release ZIP without creating a Gmail draft.
+- `Research-CareerSeeker-Company.cmd` wraps live Brave/BYOK company research for double-click tester review
+  from the extracted release ZIP without creating a Gmail draft.
 - `Draft-CareerSeeker-Job.cmd` wraps selected stored-job drafting; it defaults to a no-Gmail dry-run package and
   requires typing `LIVE` before creating a Gmail draft.
 - `Run-CareerSeeker-Live.cmd` wraps `alpha --llm byok --fast-smoke` for one double-click live L1 Gmail draft
@@ -200,7 +202,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 - Bounded BYOK alpha smoke is verified for live Gate, live Tailor, Gmail draft creation, PDF attachment
   packaging, and SQLite audit.
 - Brave web-research adapter source and the `research-company` alpha command are implemented, offline
-  verified, and live-verified with Brave Search plus BYOK dossier modeling.
+  verified, live-verified with Brave Search plus BYOK dossier modeling, and exposed through a double-click
+  trusted-tester helper.
 - Dashboard `/applications` exposes recent job/application state, scores, draft refs, generated resume/cover
   document links, safe job/apply links, and token-protected pause/resume/kill controls in the shared alpha
   dashboard shell; `/evidence` exposes audit-chain status and recent audit event metadata without payload bodies.

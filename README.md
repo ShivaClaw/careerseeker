@@ -50,6 +50,8 @@ Trust/OAuth docs:
   release ZIP.
 - `Run-CareerSeeker-Scout.cmd`: double-click public ATS board ingest helper copied into the trusted-tester
   release ZIP.
+- `Research-CareerSeeker-Company.cmd`: double-click Brave/BYOK company research helper copied into the
+  trusted-tester release ZIP. It creates no Gmail draft.
 - `Draft-CareerSeeker-Job.cmd`: double-click selected-job draft helper copied into the trusted-tester release
   ZIP.
 - `Run-CareerSeeker-Live.cmd`: double-click live L1 Gmail draft helper copied into the trusted-tester release

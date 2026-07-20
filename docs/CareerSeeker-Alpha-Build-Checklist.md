@@ -56,6 +56,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   and artifact evidence without touching Gmail.
 - `Run-CareerSeeker-Scout.cmd` gives trusted testers a double-click public ATS board ingest that writes local
   job/posting evidence without touching Gmail.
+- `Research-CareerSeeker-Company.cmd` gives trusted testers a double-click Brave/BYOK company research helper
+  that reads public web pages, prints a grounded dossier, and creates no Gmail draft.
 - `Draft-CareerSeeker-Job.cmd` gives trusted testers a double-click selected-job draft helper that defaults to
   a no-Gmail dry-run package and requires typing `LIVE` before creating a Gmail draft.
 - `Run-CareerSeeker-Live.cmd` gives trusted testers a double-click live L1 alpha cycle that creates one Gmail
@@ -75,10 +77,11 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - Extracted-package verification smokes the packaged provider-key clear and Gmail disconnect command paths
   against isolated temp vault paths.
 - Extracted-package verification smokes the packaged live readiness helper with optional Gmail/BYOK checks off.
+- Extracted-package verification previews the packaged company research helper without spending Brave/BYOK calls.
 - Extracted-package verification dry-runs packaged dashboard logon-task install and uninstall commands and
   smokes the status command.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
-  dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
+  dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/evidence/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
   snapshot, release manifest, SHA-256 checksums, and selected docs while excluding local databases, vaults,
   provider keys, and generated artifacts.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
