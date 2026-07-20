@@ -102,6 +102,8 @@ Important docs:
 - [CareerSeeker-Spec.md](./CareerSeeker-Spec.md): authoritative v0.9 product and architecture spec.
 - [CareerSeeker-Integration-Windows-Roadmap.md](./CareerSeeker-Integration-Windows-Roadmap.md): integration sequencing.
 - [CareerSeeker-Spec-5_6-LLM-Gateway.md](./CareerSeeker-Spec-5_6-LLM-Gateway.md): gateway economics and routing addendum.
+- [External-Audit-Handoff.md](./External-Audit-Handoff.md): concise audit target, evidence, commands, safety
+  surfaces, and known gaps for outside reviewers.
 - [Privacy-Policy.md](./Privacy-Policy.md): current L1 alpha privacy and Google Limited Use language.
 - [Support.md](./Support.md): current alpha support and account-disconnect guidance.
 - [Autonomy-Contract.md](./Autonomy-Contract.md): current L1 autonomy boundaries and no-send/label split.

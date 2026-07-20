@@ -3,7 +3,7 @@
 Autonomous job-search engine: free Windows service (.exe) that discovers, verifies, tailors, and drafts
 job applications, plus a paid Android dashboard. Spec: `docs/CareerSeeker-Spec.md` (authoritative,
 v0.9). Sequencing: `docs/CareerSeeker-Integration-Windows-Roadmap.md`. Current handoff:
-`docs/CareerSeeker-Project-Summary.md`.
+`docs/CareerSeeker-Project-Summary.md`. External audit quickstart: `docs/External-Audit-Handoff.md`.
 
 Trust/OAuth docs:
 - `docs/Privacy-Policy.md`
