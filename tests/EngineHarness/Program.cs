@@ -269,7 +269,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
             Interlocked.Increment(ref packageExports);
             return Task.FromResult(new DashboardControlResult(true, "Alpha package exported."));
         });
-    var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore));
+    var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore), new[] { artifactDir });
     var listenerOk = true;
     try { dash.Start(); } catch (Exception e) { listenerOk = false; Console.WriteLine("    (HttpListener unavailable in sandbox: " + e.GetType().Name + ")"); }
 
@@ -323,6 +323,22 @@ Console.WriteLine("\n[ localhost dashboard ]");
             resumePdf[3] == 0x46,
             Convert.ToHexString(resumePdf));
         Check("/documents sends dashboard safety headers", HasDashboardSafetyHeaders(resumeResponse), resumeResponse.Headers.ToString());
+
+        var outsideDocDir = Path.Combine(Path.GetTempPath(), "careerseeker-engineharness-outside-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(outsideDocDir);
+        var outsideResume = Path.Combine(outsideDocDir, "outside-resume.pdf");
+        await File.WriteAllTextAsync(outsideResume, "%PDF outside");
+        await evidenceStore.SaveApplicationArtifactsAsync(applicationId, outsideResume, null, null);
+        var unsafeApplicationsHtml = await http.GetStringAsync("http://localhost:7777/applications");
+        Check("/applications suppresses out-of-artifact document links",
+            !unsafeApplicationsHtml.Contains($@"/documents/{applicationId}/resume", StringComparison.Ordinal),
+            unsafeApplicationsHtml);
+        var unsafeDocument = await http.GetAsync($"http://localhost:7777/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}");
+        Check("/documents refuses out-of-artifact stored paths",
+            unsafeDocument.StatusCode == HttpStatusCode.NotFound,
+            unsafeDocument.StatusCode.ToString());
+        try { if (Directory.Exists(outsideDocDir)) Directory.Delete(outsideDocDir, recursive: true); } catch (IOException) { }
+
         Check("/applications exposes local application controls",
             applicationsHtml.Contains("action=\"/controls/application\"") &&
             applicationsHtml.Contains("value=\"pause\"") &&

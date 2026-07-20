@@ -127,6 +127,7 @@ public sealed class LocalDashboard : IAsyncDisposable
     private readonly EngineCounters _counters;
     private readonly LocalDashboardActions? _actions;
     private readonly LocalDashboardEvidence? _evidence;
+    private readonly IReadOnlyList<string> _documentRoots;
     private readonly string _controlToken;
     private readonly int _port;
     private string? _lastActionMessage;
@@ -155,11 +156,13 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         EngineCounters counters,
         int port = 7777,
         LocalDashboardActions? actions = null,
-        LocalDashboardEvidence? evidence = null)
+        LocalDashboardEvidence? evidence = null,
+        IEnumerable<string>? documentRoots = null)
     {
         _counters = counters;
         _actions = actions;
         _evidence = evidence;
+        _documentRoots = NormalizeDocumentRoots(documentRoots);
         _controlToken = NewControlToken();
         _port = port;
         _listener.Prefixes.Add($"http://localhost:{port}/");
@@ -455,7 +458,8 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
             : string.Concat(evidence.RecentApplications.Select(row => ApplicationRowHtml(
                 row,
                 _actions?.ControlApplicationAsync is not null,
-                _controlToken)));
+                _controlToken,
+                IsServableDocumentPath)));
 
         var body = $@"<section class=""hero""><div><h1>Recent applications</h1><div class=""muted"">{evidence.RecentApplications.Count} applications shown</div></div><a href=""/"">Back to status</a></section>
 <div class=""table-wrap""><table><thead><tr><th>State</th><th>Job</th><th>Company</th><th>Score</th><th>Draft</th><th>Updated</th><th>Links</th><th>Controls</th></tr></thead>
@@ -463,7 +467,11 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         return PageHtml("CareerSeeker Applications", "applications", body);
     }
 
-    private static string ApplicationRowHtml(ApplicationSummaryRow row, bool canControl, string token)
+    private static string ApplicationRowHtml(
+        ApplicationSummaryRow row,
+        bool canControl,
+        string token,
+        Func<string?, bool> canServeDocument)
     {
         var job = WebUtility.HtmlEncode(row.JobTitle);
         var company = WebUtility.HtmlEncode(row.CompanyName ?? row.CompanyDomain ?? "-");
@@ -476,7 +484,7 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
                 ? row.DraftStatus
                 : $"{row.DraftStatus} ({row.DraftExternalRef})");
         var updated = WebUtility.HtmlEncode(row.UpdatedAt);
-        var links = LinksHtml(row, token);
+        var links = LinksHtml(row, token, canServeDocument);
         var controls = canControl ? ApplicationControlsHtml(row, token) : "-";
         return $@"<tr><td class=""state"">{WebUtility.HtmlEncode(row.State)}</td><td>{job}</td><td>{company}</td><td class=""n"">{score}</td><td>{draft}</td><td class=""n"">{updated}</td><td><div class=""links"">{links}</div></td><td>{controls}</td></tr>";
     }
@@ -503,22 +511,44 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
     private static string ControlButton(long applicationId, string action, string token, string label, bool danger = false) =>
         $@"<form class=""{(danger ? "danger" : "")}"" method=""post"" action=""/controls/application""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><input type=""hidden"" name=""applicationId"" value=""{applicationId}""><input type=""hidden"" name=""action"" value=""{WebUtility.HtmlEncode(action)}""><button type=""submit"">{WebUtility.HtmlEncode(label)}</button></form>";
 
-    private static string LinksHtml(ApplicationSummaryRow row, string token)
+    private static string LinksHtml(ApplicationSummaryRow row, string token, Func<string?, bool> canServeDocument)
     {
         var links = new List<string>();
         if (Uri.TryCreate(row.JobUrl, UriKind.Absolute, out var jobUri) && jobUri.Scheme is "http" or "https")
             links.Add($@"<a href=""{WebUtility.HtmlEncode(jobUri.ToString())}"">job</a>");
         if (Uri.TryCreate(row.ApplyUrl, UriKind.Absolute, out var applyUri) && applyUri.Scheme is "http" or "https" or "mailto")
             links.Add($@"<a href=""{WebUtility.HtmlEncode(applyUri.ToString())}"">apply</a>");
-        AddFileLink(links, row.ApplicationId, row.ResumePath, "resume", token);
-        AddFileLink(links, row.ApplicationId, row.CoverPath, "cover", token);
+        AddFileLink(links, row.ApplicationId, row.ResumePath, "resume", token, canServeDocument);
+        AddFileLink(links, row.ApplicationId, row.CoverPath, "cover", token, canServeDocument);
         return links.Count == 0 ? "-" : string.Join(" ", links);
     }
 
-    private static void AddFileLink(List<string> links, long applicationId, string? path, string label, string token)
+    private static void AddFileLink(
+        List<string> links,
+        long applicationId,
+        string? path,
+        string label,
+        string token,
+        Func<string?, bool> canServeDocument)
     {
-        if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path)) return;
+        if (!canServeDocument(path)) return;
         links.Add($@"<a href=""/documents/{applicationId}/{WebUtility.UrlEncode(label)}?token={WebUtility.UrlEncode(token)}"">{label}</a>");
+    }
+
+    private bool IsServableDocumentPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path) || _documentRoots.Count == 0)
+            return false;
+
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            return _documentRoots.Any(root => fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
     }
 
     private async Task HandleApplicationsAsync(HttpListenerContext ctx, CancellationToken ct)
@@ -632,6 +662,7 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
 
         if (string.IsNullOrWhiteSpace(documentPath) ||
             !Path.IsPathRooted(documentPath) ||
+            !IsServableDocumentPath(documentPath) ||
             !File.Exists(documentPath))
         {
             ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
@@ -909,6 +940,17 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
     private static string NewControlToken() =>
         Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
+    private static IReadOnlyList<string> NormalizeDocumentRoots(IEnumerable<string>? roots)
+    {
+        if (roots is null) return Array.Empty<string>();
+        return roots
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Select(root => Path.GetFullPath(root))
+            .Select(root => root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     public async ValueTask DisposeAsync()
     {
         _cts?.Cancel();
@@ -937,11 +979,12 @@ public sealed class EngineHost : IAsyncDisposable
         TimeSpan interval,
         int dashboardPort = 7777,
         LocalDashboardActions? dashboardActions = null,
-        LocalDashboardEvidence? dashboardEvidence = null)
+        LocalDashboardEvidence? dashboardEvidence = null,
+        IEnumerable<string>? dashboardDocumentRoots = null)
     {
         Counters = counters;
         _scheduler = new PeriodicScheduler(cycle.TickAsync, interval);
-        _dashboard = new LocalDashboard(counters, dashboardPort, dashboardActions, dashboardEvidence);
+        _dashboard = new LocalDashboard(counters, dashboardPort, dashboardActions, dashboardEvidence, dashboardDocumentRoots);
     }
 
     public void Start() { _dashboard.Start(); _scheduler.Start(); }

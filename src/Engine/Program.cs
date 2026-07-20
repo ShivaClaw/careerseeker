@@ -115,7 +115,8 @@ async Task<int> RunDemoAsync()
             TimeSpan.FromSeconds(intervalSeconds),
             port,
             dashboardActions,
-            LocalDashboardEvidence.FromStore(store));
+            LocalDashboardEvidence.FromStore(store),
+            new[] { artifactsPath });
         using var stop = new CancellationTokenSource();
         var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -402,7 +403,7 @@ async Task<int> RunDashboardAsync()
         return snapshot.AuditOk ? 0 : 1;
     }
 
-    await using var dashboard = new LocalDashboard(counters, port, actions, evidence);
+    await using var dashboard = new LocalDashboard(counters, port, actions, evidence, new[] { artifactsPath });
     using var stop = new CancellationTokenSource();
     var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
