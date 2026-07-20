@@ -250,7 +250,8 @@ Invoke-Step "Public README and harness count smoke" {
         'Real BYOK Tailor and Gate providers are wired through the Gateway',
         'Brave Search company research is grounded and fails closed on missing keys',
         'source-control hygiene smoke',
-        'Trusted-tester ZIP carries source provenance and payload checksums',
+        'Trusted-tester ZIP carries source provenance, payload checksums, and provider-key quickstart guidance',
+        'README-alpha provider-key checks',
         'Dashboard controls are loopback, token-protected, and evidence-oriented'
     ) "docs/External-Audit-Handoff.md"
 
