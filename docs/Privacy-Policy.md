@@ -1,7 +1,7 @@
 # CareerSeeker Privacy Policy
 
 **Effective date:** 2026-07-18
-**Last updated:** 2026-07-18
+**Last updated:** 2026-07-20
 **Product version:** L1 Drafts alpha (v0.1)
 
 CareerSeeker is a local-first Windows application that helps job seekers discover, evaluate, and prepare job applications. This policy describes what data the current L1 Drafts alpha processes, where it lives, and what controls you have.
@@ -79,8 +79,8 @@ CareerSeeker does not:
 | Action | Current L1 alpha path |
 | --- | --- |
 | **Pause or stop the engine** | Stop the local process or service host you started. Tray and installer controls are planned. |
-| **Revoke Gmail access** | Use Google Account permissions, then delete the local DPAPI token vault for the authorized Gmail account. |
-| **Revoke LLM provider keys** | Delete provider keys from the local vault or environment where you configured them. |
+| **Revoke Gmail access** | Use `disconnect-gmail` or `Disconnect-CareerSeeker-Gmail.cmd`, then optionally confirm removal from Google Account permissions. |
+| **Revoke LLM provider keys** | Use `clear-byok` or `Clear-CareerSeeker-Providers.cmd`, then delete any environment or `secrets/env.secrets` copies you supplied. |
 | **Delete all local data** | Delete the configured local database, generated artifact directory, and `.appdata` test vaults. |
 | **Export audit log or local evidence bundle** | Use the local `export-audit`, `export-alpha-package`, or `import-alpha-package` command; raw event payloads are opt-in. |
 | **Remove verified claims** | Edit the local profile/claims source and rerun affected applications through the Gate. |

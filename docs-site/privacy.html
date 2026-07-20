@@ -17,7 +17,7 @@
 <body>
 <h1>CareerSeeker Privacy Policy</h1>
 <p><strong>Effective date:</strong> 2026-07-18<br>
-<strong>Last updated:</strong> 2026-07-18<br>
+<strong>Last updated:</strong> 2026-07-20<br>
 <strong>Product version:</strong> L1 Drafts alpha (v0.1)</p>
 
 <p>CareerSeeker is a local-first Windows application that helps job seekers discover, evaluate, and prepare job applications. This policy describes what data the current L1 Drafts alpha processes, where it lives, and what controls you have.</p>
@@ -77,10 +77,10 @@
 <table>
 <tr><th>Action</th><th>Current L1 alpha path</th></tr>
 <tr><td><strong>Pause or stop the engine</strong></td><td>Stop the local process or service host you started. Tray and installer controls are planned.</td></tr>
-<tr><td><strong>Revoke Gmail access</strong></td><td>Use Google Account permissions, then delete the local DPAPI token vault for the authorized Gmail account.</td></tr>
-<tr><td><strong>Revoke LLM provider keys</strong></td><td>Delete provider keys from the local vault or environment where you configured them.</td></tr>
+<tr><td><strong>Revoke Gmail access</strong></td><td>Use <code>disconnect-gmail</code> or <code>Disconnect-CareerSeeker-Gmail.cmd</code>, then optionally confirm removal from Google Account permissions.</td></tr>
+<tr><td><strong>Revoke LLM provider keys</strong></td><td>Use <code>clear-byok</code> or <code>Clear-CareerSeeker-Providers.cmd</code>, then delete any environment or <code>secrets/env.secrets</code> copies you supplied.</td></tr>
 <tr><td><strong>Delete all local data</strong></td><td>Delete the configured local database, generated artifact directory, and <code>.appdata</code> test vaults.</td></tr>
-<tr><td><strong>Export audit log</strong></td><td>Use the local store/export tooling once wired; the audit chain is currently verifiable by harness.</td></tr>
+<tr><td><strong>Export audit log or local evidence bundle</strong></td><td>Use the local <code>export-audit</code>, <code>export-alpha-package</code>, or <code>import-alpha-package</code> command; raw event payloads are opt-in.</td></tr>
 <tr><td><strong>Remove verified claims</strong></td><td>Edit the local profile/claims source and rerun affected applications through the Gate.</td></tr>
 </table>
 

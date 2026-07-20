@@ -16,7 +16,7 @@
 </head>
 <body>
 <h1>CareerSeeker Support</h1>
-<p><strong>Last updated:</strong> 2026-07-18</p>
+<p><strong>Last updated:</strong> 2026-07-20</p>
 
 <h2>Contact</h2>
 <table>
@@ -33,16 +33,15 @@
 <h3>Disconnect Gmail</h3>
 <p>CareerSeeker L1 creates Gmail drafts through a local OAuth token vault. To disconnect the current alpha:</p>
 <ol>
-<li>Open your <a href="https://myaccount.google.com/permissions">Google Account permissions page</a>.</li>
-<li>Find CareerSeeker.</li>
-<li>Remove access.</li>
-<li>Delete the local DPAPI token vault configured for the alpha run, commonly <code>.appdata/oauth/gmail-token.dpapi</code>.</li>
+<li>In the release package, double-click <code>Disconnect-CareerSeeker-Gmail.cmd</code>.</li>
+<li>From source or a terminal, run <code>SeekerSvc.Engine.exe disconnect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi</code>.</li>
+<li>Optionally confirm removal on your <a href="https://myaccount.google.com/permissions">Google Account permissions page</a>.</li>
 </ol>
 <p>After disconnection, CareerSeeker cannot create Gmail drafts until you reconnect and authorize again.</p>
-<p>An in-app "Disconnect Gmail" control that calls Google's revocation endpoint is planned for the product shell.</p>
 
 <h3>Revoke LLM Provider Keys</h3>
-<p>Delete provider keys from the local vault, environment variable, or configuration location where you supplied them. CareerSeeker does not retain copies of provider keys outside the local configuration you control.</p>
+<p>In the release package, double-click <code>Clear-CareerSeeker-Providers.cmd</code> to delete the local DPAPI provider-key vault. From source or a terminal, run <code>SeekerSvc.Engine.exe clear-byok --key-vault .appdata/secrets/byok-keys.dpapi</code>.</p>
+<p>Also delete any provider keys from environment variables or <code>secrets/env.secrets</code> if you supplied them there. CareerSeeker does not retain copies of provider keys outside the local configuration you control.</p>
 <p>An in-app provider-key manager is planned for the product shell.</p>
 
 <h3>Delete Local Data</h3>
@@ -56,7 +55,7 @@
 <p>Future installer builds will use a documented product data directory and uninstall flow.</p>
 
 <h3>Verify the Audit Log</h3>
-<p>The Store implements hash-chain verification and the offline harnesses exercise it. Product UI for audit export is planned; until then, use the local store/harness code when validating alpha data.</p>
+<p>The Store implements hash-chain verification and the offline harnesses exercise it. The alpha executable also supports <code>export-audit</code> for local JSON audit packages, <code>export-alpha-package</code> for a local ZIP evidence bundle, and <code>import-alpha-package</code> for safe local restore into an import workspace.</p>
 
 <h3>Report a Fabrication Gate Issue</h3>
 <p>If you believe the Fabrication Gate incorrectly blocked a legitimate claim or allowed an unsupported one:</p>

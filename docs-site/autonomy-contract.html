@@ -16,7 +16,7 @@
 <body>
 <h1>CareerSeeker Autonomy Contract</h1>
 <p><strong>Version:</strong> L1 Drafts alpha (v0.1)<br>
-<strong>Last updated:</strong> 2026-07-18</p>
+<strong>Last updated:</strong> 2026-07-20</p>
 
 <p>This contract defines what CareerSeeker can and cannot do on your behalf in the current L1 Drafts alpha. Every material action is intended to be logged in a local audit trail and reviewable by the user.</p>
 
@@ -68,11 +68,11 @@
 <table>
 <tr><th>Control</th><th>Current L1 alpha path</th></tr>
 <tr><td>Pause or stop</td><td>Stop the local engine process or host. Product tray controls are planned.</td></tr>
-<tr><td>Disconnect Gmail</td><td>Revoke CareerSeeker from Google Account permissions and delete the local DPAPI token vault.</td></tr>
+<tr><td>Disconnect Gmail</td><td>Use <code>disconnect-gmail</code> or the packaged disconnect helper, then optionally confirm removal from Google Account permissions.</td></tr>
 <tr><td>Edit claims</td><td>Edit the local source profile/claims and rerun affected work through the Gate.</td></tr>
 <tr><td>Blocklist employers</td><td>Configure local preferences/rails when the product shell is wired.</td></tr>
 <tr><td>Set daily cap</td><td>Planned product control; current harnesses exercise bounded local runs.</td></tr>
-<tr><td>Export audit log</td><td>Planned product command; audit-chain verification is implemented in the store and harnesses.</td></tr>
+<tr><td>Export audit log or local evidence bundle</td><td>Available through the local <code>export-audit</code>, <code>export-alpha-package</code>, and <code>import-alpha-package</code> commands; audit-chain verification is implemented in the store and harnesses.</td></tr>
 <tr><td>Delete all data</td><td>Delete local databases, generated artifacts, and <code>.appdata</code> test vaults.</td></tr>
 </table>
 

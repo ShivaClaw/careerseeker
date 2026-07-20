@@ -1,6 +1,6 @@
 # CareerSeeker Support
 
-**Last updated:** 2026-07-18
+**Last updated:** 2026-07-20
 
 ## Contact
 
@@ -19,18 +19,17 @@ During closed alpha and beta, support is provided by the development team direct
 
 CareerSeeker L1 creates Gmail drafts through a local OAuth token vault. To disconnect the current alpha:
 
-1. Open your [Google Account permissions page](https://myaccount.google.com/permissions).
-2. Find CareerSeeker.
-3. Remove access.
-4. Delete the local DPAPI token vault configured for the alpha run, commonly `.appdata/oauth/gmail-token.dpapi`.
+1. In the release package, double-click `Disconnect-CareerSeeker-Gmail.cmd`.
+2. From source or a terminal, run `SeekerSvc.Engine.exe disconnect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`.
+3. Optionally confirm removal on your [Google Account permissions page](https://myaccount.google.com/permissions).
 
 After disconnection, CareerSeeker cannot create Gmail drafts until you reconnect and authorize again.
 
-An in-app "Disconnect Gmail" control that calls Google's revocation endpoint is planned for the product shell.
-
 ### Revoke LLM Provider Keys
 
-Delete provider keys from the local vault, environment variable, or configuration location where you supplied them. CareerSeeker does not retain copies of provider keys outside the local configuration you control.
+In the release package, double-click `Clear-CareerSeeker-Providers.cmd` to delete the local DPAPI provider-key vault. From source or a terminal, run `SeekerSvc.Engine.exe clear-byok --key-vault .appdata/secrets/byok-keys.dpapi`.
+
+Also delete any provider keys from environment variables or `secrets/env.secrets` if you supplied them there. CareerSeeker does not retain copies of provider keys outside the local configuration you control.
 
 An in-app provider-key manager is planned for the product shell.
 
@@ -47,7 +46,7 @@ Future installer builds will use a documented product data directory and uninsta
 
 ### Verify the Audit Log
 
-The Store implements hash-chain verification and the offline harnesses exercise it. Product UI for audit export is planned; until then, use the local store/harness code when validating alpha data.
+The Store implements hash-chain verification and the offline harnesses exercise it. The alpha executable also supports `export-audit` for local JSON audit packages, `export-alpha-package` for a local ZIP evidence bundle, and `import-alpha-package` for safe local restore into an import workspace.
 
 ### Report a Fabrication Gate Issue
 

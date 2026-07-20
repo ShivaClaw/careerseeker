@@ -1,7 +1,7 @@
 # CareerSeeker Autonomy Contract
 
 **Version:** L1 Drafts alpha (v0.1)
-**Last updated:** 2026-07-18
+**Last updated:** 2026-07-20
 
 This contract defines what CareerSeeker can and cannot do on your behalf in the current L1 Drafts alpha. Every material action is intended to be logged in a local audit trail and reviewable by the user.
 
@@ -66,11 +66,11 @@ State transitions, gate decisions, scoring events, and engine actions are record
 | Control | Current L1 alpha path |
 | --- | --- |
 | Pause or stop | Stop the local engine process or host. Product tray controls are planned. |
-| Disconnect Gmail | Revoke CareerSeeker from Google Account permissions and delete the local DPAPI token vault. |
+| Disconnect Gmail | Use `disconnect-gmail` or the packaged disconnect helper, then optionally confirm removal from Google Account permissions. |
 | Edit claims | Edit the local source profile/claims and rerun affected work through the Gate. |
 | Blocklist employers | Configure local preferences/rails when the product shell is wired. |
 | Set daily cap | Planned product control; current harnesses exercise bounded local runs. |
-| Export audit log | Planned product command; audit-chain verification is implemented in the store and harnesses. |
+| Export audit log or local evidence bundle | Available through the local `export-audit`, `export-alpha-package`, and `import-alpha-package` commands; audit-chain verification is implemented in the store and harnesses. |
 | Delete all data | Delete local databases, generated artifacts, and `.appdata` test vaults. |
 
 ## Future Autonomy Levels
