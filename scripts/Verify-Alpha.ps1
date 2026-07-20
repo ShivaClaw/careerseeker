@@ -184,6 +184,7 @@ if ($IncludePackage) {
                 "SeekerSvc.Engine.exe",
                 "Connect-CareerSeeker-Providers.cmd",
                 "Connect-CareerSeeker-Gmail.cmd",
+                "Check-CareerSeeker-LiveReadiness.cmd",
                 "Clear-CareerSeeker-Providers.cmd",
                 "Disconnect-CareerSeeker-Gmail.cmd",
                 "Import-CareerSeeker-Profile.cmd",
@@ -201,6 +202,7 @@ if ($IncludePackage) {
                 "RELEASE-MANIFEST.json",
                 "SHA256SUMS.txt",
                 "docs/Alpha-Tester-Walkthrough.md",
+                "scripts/Check-AlphaLiveReadiness.ps1",
                 "scripts/Connect-AlphaProviders.ps1",
                 "scripts/Draft-AlphaJob.ps1",
                 "scripts/Export-AlphaEvidencePackage.ps1",
@@ -229,7 +231,7 @@ if ($IncludePackage) {
             finally {
                 $reader.Dispose()
             }
-            foreach ($snippet in @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd", "Import-AlphaProfile.ps1", "Connect-AlphaProviders.ps1", "Run-AlphaDemoCycle.ps1", "Run-AlphaScoutBoards.ps1", "Draft-AlphaJob.ps1", "Run-AlphaLiveCycle.ps1", "Export-AlphaEvidencePackage.ps1", "connect-gmail", "clear-byok", "disconnect-gmail", "Test-AlphaReleasePackage.ps1", "Start-AlphaDashboard.ps1", "NoGmailControl", "Alpha-Tester-Walkthrough.md")) {
+            foreach ($snippet in @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Check-CareerSeeker-LiveReadiness.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd", "Import-AlphaProfile.ps1", "Check-AlphaLiveReadiness.ps1", "Connect-AlphaProviders.ps1", "Run-AlphaDemoCycle.ps1", "Run-AlphaScoutBoards.ps1", "Draft-AlphaJob.ps1", "Run-AlphaLiveCycle.ps1", "Export-AlphaEvidencePackage.ps1", "connect-gmail", "clear-byok", "disconnect-gmail", "Test-AlphaReleasePackage.ps1", "Start-AlphaDashboard.ps1", "NoGmailControl", "Alpha-Tester-Walkthrough.md")) {
                 if (-not $readme.Contains($snippet)) {
                     throw "Alpha release quickstart missing '$snippet'."
                 }
@@ -246,7 +248,7 @@ if ($IncludePackage) {
             finally {
                 $auditSnapshotReader.Dispose()
             }
-            foreach ($snippet in @("CareerSeeker Alpha Audit Snapshot", "Package-local verification commands", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "L1 creates Gmail drafts only", "Secret values are not included", "docs/Alpha-Tester-Walkthrough.md")) {
+            foreach ($snippet in @("CareerSeeker Alpha Audit Snapshot", "Package-local verification commands", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Check-CareerSeeker-LiveReadiness.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "L1 creates Gmail drafts only", "Secret values are not included", "docs/Alpha-Tester-Walkthrough.md")) {
                 if (-not $auditSnapshot.Contains($snippet)) {
                     throw "Alpha release audit snapshot missing '$snippet'."
                 }
@@ -283,6 +285,9 @@ if ($IncludePackage) {
             }
             if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
                 throw "Alpha release manifest missing dashboard launcher script."
+            }
+            if ($manifest.includes.scripts -notcontains "scripts/Check-AlphaLiveReadiness.ps1") {
+                throw "Alpha release manifest missing live readiness helper script."
             }
             if ($manifest.includes.scripts -notcontains "scripts/Connect-AlphaProviders.ps1") {
                 throw "Alpha release manifest missing provider connect helper script."
@@ -322,6 +327,9 @@ if ($IncludePackage) {
             }
             if ($manifest.includes.launchers -notcontains "Connect-CareerSeeker-Gmail.cmd") {
                 throw "Alpha release manifest missing double-click Gmail connect launcher."
+            }
+            if ($manifest.includes.launchers -notcontains "Check-CareerSeeker-LiveReadiness.cmd") {
+                throw "Alpha release manifest missing double-click live readiness launcher."
             }
             if ($manifest.includes.launchers -notcontains "Clear-CareerSeeker-Providers.cmd") {
                 throw "Alpha release manifest missing double-click provider clear launcher."
@@ -376,6 +384,18 @@ if ($IncludePackage) {
             -DbPath ".appdata/package-smoke.db"
         if ($LASTEXITCODE -ne 0) {
             throw "Packaged dashboard launcher smoke failed."
+        }
+
+        & (Join-Path $extractRoot "scripts/Check-AlphaLiveReadiness.ps1") `
+            -Published `
+            -DbPath ".appdata/package-readiness-smoke.db" `
+            -ArtifactsPath ".appdata/package-readiness-artifacts" `
+            -SecretsPath "secrets/env.secrets" `
+            -ByokVaultPath ".appdata/package-readiness-secrets/byok-keys.dpapi" `
+            -GmailClientPath "secrets/google-oauth-client.json" `
+            -GmailVaultPath ".appdata/package-readiness-oauth/gmail-token.dpapi"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Packaged live readiness helper smoke failed."
         }
 
         & (Join-Path $extractRoot "scripts/Run-AlphaDemoCycle.ps1") `

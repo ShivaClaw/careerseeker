@@ -53,6 +53,8 @@ The engine shell adds:
   `Connect-CareerSeeker-Providers.cmd`
 - Double-click Gmail connect helper included in the release ZIP:
   `Connect-CareerSeeker-Gmail.cmd`
+- Double-click live Gmail/BYOK readiness doctor included in the release ZIP:
+  `Check-CareerSeeker-LiveReadiness.cmd`
 - Double-click local BYOK vault clear helper included in the release ZIP:
   `Clear-CareerSeeker-Providers.cmd`
 - Double-click Gmail revoke/local token-vault clear helper included in the release ZIP:
@@ -143,7 +145,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
-  dependencies, quickstart, tester walkthrough, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard launchers,
+  dependencies, quickstart, tester walkthrough, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard launchers,
   workspace initializer, dashboard/helper self-check scripts, checksums, and selected docs without bundling local
   databases, vaults, provider keys, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
@@ -161,6 +163,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   tester BYOK setup from the extracted release ZIP without printing secret values.
 - `Connect-CareerSeeker-Gmail.cmd` wraps `connect-gmail` for double-click tester OAuth setup from the
   extracted release ZIP; it preflights Gmail draft access without creating a draft.
+- `Check-CareerSeeker-LiveReadiness.cmd` wraps `doctor --require-gmail --require-byok` for double-click live
+  Gmail/BYOK readiness checks without printing secret values.
 - `Clear-CareerSeeker-Providers.cmd` wraps `clear-byok` for double-click local BYOK vault clearing.
 - `Disconnect-CareerSeeker-Gmail.cmd` wraps `disconnect-gmail` for double-click Gmail revoke/local token-vault
   clearing.

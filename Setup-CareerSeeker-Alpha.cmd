@@ -35,8 +35,8 @@ echo   1. Edit and save .appdata\profile.template.json.
 echo   2. Double-click Import-CareerSeeker-Profile.cmd.
 echo   3. Fill secrets\env.secrets locally, then double-click Connect-CareerSeeker-Providers.cmd.
 echo   4. Double-click Connect-CareerSeeker-Gmail.cmd.
-echo   5. Double-click Run-CareerSeeker-Demo.cmd to create safe local demo evidence.
-echo   6. Double-click Verify-CareerSeeker-Alpha.cmd to self-check the release package.
+echo   5. Double-click Check-CareerSeeker-LiveReadiness.cmd to confirm live Gmail/BYOK readiness.
+echo   6. Double-click Run-CareerSeeker-Demo.cmd to create safe local demo evidence.
 echo   7. Double-click Start-CareerSeeker-Alpha.cmd to open the local dashboard.
 echo.
 pause

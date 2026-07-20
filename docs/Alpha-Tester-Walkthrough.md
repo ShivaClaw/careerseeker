@@ -32,7 +32,8 @@ path.
 8. Put your OAuth desktop client JSON at `secrets\google-oauth-client.json`.
 9. Double-click `Connect-CareerSeeker-Gmail.cmd`. It opens Gmail OAuth and preflights draft access without
    creating a draft.
-10. Double-click `Start-CareerSeeker-Alpha.cmd` to open the localhost dashboard.
+10. Double-click `Check-CareerSeeker-LiveReadiness.cmd` to confirm Gmail/BYOK readiness for live draft paths.
+11. Double-click `Start-CareerSeeker-Alpha.cmd` to open the localhost dashboard.
 
 To disconnect later, double-click `Disconnect-CareerSeeker-Gmail.cmd` to revoke Gmail and delete the local token
 vault. Double-click `Clear-CareerSeeker-Providers.cmd` to delete the local provider-key vault.
@@ -56,9 +57,10 @@ Use the Scout path when you want real public ATS job discovery:
 Use the live alpha path when you want one end-to-end Gmail draft smoke:
 
 1. Confirm provider keys and Gmail OAuth are connected.
-2. Double-click `Run-CareerSeeker-Live.cmd`.
-3. Review the created Gmail draft manually before doing anything with it.
-4. Double-click `Export-CareerSeeker-Evidence.cmd`.
+2. Double-click `Check-CareerSeeker-LiveReadiness.cmd`.
+3. Double-click `Run-CareerSeeker-Live.cmd`.
+4. Review the created Gmail draft manually before doing anything with it.
+5. Double-click `Export-CareerSeeker-Evidence.cmd`.
 
 ## Safety Rails
 

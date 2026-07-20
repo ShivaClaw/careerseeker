@@ -40,6 +40,8 @@ Trust/OAuth docs:
 - `Connect-CareerSeeker-Providers.cmd`: double-click BYOK provider-key import and doctor helper copied into
   the trusted-tester release ZIP.
 - `Connect-CareerSeeker-Gmail.cmd`: double-click Gmail OAuth helper copied into the trusted-tester release ZIP.
+- `Check-CareerSeeker-LiveReadiness.cmd`: double-click live Gmail/BYOK readiness doctor copied into the
+  trusted-tester release ZIP.
 - `Clear-CareerSeeker-Providers.cmd`: double-click local provider-key vault clear helper copied into the
   trusted-tester release ZIP.
 - `Disconnect-CareerSeeker-Gmail.cmd`: double-click Gmail revoke/local token-vault clear helper copied into the

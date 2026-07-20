@@ -71,6 +71,7 @@ try {
         "SeekerSvc.Engine.exe",
         "Connect-CareerSeeker-Providers.cmd",
         "Connect-CareerSeeker-Gmail.cmd",
+        "Check-CareerSeeker-LiveReadiness.cmd",
         "Clear-CareerSeeker-Providers.cmd",
         "Disconnect-CareerSeeker-Gmail.cmd",
         "Import-CareerSeeker-Profile.cmd",
@@ -88,6 +89,7 @@ try {
         "RELEASE-MANIFEST.json",
         "SHA256SUMS.txt",
         "docs/Alpha-Tester-Walkthrough.md",
+        "scripts/Check-AlphaLiveReadiness.ps1",
         "scripts/Connect-AlphaProviders.ps1",
         "scripts/Draft-AlphaJob.ps1",
         "scripts/Export-AlphaEvidencePackage.ps1",
@@ -120,6 +122,9 @@ try {
     }
     if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
         throw "Release manifest does not list the dashboard launcher."
+    }
+    if ($manifest.includes.scripts -notcontains "scripts/Check-AlphaLiveReadiness.ps1") {
+        throw "Release manifest does not list the live readiness helper."
     }
     if ($manifest.includes.scripts -notcontains "scripts/Connect-AlphaProviders.ps1") {
         throw "Release manifest does not list the provider connect helper."
@@ -160,6 +165,9 @@ try {
     if ($manifest.includes.launchers -notcontains "Connect-CareerSeeker-Gmail.cmd") {
         throw "Release manifest does not list the double-click Gmail connect launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Check-CareerSeeker-LiveReadiness.cmd") {
+        throw "Release manifest does not list the double-click live readiness launcher."
+    }
     if ($manifest.includes.launchers -notcontains "Clear-CareerSeeker-Providers.cmd") {
         throw "Release manifest does not list the double-click provider clear launcher."
     }
@@ -194,6 +202,7 @@ try {
         "Package-local verification commands",
         "Import-CareerSeeker-Profile.cmd",
         "Connect-CareerSeeker-Providers.cmd",
+        "Check-CareerSeeker-LiveReadiness.cmd",
         "Clear-CareerSeeker-Providers.cmd",
         "Disconnect-CareerSeeker-Gmail.cmd",
         "Run-CareerSeeker-Demo.cmd",
@@ -216,6 +225,7 @@ try {
         "CareerSeeker Alpha Tester Walkthrough",
         "Verify-CareerSeeker-Alpha.cmd",
         "Connect-CareerSeeker-Providers.cmd",
+        "Check-CareerSeeker-LiveReadiness.cmd",
         "Clear-CareerSeeker-Providers.cmd",
         "Disconnect-CareerSeeker-Gmail.cmd",
         "BRAVE_SEARCH_API",
