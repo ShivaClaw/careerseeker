@@ -13,6 +13,17 @@ if not exist "%~dp0SeekerSvc.Engine.exe" (
 echo Disconnecting CareerSeeker Alpha from Gmail...
 echo This revokes the local OAuth token when possible and deletes the local DPAPI token vault.
 echo.
+echo Type DISCONNECT to revoke Gmail access and delete the local token vault.
+echo Press Enter to cancel without changing Gmail setup.
+set /p CAREERSEEKER_GMAIL_DISCONNECT_MODE=Mode:
+echo.
+
+if /I not "%CAREERSEEKER_GMAIL_DISCONNECT_MODE%"=="DISCONNECT" (
+  echo Gmail disconnect cancelled. Gmail setup was not changed.
+  pause
+  exit /b 0
+)
+
 "%~dp0SeekerSvc.Engine.exe" disconnect-gmail --client secrets\google-oauth-client.json --vault .appdata\oauth\gmail-token.dpapi
 set "status=%ERRORLEVEL%"
 

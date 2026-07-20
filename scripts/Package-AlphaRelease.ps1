@@ -120,8 +120,8 @@ First-run flow:
 
 Local off-ramps:
 
-  Double-click Clear-CareerSeeker-Providers.cmd to delete the local provider-key vault.
-  Double-click Disconnect-CareerSeeker-Gmail.cmd to revoke Gmail and delete the local token vault.
+  Double-click Clear-CareerSeeker-Providers.cmd and type CLEAR to delete the local provider-key vault.
+  Double-click Disconnect-CareerSeeker-Gmail.cmd and type DISCONNECT to revoke Gmail and delete the local token vault.
   Double-click Uninstall-CareerSeeker-DashboardTask.cmd to remove the dashboard logon task.
 
 Command equivalents:
@@ -159,6 +159,8 @@ Off-ramp command equivalents:
 The L1 alpha creates Gmail drafts only. It has no send path.
 
 The Run-CareerSeeker-Live.cmd double-click helper defaults to a no-Gmail dry-run preview and requires typing LIVE before creating a Gmail draft.
+
+The Gmail and provider off-ramp double-click helpers require typed confirmation before deleting local vaults.
 
 For company research, add Brave Search as BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY in secrets\env.secrets.
 

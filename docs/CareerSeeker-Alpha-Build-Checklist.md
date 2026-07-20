@@ -50,9 +50,10 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - `Connect-CareerSeeker-Gmail.cmd` gives trusted testers a double-click Gmail OAuth helper that preflights
   draft access without creating a draft.
 - `Check-CareerSeeker-LiveReadiness.cmd` gives trusted testers a double-click live Gmail/BYOK readiness doctor.
-- `Clear-CareerSeeker-Providers.cmd` gives trusted testers a double-click local BYOK vault clear helper.
+- `Clear-CareerSeeker-Providers.cmd` gives trusted testers a double-click local BYOK vault clear helper that
+  requires typing `CLEAR`.
 - `Disconnect-CareerSeeker-Gmail.cmd` gives trusted testers a double-click Gmail revoke/local token-vault clear
-  helper.
+  helper that requires typing `DISCONNECT`.
 - `Run-CareerSeeker-Demo.cmd` gives trusted testers a double-click safe demo cycle that writes local SQLite
   and artifact evidence without touching Gmail.
 - `Run-CareerSeeker-Scout.cmd` gives trusted testers a double-click public ATS board ingest that writes local

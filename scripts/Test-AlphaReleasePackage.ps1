@@ -283,7 +283,9 @@ try {
         "For company research, add Brave Search",
         "BRAVE_SEARCH_API",
         "clear-byok",
-        "disconnect-gmail"
+        "disconnect-gmail",
+        "type CLEAR",
+        "type DISCONNECT"
     )) {
         if (-not $readme.Contains($snippet)) {
             throw "README-alpha.txt missing '$snippet'."
@@ -299,6 +301,28 @@ try {
     )) {
         if (-not $liveLauncher.Contains($snippet)) {
             throw "Run-CareerSeeker-Live.cmd missing '$snippet'."
+        }
+    }
+
+    $providerClearLauncher = Get-Content -LiteralPath (Resolve-RootPath "Clear-CareerSeeker-Providers.cmd") -Raw
+    foreach ($snippet in @(
+        "Type CLEAR to delete the local provider-key vault",
+        "CAREERSEEKER_PROVIDER_CLEAR_MODE",
+        "Provider-key clear cancelled"
+    )) {
+        if (-not $providerClearLauncher.Contains($snippet)) {
+            throw "Clear-CareerSeeker-Providers.cmd missing '$snippet'."
+        }
+    }
+
+    $gmailDisconnectLauncher = Get-Content -LiteralPath (Resolve-RootPath "Disconnect-CareerSeeker-Gmail.cmd") -Raw
+    foreach ($snippet in @(
+        "Type DISCONNECT to revoke Gmail access",
+        "CAREERSEEKER_GMAIL_DISCONNECT_MODE",
+        "Gmail disconnect cancelled"
+    )) {
+        if (-not $gmailDisconnectLauncher.Contains($snippet)) {
+            throw "Disconnect-CareerSeeker-Gmail.cmd missing '$snippet'."
         }
     }
 
