@@ -674,6 +674,38 @@ Console.WriteLine("\n[ alpha package export ]");
         }
         Check("alpha package import rejects secret-looking zip entries", secretRejected);
 
+        var duplicatePackage = Path.Combine(root, "duplicate-entry.zip");
+        using (var stream = File.Create(duplicatePackage))
+        using (var duplicateZip = new ZipArchive(stream, ZipArchiveMode.Create))
+        {
+            var manifest = duplicateZip.CreateEntry("manifest.json");
+            await using (var writer = new StreamWriter(manifest.Open()))
+                await writer.WriteAsync("""{"format":"careerseeker-alpha-package-v1"}""");
+
+            foreach (var text in new[] { "first", "second" })
+            {
+                var artifact = duplicateZip.CreateEntry("artifacts/resume.pdf");
+                await using var writer = new StreamWriter(artifact.Open());
+                await writer.WriteAsync(text);
+            }
+        }
+
+        var duplicateRejected = false;
+        try
+        {
+            await AlphaPackageImport.ImportAsync(
+                duplicatePackage,
+                new AlphaPackageImportOptions(
+                    Path.Combine(root, "duplicate.db"),
+                    Path.Combine(root, "duplicate-artifacts"),
+                    Path.Combine(root, "duplicate-jds")));
+        }
+        catch (InvalidOperationException)
+        {
+            duplicateRejected = true;
+        }
+        Check("alpha package import rejects duplicate zip entries", duplicateRejected);
+
         var noManifestPackage = Path.Combine(root, "no-manifest.zip");
         using (var stream = File.Create(noManifestPackage))
         using (var noManifestZip = new ZipArchive(stream, ZipArchiveMode.Create))

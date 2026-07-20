@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `273 passed, 0 failed`.
+- Latest local offline verifier: `274 passed, 0 failed`.
 - Fresh optional verifier, 2026-07-20: `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch`
   passed locally on this branch. It covered the offline harness suite, win-x64 single-file publish smoke,
   BYOK key import, BYOK live provider smoke, required Gmail/BYOK startup doctor, dashboard one-shot smoke,
@@ -211,7 +211,7 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 - Local source-of-truth profile template/import commands for Tailor/Gate facts, with format validation on import.
 - Local alpha ZIP package export/import with manifest, audit export, SQLite snapshot, draft artifacts, and saved
   job-description artifacts; secret/token/key-looking paths are filtered, import requires the CareerSeeker alpha
-  manifest, unsafe ZIP paths are rejected, and import verifies the restored SQLite audit chain.
+  manifest, unsafe ZIP paths and duplicate entries are rejected, and import verifies the restored SQLite audit chain.
 - Trusted-tester release ZIP packaging for the published executable, native runtime dependencies, workspace
   initializer, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/audit-export/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers, quickstart, tester walkthrough, package-local audit snapshot, release manifest, dashboard/helper
   self-check scripts, SHA-256 checksums, and selected trust/audit docs without local databases, vaults, provider

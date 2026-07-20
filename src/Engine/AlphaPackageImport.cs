@@ -60,6 +60,7 @@ public static class AlphaPackageImport
 
     private static void ValidateEntries(ZipArchive zip)
     {
+        var seenEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in zip.Entries)
         {
             var name = NormalizeEntryName(entry.FullName);
@@ -72,6 +73,9 @@ public static class AlphaPackageImport
             {
                 throw new InvalidOperationException($"Refusing unsafe alpha package entry '{entry.FullName}'.");
             }
+
+            if (!seenEntries.Add(name))
+                throw new InvalidOperationException($"Refusing duplicate alpha package entry '{entry.FullName}'.");
         }
     }
 
