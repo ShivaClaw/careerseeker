@@ -654,6 +654,31 @@ Console.WriteLine("\n[ alpha package export ]");
             secretRejected = true;
         }
         Check("alpha package import rejects secret-looking zip entries", secretRejected);
+
+        var noManifestPackage = Path.Combine(root, "no-manifest.zip");
+        using (var stream = File.Create(noManifestPackage))
+        using (var noManifestZip = new ZipArchive(stream, ZipArchiveMode.Create))
+        {
+            var artifact = noManifestZip.CreateEntry("artifacts/resume.pdf");
+            using var writer = new StreamWriter(artifact.Open());
+            writer.Write("%PDF but not a CareerSeeker alpha package");
+        }
+
+        var noManifestRejected = false;
+        try
+        {
+            await AlphaPackageImport.ImportAsync(
+                noManifestPackage,
+                new AlphaPackageImportOptions(
+                    Path.Combine(root, "no-manifest.db"),
+                    Path.Combine(root, "no-manifest-artifacts"),
+                    Path.Combine(root, "no-manifest-jds")));
+        }
+        catch (InvalidOperationException)
+        {
+            noManifestRejected = true;
+        }
+        Check("alpha package import requires an alpha manifest", noManifestRejected);
     }
     finally
     {

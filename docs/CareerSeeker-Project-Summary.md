@@ -63,8 +63,9 @@ Completed:
   snapshot, draft artifacts, and saved job-description artifacts while filtering secret-looking paths.
 - `Export-CareerSeeker-Evidence.cmd` wraps that package export for double-click trusted-tester audit handoff
   after a demo or live alpha cycle.
-- The alpha executable can import that local alpha ZIP package into `.appdata/imported` by default, reject unsafe
-  ZIP paths, preserve existing files unless `--overwrite` is passed, and verify the restored SQLite audit chain.
+- The alpha executable can import that local alpha ZIP package into `.appdata/imported` by default, require a
+  CareerSeeker alpha manifest, reject unsafe ZIP paths, preserve existing files unless `--overwrite` is passed,
+  and verify the restored SQLite audit chain.
 - `Import-CareerSeeker-Package.cmd` wraps that package import for double-click trusted-tester/auditor restore
   into a separate import workspace.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
@@ -362,12 +363,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 261 passed, 0 failed.
+Total: 262 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 71 passed, 0 failed |
+| `EngineHarness` | 72 passed, 0 failed |
 | `ResearcherHarness` | 30 passed, 0 failed |
 | `HookHarness` | 13 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
@@ -474,8 +475,8 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
   snapshot, generated draft artifacts, and saved job-description artifacts while filtering secret/token/key-looking
   paths.
 - Local `import-alpha-package` command added; it restores package contents into safe default import paths,
-  rejects unsafe ZIP entries, preserves existing files unless `--overwrite` is passed, and verifies the restored
-  SQLite audit chain.
+  requires a CareerSeeker alpha manifest, rejects unsafe ZIP entries, preserves existing files unless
+  `--overwrite` is passed, and verifies the restored SQLite audit chain.
 - Alpha executable `scout-boards` command added for live ATS board ingestion into SQLite, with local
   content-addressed posting-body artifacts, a hash-chained ingest event, and idempotent repost refresh behavior.
 - Alpha executable `draft-job` command added for selected stored job rows, with dry-run draft packaging and

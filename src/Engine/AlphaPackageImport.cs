@@ -21,6 +21,9 @@ public sealed record AlphaPackageImportResult(
 
 public static class AlphaPackageImport
 {
+    private const int MaxManifestBytes = 64 * 1024;
+    private const string ExpectedFormat = "careerseeker-alpha-package-v1";
+
     public static async Task<AlphaPackageImportResult> ImportAsync(
         string packagePath,
         AlphaPackageImportOptions options,
@@ -34,6 +37,7 @@ public static class AlphaPackageImport
         using (var zip = ZipFile.OpenRead(fullPackagePath))
         {
             ValidateEntries(zip);
+            ValidateManifest(zip);
 
             if (options.IncludeDatabase)
                 ExtractDatabase(zip, options.DbPath, options.Overwrite, extracted);
@@ -68,6 +72,34 @@ public static class AlphaPackageImport
             {
                 throw new InvalidOperationException($"Refusing unsafe alpha package entry '{entry.FullName}'.");
             }
+        }
+    }
+
+    private static void ValidateManifest(ZipArchive zip)
+    {
+        var entry = zip.Entries.FirstOrDefault(e =>
+            NormalizeEntryName(e.FullName).Equals("manifest.json", StringComparison.OrdinalIgnoreCase));
+        if (entry is null)
+            throw new InvalidOperationException("Refusing alpha package without a manifest.json.");
+
+        if (entry.Length > MaxManifestBytes)
+            throw new InvalidOperationException("Refusing alpha package with an oversized manifest.json.");
+
+        try
+        {
+            using var stream = entry.Open();
+            using var doc = JsonDocument.Parse(stream);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+                !doc.RootElement.TryGetProperty("format", out var format) ||
+                format.ValueKind != JsonValueKind.String ||
+                !ExpectedFormat.Equals(format.GetString(), StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Refusing alpha package with an unrecognized manifest format.");
+            }
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException("Refusing alpha package with an invalid manifest.json.", ex);
         }
     }
 
