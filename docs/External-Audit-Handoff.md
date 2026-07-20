@@ -152,8 +152,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
   against the local source profile.
 - Profile import: `import-profile` replaces the local profile claim oracle instead of mixing imported claims with
   seeded demo facts.
-- Local dashboard controls: loopback dashboard has token-protected Gmail disconnect, application controls, and
-  token-protected document downloads.
+- Local dashboard controls: loopback dashboard has token-protected Gmail disconnect, application controls,
+  hash-only audit JSON export, alpha package export, and token-protected document downloads.
 - Store audit chain: local SQLite and in-memory stores share hash-chain verification and parity coverage.
 - Secret handling: `secrets/`, `.appdata/`, generated artifacts, OAuth tokens, and provider keys are ignored and
   should not be printed.

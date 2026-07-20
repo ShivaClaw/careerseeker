@@ -64,6 +64,7 @@ public sealed record DashboardControlResult(bool Performed, string Message);
 public sealed record LocalDashboardActions(
     Func<CancellationToken, Task<DashboardControlResult>>? DisconnectGmailAsync = null,
     Func<long, string, CancellationToken, Task<DashboardControlResult>>? ControlApplicationAsync = null,
+    Func<CancellationToken, Task<DashboardControlResult>>? ExportAuditAsync = null,
     Func<CancellationToken, Task<DashboardControlResult>>? ExportAlphaPackageAsync = null);
 
 public sealed record DashboardEvidence(
@@ -180,6 +181,7 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
             errors = c.Errors,
             gmailDisconnectAvailable = _actions?.DisconnectGmailAsync is not null,
             applicationControlAvailable = _actions?.ControlApplicationAsync is not null,
+            auditExportAvailable = _actions?.ExportAuditAsync is not null,
             alphaPackageExportAvailable = _actions?.ExportAlphaPackageAsync is not null,
             evidenceAvailable = _evidence is not null,
             applicationsAvailable = _evidence is not null,
@@ -228,6 +230,14 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
     private string ControlsHtml()
     {
         var forms = new List<string>();
+        if (_actions?.ExportAuditAsync is not null)
+        {
+            forms.Add($@"<form method=""post"" action=""/controls/audit/export"">
+<input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(_controlToken)}"">
+<button type=""submit"">Export Audit JSON</button>
+</form>");
+        }
+
         if (_actions?.ExportAlphaPackageAsync is not null)
         {
             forms.Add($@"<form method=""post"" action=""/controls/package/export"">
@@ -321,6 +331,13 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
         }
 
         if (ctx.Request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
+            path == "/controls/audit/export")
+        {
+            await HandleAuditExportAsync(ctx, ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (ctx.Request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
             path == "/controls/package/export")
         {
             await HandlePackageExportAsync(ctx, ct).ConfigureAwait(false);
@@ -334,7 +351,7 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
             return;
         }
 
-        ctx.Response.StatusCode = path is "/controls/gmail/disconnect" or "/controls/package/export" or "/controls/application" or "/evidence" or "/applications" or "/jobs"
+        ctx.Response.StatusCode = path is "/controls/gmail/disconnect" or "/controls/audit/export" or "/controls/package/export" or "/controls/application" or "/evidence" or "/applications" or "/jobs"
             ? (int)HttpStatusCode.MethodNotAllowed
             : (int)HttpStatusCode.NotFound;
         await WriteAsync(ctx, "text/plain; charset=utf-8", "Not found.", ct).ConfigureAwait(false);
@@ -599,6 +616,36 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
         catch (Exception ex)
         {
             _lastActionMessage = "Gmail disconnect did not complete cleanly: " + ex.Message;
+            RedirectHome(ctx);
+        }
+    }
+
+    private async Task HandleAuditExportAsync(HttpListenerContext ctx, CancellationToken ct)
+    {
+        if (_actions?.ExportAuditAsync is null)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "No audit export action is configured.", ct)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!RequestCameFromThisDashboard(ctx) || !await HasValidControlTokenAsync(ctx).ConfigureAwait(false))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var result = await _actions.ExportAuditAsync(ct).ConfigureAwait(false);
+            _lastActionMessage = result.Message;
+            RedirectHome(ctx);
+        }
+        catch (Exception ex)
+        {
+            _lastActionMessage = "Audit export did not complete cleanly: " + ex.Message;
             RedirectHome(ctx);
         }
     }

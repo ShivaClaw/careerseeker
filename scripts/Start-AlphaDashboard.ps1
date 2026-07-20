@@ -7,6 +7,7 @@ param(
     [int] $Port = 7777,
     [string] $Configuration = "Release",
     [string] $DbPath = ".appdata/careerseeker-alpha.db",
+    [string] $AuditOutPath = "output/careerseeker-audit.json",
     [string] $GmailClientPath = "secrets/google-oauth-client.json",
     [string] $GmailVaultPath = ".appdata/oauth/gmail-token.dpapi"
 )
@@ -83,6 +84,7 @@ try {
     $engineArgs = @(
         "dashboard",
         "--db", $DbPath,
+        "--audit-out", $AuditOutPath,
         "--port", $Port.ToString()
     )
 

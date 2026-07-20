@@ -62,6 +62,7 @@ async Task<int> RunDemoAsync()
     var once = HasFlag("--once");
     var dbPath = StringArg("--db");
     var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
+    var auditOutPath = StringArg("--audit-out") ?? Path.Combine("output", "careerseeker-audit.json");
     var packageOutPath = StringArg("--package-out") ?? Path.Combine("output", "careerseeker-alpha-package.zip");
     var gmailVaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
     var gmailClientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
@@ -96,6 +97,7 @@ async Task<int> RunDemoAsync()
             dbPath,
             artifactsPath,
             jdDir,
+            auditOutPath,
             packageOutPath);
 
         if (once)
@@ -359,6 +361,7 @@ async Task<int> RunDashboardAsync()
     var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
     var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
     var jdDir = StringArg("--jd-dir") ?? Path.Combine(Path.GetDirectoryName(dbPath) ?? ".appdata", "job-descriptions");
+    var auditOutPath = StringArg("--audit-out") ?? Path.Combine("output", "careerseeker-audit.json");
     var packageOutPath = StringArg("--package-out") ?? Path.Combine("output", "careerseeker-alpha-package.zip");
     var gmailVaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
     var gmailClientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
@@ -380,6 +383,7 @@ async Task<int> RunDashboardAsync()
         dbPath,
         artifactsPath,
         jdDir,
+        auditOutPath,
         packageOutPath);
 
     if (HasFlag("--once"))
@@ -393,6 +397,7 @@ async Task<int> RunDashboardAsync()
         Console.WriteLine($"  recent jobs: {snapshot.RecentJobs.Count}");
         Console.WriteLine($"  Gmail disconnect control: {(actions.DisconnectGmailAsync is null ? "unavailable" : "available")}");
         Console.WriteLine($"  application controls: {(actions.ControlApplicationAsync is null ? "unavailable" : "available")}");
+        Console.WriteLine($"  audit export control: {(actions.ExportAuditAsync is null ? "unavailable" : "available")}");
         Console.WriteLine($"  alpha package export control: {(actions.ExportAlphaPackageAsync is null ? "unavailable" : "available")}");
         return snapshot.AuditOk ? 0 : 1;
     }
@@ -411,6 +416,8 @@ async Task<int> RunDashboardAsync()
         if (actions.DisconnectGmailAsync is not null)
             Console.WriteLine("Dashboard Gmail disconnect control: available");
         Console.WriteLine("Dashboard application controls: available");
+        if (actions.ExportAuditAsync is not null)
+            Console.WriteLine("Dashboard audit export control: available");
         if (actions.ExportAlphaPackageAsync is not null)
             Console.WriteLine("Dashboard alpha package export control: available");
         Console.WriteLine("Press Enter or Ctrl+C to stop.");
@@ -1013,6 +1020,7 @@ LocalDashboardActions BuildDashboardActions(
     string? dbPath = null,
     string? artifactsPath = null,
     string? jdDir = null,
+    string? auditOutPath = null,
     string? packageOutPath = null)
 {
     var actions = gmailControlRequested || File.Exists(gmailVaultPath)
@@ -1022,7 +1030,42 @@ LocalDashboardActions BuildDashboardActions(
     return actions with
     {
         ControlApplicationAsync = BuildApplicationControlAction(store),
+        ExportAuditAsync = BuildDashboardAuditExportAction(store, dbPath, auditOutPath),
         ExportAlphaPackageAsync = BuildDashboardPackageExportAction(store, dbPath, artifactsPath, jdDir, packageOutPath),
+    };
+}
+
+Func<CancellationToken, Task<DashboardControlResult>>? BuildDashboardAuditExportAction(
+    ISeekerStore store,
+    string? dbPath,
+    string? auditOutPath)
+{
+    if (string.IsNullOrWhiteSpace(dbPath))
+        return null;
+
+    var resolvedDbPath = dbPath;
+    var resolvedAuditOutPath = string.IsNullOrWhiteSpace(auditOutPath)
+        ? Path.Combine("output", "careerseeker-audit.json")
+        : auditOutPath;
+
+    return async ct =>
+    {
+        if (!File.Exists(resolvedDbPath))
+            return new DashboardControlResult(false, $"SQLite database was not found at '{resolvedDbPath}'.");
+
+        var json = await AuditExport.BuildJsonAsync(store, new AuditExportOptions(IncludePayloads: false), ct)
+            .ConfigureAwait(false);
+        var outDir = Path.GetDirectoryName(resolvedAuditOutPath);
+        if (!string.IsNullOrWhiteSpace(outDir))
+            Directory.CreateDirectory(outDir);
+        await File.WriteAllTextAsync(resolvedAuditOutPath, json, ct).ConfigureAwait(false);
+
+        var verification = await store.VerifyAuditAsync(ct).ConfigureAwait(false);
+        var events = await store.GetEventsAsync(ct).ConfigureAwait(false);
+        var message = $"Audit JSON exported to {resolvedAuditOutPath} ({events.Count} events, payloads hashes only).";
+        if (!verification.Ok)
+            message += " Audit verification failed.";
+        return new DashboardControlResult(verification.Ok, message);
     };
 }
 
@@ -1431,9 +1474,9 @@ void PrintUsage()
     Console.WriteLine("CareerSeeker alpha executable");
     Console.WriteLine();
     Console.WriteLine("Usage:");
-    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
-    Console.WriteLine("  SeekerSvc.Engine.exe dashboard [--once] [--port 7777] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe dashboard [--once] [--port 7777] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe draft-job --job-id 123 [--dry-run] [--llm fake|byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe scout-boards [--board greenhouse:remotecom] [--board lever:mistral] [--db .appdata/careerseeker-alpha.db] [--jd-dir .appdata/job-descriptions] [--timeout-seconds 240]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");

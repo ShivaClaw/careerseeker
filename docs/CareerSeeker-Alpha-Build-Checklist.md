@@ -35,7 +35,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - The localhost dashboard exposes `/jobs` with recent discovered jobs, compensation/source metadata, safe
   job/apply links, repost counts, and prompt-injection flags.
 - The localhost dashboard exposes `/evidence` with audit-chain status and recent audit event metadata.
-- The localhost dashboard exposes a token-protected alpha package export control when running against a SQLite DB.
+- The localhost dashboard exposes token-protected hash-only audit JSON and alpha package export controls when
+  running against a SQLite DB.
 - The alpha executable has a standalone `dashboard` mode for inspecting and controlling an existing SQLite
   alpha DB without starting a demo cycle.
 - `scripts/Start-AlphaDashboard.ps1` gives trusted testers a Windows-friendly launcher for the same dashboard

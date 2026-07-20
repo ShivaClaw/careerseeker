@@ -145,6 +145,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
 {
     var disconnects = 0;
     var appControls = 0;
+    var auditExports = 0;
     var packageExports = 0;
     var evidenceStore = await SeededStoreAsync();
     var artifactDir = Path.Combine(Path.GetTempPath(), "careerseeker-engineharness-artifacts-" + Guid.NewGuid().ToString("N"));
@@ -169,6 +170,11 @@ Console.WriteLine("\n[ localhost dashboard ]");
                 await evidencePipeline.PauseAsync(id, ct);
             return new DashboardControlResult(true, "Application controlled.");
         },
+        ExportAuditAsync: _ =>
+        {
+            Interlocked.Increment(ref auditExports);
+            return Task.FromResult(new DashboardControlResult(true, "Audit JSON exported."));
+        },
         ExportAlphaPackageAsync: _ =>
         {
             Interlocked.Increment(ref packageExports);
@@ -186,12 +192,14 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/status serves JSON with live counters", doc.RootElement.GetProperty("drafted").GetInt64() == 1, json);
         Check("/status reports Gmail control availability", doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean(), json);
         Check("/status reports application control availability", doc.RootElement.GetProperty("applicationControlAvailable").GetBoolean(), json);
+        Check("/status reports audit export availability", doc.RootElement.GetProperty("auditExportAvailable").GetBoolean(), json);
         Check("/status reports alpha package export availability", doc.RootElement.GetProperty("alphaPackageExportAvailable").GetBoolean(), json);
         Check("/status reports evidence availability", doc.RootElement.GetProperty("evidenceAvailable").GetBoolean(), json);
         Check("/status reports job evidence availability", doc.RootElement.GetProperty("jobsAvailable").GetBoolean(), json);
         var html = await http.GetStringAsync("http://localhost:7777/");
         Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
         Check("/ exposes configured Gmail disconnect control", html.Contains("Disconnect Gmail"));
+        Check("/ exposes configured audit export control", html.Contains("Export Audit JSON"));
         Check("/ exposes configured alpha package export control", html.Contains("Export Alpha Package"));
         Check("/ links to audit evidence", html.Contains("/evidence") && html.Contains("audit-chain"));
         Check("/ links to recent applications", html.Contains("/applications"));
@@ -287,6 +295,27 @@ Console.WriteLine("\n[ localhost dashboard ]");
             post.StatusCode == HttpStatusCode.SeeOther && disconnects == 1,
             $"{post.StatusCode}, calls={disconnects}");
 
+        var forgedAuditExport = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/audit/export",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = "wrong" }));
+        Check("audit export control rejects a bad token",
+            forgedAuditExport.StatusCode == HttpStatusCode.Forbidden && auditExports == 0,
+            $"{forgedAuditExport.StatusCode}, calls={auditExports}");
+
+        var wrongAuditExportContentType = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/audit/export",
+            new StringContent($"token={Uri.EscapeDataString(token)}", Encoding.UTF8, "text/plain"));
+        Check("audit export control rejects non-form content",
+            wrongAuditExportContentType.StatusCode == HttpStatusCode.Forbidden && auditExports == 0,
+            $"{wrongAuditExportContentType.StatusCode}, calls={auditExports}");
+
+        var auditExportPost = await noRedirect.PostAsync(
+            "http://localhost:7777/controls/audit/export",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }));
+        Check("audit export control invokes the configured action",
+            auditExportPost.StatusCode == HttpStatusCode.SeeOther && auditExports == 1,
+            $"{auditExportPost.StatusCode}, calls={auditExports}");
+
         var forgedExport = await noRedirect.PostAsync(
             "http://localhost:7777/controls/package/export",
             new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = "wrong" }));
@@ -347,6 +376,8 @@ Console.WriteLine("\n[ localhost dashboard ]");
             doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean());
         Check("HTML renderer exposes configured application controls (direct)",
             doc.RootElement.GetProperty("applicationControlAvailable").GetBoolean());
+        Check("HTML renderer exposes configured audit export controls (direct)",
+            doc.RootElement.GetProperty("auditExportAvailable").GetBoolean());
         Check("HTML renderer exposes configured alpha package export controls (direct)",
             doc.RootElement.GetProperty("alphaPackageExportAvailable").GetBoolean());
         Check("HTML renderer exposes configured job evidence (direct)",

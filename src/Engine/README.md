@@ -211,7 +211,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 - Dashboard `/applications` exposes recent job/application state, scores, draft refs, generated resume/cover
   document links, safe job/apply links, and token-protected pause/resume/kill controls in the shared alpha
   dashboard shell; `/evidence` exposes audit-chain status and recent audit event metadata without payload bodies.
-- Dashboard home exposes a token-protected alpha package export control when running against a SQLite DB.
+- Dashboard home exposes token-protected hash-only audit JSON and alpha package export controls when running
+  against a SQLite DB.
 - Dashboard `/jobs` exposes recently discovered jobs, compensation metadata, source, safe job/apply links,
   repost count, and prompt-injection flags without raw job descriptions.
 - `dashboard` serves the same `/jobs`, `/applications`, `/evidence`, Gmail disconnect, and application controls
