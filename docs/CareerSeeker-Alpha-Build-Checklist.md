@@ -16,6 +16,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - Demo mode can also run against a persistent SQLite database with audit export support and local draft artifacts.
 - Engine alpha mode can use SQLite + DPAPI OAuth + Gmail to create one real self-addressed L1 draft.
 - Engine alpha mode preflights Gmail draft access before creating the draft.
+- The alpha executable has a `connect-gmail` command that performs interactive Gmail OAuth, stores the local
+  DPAPI token, and preflights Gmail draft access without creating a draft.
 - The alpha executable can revoke Gmail OAuth and delete the local DPAPI token vault.
 - Engine alpha mode can use `--llm byok` to route Tailor and Gate through local Anthropic/Gemini keys, preferring a DPAPI provider-key vault when present.
 - Live BYOK provider smoke is green for Anthropic, Gemini, Tailor, Gate entailment, and Gateway accounting.
@@ -102,6 +104,7 @@ Status: complete as of 2026-07-16
 - Reuse the existing Gmail OAuth flow from `src/Dispatcher/GoogleOAuth.cs`.
 - Add a startup preflight that reports missing OAuth client JSON, missing token vault, or disabled Gmail API clearly.
 - Add a simple local config convention for alpha secrets and paths.
+- Add a first-class Gmail connect command so OAuth setup does not require creating a draft.
 - Add a disconnect flow that revokes Gmail refresh tokens and deletes local token material.
 - Add BYOK provider wiring for Tailor and Gate from local environment or `env.secrets`.
 - Add BYOK provider-key import/clear commands for the local DPAPI vault.
@@ -117,6 +120,7 @@ Verified:
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- profile-template --out .appdata/profile.template.json`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-profile --profile .appdata/profile.template.json --db .appdata/careerseeker-alpha.db`
 - `powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1 -IncludeResearch`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- connect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project tests/GmailLiveHarness/GmailLiveHarness.csproj -- --email you@gmail.com --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project tests/ByokLiveHarness/ByokLiveHarness.csproj -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`

@@ -120,7 +120,7 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 
 - Runnable `src/Engine` executable with `demo`, `alpha`, `dashboard`, `scout-boards`, `draft-job`,
   `research-company`, `profile-template`, `import-profile`, `doctor`, `export-audit`, `export-alpha-package`,
-  `import-alpha-package`, `control-app`, OAuth disconnect, and BYOK import/clear modes.
+  `import-alpha-package`, `control-app`, Gmail OAuth connect/disconnect, and BYOK import/clear modes.
 - Live Greenhouse/Lever/Ashby board ingestion into SQLite with local posting-body artifacts.
 - Selected stored job drafting with posting-body context and dry-run verification.
 - Real ATS-clean resume PDF renderer and Gmail draft attachment packaging.

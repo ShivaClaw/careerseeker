@@ -49,6 +49,8 @@ if (mode.Equals("import-byok", StringComparison.OrdinalIgnoreCase))
     return RunImportByok();
 if (mode.Equals("clear-byok", StringComparison.OrdinalIgnoreCase))
     return RunClearByok();
+if (mode.Equals("connect-gmail", StringComparison.OrdinalIgnoreCase))
+    return await RunConnectGmailAsync().ConfigureAwait(false);
 if (mode.Equals("disconnect-gmail", StringComparison.OrdinalIgnoreCase))
     return await RunDisconnectGmailAsync().ConfigureAwait(false);
 return Fail($"Unknown mode '{mode}'.");
@@ -304,6 +306,51 @@ async Task<int> RunResearchCompanyAsync()
         Console.WriteLine($"  - {fact.Topic}: {fact.Text} ({fact.SourceUrl})");
 
     return 0;
+}
+
+async Task<int> RunConnectGmailAsync()
+{
+    var clientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+    var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
+
+    if (string.IsNullOrWhiteSpace(clientPath) || !File.Exists(clientPath))
+        return Fail($"connect-gmail cannot find OAuth client JSON at '{clientPath ?? "<none>"}'.");
+
+    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(IntArg("--http-timeout-seconds", 60)) };
+    var client = GoogleOAuthClient.Load(clientPath);
+    var vault = new DpapiTokenVault(vaultPath);
+    var tokens = new GoogleOAuthTokenSource(http, client, vault, allowInteractive: true,
+        authorizationUrlSink: url =>
+        {
+            Console.WriteLine("Open this URL if the browser did not appear:");
+            Console.WriteLine(url);
+        });
+
+    Console.WriteLine("CareerSeeker Gmail connect");
+    Console.WriteLine("  scope: gmail.compose");
+    Console.WriteLine($"  oauth client: {clientPath}");
+    Console.WriteLine($"  token vault: {vaultPath} ({(File.Exists(vaultPath) ? "present" : "will create")})");
+
+    try
+    {
+        await tokens.GetTokenAsync().ConfigureAwait(false);
+        Console.WriteLine("  OAuth token: available");
+
+        var gmail = new GmailDraftClient(http, tokens);
+        await gmail.PreflightDraftAccessAsync().ConfigureAwait(false);
+        Console.WriteLine("  Gmail drafts API: reachable");
+
+        var email = await gmail.GetProfileEmailAsync().ConfigureAwait(false);
+        Console.WriteLine($"  Gmail profile: {email}");
+        Console.WriteLine("  draft created: no");
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("  Gmail connect did not complete cleanly.");
+        Console.Error.WriteLine("  " + ex.Message);
+        return 1;
+    }
 }
 
 async Task<int> RunDashboardAsync()
@@ -1399,6 +1446,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe control-app --application-id 123 --action pause|resume|kill [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe connect-gmail [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--http-timeout-seconds 60]");
     Console.WriteLine("  SeekerSvc.Engine.exe disconnect-gmail [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
 }
 

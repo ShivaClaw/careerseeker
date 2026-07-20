@@ -39,6 +39,8 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once --db .appdata/careerseeker-demo.db --artifacts .appdata/artifacts`
 - Alpha Gmail smoke, live but one-shot:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
+- Connect Gmail without creating a draft:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- connect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
 - Standalone dashboard over the real local alpha DB:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --db .appdata/careerseeker-alpha.db --gmail-control`
 - Windows-friendly dashboard launcher, from source or published executable:
@@ -82,6 +84,10 @@ evidence without touching Gmail. Demo and alpha draft paths persist generated PD
 `.appdata/artifacts` by default, overridable with `--artifacts`. Alpha preflights Gmail draft access before
 creating anything, renders an ATS-clean PDF resume attachment, then intentionally runs one cycle and creates
 one self-addressed L1 draft so early testing cannot accidentally produce drafts on a timer.
+
+`connect-gmail` uses the same OAuth client JSON, DPAPI vault, fixed `gmail.compose` scope, and Gmail drafts
+preflight as alpha mode, but it stops before drafting. It is the trusted-tester setup path for creating or
+refreshing the local token vault.
 
 `profile-template` writes a starter JSON profile. `import-profile` replaces the local profile claim oracle in
 SQLite and records the active `alpha.profileId`, so Tailor and Gate use imported source facts instead of

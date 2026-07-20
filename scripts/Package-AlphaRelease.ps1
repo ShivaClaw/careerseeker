@@ -104,6 +104,7 @@ Quick checks:
   powershell -ExecutionPolicy Bypass -File .\scripts\Initialize-AlphaWorkspace.ps1
   notepad .appdata\profile.template.json
   .\$exeName import-profile --profile .appdata\profile.template.json --db .appdata\careerseeker-alpha.db
+  .\$exeName connect-gmail --client secrets\google-oauth-client.json --vault .appdata\oauth\gmail-token.dpapi
   .\$exeName doctor --db .appdata\careerseeker-alpha.db --artifacts .appdata\artifacts
   powershell -ExecutionPolicy Bypass -File .\scripts\Test-AlphaReleasePackage.ps1 -RunDashboardSmoke
   powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published -Once -NoGmailControl
