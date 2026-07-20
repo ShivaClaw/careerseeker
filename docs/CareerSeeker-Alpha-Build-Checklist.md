@@ -62,6 +62,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   a no-Gmail dry-run package and requires typing `LIVE` before creating a Gmail draft.
 - `Run-CareerSeeker-Live.cmd` gives trusted testers a double-click live L1 alpha cycle that creates one Gmail
   draft for review and still has no send path.
+- `Export-CareerSeeker-Audit.cmd` gives trusted testers a double-click hash-only audit JSON export after a demo
+  or live alpha cycle, with raw payloads opt-in.
 - `Export-CareerSeeker-Evidence.cmd` gives trusted testers a double-click evidence package export after a demo
   or live alpha cycle.
 - `Import-CareerSeeker-Package.cmd` gives trusted testers a double-click evidence package restore into a
@@ -78,14 +80,14 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   task.
 - Extracted-package verification smokes the packaged provider-key clear and Gmail disconnect command paths
   against isolated temp vault paths.
-- Extracted-package verification exports a packaged evidence ZIP and imports it into an isolated restore
+- Extracted-package verification exports packaged audit JSON, exports a packaged evidence ZIP, and imports it into an isolated restore
   workspace.
 - Extracted-package verification smokes the packaged live readiness helper with optional Gmail/BYOK checks off.
 - Extracted-package verification previews the packaged company research helper without spending Brave/BYOK calls.
 - Extracted-package verification dry-runs packaged dashboard logon-task install and uninstall commands and
   smokes the status command.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
-  dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
+  dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/audit-export/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
   snapshot, release manifest, SHA-256 checksums, and selected docs while excluding local databases, vaults,
   provider keys, and generated artifacts.
 - The alpha executable can export a local audit JSON package with payload hashes by default.

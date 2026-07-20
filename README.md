@@ -56,6 +56,8 @@ Trust/OAuth docs:
   ZIP.
 - `Run-CareerSeeker-Live.cmd`: double-click live L1 Gmail draft helper copied into the trusted-tester release
   ZIP.
+- `Export-CareerSeeker-Audit.cmd`: double-click hash-only audit JSON export helper copied into the
+  trusted-tester release ZIP.
 - `Export-CareerSeeker-Evidence.cmd`: double-click local evidence package helper copied into the trusted-tester
   release ZIP.
 - `Import-CareerSeeker-Package.cmd`: double-click local evidence package restore helper copied into the
