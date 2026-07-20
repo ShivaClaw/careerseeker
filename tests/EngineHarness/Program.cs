@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using System.IO.Compression;
 using System.Text.Json;
 using SeekerSvc.Dispatcher;
 using SeekerSvc.Engine;
@@ -337,6 +338,55 @@ Console.WriteLine("\n[ audit export ]");
         fullDoc.RootElement.GetProperty("payloadsIncluded").GetBoolean() &&
         full.Contains("local payload"),
         full);
+}
+
+Console.WriteLine("\n[ alpha package export ]");
+{
+    var root = Path.Combine(Path.GetTempPath(), "careerseeker-package-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var dbPath = Path.Combine(root, "alpha.db");
+        var artifacts = Path.Combine(root, "artifacts");
+        var jds = Path.Combine(root, "job-descriptions");
+        Directory.CreateDirectory(artifacts);
+        Directory.CreateDirectory(jds);
+        await File.WriteAllTextAsync(Path.Combine(artifacts, "resume.pdf"), "%PDF test");
+        await File.WriteAllTextAsync(Path.Combine(artifacts, "secret-token.dpapi"), "should not export");
+        await File.WriteAllTextAsync(Path.Combine(jds, "posting.txt"), "posting body");
+
+        var packagePath = Path.Combine(root, "package.zip");
+        await using (var sqlite = SqliteSeekerStore.ForFile(dbPath))
+        {
+            await sqlite.InitializeAsync();
+            await sqlite.AppendEventAsync(new EventInput("engine", "package-test", "application", "1", "{\"payload\":\"local\"}"));
+
+            var result = await AlphaPackageExport.WriteAsync(
+                sqlite,
+                packagePath,
+                new AlphaPackageOptions(dbPath, artifacts, jds));
+            Check("alpha package export reports intact chain", result.AuditOk && result.EntryCount >= 5);
+        }
+
+        using var archive = ZipFile.OpenRead(packagePath);
+        var names = archive.Entries.Select(e => e.FullName).ToArray();
+        Check("alpha package export writes audit database and artifact entries",
+            names.Contains("manifest.json") &&
+            names.Contains("audit.json") &&
+            names.Any(n => n.StartsWith("database/", StringComparison.OrdinalIgnoreCase)) &&
+            names.Contains("artifacts/resume.pdf") &&
+            names.Contains("job-descriptions/posting.txt"),
+            string.Join(", ", names));
+        Check("alpha package export excludes secret-looking files",
+            names.All(n =>
+                !n.Contains("token", StringComparison.OrdinalIgnoreCase) &&
+                !n.EndsWith(".dpapi", StringComparison.OrdinalIgnoreCase)),
+            string.Join(", ", names));
+    }
+    finally
+    {
+        try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch (IOException) { }
+    }
 }
 
 Console.WriteLine("\n[ startup doctor ]");

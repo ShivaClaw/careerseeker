@@ -19,7 +19,7 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, standalone SQLite dashboard mode, Windows-friendly dashboard launcher, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, Gmail disconnect, dashboard disconnect/control views, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, live Brave/BYOK company research, and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, standalone SQLite dashboard mode, Windows-friendly dashboard launcher, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, local alpha package export, Gmail disconnect, dashboard disconnect/control views, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, live Brave/BYOK company research, and parity coverage verified.
 
 Completed:
 
@@ -40,6 +40,8 @@ Completed:
 - `scripts/Manage-AlphaDashboardTask.ps1` can register a per-user Windows logon task for keeping the alpha
   dashboard available until the service/tray/installer work lands.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
+- The alpha executable can export a local alpha ZIP package containing a manifest, audit export, SQLite
+  snapshot, draft artifacts, and saved job-description artifacts while filtering secret-looking paths.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
   Gmail vault presence, and BYOK provider availability.
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
@@ -63,7 +65,8 @@ Completed:
 - Researcher has a real Brave Search adapter that fetches public result pages before docs can ground dossier facts.
 - Engine has a `research-company` alpha command that composes Brave Search, BYOK Gateway dossier modeling, and the grounding filter when a Brave key is available.
 - Live `research-company` is verified against GitLab with Brave Search plus BYOK dossier modeling: 10 retrieved
-  docs, 7 proposed facts, 7 grounded facts, 0 dropped ungrounded facts, domain verified, recruiter identifiable.
+  docs, 0 proposed facts, 3 deterministic fallback facts, 3 grounded facts, 0 dropped ungrounded facts, domain
+  verified, recruiter identifiable.
 - L1 compose-only correction is in place: custom Gmail labels are skipped by default because label management requires broader Gmail scope than `gmail.compose`.
 - SQLite provider source is restored to the Store project and covered by `StoreParityHarness`, including the recent-application, recent-job, and artifact-metadata read models.
 - Gateway pinned-Gate and Dispatcher no-send invariants now have named offline harnesses.
@@ -319,12 +322,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 222 passed, 0 failed.
+Total: 225 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 43 passed, 0 failed |
+| `EngineHarness` | 46 passed, 0 failed |
 | `ResearcherHarness` | 29 passed, 0 failed |
 | `HookHarness` | 12 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
@@ -424,6 +427,9 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - Local dashboard Gmail disconnect control added with per-process form token plus loopback, Host, Origin, and Referer checks.
 - Local dashboard evidence endpoint added; `/evidence` verifies the audit chain and returns recent event metadata without payload bodies.
 - Local `export-audit` command added; default export includes audit-chain status, event metadata, hashes, and payload lengths, while raw payloads require `--include-payloads`.
+- Local `export-alpha-package` command added; it writes a ZIP bundle with a manifest, audit export, SQLite
+  snapshot, generated draft artifacts, and saved job-description artifacts while filtering secret/token/key-looking
+  paths.
 - Alpha executable `scout-boards` command added for live ATS board ingestion into SQLite, with local
   content-addressed posting-body artifacts, a hash-chained ingest event, and idempotent repost refresh behavior.
 - Alpha executable `draft-job` command added for selected stored job rows, with dry-run draft packaging and
@@ -601,7 +607,7 @@ Product recommendations:
 - Keep L1 free, local-first, and reviewable.
 - Treat the first public promise as "real drafts, zero sends."
 - Make privacy copy concrete: resume and OAuth tokens never leave the device.
-- Add import/migration packaging around the audit export when the workspace export story broadens.
+- Broaden local package export into a restore/import flow when the workspace migration story expands.
 
 Security recommendations:
 
@@ -674,6 +680,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past eighteen important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, and local-first JD artifact persistence. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
+CareerSeeker is now past nineteen important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, and local alpha evidence-package export. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

@@ -33,6 +33,8 @@ if (mode.Equals("research-company", StringComparison.OrdinalIgnoreCase))
     return await RunResearchCompanyAsync().ConfigureAwait(false);
 if (mode.Equals("export-audit", StringComparison.OrdinalIgnoreCase))
     return await RunExportAuditAsync().ConfigureAwait(false);
+if (mode.Equals("export-alpha-package", StringComparison.OrdinalIgnoreCase))
+    return await RunExportAlphaPackageAsync().ConfigureAwait(false);
 if (mode.Equals("doctor", StringComparison.OrdinalIgnoreCase))
     return await RunDoctorAsync().ConfigureAwait(false);
 if (mode.Equals("control-app", StringComparison.OrdinalIgnoreCase))
@@ -659,6 +661,41 @@ async Task<int> RunExportAuditAsync()
     return verification.Ok ? 0 : 1;
 }
 
+async Task<int> RunExportAlphaPackageAsync()
+{
+    var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var outPath = StringArg("--out") ?? Path.Combine("output", "careerseeker-alpha-package.zip");
+    var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
+    var jdDir = StringArg("--jd-dir") ?? Path.Combine(Path.GetDirectoryName(dbPath) ?? ".appdata", "job-descriptions");
+    var includePayloads = HasFlag("--include-payloads");
+
+    if (!File.Exists(dbPath))
+        return Fail($"export-alpha-package cannot find SQLite database at '{dbPath}'.");
+
+    await using var store = SqliteSeekerStore.ForFile(dbPath);
+    await store.InitializeAsync().ConfigureAwait(false);
+    var result = await AlphaPackageExport.WriteAsync(
+        store,
+        outPath,
+        new AlphaPackageOptions(
+            dbPath,
+            artifactsPath,
+            jdDir,
+            IncludePayloads: includePayloads,
+            IncludeDatabase: !HasFlag("--no-db"),
+            IncludeArtifacts: !HasFlag("--no-artifacts"),
+            IncludeJobDescriptions: !HasFlag("--no-jds"))).ConfigureAwait(false);
+
+    Console.WriteLine("CareerSeeker alpha package export");
+    Console.WriteLine($"  db: {dbPath}");
+    Console.WriteLine($"  output: {result.PackagePath}");
+    Console.WriteLine($"  audit chain: {(result.AuditOk ? "ok" : "FAILED")}");
+    Console.WriteLine($"  entries: {result.EntryCount}");
+    Console.WriteLine($"  bytes: {result.Bytes}");
+    Console.WriteLine("  secrets: excluded by path/name filters");
+    return result.AuditOk ? 0 : 1;
+}
+
 async Task<int> RunDoctorAsync()
 {
     var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
@@ -1192,6 +1229,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe scout-boards [--board greenhouse:remotecom] [--board lever:mistral] [--db .appdata/careerseeker-alpha.db] [--jd-dir .appdata/job-descriptions] [--timeout-seconds 240]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");
+    Console.WriteLine("  SeekerSvc.Engine.exe export-alpha-package [--db .appdata/careerseeker-alpha.db] [--out output/careerseeker-alpha-package.zip] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--include-payloads] [--no-db] [--no-artifacts] [--no-jds]");
     Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe control-app --application-id 123 --action pause|resume|kill [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");

@@ -92,7 +92,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 222 passed, 0 failed.
+- Latest offline harness total: 225 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build plus offline harness suite; optional switches add live
   BYOK/Gmail checks, the win-x64 publish smoke, and live Brave/BYOK company research.
 - `scripts/Start-AlphaDashboard.ps1` wraps the standalone dashboard mode for trusted testers; it can smoke-check
@@ -124,6 +124,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   against an existing SQLite alpha DB without starting a demo cycle.
 - `export-audit` writes a local audit JSON package; payloads are hash-only by default and opt-in with
   `--include-payloads`.
+- `export-alpha-package` writes a local ZIP package with a manifest, audit export, SQLite snapshot, draft
+  artifacts, and saved job-description artifacts while filtering secret/token/key-looking paths.
 - `doctor` checks local SQLite/audit health, artifact writability, Gmail OAuth/vault presence when required,
   and BYOK provider availability without printing secret values.
 - `control-app` gives testers a local audited pause, resume, and kill switch for a specific application row.

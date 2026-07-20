@@ -34,6 +34,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - `scripts/Start-AlphaDashboard.ps1` gives trusted testers a Windows-friendly launcher for the same dashboard
   mode, including one-shot smoke checks and published-executable startup.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
+- The alpha executable can export a local alpha ZIP package with a manifest, audit export, SQLite snapshot,
+  draft artifacts, and saved job-description artifacts while filtering secret-looking paths.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
   Gmail vault presence, and BYOK provider availability.
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
