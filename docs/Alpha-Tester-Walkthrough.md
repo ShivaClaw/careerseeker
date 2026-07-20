@@ -38,9 +38,10 @@ path.
 To disconnect later, double-click `Disconnect-CareerSeeker-Gmail.cmd` and type `DISCONNECT` to revoke Gmail and
 delete the local token vault. Double-click `Clear-CareerSeeker-Providers.cmd` and type `CLEAR` to delete the
 local provider-key vault.
-If you want the dashboard to start when you sign in, double-click `Install-CareerSeeker-DashboardTask.cmd`.
+If you want the dashboard to start when you sign in, double-click `Install-CareerSeeker-DashboardTask.cmd` and
+type `INSTALL`.
 Double-click `Status-CareerSeeker-DashboardTask.cmd` to check it, or
-`Uninstall-CareerSeeker-DashboardTask.cmd` to remove that logon task.
+`Uninstall-CareerSeeker-DashboardTask.cmd` and type `UNINSTALL` to remove that logon task.
 
 ## Choose A Test Path
 
@@ -82,7 +83,7 @@ Use the live alpha path when you want one end-to-end Gmail draft smoke:
 - Gmail and provider off-ramps are local too, and their double-click helpers require typed confirmation before
   clearing local vaults.
 - The optional dashboard logon task is per-user, inspectable with `Status-CareerSeeker-DashboardTask.cmd`, and
-  removable with `Uninstall-CareerSeeker-DashboardTask.cmd`.
+  its install/remove double-click helpers require typed confirmation.
 - Job descriptions and researched web pages are untrusted data. The app records prompt-injection signals, and
   selected-job drafting refuses flagged jobs unless explicitly allowed after manual review.
 - `Research-CareerSeeker-Company.cmd` reads public web pages and BYOK providers only; it creates no Gmail draft.

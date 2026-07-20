@@ -12,6 +12,17 @@ if not exist "%~dp0scripts\Manage-AlphaDashboardTask.ps1" (
 
 echo Removing CareerSeeker Alpha dashboard logon task...
 echo.
+echo Type UNINSTALL to remove the per-user dashboard logon task.
+echo Press Enter to cancel without changing dashboard startup.
+set /p CAREERSEEKER_DASHBOARD_TASK_MODE=Mode:
+echo.
+
+if /I not "%CAREERSEEKER_DASHBOARD_TASK_MODE%"=="UNINSTALL" (
+  echo Dashboard task uninstall cancelled. Dashboard startup was not changed.
+  pause
+  exit /b 0
+)
+
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Manage-AlphaDashboardTask.ps1" -Action Uninstall
 set "status=%ERRORLEVEL%"
 

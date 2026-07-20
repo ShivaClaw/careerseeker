@@ -13,6 +13,17 @@ if not exist "%~dp0scripts\Manage-AlphaDashboardTask.ps1" (
 echo Installing CareerSeeker Alpha dashboard logon task...
 echo This starts the local dashboard when you sign in. It does not create Gmail drafts or send email.
 echo.
+echo Type INSTALL to register the per-user dashboard logon task.
+echo Press Enter to cancel without changing dashboard startup.
+set /p CAREERSEEKER_DASHBOARD_TASK_MODE=Mode:
+echo.
+
+if /I not "%CAREERSEEKER_DASHBOARD_TASK_MODE%"=="INSTALL" (
+  echo Dashboard task install cancelled. Dashboard startup was not changed.
+  pause
+  exit /b 0
+)
+
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Manage-AlphaDashboardTask.ps1" -Action Install -Published
 set "status=%ERRORLEVEL%"
 

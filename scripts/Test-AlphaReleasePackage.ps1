@@ -285,7 +285,9 @@ try {
         "clear-byok",
         "disconnect-gmail",
         "type CLEAR",
-        "type DISCONNECT"
+        "type DISCONNECT",
+        "type INSTALL",
+        "type UNINSTALL"
     )) {
         if (-not $readme.Contains($snippet)) {
             throw "README-alpha.txt missing '$snippet'."
@@ -323,6 +325,28 @@ try {
     )) {
         if (-not $gmailDisconnectLauncher.Contains($snippet)) {
             throw "Disconnect-CareerSeeker-Gmail.cmd missing '$snippet'."
+        }
+    }
+
+    $dashboardTaskInstallLauncher = Get-Content -LiteralPath (Resolve-RootPath "Install-CareerSeeker-DashboardTask.cmd") -Raw
+    foreach ($snippet in @(
+        "Type INSTALL to register the per-user dashboard logon task",
+        "CAREERSEEKER_DASHBOARD_TASK_MODE",
+        "Dashboard task install cancelled"
+    )) {
+        if (-not $dashboardTaskInstallLauncher.Contains($snippet)) {
+            throw "Install-CareerSeeker-DashboardTask.cmd missing '$snippet'."
+        }
+    }
+
+    $dashboardTaskUninstallLauncher = Get-Content -LiteralPath (Resolve-RootPath "Uninstall-CareerSeeker-DashboardTask.cmd") -Raw
+    foreach ($snippet in @(
+        "Type UNINSTALL to remove the per-user dashboard logon task",
+        "CAREERSEEKER_DASHBOARD_TASK_MODE",
+        "Dashboard task uninstall cancelled"
+    )) {
+        if (-not $dashboardTaskUninstallLauncher.Contains($snippet)) {
+            throw "Uninstall-CareerSeeker-DashboardTask.cmd missing '$snippet'."
         }
     }
 

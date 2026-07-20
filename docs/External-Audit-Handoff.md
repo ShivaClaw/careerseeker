@@ -29,8 +29,8 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   packaged dashboard logon-task install/uninstall, smokes dashboard task status, previews company research, exports packaged audit JSON, restores a packaged evidence ZIP, provider-key clear, and Gmail disconnect command paths
   against isolated temp vault paths, and checks the
   bundled Privacy, Support, and Autonomy docs for the real alpha off-ramp and evidence-package commands.
-  The package self-check also asserts typed confirmation prompts for live Gmail draft creation and destructive
-  local vault off-ramps.
+  The package self-check also asserts typed confirmation prompts for live Gmail draft creation, destructive
+  local vault off-ramps, and persistent dashboard logon-task changes.
 - Latest GitLab research smoke retrieved 10 docs, used 3 deterministic grounded fallback facts after the model
   proposed 0 facts, dropped 0 ungrounded facts, verified the domain, and identified recruiter signals.
 - DNS mail-routing check, 2026-07-20: `careerseeker.app` publishes Cloudflare Email Routing MX records
@@ -50,7 +50,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 | Real BYOK Tailor and Gate providers are wired through the Gateway | `src/Gateway/ProvidersHttp.cs`, `src/Gateway/Routing.cs`, `src/Engine/Program.cs` | `Verify-Alpha.ps1 -IncludeLive`; BYOK live provider smoke |
 | Brave Search company research is grounded and fails closed on missing keys | `src/Researcher/BraveSearchWebResearch.cs`, `src/Researcher/Researcher.cs`, `src/Engine/StartupDoctor.cs` | `Verify-Alpha.ps1 -IncludeResearch`; startup doctor Brave check |
 | Local state, OAuth tokens, provider keys, and generated artifacts stay out of source control | `.gitignore`, `scripts/Initialize-AlphaWorkspace.ps1`, `src/Engine/StartupDoctor.cs` | source-control hygiene smoke; initializer dry run; package manifest/checksum smoke; secret path filters |
-| Trusted-tester ZIP carries source provenance, payload checksums, and provider-key quickstart guidance, plus typed confirmations for live/dangerous actions | `scripts/Package-AlphaRelease.ps1`, `scripts/Test-AlphaReleasePackage.ps1`, `Run-CareerSeeker-Live.cmd`, `Clear-CareerSeeker-Providers.cmd`, `Disconnect-CareerSeeker-Gmail.cmd` | release manifest source commit checks; audit snapshot provenance checks; README-alpha provider-key checks; live draft confirmation checks; off-ramp confirmation checks; SHA-256 checksum smoke |
+| Trusted-tester ZIP carries source provenance, payload checksums, and provider-key quickstart guidance, plus typed confirmations for live/dangerous actions | `scripts/Package-AlphaRelease.ps1`, `scripts/Test-AlphaReleasePackage.ps1`, `Run-CareerSeeker-Live.cmd`, `Clear-CareerSeeker-Providers.cmd`, `Disconnect-CareerSeeker-Gmail.cmd`, `Install-CareerSeeker-DashboardTask.cmd`, `Uninstall-CareerSeeker-DashboardTask.cmd` | release manifest source commit checks; audit snapshot provenance checks; README-alpha provider-key checks; live draft confirmation checks; off-ramp confirmation checks; dashboard task confirmation checks; SHA-256 checksum smoke |
 | Dashboard controls are loopback, token-protected, and evidence-oriented | `src/Engine/Host.cs`, `src/Engine/Program.cs`, package helper scripts | dashboard one-shot smoke; packaged dashboard-task and evidence export/import smokes |
 
 ## Repeatable Commands
@@ -178,7 +178,7 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 - Secret handling: `secrets/`, `.appdata/`, generated artifacts, OAuth tokens, and provider keys are ignored and
   should not be printed.
 - Tester launchers: live Gmail drafts require typing `LIVE`; provider-key clear requires `CLEAR`; Gmail
-  disconnect requires `DISCONNECT`.
+  disconnect requires `DISCONNECT`; dashboard task install/remove requires `INSTALL` or `UNINSTALL`.
 
 ## Current Alpha Capabilities
 
@@ -201,7 +201,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 - Trusted-tester release ZIP packaging for the published executable, native runtime dependencies, workspace
   initializer, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/audit-export/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers, quickstart, tester walkthrough, package-local audit snapshot, release manifest, dashboard/helper
   self-check scripts, SHA-256 checksums, and selected trust/audit docs without local databases, vaults, provider
-  keys, or generated artifacts. Live draft and destructive local off-ramp launchers require typed confirmation.
+  keys, or generated artifacts. Live draft, destructive local off-ramp, and persistent dashboard task launchers
+  require typed confirmation.
 - GitHub CI mirrors the offline alpha verifier for `main`, `agent/**`, `codex/**`, and PRs into `main`.
 
 ## Known Gaps

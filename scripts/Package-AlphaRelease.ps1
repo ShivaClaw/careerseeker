@@ -115,14 +115,14 @@ First-run flow:
   Double-click Export-CareerSeeker-Evidence.cmd to package local evidence for review.
   Double-click Import-CareerSeeker-Package.cmd to restore a local evidence package into .appdata\imported.
   Double-click Start-CareerSeeker-Alpha.cmd to open the local dashboard.
-  Double-click Install-CareerSeeker-DashboardTask.cmd to start the dashboard when you sign in.
+  Double-click Install-CareerSeeker-DashboardTask.cmd and type INSTALL to start the dashboard when you sign in.
   Double-click Status-CareerSeeker-DashboardTask.cmd to check the dashboard logon task.
 
 Local off-ramps:
 
   Double-click Clear-CareerSeeker-Providers.cmd and type CLEAR to delete the local provider-key vault.
   Double-click Disconnect-CareerSeeker-Gmail.cmd and type DISCONNECT to revoke Gmail and delete the local token vault.
-  Double-click Uninstall-CareerSeeker-DashboardTask.cmd to remove the dashboard logon task.
+  Double-click Uninstall-CareerSeeker-DashboardTask.cmd and type UNINSTALL to remove the dashboard logon task.
 
 Command equivalents:
 
@@ -161,6 +161,8 @@ The L1 alpha creates Gmail drafts only. It has no send path.
 The Run-CareerSeeker-Live.cmd double-click helper defaults to a no-Gmail dry-run preview and requires typing LIVE before creating a Gmail draft.
 
 The Gmail and provider off-ramp double-click helpers require typed confirmation before deleting local vaults.
+
+The dashboard logon-task double-click helpers require typed confirmation before changing Windows startup.
 
 For company research, add Brave Search as BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY in secrets\env.secrets.
 
