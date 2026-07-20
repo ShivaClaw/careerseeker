@@ -62,7 +62,9 @@ Use the Scout path when you want real public ATS job discovery:
 3. Open the dashboard Jobs page and choose a job id.
 4. Double-click `Draft-CareerSeeker-Job.cmd`.
 5. Press Enter for preview/dry-run mode, or type `LIVE` only when you intentionally want a Gmail draft.
-6. Double-click `Export-CareerSeeker-Evidence.cmd` after reviewing the result.
+6. If the job was flagged for prompt-injection signals, review the posting manually first and type `REVIEWED`
+   only when you intentionally want to override the selected-job refusal.
+7. Double-click `Export-CareerSeeker-Evidence.cmd` after reviewing the result.
 
 Use the live alpha path when you want one end-to-end Gmail draft smoke:
 
@@ -85,7 +87,7 @@ Use the live alpha path when you want one end-to-end Gmail draft smoke:
 - The optional dashboard logon task is per-user, inspectable with `Status-CareerSeeker-DashboardTask.cmd`, and
   its install/remove double-click helpers require typed confirmation.
 - Job descriptions and researched web pages are untrusted data. The app records prompt-injection signals, and
-  selected-job drafting refuses flagged jobs unless explicitly allowed after manual review.
+  selected-job drafting refuses flagged jobs unless explicitly allowed by typing `REVIEWED` after manual review.
 - `Research-CareerSeeker-Company.cmd` reads public web pages and BYOK providers only; it creates no Gmail draft.
 - The Fabrication Gate is fail-closed. Unsupported claims block; unavailable verification defers.
 - `Export-CareerSeeker-Audit.cmd` is hash-only by default; type `PAYLOADS` only when you intentionally want raw

@@ -27,8 +27,14 @@ echo Type LIVE to create a Gmail draft for review.
 set "CAREERSEEKER_DRAFT_MODE="
 set /p CAREERSEEKER_DRAFT_MODE=Mode:
 
+echo.
+echo If this job was flagged for prompt-injection signals, review the posting manually first.
+echo Type REVIEWED to allow a flagged job after manual review, or press Enter to keep the default refusal.
+set "CAREERSEEKER_INJECTION_MODE="
+set /p CAREERSEEKER_INJECTION_MODE=Injection override:
+
 set "CAREERSEEKER_DRAFT_SCRIPT=%~dp0scripts\Draft-AlphaJob.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $jobIdText = $env:CAREERSEEKER_JOB_ID; $jobId = 0; if ([string]::IsNullOrWhiteSpace($jobIdText) -or -not [int]::TryParse($jobIdText.Trim(), [ref]$jobId) -or $jobId -le 0) { Write-Host 'A positive job id is required.'; exit 1 }; $draftArgs = @('-Published', '-JobId', $jobId); if ($env:CAREERSEEKER_DRAFT_MODE -ieq 'LIVE') { $draftArgs += '-Live' }; & $env:CAREERSEEKER_DRAFT_SCRIPT @draftArgs }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $jobIdText = $env:CAREERSEEKER_JOB_ID; $jobId = 0; if ([string]::IsNullOrWhiteSpace($jobIdText) -or -not [int]::TryParse($jobIdText.Trim(), [ref]$jobId) -or $jobId -le 0) { Write-Host 'A positive job id is required.'; exit 1 }; $draftArgs = @('-Published', '-JobId', $jobId); if ($env:CAREERSEEKER_DRAFT_MODE -ieq 'LIVE') { $draftArgs += '-Live' }; if ($env:CAREERSEEKER_INJECTION_MODE -ieq 'REVIEWED') { $draftArgs += '-AllowInjected' }; & $env:CAREERSEEKER_DRAFT_SCRIPT @draftArgs }"
 set "status=%ERRORLEVEL%"
 
 if not "%status%"=="0" (

@@ -286,6 +286,7 @@ Invoke-Step "Public README and harness count smoke" {
         'controls are hidden for terminal rows',
         '`/evidence.html`',
         'audit payload export requires `PAYLOADS`',
+        'selected-job prompt-injection override requires `REVIEWED`',
         'Confirmation variables are cleared before prompting and evaluated through',
         'environment-backed PowerShell checks',
         'Free-form tester inputs in selected-job draft, company research, and package import launchers are forwarded',

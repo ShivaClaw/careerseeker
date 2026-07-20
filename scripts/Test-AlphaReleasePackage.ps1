@@ -274,6 +274,7 @@ try {
         "Research-CareerSeeker-Company.cmd",
         "Run-AlphaCompanyResearch.ps1",
         "Draft-CareerSeeker-Job.cmd after choosing a job id in the dashboard; it defaults to a no-Gmail dry-run preview",
+        "type REVIEWED only when you intentionally want to override the refusal",
         "Import-CareerSeeker-Package.cmd",
         "Import-AlphaPackage.ps1",
         "Export-CareerSeeker-Audit.cmd",
@@ -377,11 +378,14 @@ try {
     $draftJobLauncher = Get-Content -LiteralPath (Resolve-RootPath "Draft-CareerSeeker-Job.cmd") -Raw
     foreach ($snippet in @(
         "set `"CAREERSEEKER_JOB_ID=`"",
+        "set `"CAREERSEEKER_INJECTION_MODE=`"",
         '$jobIdText = $env:CAREERSEEKER_JOB_ID',
         '[int]::TryParse($jobIdText.Trim(), [ref]$jobId)',
         "[string]::IsNullOrWhiteSpace(`$jobIdText)",
         '$draftArgs = @(''-Published'', ''-JobId'', $jobId)',
         '$env:CAREERSEEKER_DRAFT_MODE -ieq ''LIVE''',
+        '$env:CAREERSEEKER_INJECTION_MODE -ieq ''REVIEWED''',
+        "'-AllowInjected'",
         '$env:CAREERSEEKER_DRAFT_SCRIPT'
     )) {
         if (-not $draftJobLauncher.Contains($snippet)) {
@@ -489,7 +493,8 @@ try {
         'type `LIVE`',
         "L1 alpha does not send applications",
         "Secret values are not packaged",
-        "prompt-injection signals"
+        "prompt-injection signals",
+        'type `REVIEWED`'
     )) {
         if (-not $walkthrough.Contains($snippet)) {
             throw "Alpha tester walkthrough missing '$snippet'."
