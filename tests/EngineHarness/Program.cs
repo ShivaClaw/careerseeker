@@ -617,6 +617,21 @@ Console.WriteLine("\n[ alpha package export ]");
         await File.WriteAllTextAsync(Path.Combine(artifacts, "resume.pdf"), "%PDF test");
         await File.WriteAllTextAsync(Path.Combine(artifacts, "secret-token.dpapi"), "should not export");
         await File.WriteAllTextAsync(Path.Combine(jds, "posting.txt"), "posting body");
+        var outsideLinkedSecret = Path.Combine(root, "outside-provider-key.txt");
+        await File.WriteAllTextAsync(outsideLinkedSecret, "should not export through a link");
+        var linkedArtifact = Path.Combine(artifacts, "resume-link.pdf");
+        var linkedArtifactCreated = false;
+        try
+        {
+            File.CreateSymbolicLink(linkedArtifact, outsideLinkedSecret);
+            linkedArtifactCreated =
+                File.Exists(linkedArtifact) &&
+                File.GetAttributes(linkedArtifact).HasFlag(FileAttributes.ReparsePoint);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or PlatformNotSupportedException or NotSupportedException)
+        {
+            linkedArtifactCreated = false;
+        }
 
         var packagePath = Path.Combine(root, "package.zip");
         await using (var sqlite = SqliteSeekerStore.ForFile(dbPath))
@@ -644,6 +659,9 @@ Console.WriteLine("\n[ alpha package export ]");
             names.All(n =>
                 !n.Contains("token", StringComparison.OrdinalIgnoreCase) &&
                 !n.EndsWith(".dpapi", StringComparison.OrdinalIgnoreCase)),
+            string.Join(", ", names));
+        Check("alpha package export skips artifact symlinks when supported",
+            !linkedArtifactCreated || names.All(n => !n.Contains("resume-link", StringComparison.OrdinalIgnoreCase)),
             string.Join(", ", names));
 
         var importRoot = Path.Combine(root, "imported");

@@ -94,6 +94,7 @@ public static class AlphaPackageExport
                 "*secret*",
                 "*key*",
                 "client_secret*.json",
+                "symlinks/junctions",
             },
         }, JsonOptions);
 
@@ -161,9 +162,15 @@ public static class AlphaPackageExport
         if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory)) return;
 
         var root = Path.GetFullPath(directory);
-        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        var enumeration = new EnumerationOptions
         {
-            if (SamePath(file, packagePath) || LooksSecretPath(file)) continue;
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+        };
+        foreach (var file in Directory.EnumerateFiles(root, "*", enumeration))
+        {
+            if (SamePath(file, packagePath) || LooksSecretPath(file) || IsReparsePoint(file)) continue;
             var relative = Path.GetRelativePath(root, file)
                 .Replace(Path.DirectorySeparatorChar, '/')
                 .Replace(Path.AltDirectorySeparatorChar, '/');
@@ -193,6 +200,22 @@ public static class AlphaPackageExport
                name.Contains("token", StringComparison.OrdinalIgnoreCase) ||
                name.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
                name.Contains("key", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsReparsePoint(string path)
+    {
+        try
+        {
+            return File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint);
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return true;
+        }
     }
 
     private static bool SamePath(string a, string b) =>
