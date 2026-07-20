@@ -17,6 +17,15 @@ int passed = 0, failed = 0;
 void Check(string n, bool c, string? d = null)
 { if (c) { passed++; Console.WriteLine($"  PASS  {n}"); } else { failed++; Console.WriteLine($"  FAIL  {n}{(d is null ? "" : $"  -- {d}")}"); } }
 
+string HtmlRowContaining(string html, string marker)
+{
+    var markerAt = html.IndexOf(marker, StringComparison.Ordinal);
+    if (markerAt < 0) return "";
+    var start = html.LastIndexOf("<tr", markerAt, StringComparison.Ordinal);
+    var end = html.IndexOf("</tr>", markerAt, StringComparison.Ordinal);
+    return start >= 0 && end >= start ? html[start..(end + "</tr>".Length)] : "";
+}
+
 const string clean =
     "{\"resume\":\"Senior Software Engineer experienced in distributed systems and Go.\"," +
     "\"cover\":\"I am excited to apply. I have built reliable distributed systems in Go and would bring that experience to your team.\",\"claims\":[],\"answers\":{}}";
@@ -396,6 +405,36 @@ Console.WriteLine("\n[ localhost dashboard ]");
     }
     await dash.DisposeAsync();
     try { if (Directory.Exists(artifactDir)) Directory.Delete(artifactDir, recursive: true); } catch (IOException) { }
+}
+
+{
+    var now = DateTimeOffset.UtcNow.ToString("O");
+    var rendererOnlyDashboard = new LocalDashboard(
+        new EngineCounters(),
+        7778,
+        new LocalDashboardActions(
+            ControlApplicationAsync: (_, _, _) => Task.FromResult(new DashboardControlResult(true, "ok"))),
+        new LocalDashboardEvidence(_ => Task.FromResult(new DashboardEvidence(
+            true,
+            null,
+            null,
+            0,
+            Array.Empty<DashboardEvidenceEvent>(),
+            new[]
+            {
+                new ApplicationSummaryRow(101, AppState.REJECTED_BY_ENGINE.ToString(), "L1", "Email", now, now, null, 201, "Rejected sample", "Example", null, null, "Remote", "", null, null, null, null, null, null, null, null, false),
+                new ApplicationSummaryRow(102, AppState.DRAFTED.ToString(), "L1", "Email", now, now, null, 202, "Drafted sample", "Example", null, null, "Remote", "", null, null, null, null, "SUCCEEDED", "draft-102", null, null, false),
+            },
+            Array.Empty<JobSummaryRow>()))));
+    var renderedApplications = await rendererOnlyDashboard.ApplicationsHtmlAsync();
+    var rejectedApplicationRow = HtmlRowContaining(renderedApplications, "REJECTED_BY_ENGINE");
+    var draftedApplicationRow = HtmlRowContaining(renderedApplications, "DRAFTED");
+    Check("/applications hides controls for terminal rows",
+        rejectedApplicationRow.Contains("<td>-</td></tr>") &&
+        !rejectedApplicationRow.Contains("action=\"/controls/application\"") &&
+        draftedApplicationRow.Contains("action=\"/controls/application\""),
+        renderedApplications);
+    await rendererOnlyDashboard.DisposeAsync();
 }
 
 // ── 4) gateway budget safety invariant ────────────────────────────────────────────────────────────

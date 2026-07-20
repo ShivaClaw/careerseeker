@@ -360,12 +360,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 251 passed, 0 failed.
+Total: 252 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 66 passed, 0 failed |
+| `EngineHarness` | 67 passed, 0 failed |
 | `ResearcherHarness` | 29 passed, 0 failed |
 | `HookHarness` | 12 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
@@ -492,8 +492,8 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
   isolated temp vault paths.
 - Double-click live draft, provider clear, Gmail disconnect, and dashboard task install/remove helpers now have
   typed confirmations for `LIVE`, `CLEAR`, `DISCONNECT`, `INSTALL`, and `UNINSTALL`.
-- Local dashboard shell polished with responsive navigation, metric cards, and readable recent-job/application
-  tables while preserving token-protected controls.
+- Local dashboard shell polished with responsive navigation, metric cards, readable recent-job/application
+  tables, a human Evidence page, and terminal-row control suppression while preserving token-protected controls.
 - Gmail live harness added.
 - L1 Gmail labels deferred to preserve `gmail.compose` only.
 - `client_secret*.json` and `token*.json` added to `.gitignore`.

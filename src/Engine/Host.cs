@@ -483,14 +483,19 @@ table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;
 
     private static string ApplicationControlsHtml(ApplicationSummaryRow row, string token)
     {
+        if (!Enum.TryParse<AppState>(row.State, out var state))
+            return "-";
+
+        if (Lifecycle.IsTerminal(state))
+            return "-";
+
         var buttons = new List<string>();
-        if (row.State == AppState.PAUSED.ToString())
+        if (state == AppState.PAUSED)
             buttons.Add(ControlButton(row.ApplicationId, "resume", token, "Resume"));
-        else if (Enum.TryParse<AppState>(row.State, out var state) && Lifecycle.IsActive(state))
+        else if (Lifecycle.IsActive(state))
             buttons.Add(ControlButton(row.ApplicationId, "pause", token, "Pause"));
 
-        if (row.State != AppState.USER_KILLED.ToString())
-            buttons.Add(ControlButton(row.ApplicationId, "kill", token, "Kill", danger: true));
+        buttons.Add(ControlButton(row.ApplicationId, "kill", token, "Kill", danger: true));
 
         return buttons.Count == 0 ? "-" : string.Join(" ", buttons);
     }
