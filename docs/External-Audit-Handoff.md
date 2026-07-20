@@ -126,7 +126,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 - Real ATS-clean resume PDF renderer and Gmail draft attachment packaging.
 - Standalone localhost dashboard over an existing SQLite alpha DB.
 - Dashboard `/applications`, `/jobs`, `/evidence`, application controls, Gmail disconnect, token-protected alpha
-  package export, and local resume/cover document routes.
+  package export, local resume/cover document routes, and a responsive shared alpha shell for status and
+  recent-item views.
 - BYOK Anthropic/Gemini Tailor and Gate wiring through the Gateway.
 - Brave Search + BYOK company dossier command with deterministic grounding and fallback source snippets.
 - Local source-of-truth profile template/import commands for Tailor/Gate facts.

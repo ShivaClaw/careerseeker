@@ -131,6 +131,24 @@ public sealed class LocalDashboard : IAsyncDisposable
     private string? _lastActionMessage;
     private CancellationTokenSource? _cts;
     private Task? _loop;
+    private const string DashboardCss = """
+:root{color-scheme:light;--bg:#f7f7f4;--panel:#fff;--ink:#1c211f;--muted:#65706b;--line:#d9ddd8;--accent:#0f766e;--accent-ink:#064e3b;--danger:#b42318;--warn:#9a3412}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+a{color:#075985;text-decoration:none}a:hover{text-decoration:underline}
+.top{position:sticky;top:0;z-index:1;background:rgba(247,247,244,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+.top-inner{max-width:80rem;margin:0 auto;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:0}.sub{color:var(--muted);font-size:.86rem}.nav{display:flex;gap:.35rem;flex-wrap:wrap}
+.nav a{color:var(--ink);padding:.4rem .55rem;border-radius:.35rem}.nav a.active{background:#e7f4f1;color:var(--accent-ink);font-weight:650}
+.shell{max-width:80rem;margin:0 auto;padding:1.25rem}.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin:.4rem 0 1rem}
+h1{font-size:1.35rem;line-height:1.2;margin:0}h2{font-size:1rem;margin:1.2rem 0 .55rem}.muted{color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.75rem}.card{background:var(--panel);border:1px solid var(--line);border-radius:.45rem;padding:.85rem}.label{color:var(--muted);font-size:.78rem;text-transform:uppercase}.n{font-variant-numeric:tabular-nums}.big{font-size:1.45rem;font-weight:720}
+.notice{padding:.65rem .75rem;background:#eef7ee;border-left:3px solid #22863a;margin:.75rem 0}.actions{display:flex;gap:.5rem;flex-wrap:wrap}form{display:inline}
+button{font:inherit;font-weight:650;padding:.45rem .65rem;border:1px solid var(--line);border-radius:.35rem;background:#fff;color:var(--ink);cursor:pointer}button:hover{border-color:#8fa19a}.danger button{color:var(--danger)}
+.links{display:flex;gap:.55rem;flex-wrap:wrap}.table-wrap{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:.45rem}
+table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;border-bottom:1px solid var(--line);padding:.5rem .6rem;vertical-align:top}th{font-size:.78rem;text-transform:uppercase;color:var(--muted);background:#fbfbf9}tr:last-child td{border-bottom:0}
+.state{font-weight:700}.warn{font-weight:700;color:var(--warn)}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.15rem .45rem;background:#fff}
+@media (max-width:720px){.hero{display:block}.top-inner{align-items:flex-start}.shell{padding:1rem}table{min-width:46rem}}
+""";
 
     public LocalDashboard(
         EngineCounters counters,
@@ -178,21 +196,34 @@ public sealed class LocalDashboard : IAsyncDisposable
         var controls = ControlsHtml();
         var evidence = _evidence is null
             ? ""
-            : @"<h2>Evidence</h2><p><a href=""/jobs"">View recent jobs</a></p><p><a href=""/applications"">View recent applications</a></p><p><a href=""/evidence"">View audit-chain status and recent events</a></p>";
+            : @"<h2>Evidence</h2><div class=""links""><a href=""/jobs"">Recent jobs</a><a href=""/applications"">Recent applications</a><a href=""/evidence"">audit-chain status</a></div>";
 
-        return $@"<!doctype html><html><head><meta charset=""utf-8""><title>CareerSeeker</title>
-<meta http-equiv=""refresh"" content=""5""><style>body{{font:14px system-ui;margin:2rem;max-width:40rem}}
-h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;grid-template-columns:1fr auto;gap:.3rem .8rem}}.n{{font-variant-numeric:tabular-nums;font-weight:600}}button{{font:inherit;padding:.45rem .7rem}}.notice{{padding:.6rem .7rem;background:#eef7ee;border-left:3px solid #22863a}}</style></head>
-<body><h1>CareerSeeker - engine status</h1>{notice}<div class=""g"">
-<div>Cycles</div><div class=""n"">{c.Cycles}</div>
-<div>Discovered</div><div class=""n"">{c.Discovered}</div>
-<div>Acted</div><div class=""n"">{c.Acted}</div>
-<div>Drafted</div><div class=""n"">{c.Drafted}</div>
-<div>Blocked (fabrication)</div><div class=""n"">{c.Blocked}</div>
-<div>Rejected (engine)</div><div class=""n"">{c.Rejected}</div>
-<div>Errors</div><div class=""n"">{c.Errors}</div>
-</div><p>Last cycle: {c.LastCycleUtc?.ToString("u") ?? "-"}</p>{evidence}{controls}</body></html>";
+        var body = $@"<section class=""hero""><div><h1>CareerSeeker engine status</h1><div class=""muted"">Last cycle: {WebUtility.HtmlEncode(c.LastCycleUtc?.ToString("u") ?? "-")}</div></div><span class=""pill"">running</span></section>
+{notice}<section class=""cards"">
+{MetricCard("Cycles", c.Cycles)}
+{MetricCard("Discovered", c.Discovered)}
+{MetricCard("Acted", c.Acted)}
+{MetricCard("Drafted", c.Drafted)}
+{MetricCard("Blocked (fabrication)", c.Blocked)}
+{MetricCard("Rejected (engine)", c.Rejected)}
+{MetricCard("Errors", c.Errors)}
+        </section>{evidence}{controls}";
+        return PageHtml("CareerSeeker", "status", body);
     }
+
+    private static string MetricCard(string label, long value) =>
+        $@"<div class=""card""><div class=""label"">{WebUtility.HtmlEncode(label)}</div><div class=""big n"">{value}</div></div>";
+
+    private static string PageHtml(string title, string active, string body)
+    {
+        return $@"<!doctype html><html><head><meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width, initial-scale=1""><title>{WebUtility.HtmlEncode(title)}</title>
+<meta http-equiv=""refresh"" content=""5""><style>{DashboardCss}</style></head><body>
+<header class=""top""><div class=""top-inner""><div><div class=""brand"">CareerSeeker</div><div class=""sub"">Local alpha dashboard</div></div><nav class=""nav"">{NavLink("/", "Status", active == "status")}{NavLink("/jobs", "Jobs", active == "jobs")}{NavLink("/applications", "Applications", active == "applications")}{NavLink("/evidence", "Evidence", active == "evidence")}</nav></div></header>
+<main class=""shell"">{body}</main></body></html>";
+    }
+
+    private static string NavLink(string href, string label, bool active) =>
+        $@"<a class=""{(active ? "active" : "")}"" href=""{href}"">{WebUtility.HtmlEncode(label)}</a>";
 
     private string ControlsHtml()
     {
@@ -213,7 +244,7 @@ h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;gri
 </form>");
         }
 
-        return forms.Count == 0 ? "" : "<h2>Controls</h2>" + string.Concat(forms);
+        return forms.Count == 0 ? "" : $@"<h2>Controls</h2><div class=""actions"">{string.Concat(forms)}</div>";
     }
 
     public void Start()
@@ -355,12 +386,10 @@ h1{{font-size:1.1rem}}h2{{font-size:1rem;margin-top:1.5rem}}.g{{display:grid;gri
                 _actions?.ControlApplicationAsync is not null,
                 _controlToken)));
 
-        return $@"<!doctype html><html><head><meta charset=""utf-8""><title>CareerSeeker Applications</title>
-<meta http-equiv=""refresh"" content=""5""><style>body{{font:14px system-ui;margin:2rem;max-width:72rem}}
-h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-align:left;border-bottom:1px solid #ddd;padding:.45rem .55rem;vertical-align:top}}
-.n{{font-variant-numeric:tabular-nums}}.state{{font-weight:600}}a{{color:#075985}}form{{display:inline}}button{{font:inherit;padding:.2rem .4rem;margin:.1rem}}</style></head>
-<body><h1>Recent applications</h1><table><thead><tr><th>State</th><th>Job</th><th>Company</th><th>Score</th><th>Draft</th><th>Updated</th><th>Links</th><th>Controls</th></tr></thead>
-<tbody>{rows}</tbody></table><p><a href=""/"">Back to status</a></p></body></html>";
+        var body = $@"<section class=""hero""><div><h1>Recent applications</h1><div class=""muted"">{evidence.RecentApplications.Count} applications shown</div></div><a href=""/"">Back to status</a></section>
+<div class=""table-wrap""><table><thead><tr><th>State</th><th>Job</th><th>Company</th><th>Score</th><th>Draft</th><th>Updated</th><th>Links</th><th>Controls</th></tr></thead>
+<tbody>{rows}</tbody></table></div>";
+        return PageHtml("CareerSeeker Applications", "applications", body);
     }
 
     private static string ApplicationRowHtml(ApplicationSummaryRow row, bool canControl, string token)
@@ -378,7 +407,7 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
         var updated = WebUtility.HtmlEncode(row.UpdatedAt);
         var links = LinksHtml(row, token);
         var controls = canControl ? ApplicationControlsHtml(row, token) : "-";
-        return $@"<tr><td class=""state"">{WebUtility.HtmlEncode(row.State)}</td><td>{job}</td><td>{company}</td><td class=""n"">{score}</td><td>{draft}</td><td class=""n"">{updated}</td><td>{links}</td><td>{controls}</td></tr>";
+        return $@"<tr><td class=""state"">{WebUtility.HtmlEncode(row.State)}</td><td>{job}</td><td>{company}</td><td class=""n"">{score}</td><td>{draft}</td><td class=""n"">{updated}</td><td><div class=""links"">{links}</div></td><td>{controls}</td></tr>";
     }
 
     private static string ApplicationControlsHtml(ApplicationSummaryRow row, string token)
@@ -390,13 +419,13 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
             buttons.Add(ControlButton(row.ApplicationId, "pause", token, "Pause"));
 
         if (row.State != AppState.USER_KILLED.ToString())
-            buttons.Add(ControlButton(row.ApplicationId, "kill", token, "Kill"));
+            buttons.Add(ControlButton(row.ApplicationId, "kill", token, "Kill", danger: true));
 
         return buttons.Count == 0 ? "-" : string.Join(" ", buttons);
     }
 
-    private static string ControlButton(long applicationId, string action, string token, string label) =>
-        $@"<form method=""post"" action=""/controls/application""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><input type=""hidden"" name=""applicationId"" value=""{applicationId}""><input type=""hidden"" name=""action"" value=""{WebUtility.HtmlEncode(action)}""><button type=""submit"">{WebUtility.HtmlEncode(label)}</button></form>";
+    private static string ControlButton(long applicationId, string action, string token, string label, bool danger = false) =>
+        $@"<form class=""{(danger ? "danger" : "")}"" method=""post"" action=""/controls/application""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><input type=""hidden"" name=""applicationId"" value=""{applicationId}""><input type=""hidden"" name=""action"" value=""{WebUtility.HtmlEncode(action)}""><button type=""submit"">{WebUtility.HtmlEncode(label)}</button></form>";
 
     private static string LinksHtml(ApplicationSummaryRow row, string token)
     {
@@ -440,12 +469,10 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
             ? @"<tr><td colspan=""8"">No jobs yet.</td></tr>"
             : string.Concat(evidence.RecentJobs.Select(JobRowHtml));
 
-        return $@"<!doctype html><html><head><meta charset=""utf-8""><title>CareerSeeker Jobs</title>
-<meta http-equiv=""refresh"" content=""5""><style>body{{font:14px system-ui;margin:2rem;max-width:76rem}}
-h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-align:left;border-bottom:1px solid #ddd;padding:.45rem .55rem;vertical-align:top}}
-.n{{font-variant-numeric:tabular-nums}}.warn{{font-weight:600;color:#9a3412}}a{{color:#075985}}</style></head>
-<body><h1>Recent jobs</h1><table><thead><tr><th>Job</th><th>Company</th><th>Source</th><th>Remote</th><th>Comp</th><th>Updated</th><th>Flags</th><th>Links</th></tr></thead>
-<tbody>{rows}</tbody></table><p><a href=""/"">Back to status</a></p></body></html>";
+        var body = $@"<section class=""hero""><div><h1>Recent jobs</h1><div class=""muted"">{evidence.RecentJobs.Count} jobs shown</div></div><a href=""/"">Back to status</a></section>
+<div class=""table-wrap""><table><thead><tr><th>Job</th><th>Company</th><th>Source</th><th>Remote</th><th>Comp</th><th>Updated</th><th>Flags</th><th>Links</th></tr></thead>
+<tbody>{rows}</tbody></table></div>";
+        return PageHtml("CareerSeeker Jobs", "jobs", body);
     }
 
     private static string JobRowHtml(JobSummaryRow row)
@@ -464,7 +491,7 @@ h1{{font-size:1.1rem}}table{{border-collapse:collapse;width:100%}}th,td{{text-al
             : "-";
         var updated = WebUtility.HtmlEncode(row.LastVerified);
         var links = JobLinksHtml(row);
-        return $@"<tr><td>{job}</td><td>{company}</td><td>{source}</td><td>{remote}</td><td class=""n"">{comp}</td><td class=""n"">{updated}</td><td>{flags}</td><td>{links}</td></tr>";
+        return $@"<tr><td>{job}</td><td>{company}</td><td>{source}</td><td>{remote}</td><td class=""n"">{comp}</td><td class=""n"">{updated}</td><td>{flags}</td><td><div class=""links"">{links}</div></td></tr>";
     }
 
     private static string JobLinksHtml(JobSummaryRow row)

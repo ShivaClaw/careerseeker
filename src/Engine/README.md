@@ -27,7 +27,8 @@ The engine shell adds:
 
 - `EngineCycle`: one discovery, decision, and action pass over a batch.
 - `PeriodicScheduler`: immediate tick, then repeated ticks by interval.
-- `LocalDashboard`: loopback-only HTML and JSON status on `localhost`, with optional token-protected controls.
+- `LocalDashboard`: loopback-only responsive HTML dashboard and JSON status on `localhost`, with optional
+  token-protected controls.
 - `EngineHost`: composition root for counters, scheduler, and dashboard.
 
 ## Alpha Executable Modes
@@ -135,8 +136,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 - Brave web-research adapter source and the `research-company` alpha command are implemented, offline
   verified, and live-verified with Brave Search plus BYOK dossier modeling.
 - Dashboard `/applications` exposes recent job/application state, scores, draft refs, generated resume/cover
-  document links, safe job/apply links, and token-protected pause/resume/kill controls; `/evidence` exposes
-  audit-chain status and recent audit event metadata without payload bodies.
+  document links, safe job/apply links, and token-protected pause/resume/kill controls in the shared alpha
+  dashboard shell; `/evidence` exposes audit-chain status and recent audit event metadata without payload bodies.
 - Dashboard home exposes a token-protected alpha package export control when running against a SQLite DB.
 - Dashboard `/jobs` exposes recently discovered jobs, compensation metadata, source, safe job/apply links,
   repost count, and prompt-injection flags without raw job descriptions.
