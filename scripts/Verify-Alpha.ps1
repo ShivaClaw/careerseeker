@@ -275,6 +275,14 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $summary @(
         'Live BYOK harness, 2026-07-20:'
     ) "docs/CareerSeeker-Project-Summary.md"
+
+    $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    Assert-Contains $engineProgram @(
+        'draft-job --job-id 123',
+        '[--secrets secrets/env.secrets]',
+        '[--key-vault .appdata/secrets/byok-keys.dpapi]',
+        '[--gate-semantic-candidates 3]'
+    ) "src/Engine/Program.cs"
 }
 
 Invoke-Step "Local API security spec smoke" {

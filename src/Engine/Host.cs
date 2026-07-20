@@ -146,7 +146,7 @@ h1{font-size:1.35rem;line-height:1.2;margin:0}h2{font-size:1rem;margin:1.2rem 0 
 .notice{padding:.65rem .75rem;background:#eef7ee;border-left:3px solid #22863a;margin:.75rem 0}.actions{display:flex;gap:.5rem;flex-wrap:wrap}form{display:inline}
 button{font:inherit;font-weight:650;padding:.45rem .65rem;border:1px solid var(--line);border-radius:.35rem;background:#fff;color:var(--ink);cursor:pointer}button:hover{border-color:#8fa19a}.danger button{color:var(--danger)}
 .links{display:flex;gap:.55rem;flex-wrap:wrap}.table-wrap{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:.45rem}
-table{border-collapse:collapse;width:100%;min-width:58rem}th,td{text-align:left;border-bottom:1px solid var(--line);padding:.5rem .6rem;vertical-align:top}th{font-size:.78rem;text-transform:uppercase;color:var(--muted);background:#fbfbf9}tr:last-child td{border-bottom:0}
+table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;border-bottom:1px solid var(--line);padding:.5rem .6rem;vertical-align:top}th{font-size:.78rem;text-transform:uppercase;color:var(--muted);background:#fbfbf9}tr:last-child td{border-bottom:0}
 .state{font-weight:700}.ok{color:#166534;font-weight:700}.bad{color:var(--danger);font-weight:700}.warn{font-weight:700;color:var(--warn)}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.15rem .45rem;background:#fff}
 @media (max-width:720px){.hero{display:block}.top-inner{align-items:flex-start}.shell{padding:1rem}table{min-width:46rem}}
 """;
