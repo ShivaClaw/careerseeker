@@ -61,6 +61,8 @@ Trust/OAuth docs:
 - `Start-CareerSeeker-Alpha.cmd`: double-click dashboard launcher copied into the trusted-tester release ZIP.
 - `Install-CareerSeeker-DashboardTask.cmd`: double-click per-user dashboard logon-task install helper copied
   into the trusted-tester release ZIP.
+- `Status-CareerSeeker-DashboardTask.cmd`: double-click dashboard logon-task status helper copied into the
+  trusted-tester release ZIP.
 - `Uninstall-CareerSeeker-DashboardTask.cmd`: double-click dashboard logon-task removal helper copied into the
   trusted-tester release ZIP.
 - `connect-gmail`: first-class alpha command that opens Gmail OAuth, stores the local DPAPI token, and

@@ -68,12 +68,15 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   the packaged dashboard path.
 - `Install-CareerSeeker-DashboardTask.cmd` gives trusted testers a double-click helper to register the packaged
   dashboard as a per-user Windows logon task.
+- `Status-CareerSeeker-DashboardTask.cmd` gives trusted testers a double-click helper to inspect that logon
+  task.
 - `Uninstall-CareerSeeker-DashboardTask.cmd` gives trusted testers a double-click helper to remove that logon
   task.
 - Extracted-package verification smokes the packaged provider-key clear and Gmail disconnect command paths
   against isolated temp vault paths.
 - Extracted-package verification smokes the packaged live readiness helper with optional Gmail/BYOK checks off.
-- Extracted-package verification dry-runs packaged dashboard logon-task install and uninstall commands.
+- Extracted-package verification dry-runs packaged dashboard logon-task install and uninstall commands and
+  smokes the status command.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
   dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
   snapshot, release manifest, SHA-256 checksums, and selected docs while excluding local databases, vaults,

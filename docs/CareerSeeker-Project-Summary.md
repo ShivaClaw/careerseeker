@@ -50,8 +50,8 @@ Completed:
   selected docs while excluding local databases, vaults, provider keys, and generated artifacts.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register a per-user Windows logon task for keeping the alpha
   dashboard available until the service/tray/installer work lands.
-- `Install-CareerSeeker-DashboardTask.cmd` and `Uninstall-CareerSeeker-DashboardTask.cmd` wrap that task helper
-  for trusted testers in the release ZIP.
+- `Install-CareerSeeker-DashboardTask.cmd`, `Status-CareerSeeker-DashboardTask.cmd`, and
+  `Uninstall-CareerSeeker-DashboardTask.cmd` wrap that task helper for trusted testers in the release ZIP.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
 - The alpha executable can export a local alpha ZIP package containing a manifest, audit export, SQLite
   snapshot, draft artifacts, and saved job-description artifacts while filtering secret-looking paths.
@@ -473,9 +473,9 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - `research-company` command added for live Brave + BYOK dossier runs when `BRAVE_SEARCH_API_KEY` is available.
 - Gmail draft API preflight added before live draft creation.
 - `connect-gmail` command added for interactive Gmail OAuth setup and draft-access preflight without creating a draft.
-- Trusted-tester release ZIP now includes double-click setup, profile import, provider connect, Gmail connect, live readiness, provider clear, Gmail disconnect, demo cycle, Scout board ingest, selected-job drafting, live alpha cycle, evidence export, package verification, dashboard launch, and dashboard logon-task launchers, each
+- Trusted-tester release ZIP now includes double-click setup, profile import, provider connect, Gmail connect, live readiness, provider clear, Gmail disconnect, demo cycle, Scout board ingest, selected-job drafting, live alpha cycle, evidence export, package verification, dashboard launch, and dashboard logon-task install/status/uninstall launchers, each
   covered by package manifest/self-check verification; extracted-package verification also smokes the packaged
-  live readiness helper, dashboard logon-task dry runs, provider-key clear, and Gmail disconnect commands against
+  live readiness helper, dashboard logon-task dry runs/status, provider-key clear, and Gmail disconnect commands against
   isolated temp vault paths.
 - Local dashboard shell polished with responsive navigation, metric cards, and readable recent-job/application
   tables while preserving token-protected controls.
@@ -736,7 +736,7 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past thirty important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, no-draft Gmail OAuth connection, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, responsive standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, dashboard-accessible alpha package export, repeatable local alpha workspace initialization, local source-of-truth profile import, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard and dashboard-task launchers, packaged dashboard/helper scripts, release-manifest/checksum/audit-snapshot verification, extracted-package self-checking, isolated packaged readiness helper smokes, isolated packaged dashboard-task dry runs, isolated packaged off-ramp command smokes, and packaged trust-doc command assertions. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
+CareerSeeker is now past thirty important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, no-draft Gmail OAuth connection, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, responsive standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, dashboard-accessible alpha package export, repeatable local alpha workspace initialization, local source-of-truth profile import, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard and dashboard-task launchers, packaged dashboard/helper scripts, release-manifest/checksum/audit-snapshot verification, extracted-package self-checking, isolated packaged readiness helper smokes, isolated packaged dashboard-task dry runs/status, isolated packaged off-ramp command smokes, and packaged trust-doc command assertions. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.
 

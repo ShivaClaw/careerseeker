@@ -25,7 +25,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   executable, native runtime dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper
   self-check scripts, quickstart, tester walkthrough, package-local audit snapshot, release manifest, checksums,
   and selected docs. The extracted-package verifier also smokes the packaged live readiness helper, dry-runs
-  packaged dashboard logon-task install/uninstall, smokes provider-key clear and Gmail disconnect command paths
+  packaged dashboard logon-task install/uninstall, smokes dashboard task status, provider-key clear, and Gmail disconnect command paths
   against isolated temp vault paths, and checks the
   bundled Privacy, Support, and Autonomy docs for the real alpha off-ramp and evidence-package commands.
 - `scripts/Verify-Alpha.ps1 -IncludeResearch` passed locally with live Brave Search plus BYOK dossier

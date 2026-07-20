@@ -197,6 +197,7 @@ if ($IncludePackage) {
                 "Verify-CareerSeeker-Alpha.cmd",
                 "Start-CareerSeeker-Alpha.cmd",
                 "Install-CareerSeeker-DashboardTask.cmd",
+                "Status-CareerSeeker-DashboardTask.cmd",
                 "Uninstall-CareerSeeker-DashboardTask.cmd",
                 "e_sqlite3.dll",
                 "README-alpha.txt",
@@ -233,7 +234,7 @@ if ($IncludePackage) {
             finally {
                 $reader.Dispose()
             }
-            foreach ($snippet in @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Check-CareerSeeker-LiveReadiness.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd", "Install-CareerSeeker-DashboardTask.cmd", "Uninstall-CareerSeeker-DashboardTask.cmd", "Manage-AlphaDashboardTask.ps1", "Import-AlphaProfile.ps1", "Check-AlphaLiveReadiness.ps1", "Connect-AlphaProviders.ps1", "Run-AlphaDemoCycle.ps1", "Run-AlphaScoutBoards.ps1", "Draft-AlphaJob.ps1", "Run-AlphaLiveCycle.ps1", "Export-AlphaEvidencePackage.ps1", "Off-ramp command equivalents", "BRAVE_SEARCH_API", "connect-gmail", "clear-byok", "disconnect-gmail", "Test-AlphaReleasePackage.ps1", "Start-AlphaDashboard.ps1", "NoGmailControl", "Alpha-Tester-Walkthrough.md")) {
+            foreach ($snippet in @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Check-CareerSeeker-LiveReadiness.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd", "Install-CareerSeeker-DashboardTask.cmd", "Status-CareerSeeker-DashboardTask.cmd", "Uninstall-CareerSeeker-DashboardTask.cmd", "Manage-AlphaDashboardTask.ps1", "Import-AlphaProfile.ps1", "Check-AlphaLiveReadiness.ps1", "Connect-AlphaProviders.ps1", "Run-AlphaDemoCycle.ps1", "Run-AlphaScoutBoards.ps1", "Draft-AlphaJob.ps1", "Run-AlphaLiveCycle.ps1", "Export-AlphaEvidencePackage.ps1", "Off-ramp command equivalents", "BRAVE_SEARCH_API", "connect-gmail", "clear-byok", "disconnect-gmail", "Test-AlphaReleasePackage.ps1", "Start-AlphaDashboard.ps1", "NoGmailControl", "Alpha-Tester-Walkthrough.md")) {
                 if (-not $readme.Contains($snippet)) {
                     throw "Alpha release quickstart missing '$snippet'."
                 }
@@ -250,7 +251,7 @@ if ($IncludePackage) {
             finally {
                 $auditSnapshotReader.Dispose()
             }
-            foreach ($snippet in @("CareerSeeker Alpha Audit Snapshot", "Package-local verification commands", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Check-CareerSeeker-LiveReadiness.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Install-CareerSeeker-DashboardTask.cmd", "Uninstall-CareerSeeker-DashboardTask.cmd", "L1 creates Gmail drafts only", "Secret values are not included", "docs/Alpha-Tester-Walkthrough.md")) {
+            foreach ($snippet in @("CareerSeeker Alpha Audit Snapshot", "Package-local verification commands", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Check-CareerSeeker-LiveReadiness.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Install-CareerSeeker-DashboardTask.cmd", "Status-CareerSeeker-DashboardTask.cmd", "Uninstall-CareerSeeker-DashboardTask.cmd", "L1 creates Gmail drafts only", "Secret values are not included", "docs/Alpha-Tester-Walkthrough.md")) {
                 if (-not $auditSnapshot.Contains($snippet)) {
                     throw "Alpha release audit snapshot missing '$snippet'."
                 }
@@ -360,6 +361,9 @@ if ($IncludePackage) {
             if ($manifest.includes.launchers -notcontains "Install-CareerSeeker-DashboardTask.cmd") {
                 throw "Alpha release manifest missing double-click dashboard task install launcher."
             }
+            if ($manifest.includes.launchers -notcontains "Status-CareerSeeker-DashboardTask.cmd") {
+                throw "Alpha release manifest missing double-click dashboard task status launcher."
+            }
             if ($manifest.includes.launchers -notcontains "Uninstall-CareerSeeker-DashboardTask.cmd") {
                 throw "Alpha release manifest missing double-click dashboard task uninstall launcher."
             }
@@ -402,6 +406,13 @@ if ($IncludePackage) {
             -DbPath ".appdata/package-task-smoke.db"
         if ($LASTEXITCODE -ne 0) {
             throw "Packaged dashboard task install dry run failed."
+        }
+
+        & (Join-Path $extractRoot "scripts/Manage-AlphaDashboardTask.ps1") `
+            -Action Status `
+            -TaskName "CareerSeeker Alpha Dashboard Package Smoke"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Packaged dashboard task status smoke failed."
         }
 
         & (Join-Path $extractRoot "scripts/Manage-AlphaDashboardTask.ps1") `

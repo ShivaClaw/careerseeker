@@ -157,6 +157,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   extracted release ZIP.
 - `Install-CareerSeeker-DashboardTask.cmd` wraps the scheduled-task helper for double-click per-user dashboard
   startup at Windows sign-in.
+- `Status-CareerSeeker-DashboardTask.cmd` reports whether that per-user dashboard startup task is installed.
 - `Uninstall-CareerSeeker-DashboardTask.cmd` removes that per-user dashboard startup task.
 - `Setup-CareerSeeker-Alpha.cmd` wraps the workspace initializer for double-click tester setup from the
   extracted release ZIP, then opens the generated profile template.

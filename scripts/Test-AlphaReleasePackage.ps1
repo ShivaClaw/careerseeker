@@ -84,6 +84,7 @@ try {
         "Verify-CareerSeeker-Alpha.cmd",
         "Start-CareerSeeker-Alpha.cmd",
         "Install-CareerSeeker-DashboardTask.cmd",
+        "Status-CareerSeeker-DashboardTask.cmd",
         "Uninstall-CareerSeeker-DashboardTask.cmd",
         "e_sqlite3.dll",
         "README-alpha.txt",
@@ -197,6 +198,9 @@ try {
     if ($manifest.includes.launchers -notcontains "Install-CareerSeeker-DashboardTask.cmd") {
         throw "Release manifest does not list the double-click dashboard task install launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Status-CareerSeeker-DashboardTask.cmd") {
+        throw "Release manifest does not list the double-click dashboard task status launcher."
+    }
     if ($manifest.includes.launchers -notcontains "Uninstall-CareerSeeker-DashboardTask.cmd") {
         throw "Release manifest does not list the double-click dashboard task uninstall launcher."
     }
@@ -210,6 +214,7 @@ try {
         "Off-ramp command equivalents",
         "Verify-CareerSeeker-Alpha.cmd",
         "Install-CareerSeeker-DashboardTask.cmd",
+        "Status-CareerSeeker-DashboardTask.cmd",
         "Uninstall-CareerSeeker-DashboardTask.cmd",
         "Manage-AlphaDashboardTask.ps1",
         "Check-CareerSeeker-LiveReadiness.cmd",
@@ -238,6 +243,7 @@ try {
         "Export-CareerSeeker-Evidence.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
         "Install-CareerSeeker-DashboardTask.cmd",
+        "Status-CareerSeeker-DashboardTask.cmd",
         "Uninstall-CareerSeeker-DashboardTask.cmd",
         "L1 creates Gmail drafts only",
         "Secret values are not included",
