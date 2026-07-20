@@ -109,7 +109,7 @@ First-run flow:
   Double-click Run-CareerSeeker-Demo.cmd to create local demo evidence without Gmail.
   Double-click Run-CareerSeeker-Scout.cmd to discover jobs from public ATS boards without Gmail.
   Double-click Research-CareerSeeker-Company.cmd to run live Brave/BYOK company research without Gmail.
-  Double-click Draft-CareerSeeker-Job.cmd after choosing a job id in the dashboard.
+  Double-click Draft-CareerSeeker-Job.cmd after choosing a job id in the dashboard; it defaults to a no-Gmail dry-run preview and requires typing LIVE before creating a Gmail draft.
   Double-click Run-CareerSeeker-Live.cmd for a no-Gmail dry-run preview, or type LIVE there to create one Gmail draft for review.
   Double-click Export-CareerSeeker-Audit.cmd to export hash-only audit JSON for review.
   Double-click Export-CareerSeeker-Evidence.cmd to package local evidence for review.
@@ -158,7 +158,7 @@ Off-ramp command equivalents:
 
 The L1 alpha creates Gmail drafts only. It has no send path.
 
-The Run-CareerSeeker-Live.cmd double-click helper defaults to a no-Gmail dry-run preview and requires typing LIVE before creating a Gmail draft.
+The Draft-CareerSeeker-Job.cmd and Run-CareerSeeker-Live.cmd double-click helpers default to no-Gmail dry-run previews and require typing LIVE before creating a Gmail draft.
 
 The Gmail and provider off-ramp double-click helpers require typed confirmation before deleting local vaults.
 
