@@ -60,6 +60,21 @@ function Invoke-Checked {
     }
 }
 
+function Invoke-CheckedOutput {
+    param(
+        [string] $Command,
+        [string[]] $Arguments
+    )
+
+    $output = & $Command @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+    $output | ForEach-Object { Write-Host $_ }
+    if ($exitCode -ne 0) {
+        throw "Command failed: $Command $($Arguments -join ' ')"
+    }
+    return ($output -join "`n")
+}
+
 $Root = [System.IO.Path]::GetFullPath($Root)
 if (-not (Test-Path -LiteralPath $Root -PathType Container)) {
     throw "Release package root not found: $Root"
@@ -383,11 +398,16 @@ try {
     }
 
     if ($RunDashboardSmoke) {
-        Invoke-Checked (Resolve-RootPath "SeekerSvc.Engine.exe") @(
+        $dashboardOutput = Invoke-CheckedOutput (Resolve-RootPath "SeekerSvc.Engine.exe") @(
             "dashboard",
             "--once",
             "--db", $DashboardSmokeDbPath
         )
+        foreach ($snippet in @("audit export control: available", "alpha package export control: available")) {
+            if ($dashboardOutput -notlike "*$snippet*") {
+                throw "Dashboard smoke did not report '$snippet'."
+            }
+        }
     }
 
     Write-Host "CareerSeeker alpha release package self-check"
