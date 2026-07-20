@@ -50,10 +50,12 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   draft access without creating a draft.
 - `Run-CareerSeeker-Demo.cmd` gives trusted testers a double-click safe demo cycle that writes local SQLite
   and artifact evidence without touching Gmail.
+- `Verify-CareerSeeker-Alpha.cmd` gives trusted testers a double-click package self-check for manifest,
+  checksum, secret-path, and dashboard smoke validation.
 - `Start-CareerSeeker-Alpha.cmd` gives trusted testers a double-click launcher in the release ZIP that starts
   the packaged dashboard path.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
-  dependencies, double-click setup/profile/provider/Gmail/demo/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, audit snapshot, release manifest,
+  dependencies, double-click setup/profile/provider/Gmail/demo/verify/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, audit snapshot, release manifest,
   SHA-256 checksums, and selected docs while excluding local databases, vaults, provider keys, and generated
   artifacts.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
@@ -143,6 +145,7 @@ Verified:
 - `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1 -Once`
 - `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1 -Published -PublishIfMissing -Once`
 - `powershell -ExecutionPolicy Bypass -File scripts/Run-AlphaDemoCycle.ps1`
+- `powershell -ExecutionPolicy Bypass -File scripts/Test-AlphaReleasePackage.ps1 -RunDashboardSmoke`
 - `powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -Action Install -DryRun`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- doctor --require-gmail --require-byok --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --artifacts .appdata/artifacts --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- scout-boards --board greenhouse:remotecom --board lever:mistral --db .appdata/scout-boards-smoke.db --jd-dir .appdata/job-descriptions`

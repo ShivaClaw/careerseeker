@@ -187,6 +187,7 @@ if ($IncludePackage) {
                 "Import-CareerSeeker-Profile.cmd",
                 "Setup-CareerSeeker-Alpha.cmd",
                 "Run-CareerSeeker-Demo.cmd",
+                "Verify-CareerSeeker-Alpha.cmd",
                 "Start-CareerSeeker-Alpha.cmd",
                 "e_sqlite3.dll",
                 "README-alpha.txt",
@@ -217,7 +218,7 @@ if ($IncludePackage) {
             finally {
                 $reader.Dispose()
             }
-            foreach ($snippet in @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Start-CareerSeeker-Alpha.cmd", "Import-AlphaProfile.ps1", "Connect-AlphaProviders.ps1", "Run-AlphaDemoCycle.ps1", "connect-gmail", "Test-AlphaReleasePackage.ps1", "Start-AlphaDashboard.ps1", "NoGmailControl")) {
+            foreach ($snippet in @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd", "Import-AlphaProfile.ps1", "Connect-AlphaProviders.ps1", "Run-AlphaDemoCycle.ps1", "connect-gmail", "Test-AlphaReleasePackage.ps1", "Start-AlphaDashboard.ps1", "NoGmailControl")) {
                 if (-not $readme.Contains($snippet)) {
                     throw "Alpha release quickstart missing '$snippet'."
                 }
@@ -234,7 +235,7 @@ if ($IncludePackage) {
             finally {
                 $auditSnapshotReader.Dispose()
             }
-            foreach ($snippet in @("CareerSeeker Alpha Audit Snapshot", "Package-local verification commands", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Run-CareerSeeker-Demo.cmd", "L1 creates Gmail drafts only", "Secret values are not included")) {
+            foreach ($snippet in @("CareerSeeker Alpha Audit Snapshot", "Package-local verification commands", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Run-CareerSeeker-Demo.cmd", "Verify-CareerSeeker-Alpha.cmd", "L1 creates Gmail drafts only", "Secret values are not included")) {
                 if (-not $auditSnapshot.Contains($snippet)) {
                     throw "Alpha release audit snapshot missing '$snippet'."
                 }
@@ -298,6 +299,9 @@ if ($IncludePackage) {
             }
             if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Demo.cmd") {
                 throw "Alpha release manifest missing double-click demo cycle launcher."
+            }
+            if ($manifest.includes.launchers -notcontains "Verify-CareerSeeker-Alpha.cmd") {
+                throw "Alpha release manifest missing double-click release verification launcher."
             }
             if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {
                 throw "Alpha release manifest missing checksum reference."

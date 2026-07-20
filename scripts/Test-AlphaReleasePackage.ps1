@@ -74,6 +74,7 @@ try {
         "Import-CareerSeeker-Profile.cmd",
         "Setup-CareerSeeker-Alpha.cmd",
         "Run-CareerSeeker-Demo.cmd",
+        "Verify-CareerSeeker-Alpha.cmd",
         "Start-CareerSeeker-Alpha.cmd",
         "e_sqlite3.dll",
         "README-alpha.txt",
@@ -136,6 +137,9 @@ try {
     if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Demo.cmd") {
         throw "Release manifest does not list the double-click demo cycle launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Verify-CareerSeeker-Alpha.cmd") {
+        throw "Release manifest does not list the double-click release verification launcher."
+    }
     if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {
         throw "Release manifest does not reference SHA256SUMS.txt."
     }
@@ -147,6 +151,7 @@ try {
         "Import-CareerSeeker-Profile.cmd",
         "Connect-CareerSeeker-Providers.cmd",
         "Run-CareerSeeker-Demo.cmd",
+        "Verify-CareerSeeker-Alpha.cmd",
         "L1 creates Gmail drafts only",
         "Secret values are not included"
     )) {

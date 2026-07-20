@@ -104,6 +104,7 @@ Quick checks:
   Double-click Connect-CareerSeeker-Providers.cmd to import AI provider keys without printing them.
   Double-click Connect-CareerSeeker-Gmail.cmd to connect Gmail without creating a draft.
   Double-click Run-CareerSeeker-Demo.cmd to create local demo evidence without Gmail.
+  Double-click Verify-CareerSeeker-Alpha.cmd to verify the extracted release package.
   Double-click Start-CareerSeeker-Alpha.cmd to open the local dashboard.
 
   powershell -ExecutionPolicy Bypass -File .\scripts\Initialize-AlphaWorkspace.ps1
@@ -112,8 +113,8 @@ Quick checks:
   powershell -ExecutionPolicy Bypass -File .\scripts\Connect-AlphaProviders.ps1 -Published
   .\$exeName connect-gmail --client secrets\google-oauth-client.json --vault .appdata\oauth\gmail-token.dpapi
   powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaDemoCycle.ps1 -Published
-  .\$exeName doctor --db .appdata\careerseeker-alpha.db --artifacts .appdata\artifacts
   powershell -ExecutionPolicy Bypass -File .\scripts\Test-AlphaReleasePackage.ps1 -RunDashboardSmoke
+  .\$exeName doctor --db .appdata\careerseeker-alpha.db --artifacts .appdata\artifacts
   powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published -Once -NoGmailControl
   powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published
   .\$exeName export-alpha-package --db .appdata\careerseeker-alpha.db --out output\careerseeker-alpha-package.zip
@@ -130,6 +131,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     Copy-Item -LiteralPath (Join-Path $repoRoot "Connect-CareerSeeker-Providers.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Connect-CareerSeeker-Gmail.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Run-CareerSeeker-Demo.cmd") -Destination $stageDir
+    Copy-Item -LiteralPath (Join-Path $repoRoot "Verify-CareerSeeker-Alpha.cmd") -Destination $stageDir
 
     $scriptsDir = Join-Path $stageDir "scripts"
     New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
@@ -189,6 +191,7 @@ Double-click helper entrypoints:
   Connect-CareerSeeker-Providers.cmd
   Connect-CareerSeeker-Gmail.cmd
   Run-CareerSeeker-Demo.cmd
+  Verify-CareerSeeker-Alpha.cmd
   Start-CareerSeeker-Alpha.cmd
 
 Safety boundaries:
@@ -226,7 +229,7 @@ Cross-checks:
             scripts = @(Get-ChildItem -LiteralPath $scriptsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "scripts/$($_.Name)" })
-            launchers = @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Start-CareerSeeker-Alpha.cmd")
+            launchers = @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd")
             docs = if ($NoDocs) { @() } else { @(Get-ChildItem -LiteralPath $docsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "docs/$($_.Name)" }) }
