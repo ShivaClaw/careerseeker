@@ -58,6 +58,20 @@ function Test-SecretName {
     return $false
 }
 
+function Assert-Contains {
+    param(
+        [string] $Content,
+        [string[]] $Snippets,
+        [string] $Label
+    )
+
+    foreach ($snippet in $Snippets) {
+        if (-not $Content.Contains($snippet)) {
+            throw "$Label missing '$snippet'."
+        }
+    }
+}
+
 $offlineProjects = @(
     "tests/Slice/Slice.csproj",
     "tests/EngineHarness/EngineHarness.csproj",
@@ -103,6 +117,40 @@ Invoke-Step "Engine SQLite demo smoke" {
         "--db", "tmp/verify-alpha-demo/demo.db",
         "--artifacts", "tmp/verify-alpha-demo/artifacts"
     )
+}
+
+Invoke-Step "Docs-site trust copy smoke" {
+    $trustSnippets = @(
+        "Google user data to train generalized AI or ML models",
+        "Export-CareerSeeker-Audit.cmd",
+        "Export-CareerSeeker-Evidence.cmd",
+        "Import-CareerSeeker-Package.cmd",
+        "export-audit",
+        "export-alpha-package",
+        "import-alpha-package"
+    )
+
+    foreach ($relative in @(
+        "docs-site/privacy.md",
+        "docs-site/privacy.html",
+        "docs-site/support.md",
+        "docs-site/support.html",
+        "docs-site/autonomy-contract.md",
+        "docs-site/autonomy-contract.html"
+    )) {
+        $content = Get-Content -LiteralPath $relative -Raw
+        $snippets = $trustSnippets
+        if ($relative -like "*support*") {
+            $snippets = $trustSnippets | Where-Object { $_ -ne "Google user data to train generalized AI or ML models" }
+        }
+        if ($relative -like "*autonomy*") {
+            $snippets = $trustSnippets | Where-Object { $_ -ne "Google user data to train generalized AI or ML models" }
+        }
+        Assert-Contains $content $snippets $relative
+    }
+
+    $index = Get-Content -LiteralPath "docs-site/index.html" -Raw
+    Assert-Contains $index @("privacy.html", "support.html", "autonomy-contract.html") "docs-site/index.html"
 }
 
 $totalPassed = 0

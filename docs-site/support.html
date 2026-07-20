@@ -55,7 +55,13 @@
 <p>Future installer builds will use a documented product data directory and uninstall flow.</p>
 
 <h3>Verify the Audit Log</h3>
-<p>The Store implements hash-chain verification and the offline harnesses exercise it. The alpha executable also supports <code>export-audit</code> for local JSON audit packages, <code>export-alpha-package</code> for a local ZIP evidence bundle, and <code>import-alpha-package</code> for safe local restore into an import workspace.</p>
+<p>The Store implements hash-chain verification and the offline harnesses exercise it. In the release package:</p>
+<ul>
+<li>Double-click <code>Export-CareerSeeker-Audit.cmd</code> for hash-only audit JSON.</li>
+<li>Double-click <code>Export-CareerSeeker-Evidence.cmd</code> for a local ZIP evidence bundle.</li>
+<li>Double-click <code>Import-CareerSeeker-Package.cmd</code> for safe local restore into an import workspace.</li>
+</ul>
+<p>From source or a terminal, the same paths are available through <code>export-audit</code>, <code>export-alpha-package</code>, and <code>import-alpha-package</code>.</p>
 
 <h3>Report a Fabrication Gate Issue</h3>
 <p>If you believe the Fabrication Gate incorrectly blocked a legitimate claim or allowed an unsupported one:</p>
