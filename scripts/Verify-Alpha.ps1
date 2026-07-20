@@ -182,6 +182,18 @@ Invoke-Step "Trust wording smoke" {
     }
 }
 
+Invoke-Step "Local API security spec smoke" {
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    Assert-Contains $spec @(
+        'Local API security is load-bearing',
+        'loopback only',
+        'per-install control token',
+        'validate `Host`, `Origin`, and `Referer`',
+        'Content-Type: application/json',
+        'no unauthenticated localhost approval or control POST'
+    ) "docs/CareerSeeker-Spec.md"
+}
+
 $totalPassed = 0
 $totalFailed = 0
 foreach ($project in $offlineProjects) {

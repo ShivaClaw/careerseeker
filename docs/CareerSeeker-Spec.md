@@ -413,6 +413,14 @@ POST /v1/profile/claims    add/edit verified claims (re-runs Gate on in-flight i
 ```
 The bundled localhost dashboard and the tray app are both pure clients of this API — one implementation of truth.
 
+Local API security is load-bearing, not polish. The engine binds to loopback only. Every mutating route must
+require a per-install control token stored outside the SQLite database, validate `Host`, `Origin`, and `Referer`
+as loopback/local-dashboard origins, reject unexpected content types, and keep request bodies small and typed.
+For the future JSON API, mutating requests use `Content-Type: application/json` plus an authorization header
+from the local vault. The current technical alpha implements this doctrine for dashboard controls with
+per-process hidden form tokens, loopback host/origin/referer checks, bounded form bodies, and token-protected
+document downloads; no unauthenticated localhost approval or control POST is acceptable.
+
 ---
 
 ## Part 8 — Security, Privacy & Trust
