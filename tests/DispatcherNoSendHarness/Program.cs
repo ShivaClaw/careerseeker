@@ -109,6 +109,21 @@ Check("Injected label manager supplies custom label ids",
     labeledLabels.Calls == 1 && labeledGmail.LastLabelIds.SequenceEqual(new[] { "Label_CareerSeeker/Outbox" }),
     $"labelCalls={labeledLabels.Calls} ids={string.Join(",", labeledGmail.LastLabelIds)}");
 
+var manualPackage = PackageBuilder.Build(
+    new PipelineJob(7, "Platform Engineer", "Acme"),
+    new TailoredApplication(
+        Array.Empty<TailoredClaim>(),
+        "resume",
+        "cover",
+        new Dictionary<string, string> { ["Why Acme?"] = "I can support distributed systems work." }),
+    new PostingDispatchInfo(DispatchChannel.ManualFinish, ApplyUrl: "https://jobs.example/apply"),
+    new DispatcherConfig("Jordan Lee", "jordan@example.com"),
+    new Attachment("resume.pdf", "application/pdf", new byte[] { 0x25, 0x50, 0x44, 0x46 }));
+Check("Manual-finish draft body uses clean ASCII bullets",
+    manualPackage.BodyText.Contains("- Open the apply link below.", StringComparison.Ordinal) &&
+    manualPackage.BodyText.IndexOf((char)0x2022) < 0,
+    manualPackage.BodyText);
+
 Console.WriteLine("\n[ PDF renderer ]");
 var pdfRenderer = new AtsPdfDocumentRenderer(new AtsPdfRendererOptions("Jordan Lee", RenderCoverPdf: true));
 var pdfJob = new PipelineJob(42, "Software Engineer", "Acme");

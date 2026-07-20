@@ -21,8 +21,8 @@ Trust/OAuth docs:
   joins Tailor<->Researcher so neither core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
   `EngineHarness` (68), `ResearcherHarness` (29), `HookHarness` (12), `StoreParityHarness` (17),
-  `GatewayGateHarness` (34), `DispatcherNoSendHarness` (22), `LifecycleHarness` (37), and
-  `RendererHarness` (6). Latest offline total: 253 assertions. Run each with
+  `GatewayGateHarness` (34), `DispatcherNoSendHarness` (23), `LifecycleHarness` (37), and
+  `RendererHarness` (6). Latest offline total: 254 assertions. Run each with
   `dotnet run -c Release`.
 - `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. It builds, runs the initializer dry run,
   source-mode SQLite demo smoke, and offline harness suite. Add `-IncludeLive` for local BYOK/Gmail checks,

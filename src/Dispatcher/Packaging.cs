@@ -84,7 +84,7 @@ public static class PackageBuilder
             sb.AppendLine();
         }
         foreach (var step in ManualSteps(info.Channel, info.ApplyUrl))
-            sb.AppendLine("• " + step);
+            sb.AppendLine("- " + step);
 
         if (app.Answers.Count > 0)
         {
