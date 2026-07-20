@@ -37,8 +37,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - `scripts/Start-AlphaDashboard.ps1` gives trusted testers a Windows-friendly launcher for the same dashboard
   mode, including one-shot smoke checks and published-executable startup.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
-  dependencies, workspace initializer, dashboard helper scripts, quickstart, SHA-256 checksums, and selected docs
-  while excluding local databases, vaults, provider keys, and generated artifacts.
+  dependencies, workspace initializer, dashboard helper scripts, quickstart, release manifest, SHA-256 checksums,
+  and selected docs while excluding local databases, vaults, provider keys, and generated artifacts.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
 - The alpha executable can export a local alpha ZIP package with a manifest, audit export, SQLite snapshot,
   draft artifacts, and saved job-description artifacts while filtering secret-looking paths.

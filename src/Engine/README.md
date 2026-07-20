@@ -104,8 +104,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
-  dependencies, quickstart, workspace initializer, dashboard helper scripts, checksums, and selected docs without
-  bundling local databases, vaults, provider keys, or generated artifacts.
+  dependencies, quickstart, release manifest, workspace initializer, dashboard helper scripts, checksums, and
+  selected docs without bundling local databases, vaults, provider keys, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
   and a blank env-secrets placeholder, and can run the startup doctor after setup.
 - `scripts/Start-AlphaDashboard.ps1` wraps the standalone dashboard mode for trusted testers; it can smoke-check

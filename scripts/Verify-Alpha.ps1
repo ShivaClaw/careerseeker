@@ -184,6 +184,7 @@ if ($IncludePackage) {
                 "SeekerSvc.Engine.exe",
                 "e_sqlite3.dll",
                 "README-alpha.txt",
+                "RELEASE-MANIFEST.json",
                 "SHA256SUMS.txt",
                 "scripts/Initialize-AlphaWorkspace.ps1",
                 "scripts/Start-AlphaDashboard.ps1",
@@ -209,6 +210,36 @@ if ($IncludePackage) {
                 if (-not $readme.Contains($snippet)) {
                     throw "Alpha release quickstart missing '$snippet'."
                 }
+            }
+
+            $manifestEntry = $zip.GetEntry("RELEASE-MANIFEST.json")
+            if ($null -eq $manifestEntry) {
+                throw "Alpha release package missing RELEASE-MANIFEST.json."
+            }
+            $manifestReader = [System.IO.StreamReader]::new($manifestEntry.Open())
+            try {
+                $manifest = $manifestReader.ReadToEnd() | ConvertFrom-Json
+            }
+            finally {
+                $manifestReader.Dispose()
+            }
+            if ($manifest.format -ne "careerseeker-alpha-release-v1") {
+                throw "Alpha release manifest has unexpected format '$($manifest.format)'."
+            }
+            if ($manifest.runtime -ne "win-x64") {
+                throw "Alpha release manifest has unexpected runtime '$($manifest.runtime)'."
+            }
+            if ([string]::IsNullOrWhiteSpace($manifest.source.shortCommit)) {
+                throw "Alpha release manifest missing source short commit."
+            }
+            if ($manifest.includes.nativeRuntimeDependencies -notcontains "e_sqlite3.dll") {
+                throw "Alpha release manifest missing native SQLite dependency."
+            }
+            if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
+                throw "Alpha release manifest missing dashboard launcher script."
+            }
+            if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {
+                throw "Alpha release manifest missing checksum reference."
             }
         }
         finally {

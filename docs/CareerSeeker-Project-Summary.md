@@ -41,8 +41,8 @@ Completed:
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
   and a blank env-secrets placeholder, and can run the startup doctor after setup.
 - `scripts/Package-AlphaRelease.ps1` builds a trusted-tester ZIP with the published executable, native runtime
-  dependencies, workspace initializer, dashboard helper scripts, quickstart, SHA-256 checksums, and selected docs
-  while excluding local databases, vaults, provider keys, and generated artifacts.
+  dependencies, workspace initializer, dashboard helper scripts, quickstart, release manifest, SHA-256 checksums,
+  and selected docs while excluding local databases, vaults, provider keys, and generated artifacts.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register a per-user Windows logon task for keeping the alpha
   dashboard available until the service/tray/installer work lands.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.
@@ -709,6 +709,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past twenty-five important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, dashboard-accessible alpha package export, repeatable local alpha workspace initialization, local source-of-truth profile import, and packaged dashboard helper scripts. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
+CareerSeeker is now past twenty-six important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, dashboard-accessible alpha package export, repeatable local alpha workspace initialization, local source-of-truth profile import, packaged dashboard helper scripts, and release-manifest/checksum verification. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

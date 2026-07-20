@@ -25,8 +25,8 @@ Trust/OAuth docs:
   `-IncludePublish` for the win-x64 single-file publish smoke, `-IncludePackage` for the trusted-tester release
   ZIP, and `-IncludeResearch` for the live Brave/BYOK company-research smoke.
 - `scripts/Package-AlphaRelease.ps1`: builds a self-contained trusted-tester ZIP with the alpha executable,
-  native runtime dependencies, workspace initializer, dashboard helper scripts, quickstart, checksums, and
-  selected docs; it does not package local databases, vaults, or generated artifacts.
+  native runtime dependencies, workspace initializer, dashboard helper scripts, quickstart, release manifest,
+  checksums, and selected docs; it does not package local databases, vaults, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1`: creates ignored local alpha directories, a starter profile
   template, and a blank env-secrets placeholder, with an optional startup doctor run.
 - `scripts/Start-AlphaDashboard.ps1`: Windows-friendly alpha dashboard launcher. Use `-Once` for a

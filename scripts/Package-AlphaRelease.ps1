@@ -42,6 +42,16 @@ function Assert-UnderRoot {
     return $fullPath
 }
 
+function Get-GitValue {
+    param([string[]] $Arguments)
+
+    $output = & git @Arguments 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        return $null
+    }
+    return ($output -join "`n").Trim()
+}
+
 Push-Location $repoRoot
 try {
     if (-not $NoPublish) {
@@ -128,6 +138,44 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
         }
     }
 
+    $gitStatus = Get-GitValue @("status", "--short")
+    $manifest = [ordered]@{
+        format = "careerseeker-alpha-release-v1"
+        generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
+        runtime = $Runtime
+        packageName = $PackageName
+        source = [ordered]@{
+            branch = Get-GitValue @("rev-parse", "--abbrev-ref", "HEAD")
+            commit = Get-GitValue @("rev-parse", "HEAD")
+            shortCommit = Get-GitValue @("rev-parse", "--short", "HEAD")
+            dirty = -not [string]::IsNullOrWhiteSpace($gitStatus)
+        }
+        includes = [ordered]@{
+            executable = $exeName
+            nativeRuntimeDependencies = @(Get-ChildItem -LiteralPath $stageDir -File |
+                Where-Object { $_.Name -ne $exeName -and $_.Extension -eq ".dll" } |
+                Sort-Object Name |
+                ForEach-Object { $_.Name })
+            scripts = @(Get-ChildItem -LiteralPath $scriptsDir -File |
+                Sort-Object Name |
+                ForEach-Object { "scripts/$($_.Name)" })
+            docs = if ($NoDocs) { @() } else { @(Get-ChildItem -LiteralPath $docsDir -File |
+                Sort-Object Name |
+                ForEach-Object { "docs/$($_.Name)" }) }
+            checksums = "SHA256SUMS.txt"
+        }
+        excludes = @(
+            "local SQLite databases",
+            "OAuth tokens and DPAPI vaults",
+            "provider API keys",
+            "resumes and generated draft artifacts",
+            "debug symbols"
+        )
+    }
+    $manifest |
+        ConvertTo-Json -Depth 8 |
+        Set-Content -LiteralPath (Join-Path $stageDir "RELEASE-MANIFEST.json") -Encoding UTF8
+
     $stageFull = [System.IO.Path]::GetFullPath($stageDir).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
     $checksumLines = Get-ChildItem -LiteralPath $stageDir -Recurse -File |
         Sort-Object FullName |
@@ -148,7 +196,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     Write-Host "  executable: $exePath"
     Write-Host "  package: $packagePath"
     Write-Host "  bytes: $((Get-Item -LiteralPath $packagePath).Length)"
-    $contents = "executable, native runtime dependencies, README-alpha.txt, SHA256SUMS.txt"
+    $contents = "executable, native runtime dependencies, README-alpha.txt, RELEASE-MANIFEST.json, SHA256SUMS.txt"
     if (-not $NoDocs) {
         $contents += ", docs"
     }
