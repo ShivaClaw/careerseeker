@@ -42,6 +42,25 @@ function Assert-UnderRoot {
     return $fullPath
 }
 
+function Assert-SafePackageName {
+    param([string] $Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        throw "Package name is required."
+    }
+    if ([System.IO.Path]::IsPathRooted($Name) -or
+        $Name.IndexOfAny([char[]]@('\', '/', ':')) -ge 0 -or
+        [System.IO.Path]::GetFileName($Name) -ne $Name) {
+        throw "Package name must be a plain .zip file name, not a path: $Name"
+    }
+    if ($Name.Equals(".zip", [System.StringComparison]::OrdinalIgnoreCase) -or
+        $Name.Equals(".", [System.StringComparison]::Ordinal) -or
+        $Name.Equals("..", [System.StringComparison]::Ordinal)) {
+        throw "Package name must include a non-empty base name."
+    }
+    return $Name
+}
+
 function Get-GitValue {
     param([string[]] $Arguments)
 
@@ -54,6 +73,15 @@ function Get-GitValue {
 
 Push-Location $repoRoot
 try {
+    if ([string]::IsNullOrWhiteSpace($PackageName)) {
+        $PackageName = "CareerSeeker-alpha-$Runtime.zip"
+    }
+    if (-not $PackageName.EndsWith(".zip", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $PackageName += ".zip"
+    }
+    $PackageName = Assert-SafePackageName $PackageName
+    $outDir = Assert-UnderRoot $OutputDirectory
+
     if (-not $NoPublish) {
         Invoke-Checked "dotnet" @(
             "publish",
@@ -70,15 +98,7 @@ try {
         throw "Published executable not found: $exePath"
     }
 
-    $outDir = Assert-UnderRoot $OutputDirectory
     New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-
-    if ([string]::IsNullOrWhiteSpace($PackageName)) {
-        $PackageName = "CareerSeeker-alpha-$Runtime.zip"
-    }
-    if (-not $PackageName.EndsWith(".zip", [System.StringComparison]::OrdinalIgnoreCase)) {
-        $PackageName += ".zip"
-    }
 
     $stageDir = Join-Path $outDir "_stage"
     if (Test-Path -LiteralPath $stageDir) {

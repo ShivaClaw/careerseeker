@@ -162,6 +162,23 @@ Invoke-Step "Source-control hygiene smoke" {
     }
 }
 
+Invoke-Step "Alpha release packaging path safety smoke" {
+    $rejected = $false
+    try {
+        & (Join-Path $PSScriptRoot "Package-AlphaRelease.ps1") `
+            -NoPublish `
+            -OutputDirectory "tmp/verify-alpha-package-safety" `
+            -PackageName "..\escape"
+    }
+    catch {
+        $rejected = $_.Exception.Message.Contains("plain .zip file name")
+    }
+
+    if (-not $rejected) {
+        throw "Alpha release packaging accepted an unsafe package name."
+    }
+}
+
 Invoke-Step "Engine SQLite demo smoke" {
     Invoke-Dotnet @(
         "run",
