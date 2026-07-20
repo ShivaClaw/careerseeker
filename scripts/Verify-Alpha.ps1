@@ -188,7 +188,8 @@ if ($IncludePackage) {
                 "SHA256SUMS.txt",
                 "scripts/Initialize-AlphaWorkspace.ps1",
                 "scripts/Start-AlphaDashboard.ps1",
-                "scripts/Manage-AlphaDashboardTask.ps1"
+                "scripts/Manage-AlphaDashboardTask.ps1",
+                "scripts/Test-AlphaReleasePackage.ps1"
             )) {
                 if ($entries -notcontains $required) {
                     throw "Alpha release package missing '$required'."
@@ -206,7 +207,7 @@ if ($IncludePackage) {
             finally {
                 $reader.Dispose()
             }
-            foreach ($snippet in @("import-profile", "Start-AlphaDashboard.ps1", "NoGmailControl")) {
+            foreach ($snippet in @("import-profile", "Test-AlphaReleasePackage.ps1", "Start-AlphaDashboard.ps1", "NoGmailControl")) {
                 if (-not $readme.Contains($snippet)) {
                     throw "Alpha release quickstart missing '$snippet'."
                 }
@@ -238,6 +239,9 @@ if ($IncludePackage) {
             if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
                 throw "Alpha release manifest missing dashboard launcher script."
             }
+            if ($manifest.includes.scripts -notcontains "scripts/Test-AlphaReleasePackage.ps1") {
+                throw "Alpha release manifest missing package self-check script."
+            }
             if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {
                 throw "Alpha release manifest missing checksum reference."
             }
@@ -252,6 +256,13 @@ if ($IncludePackage) {
         }
         New-Item -ItemType Directory -Force -Path $extractRoot | Out-Null
         Expand-Archive -LiteralPath $packagePath -DestinationPath $extractRoot -Force
+
+        & (Join-Path $extractRoot "scripts/Test-AlphaReleasePackage.ps1") `
+            -RunDashboardSmoke `
+            -DashboardSmokeDbPath ".appdata/package-self-check.db"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Packaged release self-check failed."
+        }
 
         & (Join-Path $extractRoot "scripts/Start-AlphaDashboard.ps1") `
             -Published `

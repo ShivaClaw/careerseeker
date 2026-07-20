@@ -103,6 +103,7 @@ Quick checks:
   notepad .appdata\profile.template.json
   .\$exeName import-profile --profile .appdata\profile.template.json --db .appdata\careerseeker-alpha.db
   .\$exeName doctor --db .appdata\careerseeker-alpha.db --artifacts .appdata\artifacts
+  powershell -ExecutionPolicy Bypass -File .\scripts\Test-AlphaReleasePackage.ps1 -RunDashboardSmoke
   powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published -Once -NoGmailControl
   powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published
   .\$exeName export-alpha-package --db .appdata\careerseeker-alpha.db --out output\careerseeker-alpha-package.zip
@@ -119,7 +120,8 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     foreach ($script in @(
         "scripts/Initialize-AlphaWorkspace.ps1",
         "scripts/Start-AlphaDashboard.ps1",
-        "scripts/Manage-AlphaDashboardTask.ps1"
+        "scripts/Manage-AlphaDashboardTask.ps1",
+        "scripts/Test-AlphaReleasePackage.ps1"
     )) {
         Copy-Item -LiteralPath (Join-Path $repoRoot $script) -Destination $scriptsDir
     }
