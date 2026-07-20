@@ -42,12 +42,14 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   mode, including one-shot smoke checks and published-executable startup.
 - `Setup-CareerSeeker-Alpha.cmd` gives trusted testers a double-click setup helper in the release ZIP that
   creates the local alpha workspace and opens the profile template for editing.
+- `Connect-CareerSeeker-Providers.cmd` gives trusted testers a double-click BYOK provider-key import and
+  startup doctor helper without printing secret values.
 - `Connect-CareerSeeker-Gmail.cmd` gives trusted testers a double-click Gmail OAuth helper that preflights
   draft access without creating a draft.
 - `Start-CareerSeeker-Alpha.cmd` gives trusted testers a double-click launcher in the release ZIP that starts
   the packaged dashboard path.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
-  dependencies, double-click setup/Gmail/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, audit snapshot, release manifest,
+  dependencies, double-click setup/provider/Gmail/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, audit snapshot, release manifest,
   SHA-256 checksums, and selected docs while excluding local databases, vaults, provider keys, and generated
   artifacts.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
@@ -126,6 +128,7 @@ Verified:
 - `powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1 -IncludeResearch`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- connect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project tests/GmailLiveHarness/GmailLiveHarness.csproj -- --email you@gmail.com --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
+- `powershell -ExecutionPolicy Bypass -File scripts/Connect-AlphaProviders.ps1`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project tests/ByokLiveHarness/ByokLiveHarness.csproj -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`

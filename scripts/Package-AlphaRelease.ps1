@@ -100,12 +100,14 @@ This package contains the local-first L1 Drafts alpha executable.
 Quick checks:
 
   Double-click Setup-CareerSeeker-Alpha.cmd to create the local workspace.
+  Double-click Connect-CareerSeeker-Providers.cmd to import AI provider keys without printing them.
   Double-click Connect-CareerSeeker-Gmail.cmd to connect Gmail without creating a draft.
   Double-click Start-CareerSeeker-Alpha.cmd to open the local dashboard.
 
   powershell -ExecutionPolicy Bypass -File .\scripts\Initialize-AlphaWorkspace.ps1
   notepad .appdata\profile.template.json
   .\$exeName import-profile --profile .appdata\profile.template.json --db .appdata\careerseeker-alpha.db
+  powershell -ExecutionPolicy Bypass -File .\scripts\Connect-AlphaProviders.ps1 -Published
   .\$exeName connect-gmail --client secrets\google-oauth-client.json --vault .appdata\oauth\gmail-token.dpapi
   .\$exeName doctor --db .appdata\careerseeker-alpha.db --artifacts .appdata\artifacts
   powershell -ExecutionPolicy Bypass -File .\scripts\Test-AlphaReleasePackage.ps1 -RunDashboardSmoke
@@ -121,11 +123,13 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     Set-Content -LiteralPath (Join-Path $stageDir "README-alpha.txt") -Value $quickstart -Encoding UTF8
     Copy-Item -LiteralPath (Join-Path $repoRoot "Start-CareerSeeker-Alpha.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Setup-CareerSeeker-Alpha.cmd") -Destination $stageDir
+    Copy-Item -LiteralPath (Join-Path $repoRoot "Connect-CareerSeeker-Providers.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Connect-CareerSeeker-Gmail.cmd") -Destination $stageDir
 
     $scriptsDir = Join-Path $stageDir "scripts"
     New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
     foreach ($script in @(
+        "scripts/Connect-AlphaProviders.ps1",
         "scripts/Initialize-AlphaWorkspace.ps1",
         "scripts/Start-AlphaDashboard.ps1",
         "scripts/Manage-AlphaDashboardTask.ps1",
@@ -174,6 +178,7 @@ Package-local verification commands:
 Double-click helper entrypoints:
 
   Setup-CareerSeeker-Alpha.cmd
+  Connect-CareerSeeker-Providers.cmd
   Connect-CareerSeeker-Gmail.cmd
   Start-CareerSeeker-Alpha.cmd
 
@@ -181,7 +186,7 @@ Safety boundaries:
 
   L1 creates Gmail drafts only. There is no Gmail send path in the alpha application.
   The release package excludes local SQLite databases, OAuth tokens, DPAPI vaults, provider API keys, resumes, and generated artifacts.
-  Secret values are not included in this package or printed by these verification scripts.
+  Secret values are not included in this package or printed by provider, Gmail, or verification scripts.
 
 Cross-checks:
 
@@ -212,7 +217,7 @@ Cross-checks:
             scripts = @(Get-ChildItem -LiteralPath $scriptsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "scripts/$($_.Name)" })
-            launchers = @("Setup-CareerSeeker-Alpha.cmd", "Connect-CareerSeeker-Gmail.cmd", "Start-CareerSeeker-Alpha.cmd")
+            launchers = @("Setup-CareerSeeker-Alpha.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Start-CareerSeeker-Alpha.cmd")
             docs = if ($NoDocs) { @() } else { @(Get-ChildItem -LiteralPath $docsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "docs/$($_.Name)" }) }

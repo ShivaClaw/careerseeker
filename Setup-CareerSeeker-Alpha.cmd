@@ -33,6 +33,8 @@ echo.
 echo Next:
 echo   1. Edit and save .appdata\profile.template.json.
 echo   2. Run SeekerSvc.Engine.exe import-profile --profile .appdata\profile.template.json --db .appdata\careerseeker-alpha.db
-echo   3. Double-click Start-CareerSeeker-Alpha.cmd to open the local dashboard.
+echo   3. Fill secrets\env.secrets locally, then double-click Connect-CareerSeeker-Providers.cmd.
+echo   4. Double-click Connect-CareerSeeker-Gmail.cmd.
+echo   5. Double-click Start-CareerSeeker-Alpha.cmd to open the local dashboard.
 echo.
 pause

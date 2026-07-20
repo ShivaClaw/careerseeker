@@ -47,6 +47,8 @@ The engine shell adds:
   `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1`
 - Double-click local workspace setup helper included in the release ZIP:
   `Setup-CareerSeeker-Alpha.cmd`
+- Double-click BYOK provider-key import and doctor helper included in the release ZIP:
+  `Connect-CareerSeeker-Providers.cmd`
 - Double-click Gmail connect helper included in the release ZIP:
   `Connect-CareerSeeker-Gmail.cmd`
 - Double-click dashboard launcher included in the release ZIP:
@@ -123,7 +125,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
-  dependencies, quickstart, audit snapshot, release manifest, double-click setup/Gmail/dashboard launchers,
+  dependencies, quickstart, audit snapshot, release manifest, double-click setup/provider/Gmail/dashboard launchers,
   workspace initializer, dashboard/helper self-check scripts, checksums, and selected docs without bundling local
   databases, vaults, provider keys, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
@@ -135,6 +137,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   extracted release ZIP.
 - `Setup-CareerSeeker-Alpha.cmd` wraps the workspace initializer for double-click tester setup from the
   extracted release ZIP, then opens the generated profile template.
+- `Connect-CareerSeeker-Providers.cmd` wraps provider-key import and `doctor --require-byok` for double-click
+  tester BYOK setup from the extracted release ZIP without printing secret values.
 - `Connect-CareerSeeker-Gmail.cmd` wraps `connect-gmail` for double-click tester OAuth setup from the
   extracted release ZIP; it preflights Gmail draft access without creating a draft.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register, remove, start, stop, and inspect a per-user Windows

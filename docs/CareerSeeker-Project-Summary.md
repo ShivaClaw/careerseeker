@@ -45,7 +45,7 @@ Completed:
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
   and a blank env-secrets placeholder, and can run the startup doctor after setup.
 - `scripts/Package-AlphaRelease.ps1` builds a trusted-tester ZIP with the published executable, native runtime
-  dependencies, double-click setup/Gmail/dashboard launchers, workspace initializer, dashboard/helper
+  dependencies, double-click setup/provider/Gmail/dashboard launchers, workspace initializer, dashboard/helper
   self-check scripts, quickstart, audit snapshot, release manifest, SHA-256 checksums, and selected docs while
   excluding local databases, vaults, provider keys, and generated artifacts.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register a per-user Windows logon task for keeping the alpha
@@ -463,7 +463,7 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
 - `research-company` command added for live Brave + BYOK dossier runs when `BRAVE_SEARCH_API_KEY` is available.
 - Gmail draft API preflight added before live draft creation.
 - `connect-gmail` command added for interactive Gmail OAuth setup and draft-access preflight without creating a draft.
-- Trusted-tester release ZIP now includes double-click setup, Gmail connect, and dashboard launchers, each
+- Trusted-tester release ZIP now includes double-click setup, provider connect, Gmail connect, and dashboard launchers, each
   covered by package manifest/self-check verification.
 - Local dashboard shell polished with responsive navigation, metric cards, and readable recent-job/application
   tables while preserving token-protected controls.
@@ -684,6 +684,7 @@ Live harnesses:
 ```powershell
 dotnet run --project tests/ScoutLiveHarness/ScoutLiveHarness.csproj -c Release --no-build
 dotnet run --project tests/GmailLiveHarness/GmailLiveHarness.csproj -c Release --no-build -- --email you@gmail.com --client client_secret.json
+powershell -ExecutionPolicy Bypass -File scripts/Connect-AlphaProviders.ps1
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi
 dotnet run --project tests/ByokLiveHarness/ByokLiveHarness.csproj -c Release --no-build -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi
 dotnet run --project src/Engine/SeekerSvc.Engine.csproj -c Release --no-build -- connect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi
@@ -720,6 +721,6 @@ Ignored local artifacts:
 
 ## Handoff Summary
 
-CareerSeeker is now past thirty important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, no-draft Gmail OAuth connection, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, responsive standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, dashboard-accessible alpha package export, repeatable local alpha workspace initialization, local source-of-truth profile import, double-click setup/Gmail/dashboard launchers, packaged dashboard helper scripts, release-manifest/checksum verification, and extracted-package self-checking. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
+CareerSeeker is now past thirty important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, no-draft Gmail OAuth connection, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, responsive standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, dashboard-accessible alpha package export, repeatable local alpha workspace initialization, local source-of-truth profile import, double-click setup/provider/Gmail/dashboard launchers, packaged dashboard/helper scripts, release-manifest/checksum/audit-snapshot verification, and extracted-package self-checking. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.

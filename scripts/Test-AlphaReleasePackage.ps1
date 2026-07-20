@@ -69,6 +69,7 @@ Push-Location $Root
 try {
     foreach ($required in @(
         "SeekerSvc.Engine.exe",
+        "Connect-CareerSeeker-Providers.cmd",
         "Connect-CareerSeeker-Gmail.cmd",
         "Setup-CareerSeeker-Alpha.cmd",
         "Start-CareerSeeker-Alpha.cmd",
@@ -77,6 +78,7 @@ try {
         "AUDIT-SNAPSHOT.txt",
         "RELEASE-MANIFEST.json",
         "SHA256SUMS.txt",
+        "scripts/Connect-AlphaProviders.ps1",
         "scripts/Initialize-AlphaWorkspace.ps1",
         "scripts/Start-AlphaDashboard.ps1",
         "scripts/Manage-AlphaDashboardTask.ps1",
@@ -100,6 +102,9 @@ try {
     if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
         throw "Release manifest does not list the dashboard launcher."
     }
+    if ($manifest.includes.scripts -notcontains "scripts/Connect-AlphaProviders.ps1") {
+        throw "Release manifest does not list the provider connect helper."
+    }
     if ($manifest.includes.scripts -notcontains "scripts/Test-AlphaReleasePackage.ps1") {
         throw "Release manifest does not list the package self-check script."
     }
@@ -108,6 +113,9 @@ try {
     }
     if ($manifest.includes.launchers -notcontains "Setup-CareerSeeker-Alpha.cmd") {
         throw "Release manifest does not list the double-click setup launcher."
+    }
+    if ($manifest.includes.launchers -notcontains "Connect-CareerSeeker-Providers.cmd") {
+        throw "Release manifest does not list the double-click provider connect launcher."
     }
     if ($manifest.includes.launchers -notcontains "Connect-CareerSeeker-Gmail.cmd") {
         throw "Release manifest does not list the double-click Gmail connect launcher."
@@ -120,6 +128,7 @@ try {
     foreach ($snippet in @(
         "CareerSeeker Alpha Audit Snapshot",
         "Package-local verification commands",
+        "Connect-CareerSeeker-Providers.cmd",
         "L1 creates Gmail drafts only",
         "Secret values are not included"
     )) {
