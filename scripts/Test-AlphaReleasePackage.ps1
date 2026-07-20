@@ -74,6 +74,7 @@ try {
         "Import-CareerSeeker-Profile.cmd",
         "Setup-CareerSeeker-Alpha.cmd",
         "Run-CareerSeeker-Demo.cmd",
+        "Run-CareerSeeker-Scout.cmd",
         "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
@@ -87,6 +88,7 @@ try {
         "scripts/Export-AlphaEvidencePackage.ps1",
         "scripts/Import-AlphaProfile.ps1",
         "scripts/Run-AlphaDemoCycle.ps1",
+        "scripts/Run-AlphaScoutBoards.ps1",
         "scripts/Run-AlphaLiveCycle.ps1",
         "scripts/Initialize-AlphaWorkspace.ps1",
         "scripts/Start-AlphaDashboard.ps1",
@@ -120,6 +122,9 @@ try {
     if ($manifest.includes.scripts -notcontains "scripts/Run-AlphaDemoCycle.ps1") {
         throw "Release manifest does not list the demo cycle helper."
     }
+    if ($manifest.includes.scripts -notcontains "scripts/Run-AlphaScoutBoards.ps1") {
+        throw "Release manifest does not list the Scout ingest helper."
+    }
     if ($manifest.includes.scripts -notcontains "scripts/Run-AlphaLiveCycle.ps1") {
         throw "Release manifest does not list the live alpha helper."
     }
@@ -147,6 +152,9 @@ try {
     if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Demo.cmd") {
         throw "Release manifest does not list the double-click demo cycle launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Scout.cmd") {
+        throw "Release manifest does not list the double-click Scout ingest launcher."
+    }
     if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Live.cmd") {
         throw "Release manifest does not list the double-click live alpha launcher."
     }
@@ -167,6 +175,7 @@ try {
         "Import-CareerSeeker-Profile.cmd",
         "Connect-CareerSeeker-Providers.cmd",
         "Run-CareerSeeker-Demo.cmd",
+        "Run-CareerSeeker-Scout.cmd",
         "Run-CareerSeeker-Live.cmd",
         "Export-CareerSeeker-Evidence.cmd",
         "Verify-CareerSeeker-Alpha.cmd",
