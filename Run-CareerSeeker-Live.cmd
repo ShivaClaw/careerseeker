@@ -14,7 +14,16 @@ echo Running one CareerSeeker Alpha live L1 draft cycle...
 echo This uses BYOK Tailor/Gate checks and creates a Gmail draft for review.
 echo It does not send email.
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Run-AlphaLiveCycle.ps1" -Published
+echo Press Enter for a no-Gmail dry-run preview.
+echo Type LIVE to create one Gmail draft for review.
+set /p CAREERSEEKER_LIVE_MODE=Mode:
+echo.
+
+if /I "%CAREERSEEKER_LIVE_MODE%"=="LIVE" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Run-AlphaLiveCycle.ps1" -Published
+) else (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Run-AlphaLiveCycle.ps1" -Published -DryRun
+)
 set "status=%ERRORLEVEL%"
 
 if not "%status%"=="0" (
@@ -26,6 +35,11 @@ if not "%status%"=="0" (
 )
 
 echo.
-echo CareerSeeker Alpha live cycle complete.
-echo Open Gmail Drafts to review the created draft.
+if /I "%CAREERSEEKER_LIVE_MODE%"=="LIVE" (
+  echo CareerSeeker Alpha live cycle complete.
+  echo Open Gmail Drafts to review the created draft.
+) else (
+  echo CareerSeeker Alpha live dry-run preview complete.
+  echo No Gmail draft was created.
+)
 pause

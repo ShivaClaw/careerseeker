@@ -110,7 +110,7 @@ First-run flow:
   Double-click Run-CareerSeeker-Scout.cmd to discover jobs from public ATS boards without Gmail.
   Double-click Research-CareerSeeker-Company.cmd to run live Brave/BYOK company research without Gmail.
   Double-click Draft-CareerSeeker-Job.cmd after choosing a job id in the dashboard.
-  Double-click Run-CareerSeeker-Live.cmd to create one Gmail draft for review.
+  Double-click Run-CareerSeeker-Live.cmd for a no-Gmail dry-run preview, or type LIVE there to create one Gmail draft for review.
   Double-click Export-CareerSeeker-Audit.cmd to export hash-only audit JSON for review.
   Double-click Export-CareerSeeker-Evidence.cmd to package local evidence for review.
   Double-click Import-CareerSeeker-Package.cmd to restore a local evidence package into .appdata\imported.
@@ -157,6 +157,8 @@ Off-ramp command equivalents:
   powershell -ExecutionPolicy Bypass -File .\scripts\Manage-AlphaDashboardTask.ps1 -Action Uninstall
 
 The L1 alpha creates Gmail drafts only. It has no send path.
+
+The Run-CareerSeeker-Live.cmd double-click helper defaults to a no-Gmail dry-run preview and requires typing LIVE before creating a Gmail draft.
 
 For company research, add Brave Search as BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY in secrets\env.secrets.
 

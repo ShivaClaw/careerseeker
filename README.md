@@ -57,8 +57,8 @@ Trust/OAuth docs:
   trusted-tester release ZIP. It creates no Gmail draft.
 - `Draft-CareerSeeker-Job.cmd`: double-click selected-job draft helper copied into the trusted-tester release
   ZIP.
-- `Run-CareerSeeker-Live.cmd`: double-click live L1 Gmail draft helper copied into the trusted-tester release
-  ZIP.
+- `Run-CareerSeeker-Live.cmd`: double-click live L1 helper copied into the trusted-tester release ZIP. It
+  defaults to a no-Gmail dry-run preview and requires typing `LIVE` before creating a draft.
 - `Export-CareerSeeker-Audit.cmd`: double-click hash-only audit JSON export helper copied into the
   trusted-tester release ZIP.
 - `Export-CareerSeeker-Evidence.cmd`: double-click local evidence package helper copied into the trusted-tester

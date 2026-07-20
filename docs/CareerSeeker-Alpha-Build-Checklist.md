@@ -61,8 +61,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   that reads public web pages, prints a grounded dossier, and creates no Gmail draft.
 - `Draft-CareerSeeker-Job.cmd` gives trusted testers a double-click selected-job draft helper that defaults to
   a no-Gmail dry-run package and requires typing `LIVE` before creating a Gmail draft.
-- `Run-CareerSeeker-Live.cmd` gives trusted testers a double-click live L1 alpha cycle that creates one Gmail
-  draft for review and still has no send path.
+- `Run-CareerSeeker-Live.cmd` gives trusted testers a double-click live L1 alpha cycle that defaults to a
+  no-Gmail dry-run preview and requires typing `LIVE` before creating one Gmail draft for review.
 - `Export-CareerSeeker-Audit.cmd` gives trusted testers a double-click hash-only audit JSON export after a demo
   or live alpha cycle, with raw payloads opt-in.
 - `Export-CareerSeeker-Evidence.cmd` gives trusted testers a double-click evidence package export after a demo

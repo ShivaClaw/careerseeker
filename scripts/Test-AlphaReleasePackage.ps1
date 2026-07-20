@@ -278,6 +278,7 @@ try {
         "Export-CareerSeeker-Audit.cmd",
         "Export-AlphaAudit.ps1",
         "Check-CareerSeeker-LiveReadiness.cmd",
+        "requires typing LIVE before creating a Gmail draft",
         "Provider key file: secrets\env.secrets accepts ANTHROPIC_API_KEY, GEMINI_API_KEY or GOOGLE_API_KEY",
         "For company research, add Brave Search",
         "BRAVE_SEARCH_API",
@@ -286,6 +287,18 @@ try {
     )) {
         if (-not $readme.Contains($snippet)) {
             throw "README-alpha.txt missing '$snippet'."
+        }
+    }
+
+    $liveLauncher = Get-Content -LiteralPath (Resolve-RootPath "Run-CareerSeeker-Live.cmd") -Raw
+    foreach ($snippet in @(
+        "Type LIVE to create one Gmail draft for review",
+        "CAREERSEEKER_LIVE_MODE",
+        "-Published -DryRun",
+        "No Gmail draft was created"
+    )) {
+        if (-not $liveLauncher.Contains($snippet)) {
+            throw "Run-CareerSeeker-Live.cmd missing '$snippet'."
         }
     }
 
@@ -345,6 +358,7 @@ try {
         "BRAVE_SEARCH_API",
         "Research-CareerSeeker-Company.cmd",
         "Draft-CareerSeeker-Job.cmd",
+        'type `LIVE`',
         "L1 alpha does not send applications",
         "Secret values are not packaged",
         "prompt-injection signals"

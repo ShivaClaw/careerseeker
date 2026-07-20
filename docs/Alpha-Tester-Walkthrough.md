@@ -67,12 +67,14 @@ Use the live alpha path when you want one end-to-end Gmail draft smoke:
 1. Confirm provider keys and Gmail OAuth are connected.
 2. Double-click `Check-CareerSeeker-LiveReadiness.cmd`.
 3. Double-click `Run-CareerSeeker-Live.cmd`.
-4. Review the created Gmail draft manually before doing anything with it.
-5. Double-click `Export-CareerSeeker-Evidence.cmd`.
+4. Press Enter for a no-Gmail dry-run preview, or type `LIVE` only when you intentionally want one Gmail draft.
+5. Review the created Gmail draft manually before doing anything with it.
+6. Double-click `Export-CareerSeeker-Evidence.cmd`.
 
 ## Safety Rails
 
 - Gmail is compose-only in L1. The app creates drafts and has no send implementation.
+- Live draft launchers require explicit `LIVE` confirmation before creating Gmail drafts.
 - Secret values are not packaged and are not printed by setup, provider, Gmail, verifier, or evidence scripts.
 - `secrets`, `.appdata`, `output`, OAuth vaults, BYOK vaults, SQLite databases, resumes, and generated artifacts
   are local-only.
