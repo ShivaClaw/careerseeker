@@ -27,6 +27,7 @@ $template = @"
 
 ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
+# Brave Search aliases also accepted: BRAVE_SEARCH_API, CAREERSEEKER_BRAVE_SEARCH_API_KEY.
 BRAVE_SEARCH_API_KEY=
 "@
 $profileTemplate = @"
