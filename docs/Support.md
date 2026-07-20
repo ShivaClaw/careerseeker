@@ -46,7 +46,14 @@ Future installer builds will use a documented product data directory and uninsta
 
 ### Verify the Audit Log
 
-The Store implements hash-chain verification and the offline harnesses exercise it. The alpha executable also supports `export-audit` for local JSON audit packages, `export-alpha-package` for a local ZIP evidence bundle, and `import-alpha-package` for safe local restore into an import workspace.
+The Store implements hash-chain verification and the offline harnesses exercise it. In the release package:
+
+- Double-click `Export-CareerSeeker-Audit.cmd` for hash-only audit JSON.
+- Double-click `Export-CareerSeeker-Evidence.cmd` for a local ZIP evidence bundle.
+- Double-click `Import-CareerSeeker-Package.cmd` for safe local restore into an import workspace.
+
+From source or a terminal, the same paths are available through `export-audit`, `export-alpha-package`, and
+`import-alpha-package`.
 
 ### Report a Fabrication Gate Issue
 

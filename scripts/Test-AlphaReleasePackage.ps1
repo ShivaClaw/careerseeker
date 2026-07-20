@@ -311,6 +311,9 @@ try {
     foreach ($snippet in @(
         "Disconnect-CareerSeeker-Gmail.cmd",
         "Clear-CareerSeeker-Providers.cmd",
+        "Export-CareerSeeker-Audit.cmd",
+        "Export-CareerSeeker-Evidence.cmd",
+        "Import-CareerSeeker-Package.cmd",
         "export-audit",
         "export-alpha-package",
         "import-alpha-package"
@@ -324,6 +327,9 @@ try {
     foreach ($snippet in @(
         "disconnect-gmail",
         "Clear-CareerSeeker-Providers.cmd",
+        "Export-CareerSeeker-Audit.cmd",
+        "Export-CareerSeeker-Evidence.cmd",
+        "Import-CareerSeeker-Package.cmd",
         "export-alpha-package",
         "raw event payloads are opt-in"
     )) {
@@ -336,6 +342,9 @@ try {
     foreach ($snippet in @(
         "disconnect-gmail",
         "packaged disconnect helper",
+        "Export-CareerSeeker-Audit.cmd",
+        "Export-CareerSeeker-Evidence.cmd",
+        "Import-CareerSeeker-Package.cmd",
         "export-alpha-package",
         "import-alpha-package"
     )) {

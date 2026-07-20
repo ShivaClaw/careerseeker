@@ -82,7 +82,7 @@ CareerSeeker does not:
 | **Revoke Gmail access** | Use `disconnect-gmail` or `Disconnect-CareerSeeker-Gmail.cmd`, then optionally confirm removal from Google Account permissions. |
 | **Revoke LLM provider keys** | Use `clear-byok` or `Clear-CareerSeeker-Providers.cmd`, then delete any environment or `secrets/env.secrets` copies you supplied. |
 | **Delete all local data** | Delete the configured local database, generated artifact directory, and `.appdata` test vaults. |
-| **Export audit log or local evidence bundle** | Use the local `export-audit`, `export-alpha-package`, or `import-alpha-package` command; raw event payloads are opt-in. |
+| **Export audit log or local evidence bundle** | Use `Export-CareerSeeker-Audit.cmd`, `Export-CareerSeeker-Evidence.cmd`, `Import-CareerSeeker-Package.cmd`, or the local `export-audit`, `export-alpha-package`, and `import-alpha-package` commands; raw event payloads are opt-in. |
 | **Remove verified claims** | Edit the local profile/claims source and rerun affected applications through the Gate. |
 
 ## 9. Data Retention
