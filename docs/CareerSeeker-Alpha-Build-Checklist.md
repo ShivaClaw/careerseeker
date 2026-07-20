@@ -48,6 +48,9 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   startup doctor helper without printing secret values.
 - `Connect-CareerSeeker-Gmail.cmd` gives trusted testers a double-click Gmail OAuth helper that preflights
   draft access without creating a draft.
+- `Clear-CareerSeeker-Providers.cmd` gives trusted testers a double-click local BYOK vault clear helper.
+- `Disconnect-CareerSeeker-Gmail.cmd` gives trusted testers a double-click Gmail revoke/local token-vault clear
+  helper.
 - `Run-CareerSeeker-Demo.cmd` gives trusted testers a double-click safe demo cycle that writes local SQLite
   and artifact evidence without touching Gmail.
 - `Run-CareerSeeker-Scout.cmd` gives trusted testers a double-click public ATS board ingest that writes local
@@ -63,7 +66,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - `Start-CareerSeeker-Alpha.cmd` gives trusted testers a double-click launcher in the release ZIP that starts
   the packaged dashboard path.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
-  dependencies, double-click setup/profile/provider/Gmail/demo/scout/selected-job/live/evidence/verify/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
+  dependencies, double-click setup/profile/provider/Gmail/provider-clear/Gmail-disconnect/demo/scout/selected-job/live/evidence/verify/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, tester walkthrough, audit
   snapshot, release manifest, SHA-256 checksums, and selected docs while excluding local databases, vaults,
   provider keys, and generated artifacts.
 - The alpha executable can export a local audit JSON package with payload hashes by default.

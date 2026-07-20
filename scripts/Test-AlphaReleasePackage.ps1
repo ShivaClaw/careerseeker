@@ -71,6 +71,8 @@ try {
         "SeekerSvc.Engine.exe",
         "Connect-CareerSeeker-Providers.cmd",
         "Connect-CareerSeeker-Gmail.cmd",
+        "Clear-CareerSeeker-Providers.cmd",
+        "Disconnect-CareerSeeker-Gmail.cmd",
         "Import-CareerSeeker-Profile.cmd",
         "Setup-CareerSeeker-Alpha.cmd",
         "Run-CareerSeeker-Demo.cmd",
@@ -158,6 +160,12 @@ try {
     if ($manifest.includes.launchers -notcontains "Connect-CareerSeeker-Gmail.cmd") {
         throw "Release manifest does not list the double-click Gmail connect launcher."
     }
+    if ($manifest.includes.launchers -notcontains "Clear-CareerSeeker-Providers.cmd") {
+        throw "Release manifest does not list the double-click provider clear launcher."
+    }
+    if ($manifest.includes.launchers -notcontains "Disconnect-CareerSeeker-Gmail.cmd") {
+        throw "Release manifest does not list the double-click Gmail disconnect launcher."
+    }
     if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Demo.cmd") {
         throw "Release manifest does not list the double-click demo cycle launcher."
     }
@@ -186,6 +194,8 @@ try {
         "Package-local verification commands",
         "Import-CareerSeeker-Profile.cmd",
         "Connect-CareerSeeker-Providers.cmd",
+        "Clear-CareerSeeker-Providers.cmd",
+        "Disconnect-CareerSeeker-Gmail.cmd",
         "Run-CareerSeeker-Demo.cmd",
         "Run-CareerSeeker-Scout.cmd",
         "Draft-CareerSeeker-Job.cmd",
@@ -206,6 +216,8 @@ try {
         "CareerSeeker Alpha Tester Walkthrough",
         "Verify-CareerSeeker-Alpha.cmd",
         "Connect-CareerSeeker-Providers.cmd",
+        "Clear-CareerSeeker-Providers.cmd",
+        "Disconnect-CareerSeeker-Gmail.cmd",
         "BRAVE_SEARCH_API",
         "Draft-CareerSeeker-Job.cmd",
         "L1 alpha does not send applications",

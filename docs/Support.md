@@ -1,6 +1,6 @@
 # CareerSeeker Support
 
-**Last updated:** 2026-07-19
+**Last updated:** 2026-07-20
 
 ## Contact
 
@@ -19,14 +19,17 @@ During closed alpha and beta, support is provided by the development team direct
 
 CareerSeeker L1 creates Gmail drafts through a local OAuth token vault. To disconnect the current alpha:
 
-1. Run `SeekerSvc.Engine.exe disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`.
-2. Optionally confirm removal on your [Google Account permissions page](https://myaccount.google.com/permissions).
+1. In the release package, double-click `Disconnect-CareerSeeker-Gmail.cmd`.
+2. From source or a terminal, run `SeekerSvc.Engine.exe disconnect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`.
+3. Optionally confirm removal on your [Google Account permissions page](https://myaccount.google.com/permissions).
 
 After disconnection, CareerSeeker cannot create Gmail drafts until you reconnect and authorize again.
 
 ### Revoke LLM Provider Keys
 
-Delete provider keys from the local vault, environment variable, or configuration location where you supplied them. CareerSeeker does not retain copies of provider keys outside the local configuration you control.
+In the release package, double-click `Clear-CareerSeeker-Providers.cmd` to delete the local DPAPI provider-key vault. From source or a terminal, run `SeekerSvc.Engine.exe clear-byok --key-vault .appdata/secrets/byok-keys.dpapi`.
+
+Also delete any provider keys from environment variables or `secrets/env.secrets` if you supplied them there. CareerSeeker does not retain copies of provider keys outside the local configuration you control.
 
 An in-app provider-key manager is planned for the product shell.
 

@@ -97,7 +97,7 @@ CareerSeeker Alpha
 
 This package contains the local-first L1 Drafts alpha executable.
 
-Trusted tester flow:
+First-run flow:
 
   Double-click Setup-CareerSeeker-Alpha.cmd to create the local workspace.
   Double-click Import-CareerSeeker-Profile.cmd after editing .appdata\profile.template.json.
@@ -110,6 +110,13 @@ Trusted tester flow:
   Double-click Export-CareerSeeker-Evidence.cmd to package local evidence for review.
   Double-click Verify-CareerSeeker-Alpha.cmd to verify the extracted release package.
   Double-click Start-CareerSeeker-Alpha.cmd to open the local dashboard.
+
+Local off-ramps:
+
+  Double-click Clear-CareerSeeker-Providers.cmd to delete the local provider-key vault.
+  Double-click Disconnect-CareerSeeker-Gmail.cmd to revoke Gmail and delete the local token vault.
+
+Command equivalents:
 
   powershell -ExecutionPolicy Bypass -File .\scripts\Initialize-AlphaWorkspace.ps1
   notepad .appdata\profile.template.json
@@ -127,6 +134,8 @@ Trusted tester flow:
   powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published
   .\$exeName export-alpha-package --db .appdata\careerseeker-alpha.db --out output\careerseeker-alpha-package.zip
   .\$exeName import-alpha-package --package output\careerseeker-alpha-package.zip
+  .\$exeName clear-byok --key-vault .appdata\secrets\byok-keys.dpapi
+  .\$exeName disconnect-gmail --client secrets\google-oauth-client.json --vault .appdata\oauth\gmail-token.dpapi
 
 The L1 alpha creates Gmail drafts only. It has no send path.
 
@@ -140,6 +149,8 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     Copy-Item -LiteralPath (Join-Path $repoRoot "Import-CareerSeeker-Profile.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Connect-CareerSeeker-Providers.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Connect-CareerSeeker-Gmail.cmd") -Destination $stageDir
+    Copy-Item -LiteralPath (Join-Path $repoRoot "Clear-CareerSeeker-Providers.cmd") -Destination $stageDir
+    Copy-Item -LiteralPath (Join-Path $repoRoot "Disconnect-CareerSeeker-Gmail.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Run-CareerSeeker-Demo.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Run-CareerSeeker-Scout.cmd") -Destination $stageDir
     Copy-Item -LiteralPath (Join-Path $repoRoot "Draft-CareerSeeker-Job.cmd") -Destination $stageDir
@@ -209,6 +220,8 @@ Double-click helper entrypoints:
   Import-CareerSeeker-Profile.cmd
   Connect-CareerSeeker-Providers.cmd
   Connect-CareerSeeker-Gmail.cmd
+  Clear-CareerSeeker-Providers.cmd
+  Disconnect-CareerSeeker-Gmail.cmd
   Run-CareerSeeker-Demo.cmd
   Run-CareerSeeker-Scout.cmd
   Draft-CareerSeeker-Job.cmd
@@ -253,7 +266,7 @@ Cross-checks:
             scripts = @(Get-ChildItem -LiteralPath $scriptsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "scripts/$($_.Name)" })
-            launchers = @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd")
+            launchers = @("Setup-CareerSeeker-Alpha.cmd", "Import-CareerSeeker-Profile.cmd", "Connect-CareerSeeker-Providers.cmd", "Connect-CareerSeeker-Gmail.cmd", "Clear-CareerSeeker-Providers.cmd", "Disconnect-CareerSeeker-Gmail.cmd", "Run-CareerSeeker-Demo.cmd", "Run-CareerSeeker-Scout.cmd", "Draft-CareerSeeker-Job.cmd", "Run-CareerSeeker-Live.cmd", "Export-CareerSeeker-Evidence.cmd", "Verify-CareerSeeker-Alpha.cmd", "Start-CareerSeeker-Alpha.cmd")
             docs = if ($NoDocs) { @() } else { @(Get-ChildItem -LiteralPath $docsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "docs/$($_.Name)" }) }
