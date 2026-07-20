@@ -54,9 +54,9 @@ public sealed class Tailor : ITailor
     {
         var constraints = ConstraintsFrom(priorViolations);
 
-        // One grounded, employer-context hook (spec §5.5). HookGuard drops any hook carrying a number,
-        // credential, or amplifier the Decomposer would read as a *candidate* claim — so a hook can never
-        // become an unverifiable Gate atom. When unsafe or absent, the hook is simply omitted.
+        // One grounded, employer-context hook (spec §5.5). HookGuard drops hooks carrying the highest-risk
+        // candidate-claim patterns; the prompt then treats any admitted hook as context, not candidate evidence.
+        // When unsafe or absent, the hook is simply omitted.
         var hook = _hooks is null ? null : await _hooks.GetHookAsync(job, ct).ConfigureAwait(false);
         var safeHook = HookGuard.IsSafe(hook) ? hook : null;
 

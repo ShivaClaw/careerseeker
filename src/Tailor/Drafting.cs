@@ -55,9 +55,9 @@ public sealed record AnswerResolution(string Question, string? Answer, AnswerSou
 /// <summary>
 /// What the generation model is given. Constraints carry prior gate violations on a rework.
 /// <see cref="CompanyHook"/> is one grounded, employer-context line from the Researcher's dossier (spec
-/// §5.5). It is optional and, when present, has already passed <see cref="HookGuard"/>: it carries no
-/// number, credential, or amplifier the Decomposer would read as a *candidate* claim, so it can never turn
-/// into an unverifiable Gate atom. The hook is employer context, never a claim about the candidate.
+/// §5.5). It is optional and, when present, has already passed <see cref="HookGuard"/>. In the current L1
+/// Gate, this is prompt context only: generated resume/cover prose is still verified only against candidate
+/// profile facts, so the model is told not to quote or paraphrase employer-context facts into the draft.
 /// </summary>
 public sealed record TailorModelRequest(
     PipelineJob Job,

@@ -319,7 +319,8 @@ SQLite pragmas:
 - Gmail scope: L1 requests `gmail.compose` only.
 - Compose-only labels: custom label management is disabled by default because it requires broader Gmail scope.
 - Researcher: facts are grounded-or-dropped; no ungrounded dossier fact survives.
-- HookGuard: hooks that resemble candidate claims are omitted.
+- HookGuard: hooks that resemble candidate claims are omitted, and admitted company hooks stay prompt
+  context only rather than applicant-facing evidence.
 - Scorer: `total = min(fit, legitimacy) * red_flag_multiplier`.
 - Legitimacy floor: low-legitimacy jobs may be shown but not acted on.
 - Scout: job description is untrusted data and may signal prompt injection but is never instruction context.
@@ -361,14 +362,14 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 255 passed, 0 failed.
+Total: 256 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
 | `EngineHarness` | 68 passed, 0 failed |
 | `ResearcherHarness` | 29 passed, 0 failed |
-| `HookHarness` | 12 passed, 0 failed |
+| `HookHarness` | 13 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
 | `GatewayGateHarness` | 34 passed, 0 failed |
 | `DispatcherNoSendHarness` | 24 passed, 0 failed |

@@ -222,22 +222,24 @@ Invoke-Step "Public README and harness count smoke" {
         'all rights are reserved',
         'EngineHarness` (68)',
         'GatewayGateHarness` (34)',
-        'Latest offline total: 255 assertions'
+        'admitted hooks stay prompt',
+        'Latest offline total: 256 assertions'
     ) "README.md"
 
     $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
     Assert-Contains $summary @(
-        'Total: 255 passed, 0 failed.',
+        'Total: 256 passed, 0 failed.',
         '| `EngineHarness` | 68 passed, 0 failed |',
         '`/evidence.html`',
         '| `GatewayGateHarness` | 34 passed, 0 failed |',
         'typed confirmations for `LIVE`, `CLEAR`, `DISCONNECT`, `INSTALL`, and `UNINSTALL`',
-        'typed confirmation for live/dangerous/persistent actions'
+        'typed confirmation for live/dangerous/persistent actions',
+        'admitted company hooks stay prompt'
     ) "docs/CareerSeeker-Project-Summary.md"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 255 passed, 0 failed.',
+        'Latest offline harness total: 256 passed, 0 failed.',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
         '`INSTALL`',
@@ -249,7 +251,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `255 passed, 0 failed`.',
+        'Latest local offline verifier: `256 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'BYOK live provider smoke',
         'live Brave/BYOK company research',
@@ -283,6 +285,12 @@ Invoke-Step "Public README and harness count smoke" {
         '[--key-vault .appdata/secrets/byok-keys.dpapi]',
         '[--gate-semantic-candidates 3]'
     ) "src/Engine/Program.cs"
+
+    $tailorModel = Get-Content -LiteralPath "src/Tailor/GatewayTailorModel.cs" -Raw
+    Assert-Contains $tailorModel @(
+        'Do not quote, paraphrase,',
+        'It is not candidate evidence.'
+    ) "src/Tailor/GatewayTailorModel.cs"
 
     $packaging = Get-Content -LiteralPath "src/Dispatcher/Packaging.cs" -Raw
     Assert-Contains $packaging @(

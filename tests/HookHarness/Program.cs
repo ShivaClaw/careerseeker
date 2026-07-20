@@ -32,6 +32,10 @@ Console.WriteLine("\n[ prompt wiring ]");
     await model.GenerateAsync(new TailorModelRequest(job, profile, new List<string>(), StyleCard.Default, new List<string>(),
         CompanyHook: "Acme recently expanded its developer-tools platform team."));
     Check("safe hook appears in the model prompt", cap.Last.Contains("VERIFIED COMPANY CONTEXT") && cap.Last.Contains("platform team"));
+    Check("company hook prompt stays context-only",
+        cap.Last.Contains("Do not quote, paraphrase,", StringComparison.Ordinal) &&
+        cap.Last.Contains("It is not candidate evidence.", StringComparison.Ordinal),
+        cap.Last);
 
     await model.GenerateAsync(new TailorModelRequest(job, profile, new List<string>(), StyleCard.Default, new List<string>(), CompanyHook: null));
     Check("no hook section when none supplied", !cap.Last.Contains("VERIFIED COMPANY CONTEXT"));

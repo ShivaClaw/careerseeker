@@ -20,9 +20,9 @@ Trust/OAuth docs:
   references Pipeline, Tailor, Dispatcher, and Researcher for alpha composition commands. `TailorHookBridge`
   joins Tailor<->Researcher so neither core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
-  `EngineHarness` (68), `ResearcherHarness` (29), `HookHarness` (12), `StoreParityHarness` (17),
+  `EngineHarness` (68), `ResearcherHarness` (29), `HookHarness` (13), `StoreParityHarness` (17),
   `GatewayGateHarness` (34), `DispatcherNoSendHarness` (24), `LifecycleHarness` (37), and
-  `RendererHarness` (6). Latest offline total: 255 assertions. Run each with
+  `RendererHarness` (6). Latest offline total: 256 assertions. Run each with
   `dotnet run -c Release`.
 - `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. It builds, runs the initializer dry run,
   source-mode SQLite demo smoke, and offline harness suite. Add `-IncludeLive` for local BYOK/Gmail checks,
@@ -98,6 +98,7 @@ accept `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` or `GOOGLE_API_KEY`, and Brave Sear
 - Dispatcher L1: the Gmail draft port exposes only `CreateDraftAsync`; label management is a separate
   capability and no send method exists in the L1 application, even though `gmail.compose` can authorize sends.
 - Researcher: dossier facts are grounded-or-dropped; signals are positive-only and deterministic.
-- HookGuard: a cover-letter hook carrying any candidate-claim pattern is omitted, never risked.
+- HookGuard: a company hook carrying any candidate-claim pattern is omitted; admitted hooks stay prompt
+  context only, not applicant-facing evidence.
 - Scorer: `total = min(fit, legitimacy) * red_flags`; a scam can never outrank its worst axis.
 - Store: hash-chained audit log.
