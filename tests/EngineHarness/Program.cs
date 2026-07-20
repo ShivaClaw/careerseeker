@@ -629,6 +629,31 @@ Console.WriteLine("\n[ alpha package export ]");
             unsafeRejected = true;
         }
         Check("alpha package import rejects unsafe zip entries", unsafeRejected);
+
+        var secretPackage = Path.Combine(root, "secret-entry.zip");
+        using (var stream = File.Create(secretPackage))
+        using (var secretZip = new ZipArchive(stream, ZipArchiveMode.Create))
+        {
+            var secret = secretZip.CreateEntry("artifacts/token.txt");
+            using var writer = new StreamWriter(secret.Open());
+            writer.Write("should not import");
+        }
+
+        var secretRejected = false;
+        try
+        {
+            await AlphaPackageImport.ImportAsync(
+                secretPackage,
+                new AlphaPackageImportOptions(
+                    Path.Combine(root, "secret.db"),
+                    Path.Combine(root, "secret-artifacts"),
+                    Path.Combine(root, "secret-jds")));
+        }
+        catch (InvalidOperationException)
+        {
+            secretRejected = true;
+        }
+        Check("alpha package import rejects secret-looking zip entries", secretRejected);
     }
     finally
     {
