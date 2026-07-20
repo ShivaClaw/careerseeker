@@ -47,6 +47,8 @@ The engine shell adds:
   `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1`
 - Double-click local workspace setup helper included in the release ZIP:
   `Setup-CareerSeeker-Alpha.cmd`
+- Double-click source-of-truth profile import helper included in the release ZIP:
+  `Import-CareerSeeker-Profile.cmd`
 - Double-click BYOK provider-key import and doctor helper included in the release ZIP:
   `Connect-CareerSeeker-Providers.cmd`
 - Double-click Gmail connect helper included in the release ZIP:
@@ -125,7 +127,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
-  dependencies, quickstart, audit snapshot, release manifest, double-click setup/provider/Gmail/dashboard launchers,
+  dependencies, quickstart, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/dashboard launchers,
   workspace initializer, dashboard/helper self-check scripts, checksums, and selected docs without bundling local
   databases, vaults, provider keys, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
@@ -137,6 +139,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   extracted release ZIP.
 - `Setup-CareerSeeker-Alpha.cmd` wraps the workspace initializer for double-click tester setup from the
   extracted release ZIP, then opens the generated profile template.
+- `Import-CareerSeeker-Profile.cmd` wraps `import-profile` for double-click tester profile setup from the
+  extracted release ZIP after the profile template is edited.
 - `Connect-CareerSeeker-Providers.cmd` wraps provider-key import and `doctor --require-byok` for double-click
   tester BYOK setup from the extracted release ZIP without printing secret values.
 - `Connect-CareerSeeker-Gmail.cmd` wraps `connect-gmail` for double-click tester OAuth setup from the

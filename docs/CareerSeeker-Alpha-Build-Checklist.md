@@ -42,6 +42,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   mode, including one-shot smoke checks and published-executable startup.
 - `Setup-CareerSeeker-Alpha.cmd` gives trusted testers a double-click setup helper in the release ZIP that
   creates the local alpha workspace and opens the profile template for editing.
+- `Import-CareerSeeker-Profile.cmd` gives trusted testers a double-click source-of-truth profile import helper
+  after they edit the generated profile template.
 - `Connect-CareerSeeker-Providers.cmd` gives trusted testers a double-click BYOK provider-key import and
   startup doctor helper without printing secret values.
 - `Connect-CareerSeeker-Gmail.cmd` gives trusted testers a double-click Gmail OAuth helper that preflights
@@ -49,7 +51,7 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - `Start-CareerSeeker-Alpha.cmd` gives trusted testers a double-click launcher in the release ZIP that starts
   the packaged dashboard path.
 - `scripts/Package-AlphaRelease.ps1` creates a trusted-tester ZIP with the published executable, native runtime
-  dependencies, double-click setup/provider/Gmail/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, audit snapshot, release manifest,
+  dependencies, double-click setup/profile/provider/Gmail/dashboard launchers, workspace initializer, dashboard/helper self-check scripts, quickstart, audit snapshot, release manifest,
   SHA-256 checksums, and selected docs while excluding local databases, vaults, provider keys, and generated
   artifacts.
 - The alpha executable can export a local audit JSON package with payload hashes by default.
@@ -124,6 +126,7 @@ Verified:
 - `powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1`
 - `powershell -ExecutionPolicy Bypass -File scripts/Initialize-AlphaWorkspace.ps1 -DryRun`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- profile-template --out .appdata/profile.template.json`
+- `powershell -ExecutionPolicy Bypass -File scripts/Import-AlphaProfile.ps1`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-profile --profile .appdata/profile.template.json --db .appdata/careerseeker-alpha.db`
 - `powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1 -IncludeResearch`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- connect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
