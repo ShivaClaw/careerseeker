@@ -366,12 +366,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 294 passed, 0 failed.
+Total: 297 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 86 passed, 0 failed |
+| `EngineHarness` | 89 passed, 0 failed |
 | `ResearcherHarness` | 37 passed, 0 failed |
 | `HookHarness` | 14 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |

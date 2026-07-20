@@ -33,7 +33,7 @@ function Test-CommandAvailable {
     return $null -ne (Get-Command $Command -ErrorAction SilentlyContinue)
 }
 
-function Test-SecretName {
+function Test-SecretValue {
     param(
         [string] $Path,
         [string] $Name
@@ -46,7 +46,8 @@ function Test-SecretName {
         $idx = $trimmed.IndexOf("=")
         if ($idx -le 0) { continue }
         if ($trimmed.Substring(0, $idx).Trim().Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
-            return $true
+            $value = $trimmed.Substring($idx + 1).Trim().Trim('"')
+            return -not [string]::IsNullOrWhiteSpace($value)
         }
     }
     return $false
@@ -59,7 +60,7 @@ function Test-ConfiguredSecret {
     )
 
     $envValue = [Environment]::GetEnvironmentVariable($Name)
-    return -not [string]::IsNullOrWhiteSpace($envValue) -or (Test-SecretName $Path $Name)
+    return -not [string]::IsNullOrWhiteSpace($envValue) -or (Test-SecretValue $Path $Name)
 }
 
 Push-Location $repoRoot
