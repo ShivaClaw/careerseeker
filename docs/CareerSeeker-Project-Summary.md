@@ -366,14 +366,14 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 274 passed, 0 failed.
+Total: 276 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
 | `EngineHarness` | 78 passed, 0 failed |
-| `ResearcherHarness` | 36 passed, 0 failed |
-| `HookHarness` | 13 passed, 0 failed |
+| `ResearcherHarness` | 37 passed, 0 failed |
+| `HookHarness` | 14 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
 | `GatewayGateHarness` | 34 passed, 0 failed |
 | `DispatcherNoSendHarness` | 25 passed, 0 failed |
@@ -513,7 +513,9 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
   and crash reconciliation added with `LifecycleHarness` coverage.
 - Gateway budget/accounting and Pipeline in-flight state hardened for concurrency.
 - StrongCloud failover now points at live `gemini-3.1-pro-preview`, and Gate outages defer distinctly from fabrication blocks.
-- Tailor and Researcher prompts now mark untrusted data in explicit XML-style blocks.
+- Tailor and Researcher prompts now mark untrusted data in explicit XML-style blocks and offline harnesses
+  assert XML-like tag closers from jobs, profile facts, questions, company names, domains, and retrieved
+  documents are encoded inside those prompt boundaries.
 - BYOK alpha wiring added for real Anthropic/Gemini Tailor and Gate calls from local environment or `env.secrets` keys.
 - BYOK provider-key import/clear commands added for a local DPAPI vault; alpha `--llm byok` prefers the vault.
 - Bounded `alpha --llm byok --fast-smoke` added for routine live Tailor + Gate + Gmail + PDF validation.

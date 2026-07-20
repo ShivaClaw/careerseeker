@@ -233,10 +233,11 @@ Invoke-Step "Public README and harness count smoke" {
         'no open-source license',
         'all rights are reserved',
         'EngineHarness` (78)',
-        'ResearcherHarness` (36)',
+        'ResearcherHarness` (37)',
+        'HookHarness` (14)',
         'GatewayGateHarness` (34)',
         'admitted hooks stay prompt',
-        'Latest offline total: 274 assertions'
+        'Latest offline total: 276 assertions'
     ) "README.md"
     Assert-DoesNotContain $readme @(
         'free Windows service (.exe)'
@@ -244,9 +245,10 @@ Invoke-Step "Public README and harness count smoke" {
 
     $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
     Assert-Contains $summary @(
-        'Total: 274 passed, 0 failed.',
+        'Total: 276 passed, 0 failed.',
         '| `EngineHarness` | 78 passed, 0 failed |',
-        '| `ResearcherHarness` | 36 passed, 0 failed |',
+        '| `ResearcherHarness` | 37 passed, 0 failed |',
+        '| `HookHarness` | 14 passed, 0 failed |',
         'imports require the CareerSeeker alpha profile',
         'document responses carry no-store, nosniff, no-referrer',
         '`/evidence.html`',
@@ -258,7 +260,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 274 passed, 0 failed.',
+        'Latest offline harness total: 276 passed, 0 failed.',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
         '`INSTALL`',
@@ -270,7 +272,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `274 passed, 0 failed`.',
+        'Latest local offline verifier: `276 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'Fresh live Scout harness, 2026-07-20',
         'BYOK live provider smoke',
@@ -280,6 +282,7 @@ Invoke-Step "Public README and harness count smoke" {
         '## Evidence Map',
         'ATS-clean resume PDF is rendered and attached to Gmail drafts',
         'Selected-job drafting refuses prompt-injection-flagged jobs unless explicitly overridden',
+        'Untrusted job/profile/question/web text is encoded before entering structured LLM prompt boundaries',
         'Source-of-truth profile import replaces the claim oracle and refuses non-alpha profile artifacts, duplicate claim ids, or unknown claim kinds',
         'Real BYOK Tailor and Gate providers are wired through the Gateway',
         'Live ATS board ingest discovers and stores real jobs',
@@ -304,7 +307,7 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $historicalAudit @(
         'Current-status note, 2026-07-20',
         'this is preserved as historical audit input, not as current status for',
-        'the default verifier reports 274 passed / 0 failed'
+        'the default verifier reports 276 passed / 0 failed'
     ) "docs/repo-audit-2026-07-13.md"
 
     Assert-Contains $summary @(
