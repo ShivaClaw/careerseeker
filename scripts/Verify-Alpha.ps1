@@ -198,6 +198,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| `EngineHarness` | 65 passed, 0 failed |',
         '| `GatewayGateHarness` | 34 passed, 0 failed |'
     ) "docs/CareerSeeker-Project-Summary.md"
+
+    $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
+    Assert-Contains $handoff @(
+        'Latest local offline verifier: `250 passed, 0 failed`.',
+        'Cloudflare Email Routing MX records',
+        'does not prove the final'
+    ) "docs/External-Audit-Handoff.md"
 }
 
 Invoke-Step "Local API security spec smoke" {

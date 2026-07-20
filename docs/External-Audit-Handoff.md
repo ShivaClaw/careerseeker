@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `240 passed, 0 failed`.
+- Latest local offline verifier: `250 passed, 0 failed`.
 - `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish` passed locally after the current alpha wiring:
   offline harnesses, win-x64 single-file publish smoke, BYOK live provider smoke, startup doctor, and
   dashboard smoke.
@@ -31,6 +31,10 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 - `scripts/Verify-Alpha.ps1 -IncludeResearch` passed locally with live Brave Search plus BYOK dossier
   modeling. Latest GitLab smoke retrieved 10 docs, used 3 deterministic grounded fallback facts after the model
   proposed 0 facts, and dropped 0 ungrounded facts.
+- DNS mail-routing check, 2026-07-20: `careerseeker.app` publishes Cloudflare Email Routing MX records
+  (`route1.mx.cloudflare.net`, `route2.mx.cloudflare.net`, `route3.mx.cloudflare.net`) and SPF includes
+  `_spf.mx.cloudflare.net`. This confirms domain-level routing is present; it does not prove the final
+  `support@` / `privacy@` forwarding destinations receive mail.
 - The PR is open against `main` and GitHub reports checks passing.
 
 ## Repeatable Commands
