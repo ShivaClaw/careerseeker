@@ -66,8 +66,8 @@ Completed:
 - `Export-CareerSeeker-Evidence.cmd` wraps that package export for double-click trusted-tester audit handoff
   after a demo or live alpha cycle.
 - The alpha executable can import that local alpha ZIP package into `.appdata/imported` by default, require a
-  CareerSeeker alpha manifest, reject unsafe ZIP paths and duplicate entries, preserve existing files unless
-  `--overwrite` is passed, and verify the restored SQLite audit chain.
+  CareerSeeker alpha manifest, reject unsupported ZIP entries, unsafe ZIP paths, and duplicate entries, preserve
+  existing files unless `--overwrite` is passed, and verify the restored SQLite audit chain.
 - `Import-CareerSeeker-Package.cmd` wraps that package import for double-click trusted-tester/auditor restore
   into a separate import workspace.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
@@ -366,12 +366,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 276 passed, 0 failed.
+Total: 277 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 78 passed, 0 failed |
+| `EngineHarness` | 79 passed, 0 failed |
 | `ResearcherHarness` | 37 passed, 0 failed |
 | `HookHarness` | 14 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |

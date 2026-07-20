@@ -74,6 +74,9 @@ public static class AlphaPackageImport
                 throw new InvalidOperationException($"Refusing unsafe alpha package entry '{entry.FullName}'.");
             }
 
+            if (!IsSupportedEntry(name))
+                throw new InvalidOperationException($"Refusing unsupported alpha package entry '{entry.FullName}'.");
+
             if (!seenEntries.Add(name))
                 throw new InvalidOperationException($"Refusing duplicate alpha package entry '{entry.FullName}'.");
         }
@@ -183,6 +186,13 @@ public static class AlphaPackageImport
 
     private static string NormalizeEntryName(string name) =>
         name.Replace('\\', '/').TrimStart('/');
+
+    private static bool IsSupportedEntry(string name) =>
+        name.Equals("manifest.json", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("audit.json", StringComparison.OrdinalIgnoreCase) ||
+        name.StartsWith("database/", StringComparison.OrdinalIgnoreCase) ||
+        name.StartsWith("artifacts/", StringComparison.OrdinalIgnoreCase) ||
+        name.StartsWith("job-descriptions/", StringComparison.OrdinalIgnoreCase);
 
     private static bool LooksSecretPath(string path)
     {

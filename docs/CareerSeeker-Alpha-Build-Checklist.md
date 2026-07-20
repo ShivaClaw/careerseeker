@@ -99,8 +99,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - The alpha executable can export a local alpha ZIP package with a manifest, audit export, SQLite snapshot,
   draft artifacts, and saved job-description artifacts while filtering secret-looking paths.
 - The alpha executable can safely import a local alpha ZIP package into `.appdata/imported` by default, require a
-  CareerSeeker alpha manifest, reject unsafe ZIP paths, preserve existing files unless `--overwrite` is passed,
-  and verify the restored audit chain.
+  CareerSeeker alpha manifest, reject unsupported ZIP entries and unsafe ZIP paths, preserve existing files
+  unless `--overwrite` is passed, and verify the restored audit chain.
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
   Gmail vault presence, and BYOK provider availability.
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.

@@ -706,6 +706,35 @@ Console.WriteLine("\n[ alpha package export ]");
         }
         Check("alpha package import rejects duplicate zip entries", duplicateRejected);
 
+        var unsupportedPackage = Path.Combine(root, "unsupported-entry.zip");
+        using (var stream = File.Create(unsupportedPackage))
+        using (var unsupportedZip = new ZipArchive(stream, ZipArchiveMode.Create))
+        {
+            var manifest = unsupportedZip.CreateEntry("manifest.json");
+            await using (var writer = new StreamWriter(manifest.Open()))
+                await writer.WriteAsync("""{"format":"careerseeker-alpha-package-v1"}""");
+
+            var exe = unsupportedZip.CreateEntry("bin/tool.exe");
+            await using var exeWriter = new StreamWriter(exe.Open());
+            await exeWriter.WriteAsync("not part of the alpha evidence package format");
+        }
+
+        var unsupportedRejected = false;
+        try
+        {
+            await AlphaPackageImport.ImportAsync(
+                unsupportedPackage,
+                new AlphaPackageImportOptions(
+                    Path.Combine(root, "unsupported.db"),
+                    Path.Combine(root, "unsupported-artifacts"),
+                    Path.Combine(root, "unsupported-jds")));
+        }
+        catch (InvalidOperationException)
+        {
+            unsupportedRejected = true;
+        }
+        Check("alpha package import rejects unsupported zip entries", unsupportedRejected);
+
         var noManifestPackage = Path.Combine(root, "no-manifest.zip");
         using (var stream = File.Create(noManifestPackage))
         using (var noManifestZip = new ZipArchive(stream, ZipArchiveMode.Create))
