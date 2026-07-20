@@ -1,10 +1,11 @@
 # CareerSeeker
 
-Autonomous job-search engine: free Windows service (.exe) that discovers, verifies, tailors, and drafts
-job applications, plus a paid Android dashboard. Spec: `docs/CareerSeeker-Spec.md` (authoritative,
-v0.9). Sequencing: `docs/CareerSeeker-Integration-Windows-Roadmap.md`. Current handoff:
-`docs/CareerSeeker-Project-Summary.md`. Trusted-tester walkthrough: `docs/Alpha-Tester-Walkthrough.md`.
-External audit quickstart: `docs/External-Audit-Handoff.md`.
+Autonomous job-search engine: a free local Windows alpha executable that discovers, verifies, tailors, and
+drafts job applications, with Windows service/tray packaging and the paid Android dashboard still future
+product-shell work. Spec: `docs/CareerSeeker-Spec.md` (authoritative, v0.9). Sequencing:
+`docs/CareerSeeker-Integration-Windows-Roadmap.md`. Current handoff: `docs/CareerSeeker-Project-Summary.md`.
+Trusted-tester walkthrough: `docs/Alpha-Tester-Walkthrough.md`. External audit quickstart:
+`docs/External-Audit-Handoff.md`.
 
 License notice: this repository currently has no open-source license; all rights are reserved unless a
 future `LICENSE` file says otherwise.
@@ -56,7 +57,7 @@ Trust/OAuth docs:
 - `Research-CareerSeeker-Company.cmd`: double-click Brave/BYOK company research helper copied into the
   trusted-tester release ZIP. It creates no Gmail draft.
 - `Draft-CareerSeeker-Job.cmd`: double-click selected-job draft helper copied into the trusted-tester release
-  ZIP.
+  ZIP. It defaults to a no-Gmail dry-run package and requires typing `LIVE` before creating a draft.
 - `Run-CareerSeeker-Live.cmd`: double-click live L1 helper copied into the trusted-tester release ZIP. It
   defaults to a no-Gmail dry-run preview and requires typing `LIVE` before creating a draft.
 - `Export-CareerSeeker-Audit.cmd`: double-click hash-only audit JSON export helper copied into the

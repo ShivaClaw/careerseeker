@@ -218,12 +218,17 @@ Invoke-Step "Trust wording smoke" {
 Invoke-Step "Public README and harness count smoke" {
     $readme = Get-Content -LiteralPath "README.md" -Raw
     Assert-Contains $readme @(
+        'free local Windows alpha executable',
+        'Windows service/tray packaging and the paid Android dashboard still future',
         'no open-source license',
         'all rights are reserved',
         'EngineHarness` (68)',
         'GatewayGateHarness` (34)',
         'admitted hooks stay prompt',
         'Latest offline total: 258 assertions'
+    ) "README.md"
+    Assert-DoesNotContain $readme @(
+        'free Windows service (.exe)'
     ) "README.md"
 
     $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
