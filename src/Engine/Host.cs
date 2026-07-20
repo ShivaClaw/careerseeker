@@ -288,6 +288,13 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
 
     private async Task HandleAsync(HttpListenerContext ctx, CancellationToken ct)
     {
+        if (!RequestCameFromThisDashboard(ctx))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
         var path = ctx.Request.Url?.AbsolutePath ?? "/";
         if (ctx.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) && path == "/status")
         {

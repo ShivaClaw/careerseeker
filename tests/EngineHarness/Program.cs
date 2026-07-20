@@ -289,6 +289,14 @@ Console.WriteLine("\n[ localhost dashboard ]");
         var html = await homeResponse.Content.ReadAsStringAsync();
         Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
         Check("/ sends dashboard safety headers", HasDashboardSafetyHeaders(homeResponse), homeResponse.Headers.ToString());
+        using (var wrongReadHost = new HttpRequestMessage(HttpMethod.Get, "http://localhost:7777/status"))
+        {
+            wrongReadHost.Headers.Host = "evil.test";
+            var wrongReadHostResp = await http.SendAsync(wrongReadHost);
+            Check("/status rejects a foreign Host header",
+                (int)wrongReadHostResp.StatusCode >= 400,
+                wrongReadHostResp.StatusCode.ToString());
+        }
         Check("/ exposes configured Gmail disconnect control", html.Contains("Disconnect Gmail"));
         Check("/ exposes configured audit export control", html.Contains("Export Audit JSON"));
         Check("/ exposes configured alpha package export control", html.Contains("Export Alpha Package"));
@@ -323,6 +331,14 @@ Console.WriteLine("\n[ localhost dashboard ]");
             resumePdf[3] == 0x46,
             Convert.ToHexString(resumePdf));
         Check("/documents sends dashboard safety headers", HasDashboardSafetyHeaders(resumeResponse), resumeResponse.Headers.ToString());
+        using (var wrongDocumentHost = new HttpRequestMessage(HttpMethod.Get, $"http://localhost:7777/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}"))
+        {
+            wrongDocumentHost.Headers.Host = "evil.test";
+            var wrongDocumentHostResp = await http.SendAsync(wrongDocumentHost);
+            Check("/documents rejects a foreign Host header",
+                (int)wrongDocumentHostResp.StatusCode >= 400,
+                wrongDocumentHostResp.StatusCode.ToString());
+        }
 
         var outsideDocDir = Path.Combine(Path.GetTempPath(), "careerseeker-engineharness-outside-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(outsideDocDir);
