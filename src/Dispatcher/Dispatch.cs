@@ -32,7 +32,7 @@ public sealed record PostingDispatchInfo(
 public sealed record DispatcherConfig(
     string CandidateName,
     string CandidateEmail,                   // the user's own Gmail address (From, and self-draft To)
-    string SubjectTemplate = "Application for {title}",
+    string SubjectTemplate = "Application for {title} at {company}",
     string OutboxLabel = "CareerSeeker/Outbox",
     string ActionNeededLabel = "CareerSeeker/Action-Needed",
     bool AttachCoverPdf = false,
