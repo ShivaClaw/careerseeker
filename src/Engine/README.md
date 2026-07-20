@@ -45,6 +45,8 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --db .appdata/careerseeker-alpha.db --gmail-control`
 - Windows-friendly dashboard launcher, from source or published executable:
   `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1`
+- Double-click local workspace setup helper included in the release ZIP:
+  `Setup-CareerSeeker-Alpha.cmd`
 - Double-click dashboard launcher included in the release ZIP:
   `Start-CareerSeeker-Alpha.cmd`
 - Optional per-user Windows logon task helper for the alpha dashboard:
@@ -119,8 +121,9 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
-  dependencies, quickstart, release manifest, workspace initializer, dashboard/helper self-check scripts,
-  checksums, and selected docs without bundling local databases, vaults, provider keys, or generated artifacts.
+  dependencies, quickstart, release manifest, double-click setup/dashboard launchers, workspace initializer,
+  dashboard/helper self-check scripts, checksums, and selected docs without bundling local databases, vaults,
+  provider keys, or generated artifacts.
 - `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
   and a blank env-secrets placeholder, and can run the startup doctor after setup.
 - `scripts/Start-AlphaDashboard.ps1` wraps the standalone dashboard mode for trusted testers; it can smoke-check
@@ -128,6 +131,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   `-Published -PublishIfMissing`, or run from the packaged release root with `-Published`.
 - `Start-CareerSeeker-Alpha.cmd` wraps that published dashboard path for double-click tester startup from the
   extracted release ZIP.
+- `Setup-CareerSeeker-Alpha.cmd` wraps the workspace initializer for double-click tester setup from the
+  extracted release ZIP, then opens the generated profile template.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register, remove, start, stop, and inspect a per-user Windows
   logon task for the alpha dashboard while the full service/tray/installer stack remains future work.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering

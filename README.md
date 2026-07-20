@@ -31,6 +31,8 @@ Trust/OAuth docs:
   template, and a blank env-secrets placeholder, with an optional startup doctor run.
 - `scripts/Start-AlphaDashboard.ps1`: Windows-friendly alpha dashboard launcher. Use `-Once` for a
   one-shot smoke check or `-Published -PublishIfMissing` to run the self-contained executable.
+- `Setup-CareerSeeker-Alpha.cmd`: double-click local workspace setup helper copied into the trusted-tester
+  release ZIP.
 - `Start-CareerSeeker-Alpha.cmd`: double-click dashboard launcher copied into the trusted-tester release ZIP.
 - `connect-gmail`: first-class alpha command that opens Gmail OAuth, stores the local DPAPI token, and
   preflights draft access without creating a draft.
