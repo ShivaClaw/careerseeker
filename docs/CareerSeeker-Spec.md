@@ -108,7 +108,7 @@ Notice that all five reference systems — including the fork whose whole purpos
 | Level | Name | What the engine does alone | What requires the human |
 |---|---|---|---|
 | **L1** | **Drafts** | Discovers, scores, researches, tailors, packages each application as a ready-to-send Gmail draft | One click per send (review in Gmail) |
-| **L2** | **Autopilot + Gates** *(flagship)* | Everything in L1, **plus** auto-submits applications, sends template-class follow-ups, proposes interview slots | One **tap** per gated event, from the phone or a daily digest email |
+| **L2** | **Autopilot + Gates** *(flagship)* | Everything in L1, **plus** auto-submits applications, sends template-class follow-ups, proposes interview slots | One **tap** per gated event, primarily from the phone; any email digest is a separately scoped relay feature |
 | **L3** | **Full Autopilot** | Everything, within hard rails: pre-approved answer bank only, novel questions auto-escalate, calendar booking only inside pre-authorized windows, hard caps (≤N apps/day, score ≥ threshold), immutable audit log, kill switch | Reads a weekly summary; answers escalations at leisure |
 
 L2 is the magic trick: the engine runs 24/7 on the PC, and "interaction" collapses to tapping ✓ on a push notification — *"Apply to Staff Engineer @ Stripe (fit 4.6, legit 4.8)? [Approve] [Skip] [View]"*. Ten seconds a day, full autonomy in effect, zero unreviewed actions in the user's name. L3 exists for users who explicitly sign the "autonomy contract" during onboarding (§4.4) and is rails-bound by construction, not by promise.
@@ -255,10 +255,10 @@ Not a EULA-wall — an explicit, plain-language settings ritual the user will re
 - Set the rails (defaults shown): max applications/day (5), minimum combined score to act (4.0), quiet hours, **employer blocklist seeded automatically with the user's current employer and its domains** (the single most common auto-applier horror story, closed at onboarding).
 - Build the **Approved Answer Bank**: the wizard walks the 20 most common application/recruiter questions (work authorization, relocation, salary expectation phrasing, start date, "why are you leaving") and the user approves exact wordings. L2/L3 may only ever auto-answer from this bank; everything else escalates.
 - Calendar consent: pre-authorized interview windows (e.g., Tue–Thu 10:00–16:00), buffer rules, max interviews/week.
-- Signature line, displayed verbatim: *"CareerSeeker will act on your behalf within these limits. Every action is logged and reviewable. You can pause or stop it at any time from the tray, the dashboard, or by replying STOP to any digest email."* → typed "I agree".
+- Signature line, displayed verbatim: *"CareerSeeker will act on your behalf within these limits. Every action is logged and reviewable. You can pause or stop it at any time from the tray, the dashboard, the Android app, or any future relay off-ramp."* → typed "I agree".
 
 ### 4.5 Phase E — Dry run (2 min)
-The engine immediately runs Scout+Scorer on live data and presents its first 5 scored matches *before* doing anything autonomous: "Here's how I think. Tune me." Thumbs up/down on these calibrates initial weights and gives the user a felt sense of the scoring brain. Then: "Engine starting. First digest tomorrow 8:00 AM."
+The engine immediately runs Scout+Scorer on live data and presents its first 5 scored matches *before* doing anything autonomous: "Here's how I think. Tune me." Thumbs up/down on these calibrates initial weights and gives the user a felt sense of the scoring brain. Then: "Engine starting. The dashboard will show the first cycle summary."
 
 ---
 
@@ -316,7 +316,7 @@ tailoring/correspondence→ best available (Sonnet/Opus-class)                ~$
 Modes: **BYOK** (user key, stored in DPAPI vault, calls go direct to provider) · **Managed** (our metered proxy → future Pro subscription) · **Local-max** (everything possible on-device; tailoring quality degrades gracefully and the UI says so). Hard monthly budget setting with engine auto-throttle; per-stage token accounting surfaces in analytics ("this week cost $1.84 / 312 LLM calls").
 
 ### 5.7 Correspondent — the inbound brain (L2/L3)
-This is not part of L1. It requires an explicit L2/L3 scope escalation for Gmail metadata/read access, and any push path requires a relay or another internet-reachable endpoint. Watches a Gmail label via push (watch/webhook→relay) or 5-min poll. Pipeline: thread → classifier →
+This is not part of L1. It requires an explicit L2/L3 scope escalation for Gmail metadata/read access, and any push path requires a relay or another internet-reachable endpoint. `users.watch` requires a Cloud Pub/Sub topic in our Google project; a relay subscriber would see at least the Gmail address, `historyId`, and timing metadata even if message bodies remain encrypted or unread. The launch scope map must price and justify `gmail.metadata` or `gmail.readonly` for reply detection, `gmail.modify` for labels, and `gmail.send` only for user-approved L2/L3 sends. Watches a Gmail label via push (watch/webhook→relay) or 5-min poll. Pipeline: thread → classifier →
 `{rejection, auto-ack, interview_request, info_request_template, info_request_novel, offer, scam/phish, other}`.
 - rejection → outcome harvested, optional gracious templated reply (user-toggle), state → REJECTED
 - interview_request → Schedulist
@@ -351,7 +351,7 @@ Kotlin · Jetpack Compose · minSdk 26 · Room (local replica of the event-sourc
 6. **Insights** — weekly funnel, response rates, lesson history, Story Bank browser.
 
 ### 6.4 Offline & failure behavior
-Event-sourced replica means the app is fully readable offline; approvals queue locally and sync on reconnect with idempotency keys. If the PC is offline, gates show "engine asleep — will act when your PC wakes," and gate timeouts (72h) fall back to the email digest so a dead phone never silently stalls the search.
+Event-sourced replica means the app is fully readable offline; approvals queue locally and sync on reconnect with idempotency keys. If the PC is offline, gates show "engine asleep — will act when your PC wakes," and gate timeouts (72h) remain visible in the localhost dashboard and can fall back to a separately scoped email digest only if that L2 relay channel has been enabled.
 
 ---
 

@@ -32,7 +32,7 @@ public static class Lifecycle
 
         [AppState.DRAFTED] = new[] { AppState.APPLIED },            // L1: the user sends the draft
         [AppState.GATE_PENDING] = new[] { AppState.APPROVED, AppState.SKIPPED, AppState.GATE_EXPIRED },
-        [AppState.GATE_EXPIRED] = new[] { AppState.GATE_PENDING }, // re-prompt via digest
+        [AppState.GATE_EXPIRED] = new[] { AppState.GATE_PENDING }, // re-prompt via a configured approval channel
         [AppState.APPROVED] = new[] { AppState.SUBMITTING },
         [AppState.SUBMITTING] = new[] { AppState.APPLIED },
 

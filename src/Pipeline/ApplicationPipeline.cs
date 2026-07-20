@@ -218,7 +218,7 @@ public sealed class ApplicationPipeline
             return await GetStateAsync(appId, ct).ConfigureAwait(false);
         }
 
-        // A late or duplicate resolution (double-tap, digest arriving after the phone) is a benign
+        // A late or duplicate resolution (double-tap, secondary approval channel after the phone) is a benign
         // no-op: if the gate is no longer pending, report the settled state and do nothing.
         var current = await GetStateAsync(appId, ct).ConfigureAwait(false);
         if (current != AppState.GATE_PENDING)

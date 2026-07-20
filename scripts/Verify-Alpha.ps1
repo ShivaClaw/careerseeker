@@ -194,6 +194,22 @@ Invoke-Step "Local API security spec smoke" {
     ) "docs/CareerSeeker-Spec.md"
 }
 
+Invoke-Step "L2 Gmail relay scope smoke" {
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    Assert-Contains $spec @(
+        'any email digest is a separately scoped relay feature',
+        'separately scoped email digest only if that L2 relay channel has been enabled',
+        'Cloud Pub/Sub topic in our Google project',
+        'Gmail address, `historyId`, and timing metadata',
+        'gmail.metadata` or `gmail.readonly',
+        'gmail.send` only for user-approved L2/L3 sends'
+    ) "docs/CareerSeeker-Spec.md"
+    Assert-DoesNotContain $spec @(
+        'replying STOP to any digest email',
+        'First digest tomorrow'
+    ) "docs/CareerSeeker-Spec.md"
+}
+
 Invoke-Step "Code-signing guidance smoke" {
     $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
     Assert-Contains $spec @(
