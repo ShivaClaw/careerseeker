@@ -266,10 +266,8 @@ The engine immediately runs Scout+Scorer on live data and presents its first 5 s
 
 ### 5.1 Packaging & runtime
 
-2026 packaging note: prefer Azure Artifact Signing when eligible for public Windows distribution. EV
-certificates are no longer a SmartScreen shortcut; the launch blocker is public Authenticode signing, not
-EV specifically.
-- **Stack:** .NET 8, self-contained single-file publish (no runtime install), ~80 MB. Two processes: `SeekerSvc.exe` (Windows Service, auto-start, recovery=restart) and `SeekerTray.exe` (per-user WinUI 3 tray + wizard host). Installer: Inno Setup or MSIX; **Authenticode-signed (Azure Artifact Signing/OV/EV)** — an unsigned background agent that reads your email is SmartScreen-flagged malware as far as Windows is concerned, so code signing is a launch blocker, not a polish item.
+2026 packaging note: prefer Azure Artifact Signing when eligible for public Windows distribution. EV certificates are no longer a SmartScreen shortcut; the launch blocker is public Authenticode signing, not EV specifically.
+- **Stack:** .NET 8, self-contained single-file publish (no runtime install), ~80 MB. Two processes: `SeekerSvc.exe` (Windows Service, auto-start, recovery=restart) and `SeekerTray.exe` (per-user WinUI 3 tray + wizard host). Installer: Inno Setup or MSIX; **Authenticode-signed with Azure Artifact Signing when eligible, otherwise an OV certificate fallback** — an unsigned background agent that reads your email is SmartScreen-flagged malware as far as Windows is concerned, so code signing is a launch blocker, not a polish item.
 - Why a Service and not a tray-only app: survives logoff, restarts after crash/reboot, runs scheduled work at 3 AM. The tray is a thin client of the local API.
 - **Playwright for .NET** with bundled Chromium for form-fill; headed-but-minimized mode with human-pace input (per-field delays, no parallel sessions) — politeness as policy, one application at a time per site.
 - Auto-update via Squirrel/Velopack channel, delta updates, staged rollout flag.

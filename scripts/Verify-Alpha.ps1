@@ -194,6 +194,16 @@ Invoke-Step "Local API security spec smoke" {
     ) "docs/CareerSeeker-Spec.md"
 }
 
+Invoke-Step "Code-signing guidance smoke" {
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    Assert-Contains $spec @(
+        'prefer Azure Artifact Signing',
+        'EV certificates are no longer a SmartScreen shortcut',
+        'Azure Artifact Signing when eligible, otherwise an OV certificate fallback'
+    ) "docs/CareerSeeker-Spec.md"
+    Assert-DoesNotContain $spec @('Azure Artifact Signing/OV/EV') "docs/CareerSeeker-Spec.md"
+}
+
 $totalPassed = 0
 $totalFailed = 0
 foreach ($project in $offlineProjects) {
