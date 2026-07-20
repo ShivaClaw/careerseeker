@@ -6,6 +6,9 @@ v0.9). Sequencing: `docs/CareerSeeker-Integration-Windows-Roadmap.md`. Current h
 `docs/CareerSeeker-Project-Summary.md`. Trusted-tester walkthrough: `docs/Alpha-Tester-Walkthrough.md`.
 External audit quickstart: `docs/External-Audit-Handoff.md`.
 
+License notice: this repository currently has no open-source license; all rights are reserved unless a
+future `LICENSE` file says otherwise.
+
 Trust/OAuth docs:
 - `docs/Privacy-Policy.md`
 - `docs/Support.md`
@@ -17,9 +20,9 @@ Trust/OAuth docs:
   references Pipeline, Tailor, Dispatcher, and Researcher for alpha composition commands. `TailorHookBridge`
   joins Tailor<->Researcher so neither core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
-  `EngineHarness` (60), `ResearcherHarness` (29), `HookHarness` (12), `StoreParityHarness` (17),
-  `GatewayGateHarness` (29), `DispatcherNoSendHarness` (22), `LifecycleHarness` (37), and
-  `RendererHarness` (6). Latest offline total: 240 assertions. Run each with
+  `EngineHarness` (65), `ResearcherHarness` (29), `HookHarness` (12), `StoreParityHarness` (17),
+  `GatewayGateHarness` (34), `DispatcherNoSendHarness` (22), `LifecycleHarness` (37), and
+  `RendererHarness` (6). Latest offline total: 250 assertions. Run each with
   `dotnet run -c Release`.
 - `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. It builds, runs the initializer dry run,
   source-mode SQLite demo smoke, and offline harness suite. Add `-IncludeLive` for local BYOK/Gmail checks,

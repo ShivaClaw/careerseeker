@@ -355,16 +355,16 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 240 passed, 0 failed.
+Total: 250 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 60 passed, 0 failed |
+| `EngineHarness` | 65 passed, 0 failed |
 | `ResearcherHarness` | 29 passed, 0 failed |
 | `HookHarness` | 12 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
-| `GatewayGateHarness` | 29 passed, 0 failed |
+| `GatewayGateHarness` | 34 passed, 0 failed |
 | `DispatcherNoSendHarness` | 22 passed, 0 failed |
 | `LifecycleHarness` | 37 passed, 0 failed |
 | `RendererHarness` | 6 passed, 0 failed |

@@ -182,6 +182,24 @@ Invoke-Step "Trust wording smoke" {
     }
 }
 
+Invoke-Step "Public README and harness count smoke" {
+    $readme = Get-Content -LiteralPath "README.md" -Raw
+    Assert-Contains $readme @(
+        'no open-source license',
+        'all rights are reserved',
+        'EngineHarness` (65)',
+        'GatewayGateHarness` (34)',
+        'Latest offline total: 250 assertions'
+    ) "README.md"
+
+    $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
+    Assert-Contains $summary @(
+        'Total: 250 passed, 0 failed.',
+        '| `EngineHarness` | 65 passed, 0 failed |',
+        '| `GatewayGateHarness` | 34 passed, 0 failed |'
+    ) "docs/CareerSeeker-Project-Summary.md"
+}
+
 Invoke-Step "Local API security spec smoke" {
     $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
     Assert-Contains $spec @(
