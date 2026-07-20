@@ -70,29 +70,33 @@ public sealed class GatewayDossierModel : IDossierModel
 
     public static IReadOnlyList<ProposedFact> Parse(string raw)
     {
-        var json = ExtractJson(Strip(raw).Trim());
-        var list = new List<ProposedFact>();
-        try
+        foreach (var json in JsonCandidates(Strip(raw).Trim()))
         {
-            using var doc = JsonDocument.Parse(json);
-            var facts = FactElements(doc.RootElement);
-            foreach (var e in facts)
+            var list = new List<ProposedFact>();
+            try
             {
-                var topic = Enum.TryParse<DossierTopic>(Str(e, "topic"), ignoreCase: true, out var t) ? t : DossierTopic.Overview;
-                var text = Str(e, "text", "fact", "summary");
-                var url = Str(e, "sourceUrl", "source_url", "source", "url");
-                if (text.Length == 0) continue;
-                list.Add(new ProposedFact(topic, text, url, Str(e, "sourceTitle", "source_title", "title")));
+                using var doc = JsonDocument.Parse(json);
+                var facts = FactElements(doc.RootElement);
+                foreach (var e in facts)
+                {
+                    var topic = Enum.TryParse<DossierTopic>(Str(e, "topic"), ignoreCase: true, out var t) ? t : DossierTopic.Overview;
+                    var text = Str(e, "text", "fact", "summary");
+                    var url = Str(e, "sourceUrl", "source_url", "source", "url");
+                    if (text.Length == 0) continue;
+                    list.Add(new ProposedFact(topic, text, url, Str(e, "sourceTitle", "source_title", "title")));
+                }
+                if (list.Count > 0) return list;
             }
+            catch (JsonException) { /* try the next candidate, if any */ }
         }
-        catch (JsonException) { /* a malformed proposal yields no facts; the dossier is simply leaner */ }
-        return list;
+
+        return Array.Empty<ProposedFact>();
     }
 
     private static IEnumerable<JsonElement> FactElements(JsonElement root)
     {
         if (root.ValueKind == JsonValueKind.Array)
-            return root.EnumerateArray();
+            return root.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.Object);
 
         if (root.ValueKind == JsonValueKind.Object)
         {
@@ -125,18 +129,23 @@ public sealed class GatewayDossierModel : IDossierModel
         return fence >= 0 ? s[..fence] : s;
     }
 
-    private static string ExtractJson(string s)
+    private static IEnumerable<string> JsonCandidates(string s)
     {
-        if (s.Length == 0 || s[0] is '[' or '{') return s;
+        if (s.Length == 0)
+        {
+            yield return s;
+            yield break;
+        }
+
+        if (s[0] is '[' or '{')
+            yield return s;
 
         for (var i = 0; i < s.Length; i++)
         {
             if (s[i] is not ('[' or '{')) continue;
             if (TryFindJsonEnd(s, i, out var end))
-                return s[i..(end + 1)];
+                yield return s[i..(end + 1)];
         }
-
-        return s;
     }
 
     private static bool TryFindJsonEnd(string s, int start, out int end)

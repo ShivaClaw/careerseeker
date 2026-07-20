@@ -51,7 +51,7 @@ Retrieved document text is treated as untrusted data, never instructions.
 ## Verified Status
 
 - Compiles clean against the Gateway: `dotnet build -c Release` returns 0 warnings, 0 errors.
-- `ResearcherHarness`: 33 passed, 0 failed.
+- `ResearcherHarness`: 35 passed, 0 failed.
 - Coverage includes the grounding invariant, positive-only signals, cache behavior, Gateway model bridge,
   dossier-to-Scorer seam, and the Brave adapter's auth/query shape, public-page fetch, HTML stripping,
   localhost refusal, non-text skipping, wrapper-shaped live model responses, deterministic source fallback,
