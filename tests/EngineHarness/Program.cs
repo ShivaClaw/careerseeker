@@ -467,6 +467,68 @@ Console.WriteLine("\n[ alpha package export ]");
     }
 }
 
+Console.WriteLine("\n[ profile import ]");
+{
+    var root = Path.Combine(Path.GetTempPath(), "careerseeker-profile-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var profilePath = Path.Combine(root, "profile.json");
+        await File.WriteAllTextAsync(profilePath, """
+        {
+          "format": "careerseeker-alpha-profile-v1",
+          "profile": {
+            "name": "Riley Chen",
+            "email": "riley@example.com",
+            "headline": "Platform Engineer"
+          },
+          "claims": [
+            {
+              "kind": "Title",
+              "text": "Platform Engineer",
+              "confidence": "verified",
+              "sourceDoc": "resume.pdf"
+            },
+            {
+              "kind": "Skill",
+              "text": "Kubernetes",
+              "confidence": "stated",
+              "sourceDoc": "resume.pdf"
+            }
+          ]
+        }
+        """);
+
+        var dbPath = Path.Combine(root, "alpha.db");
+        await using var sqlite = SqliteSeekerStore.ForFile(dbPath);
+        await sqlite.InitializeAsync();
+        var seededProfile = await SeedProfileAsync(sqlite);
+        var seededClaims = await sqlite.GetClaimsAsync(seededProfile);
+        Check("profile import test starts from seeded demo claims",
+            seededClaims.Any(c => c.Text == "Acme"), string.Join(", ", seededClaims.Select(c => c.Text)));
+
+        var imported = await AlphaProfileImport.ImportAsync(sqlite, profilePath, "alpha.profileId");
+        var importedClaims = await sqlite.GetClaimsAsync(imported.ProfileId);
+        Check("profile import replaces the profile claim oracle",
+            imported.ClaimCount == 2 &&
+            importedClaims.Count == 2 &&
+            importedClaims.Any(c => c.Text == "Kubernetes" && c.Confidence == "stated") &&
+            importedClaims.All(c => c.Text != "Acme"),
+            string.Join(", ", importedClaims.Select(c => c.Text)));
+        Check("profile import marks the active alpha profile",
+            await sqlite.GetConfigAsync("alpha.profileId") == imported.ProfileId.ToString());
+
+        var template = AlphaProfileImport.TemplateJson();
+        using var templateDoc = JsonDocument.Parse(template);
+        Check("profile template is parseable and contains editable claims",
+            templateDoc.RootElement.GetProperty("claims").GetArrayLength() >= 3);
+    }
+    finally
+    {
+        try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch (IOException) { }
+    }
+}
+
 Console.WriteLine("\n[ startup doctor ]");
 {
     var root = Path.Combine(Path.GetTempPath(), "careerseeker-doctor-" + Guid.NewGuid().ToString("N"));

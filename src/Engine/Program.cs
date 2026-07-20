@@ -37,6 +37,10 @@ if (mode.Equals("export-alpha-package", StringComparison.OrdinalIgnoreCase))
     return await RunExportAlphaPackageAsync().ConfigureAwait(false);
 if (mode.Equals("import-alpha-package", StringComparison.OrdinalIgnoreCase))
     return await RunImportAlphaPackageAsync().ConfigureAwait(false);
+if (mode.Equals("profile-template", StringComparison.OrdinalIgnoreCase))
+    return await RunProfileTemplateAsync().ConfigureAwait(false);
+if (mode.Equals("import-profile", StringComparison.OrdinalIgnoreCase))
+    return await RunImportProfileAsync().ConfigureAwait(false);
 if (mode.Equals("doctor", StringComparison.OrdinalIgnoreCase))
     return await RunDoctorAsync().ConfigureAwait(false);
 if (mode.Equals("control-app", StringComparison.OrdinalIgnoreCase))
@@ -177,7 +181,7 @@ async Task<int> RunAlphaAsync()
 
     await using var store = SqliteSeekerStore.ForFile(dbPath);
     await store.InitializeAsync().ConfigureAwait(false);
-    var profileId = await SeedProfileAsync(store).ConfigureAwait(false);
+    var profileId = await SeedProfileOnceAsync(store, "alpha.profileId").ConfigureAwait(false);
 
     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(IntArg("--http-timeout-seconds", 60)) };
     var client = GoogleOAuthClient.Load(clientPath);
@@ -524,7 +528,7 @@ async Task<int> RunDraftJobAsync()
     if (summary.Injected && !HasFlag("--allow-injected"))
         return Fail($"draft-job refused job {jobId} because Scout flagged prompt-injection signals. Pass --allow-injected only after manual review.");
 
-    var profileId = await SeedProfileAsync(store).ConfigureAwait(false);
+    var profileId = await SeedProfileOnceAsync(store, "alpha.profileId").ConfigureAwait(false);
     if (!string.IsNullOrWhiteSpace(artifactsPath))
         Directory.CreateDirectory(artifactsPath);
 
@@ -754,6 +758,55 @@ async Task<int> RunImportAlphaPackageAsync()
     Console.WriteLine($"  audit chain: {(result.AuditOk ? "ok" : "FAILED")}");
     Console.WriteLine("  existing files are preserved unless --overwrite is passed.");
     return result.AuditOk ? 0 : 1;
+}
+
+async Task<int> RunProfileTemplateAsync()
+{
+    var outPath = StringArg("--out");
+    var json = AlphaProfileImport.TemplateJson();
+    if (string.IsNullOrWhiteSpace(outPath))
+    {
+        Console.Write(json);
+        return 0;
+    }
+
+    var fullPath = Path.GetFullPath(outPath);
+    var dir = Path.GetDirectoryName(fullPath);
+    if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+    if (File.Exists(fullPath) && !HasFlag("--overwrite"))
+        return Fail($"profile-template refuses to overwrite '{fullPath}'. Pass --overwrite to replace it.");
+
+    await File.WriteAllTextAsync(fullPath, json).ConfigureAwait(false);
+    Console.WriteLine("CareerSeeker profile template");
+    Console.WriteLine($"  output: {fullPath}");
+    Console.WriteLine("  edit this file locally, then run import-profile.");
+    return 0;
+}
+
+async Task<int> RunImportProfileAsync()
+{
+    var profilePath = StringArg("--profile") ?? StringArg("--in");
+    if (string.IsNullOrWhiteSpace(profilePath))
+        return Fail("import-profile requires --profile <json>.");
+
+    var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var configKey = StringArg("--config-key") ?? "alpha.profileId";
+    var dbDir = Path.GetDirectoryName(dbPath);
+    if (!string.IsNullOrWhiteSpace(dbDir)) Directory.CreateDirectory(dbDir);
+
+    await using var store = SqliteSeekerStore.ForFile(dbPath);
+    await store.InitializeAsync().ConfigureAwait(false);
+    var result = await AlphaProfileImport.ImportAsync(store, profilePath, configKey).ConfigureAwait(false);
+    var claims = await store.GetClaimsAsync(result.ProfileId).ConfigureAwait(false);
+
+    Console.WriteLine("CareerSeeker profile import");
+    Console.WriteLine($"  db: {dbPath}");
+    Console.WriteLine($"  profile: {Path.GetFullPath(profilePath)}");
+    Console.WriteLine($"  profile id: {result.ProfileId}");
+    Console.WriteLine($"  claims: {result.ClaimCount}");
+    Console.WriteLine($"  active config: {configKey}");
+    Console.WriteLine($"  replacement verified: {(claims.Count == result.ClaimCount ? "yes" : "FAILED")}");
+    return claims.Count == result.ClaimCount ? 0 : 1;
 }
 
 async Task<int> RunDoctorAsync()
@@ -1340,6 +1393,8 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-alpha-package [--db .appdata/careerseeker-alpha.db] [--out output/careerseeker-alpha-package.zip] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--include-payloads] [--no-db] [--no-artifacts] [--no-jds]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-alpha-package --package output/careerseeker-alpha-package.zip [--target .appdata/imported] [--db .appdata/imported/careerseeker-alpha.db] [--artifacts .appdata/imported/artifacts] [--jd-dir .appdata/imported/job-descriptions] [--overwrite] [--no-db] [--no-artifacts] [--no-jds]");
+    Console.WriteLine("  SeekerSvc.Engine.exe profile-template [--out .appdata/profile.template.json] [--overwrite]");
+    Console.WriteLine("  SeekerSvc.Engine.exe import-profile --profile .appdata/profile.template.json [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe control-app --application-id 123 --action pause|resume|kill [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");

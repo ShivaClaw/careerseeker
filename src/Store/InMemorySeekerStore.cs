@@ -409,6 +409,24 @@ public sealed class InMemorySeekerStore : ISeekerStore
         finally { _mutex.Release(); }
     }
 
+    public async Task ReplaceClaimsAsync(long profileId, IReadOnlyList<ClaimRow> claims, CancellationToken ct = default)
+    {
+        var normalized = claims.Select(StoreNormalization.Normalize).ToList();
+        if (normalized.Any(c => c.ProfileId != profileId))
+            throw new ArgumentException("All replacement claims must belong to the requested profile.", nameof(claims));
+
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            foreach (var id in _claims.Values.Where(c => c.ProfileId == profileId).Select(c => c.Id).ToList())
+                _claims.Remove(id);
+            foreach (var claim in normalized)
+                _claims[claim.Id] = claim;
+            _ = Now();
+        }
+        finally { _mutex.Release(); }
+    }
+
     public async Task<IReadOnlyList<ClaimRow>> GetClaimsAsync(long profileId, CancellationToken ct = default)
     {
         await _mutex.WaitAsync(ct).ConfigureAwait(false);

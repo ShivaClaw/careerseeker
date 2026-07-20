@@ -1,6 +1,6 @@
 # CareerSeeker External Audit Handoff
 
-Updated: 2026-07-19
+Updated: 2026-07-20
 Branch: `agent/repo-cleanup`
 Pull request: `#1`
 
@@ -16,8 +16,8 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 ## Current Evidence
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
-  `scripts/Verify-Alpha.ps1`.
-- Latest local offline verifier: `232 passed, 0 failed`.
+  `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
+- Latest local offline verifier: `236 passed, 0 failed`.
 - `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish` passed locally after the current alpha wiring:
   offline harnesses, win-x64 single-file publish smoke, BYOK live provider smoke, startup doctor, and
   dashboard smoke.
@@ -40,6 +40,13 @@ Local workspace initialization:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/Initialize-AlphaWorkspace.ps1
+```
+
+Local source-of-truth profile setup:
+
+```powershell
+dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- profile-template --out .appdata/profile.template.json
+dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-profile --profile .appdata/profile.template.json --db .appdata/careerseeker-alpha.db
 ```
 
 Live BYOK/Gmail checks, using ignored local secrets and vault files:
@@ -100,6 +107,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 - Prompt quarantine: job descriptions and retrieved web documents are untrusted data blocks, not instructions.
 - Tailor minimization: generation receives only posting-relevant profile claims; Gate verification still checks
   against the local source profile.
+- Profile import: `import-profile` replaces the local profile claim oracle instead of mixing imported claims with
+  seeded demo facts.
 - Local dashboard controls: loopback dashboard has token-protected Gmail disconnect, application controls, and
   token-protected document downloads.
 - Store audit chain: local SQLite and in-memory stores share hash-chain verification and parity coverage.
@@ -109,8 +118,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 ## Current Alpha Capabilities
 
 - Runnable `src/Engine` executable with `demo`, `alpha`, `dashboard`, `scout-boards`, `draft-job`,
-  `research-company`, `doctor`, `export-audit`, `export-alpha-package`, `import-alpha-package`, `control-app`,
-  OAuth disconnect, and BYOK import/clear modes.
+  `research-company`, `profile-template`, `import-profile`, `doctor`, `export-audit`, `export-alpha-package`,
+  `import-alpha-package`, `control-app`, OAuth disconnect, and BYOK import/clear modes.
 - Live Greenhouse/Lever/Ashby board ingestion into SQLite with local posting-body artifacts.
 - Selected stored job drafting with posting-body context and dry-run verification.
 - Real ATS-clean resume PDF renderer and Gmail draft attachment packaging.
@@ -119,6 +128,7 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
   package export, and local resume/cover document routes.
 - BYOK Anthropic/Gemini Tailor and Gate wiring through the Gateway.
 - Brave Search + BYOK company dossier command with deterministic grounding and fallback source snippets.
+- Local source-of-truth profile template/import commands for Tailor/Gate facts.
 - Local alpha ZIP package export/import with manifest, audit export, SQLite snapshot, draft artifacts, and saved
   job-description artifacts; secret/token/key-looking paths are filtered, unsafe ZIP paths are rejected, and
   import verifies the restored SQLite audit chain.

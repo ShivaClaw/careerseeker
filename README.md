@@ -16,18 +16,19 @@ Trust/OAuth docs:
   references Pipeline, Tailor, Dispatcher, and Researcher for alpha composition commands. `TailorHookBridge`
   joins Tailor<->Researcher so neither core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
-  `EngineHarness` (53), `ResearcherHarness` (29), `HookHarness` (12), `StoreParityHarness` (17),
+  `EngineHarness` (57), `ResearcherHarness` (29), `HookHarness` (12), `StoreParityHarness` (17),
   `GatewayGateHarness` (29), `DispatcherNoSendHarness` (21), `LifecycleHarness` (37), and
-  `RendererHarness` (6). Latest offline total: 232 assertions. Run each with
+  `RendererHarness` (6). Latest offline total: 236 assertions. Run each with
   `dotnet run -c Release`.
-- `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. Add `-IncludeLive` for local
-  BYOK/Gmail checks, `-IncludePublish` for the win-x64 single-file publish smoke, `-IncludePackage` for
-  the trusted-tester release ZIP, and `-IncludeResearch` for the live Brave/BYOK company-research smoke.
+- `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. It builds, runs the initializer dry run,
+  source-mode SQLite demo smoke, and offline harness suite. Add `-IncludeLive` for local BYOK/Gmail checks,
+  `-IncludePublish` for the win-x64 single-file publish smoke, `-IncludePackage` for the trusted-tester release
+  ZIP, and `-IncludeResearch` for the live Brave/BYOK company-research smoke.
 - `scripts/Package-AlphaRelease.ps1`: builds a self-contained trusted-tester ZIP with the alpha executable,
   workspace initializer, quickstart, checksums, and selected docs; it does not package local databases, vaults,
   or generated artifacts.
-- `scripts/Initialize-AlphaWorkspace.ps1`: creates ignored local alpha directories and a blank env-secrets
-  placeholder, with an optional startup doctor run.
+- `scripts/Initialize-AlphaWorkspace.ps1`: creates ignored local alpha directories, a starter profile
+  template, and a blank env-secrets placeholder, with an optional startup doctor run.
 - `scripts/Start-AlphaDashboard.ps1`: Windows-friendly alpha dashboard launcher. Use `-Once` for a
   one-shot smoke check or `-Published -PublishIfMissing` to run the self-contained executable.
 - `scripts/Manage-AlphaDashboardTask.ps1`: optional per-user Windows startup task helper for the alpha

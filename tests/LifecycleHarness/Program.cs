@@ -359,6 +359,7 @@ sealed class FaultingStore : ISeekerStore
     public Task<AuditVerification> VerifyAuditAsync(CancellationToken ct = default) => _inner.VerifyAuditAsync(ct);
     public Task<long> UpsertProfileAsync(string json, CancellationToken ct = default) => _inner.UpsertProfileAsync(json, ct);
     public Task AddClaimAsync(ClaimRow claim, CancellationToken ct = default) => _inner.AddClaimAsync(claim, ct);
+    public Task ReplaceClaimsAsync(long profileId, IReadOnlyList<ClaimRow> claims, CancellationToken ct = default) => _inner.ReplaceClaimsAsync(profileId, claims, ct);
     public Task<IReadOnlyList<ClaimRow>> GetClaimsAsync(long profileId, CancellationToken ct = default) => _inner.GetClaimsAsync(profileId, ct);
     public Task<string?> GetConfigAsync(string key, CancellationToken ct = default) => _inner.GetConfigAsync(key, ct);
     public Task SetConfigAsync(string key, string value, CancellationToken ct = default) => _inner.SetConfigAsync(key, value, ct);

@@ -66,6 +66,7 @@ public interface ISeekerStore
     // ---- profile / claims (the Fabrication Gate's oracle) ----
     Task<long> UpsertProfileAsync(string json, CancellationToken ct = default);
     Task AddClaimAsync(ClaimRow claim, CancellationToken ct = default);
+    Task ReplaceClaimsAsync(long profileId, IReadOnlyList<ClaimRow> claims, CancellationToken ct = default);
     Task<IReadOnlyList<ClaimRow>> GetClaimsAsync(long profileId, CancellationToken ct = default);
 
     // ---- config (rails, autonomy level, budgets, quiet hours) ----

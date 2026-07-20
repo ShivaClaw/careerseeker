@@ -1,6 +1,6 @@
 # CareerSeeker Alpha Build Checklist
 
-Updated: 2026-07-19
+Updated: 2026-07-20
 Purpose: turn the current repo into a small-tester Windows alpha without pretending launch polish is done.
 
 ## Current baseline
@@ -10,8 +10,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - Live Scout ingestion is already verified against real ATS feeds.
 - Live Gmail draft creation is already verified with `gmail.compose`.
 - `src/Engine` is now a runnable executable entrypoint with demo and alpha modes.
-- `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories and a blank env-secrets
-  placeholder, and can run the startup doctor after setup.
+- `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
+  and a blank env-secrets placeholder, and can run the startup doctor after setup.
 - A self-contained `win-x64` single-file publish succeeds and the published `.exe` runs a demo cycle.
 - Demo mode can also run against a persistent SQLite database with audit export support and local draft artifacts.
 - Engine alpha mode can use SQLite + DPAPI OAuth + Gmail to create one real self-addressed L1 draft.
@@ -47,6 +47,8 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
   Gmail vault presence, and BYOK provider availability.
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
+- The alpha executable has `profile-template` and `import-profile` commands so testers can replace the local
+  Tailor/Gate source-of-truth profile without mixing in seeded demo claims.
 - The alpha executable has a `scout-boards` command for live Greenhouse/Lever/Ashby board ingestion into SQLite,
   including local full-posting JD artifacts, a hash-chained ingest event, and repost refresh behavior.
 - The alpha executable has a `draft-job` command for creating an L1 draft package from a selected stored job id,
@@ -107,6 +109,8 @@ Exit:
 Verified:
 - `powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1`
 - `powershell -ExecutionPolicy Bypass -File scripts/Initialize-AlphaWorkspace.ps1 -DryRun`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- profile-template --out .appdata/profile.template.json`
+- `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-profile --profile .appdata/profile.template.json --db .appdata/careerseeker-alpha.db`
 - `powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1 -IncludeResearch`
 - `dotnet run -c Release --project tests/GmailLiveHarness/GmailLiveHarness.csproj -- --email you@gmail.com --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
 - `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`

@@ -1,6 +1,6 @@
 # CareerSeeker Project Summary
 
-Updated: 2026-07-19
+Updated: 2026-07-20
 Audience: LLM agents, coding agents, test harnesses, planning agents
 Source repo: repository root
 Primary branch: `main`
@@ -19,7 +19,7 @@ The authoritative product spec is [CareerSeeker-Spec.md](./CareerSeeker-Spec.md)
 
 ## Current Status
 
-Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, local alpha workspace initialization, standalone SQLite dashboard mode, Windows-friendly dashboard launcher, trusted-tester release ZIP packaging, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, local alpha package export/import, Gmail disconnect, dashboard disconnect/control views, dashboard alpha package export control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, live Brave/BYOK company research, and parity coverage verified.
+Overall status: technical Windows alpha path implemented; SQLite source restoration, SQLite-backed demo/alpha executable paths, local source-of-truth profile import, local alpha workspace initialization, standalone SQLite dashboard mode, Windows-friendly dashboard launcher, trusted-tester release ZIP packaging, live Scout board ingest with local posting-body artifacts, selected-job draft packaging, local alpha package export/import, Gmail disconnect, dashboard disconnect/control views, dashboard alpha package export control, Gmail API preflight, BYOK alpha wiring with DPAPI provider-key import, full BYOK alpha Gmail/PDF drafting, ATS-clean PDF rendering, live Brave/BYOK company research, and parity coverage verified.
 
 Completed:
 
@@ -38,8 +38,8 @@ Completed:
   DB without starting a demo cycle.
 - `scripts/Start-AlphaDashboard.ps1` wraps dashboard startup for trusted testers, including source-mode and
   published-executable launch plus a `-Once` smoke-check mode.
-- `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories and a blank env-secrets
-  placeholder, and can run the startup doctor after setup.
+- `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
+  and a blank env-secrets placeholder, and can run the startup doctor after setup.
 - `scripts/Package-AlphaRelease.ps1` builds a trusted-tester ZIP with the published executable, workspace
   initializer, quickstart, SHA-256 checksums, and selected docs while excluding local databases, vaults, provider
   keys, and generated artifacts.
@@ -53,12 +53,14 @@ Completed:
 - The alpha executable has a `doctor` startup smoke for SQLite/audit health, artifact writability, Gmail config,
   Gmail vault presence, and BYOK provider availability.
 - The alpha executable has an audited `control-app` command for pausing, resuming, or killing a local application row.
+- The alpha executable has `profile-template` and `import-profile` commands for replacing the local Tailor/Gate
+  source-of-truth profile without mixing in seeded demo claims.
 - The alpha executable has `draft-job` for a selected stored job row, including posting-body loading from
   `jd_path` and a `--dry-run` package/artifact/audit verification path that does not touch Gmail.
 - Tailor generation now minimizes profile claims to posting-relevant facts while preserving Gate rework facts.
 - `scripts/Verify-Alpha.ps1` provides a repeatable build/offline-harness verification entrypoint, including an
-  initializer dry-run smoke, with optional live BYOK/Gmail, live Brave/BYOK company research, win-x64 publish
-  checks, and trusted-tester ZIP packaging.
+  initializer dry-run smoke and source-mode SQLite demo smoke, with optional live BYOK/Gmail, live Brave/BYOK
+  company research, win-x64 publish checks, and trusted-tester ZIP packaging.
 - GitHub CI mirrors the local offline alpha verifier on `main`, `agent/**`, and `codex/**` pushes plus PRs,
   after a Release warnings-as-errors build.
 - OAuth client JSON handling is ignored by Git via `client_secret*.json`.
@@ -321,7 +323,7 @@ Environment:
 
 Latest build:
 
-- Date: 2026-07-19
+- Date: 2026-07-20
 - Result: passed
 - Restore: `Microsoft.Data.Sqlite` restored from nuget.org.
 - Warnings: 0
@@ -331,12 +333,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 232 passed, 0 failed.
+Total: 236 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 53 passed, 0 failed |
+| `EngineHarness` | 57 passed, 0 failed |
 | `ResearcherHarness` | 29 passed, 0 failed |
 | `HookHarness` | 12 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
@@ -536,6 +538,7 @@ Status: substantially complete.
 
 ### Phase 5: Onboarding And User Data
 
+- Current alpha has JSON profile template/import for the Tailor/Gate claim oracle.
 - Resume parser.
 - Profile prefill.
 - Interview by exception.

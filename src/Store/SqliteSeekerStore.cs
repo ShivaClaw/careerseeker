@@ -564,6 +564,43 @@ ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, text=excluded.text,
             return true;
         }, ct);
 
+    public Task ReplaceClaimsAsync(long profileId, IReadOnlyList<ClaimRow> claims, CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            var normalized = claims.Select(StoreNormalization.Normalize).ToList();
+            if (normalized.Any(c => c.ProfileId != profileId))
+                throw new ArgumentException("All replacement claims must belong to the requested profile.", nameof(claims));
+
+            using var tx = (SqliteTransaction)await Conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+            using (var delete = Conn.CreateCommand())
+            {
+                delete.Transaction = tx;
+                delete.CommandText = "DELETE FROM claims WHERE profile_id=$pid;";
+                P(delete, "$pid", profileId);
+                await delete.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
+            foreach (var claim in normalized)
+            {
+                using var insert = Conn.CreateCommand();
+                insert.Transaction = tx;
+                insert.CommandText = @"
+INSERT INTO claims (id, profile_id, kind, text, confidence, source_doc, created_at)
+VALUES ($id, $pid, $kind, $text, $conf, $src, $now);";
+                P(insert, "$id", claim.Id);
+                P(insert, "$pid", claim.ProfileId);
+                P(insert, "$kind", claim.Kind);
+                P(insert, "$text", claim.Text);
+                P(insert, "$conf", claim.Confidence);
+                P(insert, "$src", claim.SourceDoc);
+                P(insert, "$now", Now());
+                await insert.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+            return true;
+        }, ct);
+
     public Task<IReadOnlyList<ClaimRow>> GetClaimsAsync(long profileId, CancellationToken ct = default)
         => Locked(async () =>
         {

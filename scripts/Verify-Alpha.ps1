@@ -80,6 +80,7 @@ Invoke-Step "Alpha workspace initializer dry run" {
         -DbPath "tmp/verify-alpha-init/alpha.db" `
         -ArtifactsPath "tmp/verify-alpha-init/artifacts" `
         -JobDescriptionDirectory "tmp/verify-alpha-init/job-descriptions" `
+        -ProfileTemplatePath "tmp/verify-alpha-init/profile.template.json" `
         -SecretsPath "tmp/verify-alpha-init/secrets/env.secrets" `
         -GmailClientPath "tmp/verify-alpha-init/secrets/google-oauth-client.json" `
         -GmailVaultPath "tmp/verify-alpha-init/oauth/gmail-token.dpapi" `
@@ -88,6 +89,20 @@ Invoke-Step "Alpha workspace initializer dry run" {
     if ($LASTEXITCODE -ne 0) {
         throw "Alpha workspace initializer dry run failed."
     }
+}
+
+Invoke-Step "Engine SQLite demo smoke" {
+    Invoke-Dotnet @(
+        "run",
+        "--project", "src/Engine/SeekerSvc.Engine.csproj",
+        "-c", $Configuration,
+        "--no-build",
+        "--",
+        "demo",
+        "--once",
+        "--db", "tmp/verify-alpha-demo/demo.db",
+        "--artifacts", "tmp/verify-alpha-demo/artifacts"
+    )
 }
 
 $totalPassed = 0

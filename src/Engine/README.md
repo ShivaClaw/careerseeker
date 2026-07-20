@@ -54,6 +54,9 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - Live BYOK provider smoke for Anthropic, Gemini, Tailor, Gate, and accounting:
   `dotnet run -c Release --project tests/ByokLiveHarness/ByokLiveHarness.csproj -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
+- Create and import a local source-of-truth profile for Tailor/Gate:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- profile-template --out .appdata/profile.template.json`
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-profile --profile .appdata/profile.template.json --db .appdata/careerseeker-alpha.db`
 - Alpha Gmail smoke with real BYOK Tailor and Gate calls:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --gate-semantic-candidates 3 --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
 - Bounded BYOK alpha smoke for routine validation:
@@ -75,6 +78,10 @@ evidence without touching Gmail. Demo and alpha draft paths persist generated PD
 creating anything, renders an ATS-clean PDF resume attachment, then intentionally runs one cycle and creates
 one self-addressed L1 draft so early testing cannot accidentally produce drafts on a timer.
 
+`profile-template` writes a starter JSON profile. `import-profile` replaces the local profile claim oracle in
+SQLite and records the active `alpha.profileId`, so Tailor and Gate use imported source facts instead of
+accumulating demo claims.
+
 By default it uses fake inference. Pass `--llm byok` to use local Anthropic/Gemini keys from the DPAPI
 provider-key vault, environment variables, or `secrets/env.secrets`. `--email` is optional when Gmail
 profile lookup is available. For quick routine validation, use `--llm byok --fast-smoke`; it performs one
@@ -92,15 +99,15 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 232 passed, 0 failed.
-- `scripts/Verify-Alpha.ps1` runs the repeatable build plus offline harness suite; optional switches add live
-  BYOK/Gmail checks, the win-x64 publish smoke, the trusted-tester release ZIP, and live Brave/BYOK company
-  research.
+- Latest offline harness total: 236 passed, 0 failed.
+- `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
+  offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
+  trusted-tester release ZIP, and live Brave/BYOK company research.
 - `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, quickstart,
   workspace initializer, checksums, and selected docs without bundling local databases, vaults, provider keys,
   or generated artifacts.
-- `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories and a blank env-secrets
-  placeholder, and can run the startup doctor after setup.
+- `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
+  and a blank env-secrets placeholder, and can run the startup doctor after setup.
 - `scripts/Start-AlphaDashboard.ps1` wraps the standalone dashboard mode for trusted testers; it can smoke-check
   the local dashboard with `-Once`, run from source, or run the published single-file executable with
   `-Published -PublishIfMissing`.
@@ -139,8 +146,10 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 - `doctor` checks local SQLite/audit health, artifact writability, Gmail OAuth/vault presence when required,
   and BYOK provider availability without printing secret values.
 - `control-app` gives testers a local audited pause, resume, and kill switch for a specific application row.
+- `profile-template` and `import-profile` let testers replace the local Tailor/Gate source-of-truth profile
+  with their own verified/stated/weak claims.
 
 ## Not Yet Built
 
 - Windows Service host, tray controls, and broader dashboard polish around `EngineHost`.
-- Onboarding, WinUI tray, OAuth/CASA, installer, and code signing.
+- Full onboarding UI, WinUI tray, OAuth/CASA, installer, and code signing.

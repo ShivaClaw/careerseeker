@@ -7,6 +7,7 @@ param(
     [string] $DbPath = ".appdata/careerseeker-alpha.db",
     [string] $ArtifactsPath = ".appdata/artifacts",
     [string] $JobDescriptionDirectory = ".appdata/job-descriptions",
+    [string] $ProfileTemplatePath = ".appdata/profile.template.json",
     [string] $SecretsPath = "secrets/env.secrets",
     [string] $GmailClientPath = "secrets/google-oauth-client.json",
     [string] $GmailVaultPath = ".appdata/oauth/gmail-token.dpapi",
@@ -27,6 +28,42 @@ $template = @"
 ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
 BRAVE_SEARCH_API_KEY=
+"@
+$profileTemplate = @"
+{
+  "format": "careerseeker-alpha-profile-v1",
+  "profile": {
+    "name": "Jordan Lee",
+    "email": "jordan@example.com",
+    "headline": "Senior Software Engineer"
+  },
+  "claims": [
+    {
+      "kind": "Title",
+      "text": "Senior Software Engineer",
+      "confidence": "verified",
+      "sourceDoc": "resume.pdf"
+    },
+    {
+      "kind": "Skill",
+      "text": "distributed systems",
+      "confidence": "verified",
+      "sourceDoc": "resume.pdf"
+    },
+    {
+      "kind": "Metric",
+      "text": "reduced p99 latency 30%",
+      "confidence": "verified",
+      "sourceDoc": "resume.pdf"
+    },
+    {
+      "kind": "Other",
+      "text": "I have built reliable distributed systems in Go",
+      "confidence": "verified",
+      "sourceDoc": "resume.pdf"
+    }
+  ]
+}
 "@
 
 function Resolve-WorkspacePath {
@@ -83,6 +120,29 @@ function New-TemplateIfMissing {
     Write-Host "        Fill this file locally; do not paste or commit secret values."
 }
 
+function New-ProfileTemplateIfMissing {
+    param([string] $Path)
+
+    $full = Resolve-WorkspacePath $Path
+    if (Test-Path -LiteralPath $full) {
+        Write-Host "OK      profile template exists: $full"
+        return
+    }
+
+    if ($DryRun) {
+        Write-Host "CREATE  profile template: $full"
+        return
+    }
+
+    $dir = Split-Path -Parent $full
+    if (-not [string]::IsNullOrWhiteSpace($dir)) {
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    }
+    Set-Content -LiteralPath $full -Value $profileTemplate -Encoding UTF8
+    Write-Host "CREATED profile template: $full"
+    Write-Host "        Edit it, then import it with the alpha executable."
+}
+
 function Test-CommandAvailable {
     param([string] $Command)
 
@@ -117,12 +177,14 @@ try {
     New-DirectoryIfMissing "release/output directory" $OutputDirectory
     New-DirectoryIfMissing "secret config directory" (Split-Path -Parent $SecretsPath)
     New-TemplateIfMissing $SecretsPath
+    New-ProfileTemplateIfMissing $ProfileTemplatePath
 
     Write-Host ""
     Write-Host "Configured local paths:"
     Write-Host "  db: $DbPath"
     Write-Host "  artifacts: $ArtifactsPath"
     Write-Host "  job descriptions: $JobDescriptionDirectory"
+    Write-Host "  profile template: $ProfileTemplatePath"
     Write-Host "  env secrets: $SecretsPath"
     Write-Host "  Gmail client JSON: $GmailClientPath"
     Write-Host "  Gmail token vault: $GmailVaultPath"
