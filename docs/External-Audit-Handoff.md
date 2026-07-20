@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `257 passed, 0 failed`.
+- Latest local offline verifier: `258 passed, 0 failed`.
 - Fresh optional verifier, 2026-07-20: `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch`
   passed locally on this branch. It covered the offline harness suite, win-x64 single-file publish smoke,
   BYOK key import, BYOK live provider smoke, required Gmail/BYOK startup doctor, dashboard one-shot smoke,
@@ -31,9 +31,9 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   bundled Privacy, Support, and Autonomy docs for the real alpha off-ramp and evidence-package commands.
   The package self-check also asserts typed confirmation prompts for live Gmail draft creation, destructive
   local vault off-ramps, and persistent dashboard logon-task changes.
-- Latest GitLab research smoke retrieved 10 docs, used 7 grounded model-proposed facts with 0 fallback facts,
-  dropped 0 ungrounded facts, verified the domain, identified recruiter signals, and produced a grounded
-  hiring-signal hook.
+- Latest GitLab research smoke retrieved 10 docs; the live model proposed 0 facts, so deterministic source
+  fallback produced 4 grounded facts with 0 dropped ungrounded facts, verified the domain, identified recruiter
+  signals, and produced the grounded hook `GitLab has a public jobs page.`
 - DNS mail-routing check, 2026-07-20: `careerseeker.app` publishes Cloudflare Email Routing MX records
   (`route1.mx.cloudflare.net`, `route2.mx.cloudflare.net`, `route3.mx.cloudflare.net`) and SPF includes
   `_spf.mx.cloudflare.net`. This confirms domain-level routing is present; it does not prove the final

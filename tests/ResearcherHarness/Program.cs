@@ -109,6 +109,8 @@ Console.WriteLine("\n[ orchestrator + cache ]");
     var fallbackDossier = await fallback.BuildAsync(company);
     Check("empty model proposals fall back to grounded source snippets",
         fallback.LastProposedFacts == 0 && fallback.LastFallbackFacts > 0 && fallbackDossier.Facts.Count > 0);
+    Check("fallback provides grounded careers hook from retrieved source metadata",
+        fallbackDossier.BestHook?.Text == "Acme has a public careers page.");
 }
 
 // ── bridge: GatewayDossierModel over the LLM Gateway (Stage.FullEvaluation) ─────────────────────────

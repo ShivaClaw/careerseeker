@@ -41,7 +41,7 @@ public static class GroundingFilter
             if (string.IsNullOrWhiteSpace(p.SourceUrl) || !byUrl.TryGetValue(p.SourceUrl, out var doc))
             { dropped++; continue; }                                  // cited a URL we never retrieved
 
-            if (!Supported(p.Text, doc.Text)) { dropped++; continue; } // doc doesn't actually back the wording
+            if (!Supported(p.Text, SourceCorpus(doc))) { dropped++; continue; } // source doesn't back the wording
 
             kept.Add(new DossierFact(p.Topic, p.Text.Trim(), p.SourceUrl, p.SourceTitle));
         }
@@ -58,6 +58,9 @@ public static class GroundingFilter
         var present = factTokens.Count(t => docTokens.Contains(t));
         return present >= MinDistinctiveTokens && present >= (int)Math.Ceiling(MinCoverage * factTokens.Count);
     }
+
+    private static string SourceCorpus(ResearchDoc doc) =>
+        string.Join('\n', doc.Title, doc.Url, doc.Text);
 
     private static HashSet<string> Distinctive(string text)
     {

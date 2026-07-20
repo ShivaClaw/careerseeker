@@ -116,6 +116,8 @@ public sealed class Researcher
         if (terms.Length == 0) return Array.Empty<ProposedFact>();
 
         var proposed = new List<ProposedFact>();
+        TryAddHiringHook(company, docs, terms, proposed);
+
         foreach (var doc in docs)
         {
             foreach (var snippet in Snippets(doc.Text))
@@ -124,10 +126,32 @@ public sealed class Researcher
                 proposed.Add(new ProposedFact(DossierTopic.Overview, snippet, doc.Url, doc.Title));
                 break;
             }
-            if (proposed.Count >= 3) break;
+            if (proposed.Count >= 4) break;
         }
 
         return proposed;
+    }
+
+    private static void TryAddHiringHook(
+        CompanyRef company,
+        IReadOnlyList<ResearchDoc> docs,
+        IReadOnlyList<string> terms,
+        List<ProposedFact> proposed)
+    {
+        foreach (var doc in docs)
+        {
+            var sourceMetadata = $"{doc.Title} {doc.Url}";
+            var sourceCorpus = $"{sourceMetadata} {doc.Text}";
+            if (!LooksCareerPage(sourceMetadata) || !MentionsAny(sourceCorpus, terms)) continue;
+
+            var label = sourceMetadata.Contains("job", StringComparison.OrdinalIgnoreCase) ? "jobs" : "careers";
+            proposed.Add(new ProposedFact(
+                DossierTopic.Hook,
+                $"{company.Name} has a public {label} page.",
+                doc.Url,
+                doc.Title));
+            return;
+        }
     }
 
     private static IEnumerable<string> Snippets(string text)
@@ -148,6 +172,9 @@ public sealed class Researcher
         text.Contains("privacy policy", StringComparison.OrdinalIgnoreCase) ||
         text.Contains("sign in", StringComparison.OrdinalIgnoreCase) ||
         text.Contains("subscribe", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksCareerPage(string text) =>
+        Regex.IsMatch(text, @"\b(careers?|jobs?|join-us|work-with-us)\b", RegexOptions.IgnoreCase);
 
     private static int WordCount(string text) =>
         Regex.Matches(text, @"[A-Za-z][A-Za-z0-9'\-]{2,}").Count;

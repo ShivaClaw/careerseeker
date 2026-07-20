@@ -103,9 +103,9 @@ Completed:
 - Engine has a `research-company` alpha command that composes Brave Search, BYOK Gateway dossier modeling, and
   the grounding filter when `BRAVE_SEARCH_API_KEY`, `BRAVE_SEARCH_API`, or
   `CAREERSEEKER_BRAVE_SEARCH_API_KEY` is available.
-- Live `research-company` is verified against GitLab with Brave Search plus BYOK dossier modeling: 10 retrieved
-  docs, 7 proposed facts, 0 fallback facts, 7 grounded facts, 0 dropped ungrounded facts, domain verified,
-  recruiter identifiable, and a grounded hiring-signal hook.
+- Live `research-company` is verified against GitLab with Brave Search plus BYOK dossier modeling and fallback:
+  10 retrieved docs, 0 model-proposed facts, 4 fallback facts, 4 grounded facts, 0 dropped ungrounded facts,
+  domain verified, recruiter identifiable, and the grounded hook `GitLab has a public jobs page.`
 - L1 compose-only correction is in place: custom Gmail labels are skipped by default because label management requires broader Gmail scope than `gmail.compose`.
 - SQLite provider source is restored to the Store project and covered by `StoreParityHarness`, including the recent-application, recent-job, and artifact-metadata read models.
 - Gateway pinned-Gate and Dispatcher no-send invariants now have named offline harnesses.
@@ -362,13 +362,13 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 257 passed, 0 failed.
+Total: 258 passed, 0 failed.
 
 | Harness | Result |
 | --- | --- |
 | `Slice` | 28 passed, 0 failed |
 | `EngineHarness` | 68 passed, 0 failed |
-| `ResearcherHarness` | 29 passed, 0 failed |
+| `ResearcherHarness` | 30 passed, 0 failed |
 | `HookHarness` | 13 passed, 0 failed |
 | `StoreParityHarness` | 17 passed, 0 failed |
 | `GatewayGateHarness` | 34 passed, 0 failed |

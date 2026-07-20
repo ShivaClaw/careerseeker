@@ -223,12 +223,12 @@ Invoke-Step "Public README and harness count smoke" {
         'EngineHarness` (68)',
         'GatewayGateHarness` (34)',
         'admitted hooks stay prompt',
-        'Latest offline total: 257 assertions'
+        'Latest offline total: 258 assertions'
     ) "README.md"
 
     $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
     Assert-Contains $summary @(
-        'Total: 257 passed, 0 failed.',
+        'Total: 258 passed, 0 failed.',
         '| `EngineHarness` | 68 passed, 0 failed |',
         '`/evidence.html`',
         '| `GatewayGateHarness` | 34 passed, 0 failed |',
@@ -239,7 +239,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 257 passed, 0 failed.',
+        'Latest offline harness total: 258 passed, 0 failed.',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
         '`INSTALL`',
@@ -251,7 +251,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `257 passed, 0 failed`.',
+        'Latest local offline verifier: `258 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'BYOK live provider smoke',
         'live Brave/BYOK company research',
