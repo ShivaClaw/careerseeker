@@ -15,10 +15,12 @@ echo This revokes the local OAuth token when possible and deletes the local DPAP
 echo.
 echo Type DISCONNECT to revoke Gmail access and delete the local token vault.
 echo Press Enter to cancel without changing Gmail setup.
+set "CAREERSEEKER_GMAIL_DISCONNECT_MODE="
 set /p CAREERSEEKER_GMAIL_DISCONNECT_MODE=Mode:
 echo.
 
-if /I not "%CAREERSEEKER_GMAIL_DISCONNECT_MODE%"=="DISCONNECT" (
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { if ($env:CAREERSEEKER_GMAIL_DISCONNECT_MODE -ieq 'DISCONNECT') { exit 0 }; exit 1 }"
+if errorlevel 1 (
   echo Gmail disconnect cancelled. Gmail setup was not changed.
   pause
   exit /b 0

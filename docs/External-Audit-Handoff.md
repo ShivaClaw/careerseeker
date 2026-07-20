@@ -177,8 +177,10 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 - Store audit chain: local SQLite and in-memory stores share hash-chain verification and parity coverage.
 - Secret handling: `secrets/`, `.appdata/`, generated artifacts, OAuth tokens, and provider keys are ignored and
   should not be printed.
-- Tester launchers: live Gmail drafts require typing `LIVE`; provider-key clear requires `CLEAR`; Gmail
-  disconnect requires `DISCONNECT`; dashboard task install/remove requires `INSTALL` or `UNINSTALL`.
+- Tester launchers: live Gmail drafts require typing `LIVE`; audit payload export requires `PAYLOADS`;
+  provider-key clear requires `CLEAR`; Gmail disconnect requires `DISCONNECT`; dashboard task install/remove
+  requires `INSTALL` or `UNINSTALL`. Confirmation variables are cleared before prompting and evaluated through
+  environment-backed PowerShell checks.
 - Free-form tester inputs in selected-job draft, company research, and package import launchers are forwarded
   through environment-backed PowerShell argument arrays instead of interpolated directly into batch command lines.
 

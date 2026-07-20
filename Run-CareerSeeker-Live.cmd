@@ -16,13 +16,17 @@ echo It does not send email.
 echo.
 echo Press Enter for a no-Gmail dry-run preview.
 echo Type LIVE to create one Gmail draft for review.
+set "CAREERSEEKER_LIVE_MODE="
 set /p CAREERSEEKER_LIVE_MODE=Mode:
 echo.
 
-if /I "%CAREERSEEKER_LIVE_MODE%"=="LIVE" (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Run-AlphaLiveCycle.ps1" -Published
-) else (
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { if ($env:CAREERSEEKER_LIVE_MODE -ieq 'LIVE') { exit 0 }; exit 1 }"
+if errorlevel 1 (
+  set "CAREERSEEKER_LIVE_WAS_LIVE=0"
   powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Run-AlphaLiveCycle.ps1" -Published -DryRun
+) else (
+  set "CAREERSEEKER_LIVE_WAS_LIVE=1"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Run-AlphaLiveCycle.ps1" -Published
 )
 set "status=%ERRORLEVEL%"
 
@@ -35,11 +39,11 @@ if not "%status%"=="0" (
 )
 
 echo.
-if /I "%CAREERSEEKER_LIVE_MODE%"=="LIVE" (
-  echo CareerSeeker Alpha live cycle complete.
-  echo Open Gmail Drafts to review the created draft.
-) else (
+if "%CAREERSEEKER_LIVE_WAS_LIVE%"=="0" (
   echo CareerSeeker Alpha live dry-run preview complete.
   echo No Gmail draft was created.
+) else (
+  echo CareerSeeker Alpha live cycle complete.
+  echo Open Gmail Drafts to review the created draft.
 )
 pause

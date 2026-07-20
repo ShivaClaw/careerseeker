@@ -297,7 +297,10 @@ try {
     $liveLauncher = Get-Content -LiteralPath (Resolve-RootPath "Run-CareerSeeker-Live.cmd") -Raw
     foreach ($snippet in @(
         "Type LIVE to create one Gmail draft for review",
+        "set `"CAREERSEEKER_LIVE_MODE=`"",
         "CAREERSEEKER_LIVE_MODE",
+        '$env:CAREERSEEKER_LIVE_MODE -ieq ''LIVE''',
+        "CAREERSEEKER_LIVE_WAS_LIVE",
         "-Published -DryRun",
         "No Gmail draft was created"
     )) {
@@ -309,7 +312,9 @@ try {
     $providerClearLauncher = Get-Content -LiteralPath (Resolve-RootPath "Clear-CareerSeeker-Providers.cmd") -Raw
     foreach ($snippet in @(
         "Type CLEAR to delete the local provider-key vault",
+        "set `"CAREERSEEKER_PROVIDER_CLEAR_MODE=`"",
         "CAREERSEEKER_PROVIDER_CLEAR_MODE",
+        '$env:CAREERSEEKER_PROVIDER_CLEAR_MODE -ieq ''CLEAR''',
         "Provider-key clear cancelled"
     )) {
         if (-not $providerClearLauncher.Contains($snippet)) {
@@ -320,7 +325,9 @@ try {
     $gmailDisconnectLauncher = Get-Content -LiteralPath (Resolve-RootPath "Disconnect-CareerSeeker-Gmail.cmd") -Raw
     foreach ($snippet in @(
         "Type DISCONNECT to revoke Gmail access",
+        "set `"CAREERSEEKER_GMAIL_DISCONNECT_MODE=`"",
         "CAREERSEEKER_GMAIL_DISCONNECT_MODE",
+        '$env:CAREERSEEKER_GMAIL_DISCONNECT_MODE -ieq ''DISCONNECT''',
         "Gmail disconnect cancelled"
     )) {
         if (-not $gmailDisconnectLauncher.Contains($snippet)) {
@@ -331,7 +338,9 @@ try {
     $dashboardTaskInstallLauncher = Get-Content -LiteralPath (Resolve-RootPath "Install-CareerSeeker-DashboardTask.cmd") -Raw
     foreach ($snippet in @(
         "Type INSTALL to register the per-user dashboard logon task",
+        "set `"CAREERSEEKER_DASHBOARD_TASK_MODE=`"",
         "CAREERSEEKER_DASHBOARD_TASK_MODE",
+        '$env:CAREERSEEKER_DASHBOARD_TASK_MODE -ieq ''INSTALL''',
         "Dashboard task install cancelled"
     )) {
         if (-not $dashboardTaskInstallLauncher.Contains($snippet)) {
@@ -342,11 +351,24 @@ try {
     $dashboardTaskUninstallLauncher = Get-Content -LiteralPath (Resolve-RootPath "Uninstall-CareerSeeker-DashboardTask.cmd") -Raw
     foreach ($snippet in @(
         "Type UNINSTALL to remove the per-user dashboard logon task",
+        "set `"CAREERSEEKER_DASHBOARD_TASK_MODE=`"",
         "CAREERSEEKER_DASHBOARD_TASK_MODE",
+        '$env:CAREERSEEKER_DASHBOARD_TASK_MODE -ieq ''UNINSTALL''',
         "Dashboard task uninstall cancelled"
     )) {
         if (-not $dashboardTaskUninstallLauncher.Contains($snippet)) {
             throw "Uninstall-CareerSeeker-DashboardTask.cmd missing '$snippet'."
+        }
+    }
+
+    $auditExportLauncher = Get-Content -LiteralPath (Resolve-RootPath "Export-CareerSeeker-Audit.cmd") -Raw
+    foreach ($snippet in @(
+        "set `"CAREERSEEKER_AUDIT_MODE=`"",
+        '$env:CAREERSEEKER_AUDIT_MODE -ieq ''PAYLOADS''',
+        "-Published -IncludePayloads"
+    )) {
+        if (-not $auditExportLauncher.Contains($snippet)) {
+            throw "Export-CareerSeeker-Audit.cmd missing hardened input snippet '$snippet'."
         }
     }
 

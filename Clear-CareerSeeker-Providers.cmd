@@ -15,10 +15,12 @@ echo This deletes the local DPAPI provider-key vault. Secret values will not be 
 echo.
 echo Type CLEAR to delete the local provider-key vault.
 echo Press Enter to cancel without changing provider setup.
+set "CAREERSEEKER_PROVIDER_CLEAR_MODE="
 set /p CAREERSEEKER_PROVIDER_CLEAR_MODE=Mode:
 echo.
 
-if /I not "%CAREERSEEKER_PROVIDER_CLEAR_MODE%"=="CLEAR" (
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { if ($env:CAREERSEEKER_PROVIDER_CLEAR_MODE -ieq 'CLEAR') { exit 0 }; exit 1 }"
+if errorlevel 1 (
   echo Provider-key clear cancelled. No local provider keys were changed.
   pause
   exit /b 0

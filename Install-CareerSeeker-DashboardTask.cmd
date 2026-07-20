@@ -15,10 +15,12 @@ echo This starts the local dashboard when you sign in. It does not create Gmail 
 echo.
 echo Type INSTALL to register the per-user dashboard logon task.
 echo Press Enter to cancel without changing dashboard startup.
+set "CAREERSEEKER_DASHBOARD_TASK_MODE="
 set /p CAREERSEEKER_DASHBOARD_TASK_MODE=Mode:
 echo.
 
-if /I not "%CAREERSEEKER_DASHBOARD_TASK_MODE%"=="INSTALL" (
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { if ($env:CAREERSEEKER_DASHBOARD_TASK_MODE -ieq 'INSTALL') { exit 0 }; exit 1 }"
+if errorlevel 1 (
   echo Dashboard task install cancelled. Dashboard startup was not changed.
   pause
   exit /b 0

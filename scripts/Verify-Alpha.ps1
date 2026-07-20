@@ -260,6 +260,9 @@ Invoke-Step "Public README and harness count smoke" {
         'Trusted-tester ZIP carries source provenance, payload checksums, and provider-key quickstart guidance',
         'README-alpha provider-key checks',
         'Dashboard controls are loopback, token-protected, and evidence-oriented',
+        'audit payload export requires `PAYLOADS`',
+        'Confirmation variables are cleared before prompting and evaluated through',
+        'environment-backed PowerShell checks',
         'Free-form tester inputs in selected-job draft, company research, and package import launchers are forwarded',
         'through environment-backed PowerShell argument arrays instead of interpolated directly into batch command lines'
     ) "docs/External-Audit-Handoff.md"
