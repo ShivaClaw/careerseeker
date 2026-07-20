@@ -176,19 +176,38 @@ public sealed class BraveSearchWebResearch : IWebResearch
 
     private static bool IsLocalHost(string host)
     {
+        host = host.TrimEnd('.');
         if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return true;
-        return IPAddress.TryParse(host, out var ip) &&
-               (IPAddress.IsLoopback(ip) || IsPrivate(ip));
+        var ipHost = host.Trim('[', ']');
+        return IPAddress.TryParse(ipHost, out var ip) &&
+               (IPAddress.IsLoopback(ip) || !IsPubliclyRoutable(ip));
     }
 
-    private static bool IsPrivate(IPAddress ip)
+    private static bool IsPubliclyRoutable(IPAddress ip)
     {
+        if (ip.IsIPv4MappedToIPv6)
+            ip = ip.MapToIPv4();
+
         var b = ip.GetAddressBytes();
-        return ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
-               (b[0] == 10 ||
-                b[0] == 127 ||
-                (b[0] == 172 && b[1] >= 16 && b[1] <= 31) ||
-                (b[0] == 192 && b[1] == 168));
+        if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            return b[0] is not 0 and not 10 and not 127 and not >= 224 &&
+                   !(b[0] == 100 && b[1] >= 64 && b[1] <= 127) &&
+                   !(b[0] == 169 && b[1] == 254) &&
+                   !(b[0] == 172 && b[1] >= 16 && b[1] <= 31) &&
+                   !(b[0] == 192 && b[1] == 168) &&
+                   !(b[0] == 198 && b[1] >= 18 && b[1] <= 19);
+        }
+
+        if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            return !ip.IsIPv6LinkLocal &&
+                   !ip.IsIPv6SiteLocal &&
+                   !ip.IsIPv6Multicast &&
+                   (b[0] & 0xfe) != 0xfc;
+        }
+
+        return false;
     }
 
     private static bool LooksTextual(string? mediaType) =>

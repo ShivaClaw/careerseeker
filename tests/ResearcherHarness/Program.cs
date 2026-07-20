@@ -74,6 +74,8 @@ Console.WriteLine("\n[ Brave web adapter ]");
         !found[0].Text.Contains("alert(") && !found[0].Text.Contains("<h1>"));
     Check("Brave adapter skips localhost and non-text results",
         handler.Requests.All(r => r.RequestUri?.Host != "127.0.0.1") &&
+        handler.Requests.All(r => r.RequestUri?.Host != "169.254.169.254") &&
+        handler.Requests.All(r => r.RequestUri?.Host != "[fc00::1]") &&
         found.All(d => !d.Url.Contains("files.example")));
 }
 
@@ -240,6 +242,8 @@ sealed class FakeBraveHttp : HttpMessageHandler
                 {"web":{"results":[
                   {"url":"https://acme.com/about#team","title":"About Acme"},
                   {"url":"http://127.0.0.1/secret","title":"Local"},
+                  {"url":"http://169.254.169.254/latest/meta-data","title":"Metadata"},
+                  {"url":"http://[fc00::1]/private","title":"Private IPv6"},
                   {"url":"https://files.example/doc.pdf","title":"PDF"}
                 ]}}
                 """;
