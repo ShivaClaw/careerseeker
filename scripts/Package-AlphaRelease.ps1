@@ -99,6 +99,8 @@ This package contains the local-first L1 Drafts alpha executable.
 
 Quick checks:
 
+  Double-click Start-CareerSeeker-Alpha.cmd to open the local dashboard.
+
   powershell -ExecutionPolicy Bypass -File .\scripts\Initialize-AlphaWorkspace.ps1
   notepad .appdata\profile.template.json
   .\$exeName import-profile --profile .appdata\profile.template.json --db .appdata\careerseeker-alpha.db
@@ -114,6 +116,7 @@ The L1 alpha creates Gmail drafts only. It has no send path.
 Do not place OAuth tokens, provider keys, resumes, local databases, or generated artifacts in source control.
 "@
     Set-Content -LiteralPath (Join-Path $stageDir "README-alpha.txt") -Value $quickstart -Encoding UTF8
+    Copy-Item -LiteralPath (Join-Path $repoRoot "Start-CareerSeeker-Alpha.cmd") -Destination $stageDir
 
     $scriptsDir = Join-Path $stageDir "scripts"
     New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
@@ -161,6 +164,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
             scripts = @(Get-ChildItem -LiteralPath $scriptsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "scripts/$($_.Name)" })
+            launchers = @("Start-CareerSeeker-Alpha.cmd")
             docs = if ($NoDocs) { @() } else { @(Get-ChildItem -LiteralPath $docsDir -File |
                 Sort-Object Name |
                 ForEach-Object { "docs/$($_.Name)" }) }
@@ -198,7 +202,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     Write-Host "  executable: $exePath"
     Write-Host "  package: $packagePath"
     Write-Host "  bytes: $((Get-Item -LiteralPath $packagePath).Length)"
-    $contents = "executable, native runtime dependencies, README-alpha.txt, RELEASE-MANIFEST.json, SHA256SUMS.txt"
+    $contents = "executable, native runtime dependencies, double-click launcher, README-alpha.txt, RELEASE-MANIFEST.json, SHA256SUMS.txt"
     if (-not $NoDocs) {
         $contents += ", docs"
     }

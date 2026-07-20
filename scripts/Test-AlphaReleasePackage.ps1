@@ -69,6 +69,7 @@ Push-Location $Root
 try {
     foreach ($required in @(
         "SeekerSvc.Engine.exe",
+        "Start-CareerSeeker-Alpha.cmd",
         "e_sqlite3.dll",
         "README-alpha.txt",
         "RELEASE-MANIFEST.json",
@@ -95,6 +96,9 @@ try {
     }
     if ($manifest.includes.scripts -notcontains "scripts/Test-AlphaReleasePackage.ps1") {
         throw "Release manifest does not list the package self-check script."
+    }
+    if ($manifest.includes.launchers -notcontains "Start-CareerSeeker-Alpha.cmd") {
+        throw "Release manifest does not list the double-click alpha launcher."
     }
     if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {
         throw "Release manifest does not reference SHA256SUMS.txt."

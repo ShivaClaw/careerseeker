@@ -182,6 +182,7 @@ if ($IncludePackage) {
             $entries = @($zip.Entries | ForEach-Object { $_.FullName.Replace("\", "/") })
             foreach ($required in @(
                 "SeekerSvc.Engine.exe",
+                "Start-CareerSeeker-Alpha.cmd",
                 "e_sqlite3.dll",
                 "README-alpha.txt",
                 "RELEASE-MANIFEST.json",
@@ -207,7 +208,7 @@ if ($IncludePackage) {
             finally {
                 $reader.Dispose()
             }
-            foreach ($snippet in @("import-profile", "Test-AlphaReleasePackage.ps1", "Start-AlphaDashboard.ps1", "NoGmailControl")) {
+            foreach ($snippet in @("Start-CareerSeeker-Alpha.cmd", "import-profile", "Test-AlphaReleasePackage.ps1", "Start-AlphaDashboard.ps1", "NoGmailControl")) {
                 if (-not $readme.Contains($snippet)) {
                     throw "Alpha release quickstart missing '$snippet'."
                 }
@@ -241,6 +242,9 @@ if ($IncludePackage) {
             }
             if ($manifest.includes.scripts -notcontains "scripts/Test-AlphaReleasePackage.ps1") {
                 throw "Alpha release manifest missing package self-check script."
+            }
+            if ($manifest.includes.launchers -notcontains "Start-CareerSeeker-Alpha.cmd") {
+                throw "Alpha release manifest missing double-click alpha launcher."
             }
             if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {
                 throw "Alpha release manifest missing checksum reference."

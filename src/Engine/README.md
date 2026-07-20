@@ -43,6 +43,8 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --db .appdata/careerseeker-alpha.db --gmail-control`
 - Windows-friendly dashboard launcher, from source or published executable:
   `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1`
+- Double-click dashboard launcher included in the release ZIP:
+  `Start-CareerSeeker-Alpha.cmd`
 - Optional per-user Windows logon task helper for the alpha dashboard:
   `powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -Action Install -DryRun`
 - One-shot dashboard/evidence smoke:
@@ -118,6 +120,8 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 - `scripts/Start-AlphaDashboard.ps1` wraps the standalone dashboard mode for trusted testers; it can smoke-check
   the local dashboard with `-Once`, run from source, run the published single-file executable with
   `-Published -PublishIfMissing`, or run from the packaged release root with `-Published`.
+- `Start-CareerSeeker-Alpha.cmd` wraps that published dashboard path for double-click tester startup from the
+  extracted release ZIP.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register, remove, start, stop, and inspect a per-user Windows
   logon task for the alpha dashboard while the full service/tray/installer stack remains future work.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
