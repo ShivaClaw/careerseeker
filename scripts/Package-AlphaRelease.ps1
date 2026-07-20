@@ -149,19 +149,62 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     }
 
     $gitStatus = Get-GitValue @("status", "--short")
+    $generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
+    $sourceBranch = Get-GitValue @("rev-parse", "--abbrev-ref", "HEAD")
+    $sourceCommit = Get-GitValue @("rev-parse", "HEAD")
+    $sourceShortCommit = Get-GitValue @("rev-parse", "--short", "HEAD")
+    $sourceDirty = -not [string]::IsNullOrWhiteSpace($gitStatus)
+
+    $auditSnapshot = @"
+CareerSeeker Alpha Audit Snapshot
+
+Generated UTC: $generatedAtUtc
+Package: $PackageName
+Runtime: $Runtime
+Source branch: $sourceBranch
+Source commit: $sourceCommit
+Dirty working tree: $sourceDirty
+
+Package-local verification commands:
+
+  powershell -ExecutionPolicy Bypass -File .\scripts\Test-AlphaReleasePackage.ps1
+  powershell -ExecutionPolicy Bypass -File .\scripts\Test-AlphaReleasePackage.ps1 -RunDashboardSmoke
+  powershell -ExecutionPolicy Bypass -File .\scripts\Start-AlphaDashboard.ps1 -Published -Once -NoGmailControl
+
+Double-click helper entrypoints:
+
+  Setup-CareerSeeker-Alpha.cmd
+  Connect-CareerSeeker-Gmail.cmd
+  Start-CareerSeeker-Alpha.cmd
+
+Safety boundaries:
+
+  L1 creates Gmail drafts only. There is no Gmail send path in the alpha application.
+  The release package excludes local SQLite databases, OAuth tokens, DPAPI vaults, provider API keys, resumes, and generated artifacts.
+  Secret values are not included in this package or printed by these verification scripts.
+
+Cross-checks:
+
+  RELEASE-MANIFEST.json records the packaged files and source commit.
+  SHA256SUMS.txt records per-file SHA-256 checksums for the packaged payload.
+  docs/External-Audit-Handoff.md contains the source-side audit map and repeatable verifier commands.
+"@
+    Set-Content -LiteralPath (Join-Path $stageDir "AUDIT-SNAPSHOT.txt") -Value $auditSnapshot -Encoding UTF8
+
     $manifest = [ordered]@{
         format = "careerseeker-alpha-release-v1"
-        generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
+        generatedAtUtc = $generatedAtUtc
         runtime = $Runtime
         packageName = $PackageName
         source = [ordered]@{
-            branch = Get-GitValue @("rev-parse", "--abbrev-ref", "HEAD")
-            commit = Get-GitValue @("rev-parse", "HEAD")
-            shortCommit = Get-GitValue @("rev-parse", "--short", "HEAD")
-            dirty = -not [string]::IsNullOrWhiteSpace($gitStatus)
+            branch = $sourceBranch
+            commit = $sourceCommit
+            shortCommit = $sourceShortCommit
+            dirty = $sourceDirty
         }
         includes = [ordered]@{
             executable = $exeName
+            auditSnapshot = "AUDIT-SNAPSHOT.txt"
             nativeRuntimeDependencies = @(Get-ChildItem -LiteralPath $stageDir -File |
                 Where-Object { $_.Name -ne $exeName -and $_.Extension -eq ".dll" } |
                 Sort-Object Name |
@@ -207,7 +250,7 @@ Do not place OAuth tokens, provider keys, resumes, local databases, or generated
     Write-Host "  executable: $exePath"
     Write-Host "  package: $packagePath"
     Write-Host "  bytes: $((Get-Item -LiteralPath $packagePath).Length)"
-    $contents = "executable, native runtime dependencies, double-click launchers, README-alpha.txt, RELEASE-MANIFEST.json, SHA256SUMS.txt"
+    $contents = "executable, native runtime dependencies, double-click launchers, README-alpha.txt, AUDIT-SNAPSHOT.txt, RELEASE-MANIFEST.json, SHA256SUMS.txt"
     if (-not $NoDocs) {
         $contents += ", docs"
     }

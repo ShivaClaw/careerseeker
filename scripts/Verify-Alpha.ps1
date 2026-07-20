@@ -187,6 +187,7 @@ if ($IncludePackage) {
                 "Start-CareerSeeker-Alpha.cmd",
                 "e_sqlite3.dll",
                 "README-alpha.txt",
+                "AUDIT-SNAPSHOT.txt",
                 "RELEASE-MANIFEST.json",
                 "SHA256SUMS.txt",
                 "scripts/Initialize-AlphaWorkspace.ps1",
@@ -216,6 +217,23 @@ if ($IncludePackage) {
                 }
             }
 
+            $auditSnapshotEntry = $zip.GetEntry("AUDIT-SNAPSHOT.txt")
+            if ($null -eq $auditSnapshotEntry) {
+                throw "Alpha release package missing AUDIT-SNAPSHOT.txt."
+            }
+            $auditSnapshotReader = [System.IO.StreamReader]::new($auditSnapshotEntry.Open())
+            try {
+                $auditSnapshot = $auditSnapshotReader.ReadToEnd()
+            }
+            finally {
+                $auditSnapshotReader.Dispose()
+            }
+            foreach ($snippet in @("CareerSeeker Alpha Audit Snapshot", "Package-local verification commands", "L1 creates Gmail drafts only", "Secret values are not included")) {
+                if (-not $auditSnapshot.Contains($snippet)) {
+                    throw "Alpha release audit snapshot missing '$snippet'."
+                }
+            }
+
             $manifestEntry = $zip.GetEntry("RELEASE-MANIFEST.json")
             if ($null -eq $manifestEntry) {
                 throw "Alpha release package missing RELEASE-MANIFEST.json."
@@ -238,6 +256,9 @@ if ($IncludePackage) {
             }
             if ($manifest.includes.nativeRuntimeDependencies -notcontains "e_sqlite3.dll") {
                 throw "Alpha release manifest missing native SQLite dependency."
+            }
+            if ($manifest.includes.auditSnapshot -ne "AUDIT-SNAPSHOT.txt") {
+                throw "Alpha release manifest missing audit snapshot reference."
             }
             if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
                 throw "Alpha release manifest missing dashboard launcher script."

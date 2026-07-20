@@ -46,8 +46,8 @@ Completed:
   and a blank env-secrets placeholder, and can run the startup doctor after setup.
 - `scripts/Package-AlphaRelease.ps1` builds a trusted-tester ZIP with the published executable, native runtime
   dependencies, double-click setup/Gmail/dashboard launchers, workspace initializer, dashboard/helper
-  self-check scripts, quickstart, release manifest, SHA-256 checksums, and selected docs while excluding local
-  databases, vaults, provider keys, and generated artifacts.
+  self-check scripts, quickstart, audit snapshot, release manifest, SHA-256 checksums, and selected docs while
+  excluding local databases, vaults, provider keys, and generated artifacts.
 - `scripts/Manage-AlphaDashboardTask.ps1` can register a per-user Windows logon task for keeping the alpha
   dashboard available until the service/tray/installer work lands.
 - The alpha executable can export a local audit JSON package; raw payloads are opt-in.

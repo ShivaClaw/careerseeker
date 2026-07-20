@@ -23,7 +23,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   dashboard smoke.
 - `scripts/Verify-Alpha.ps1 -IncludePackage` passed locally and produced a trusted-tester ZIP with the alpha
   executable, native runtime dependencies, double-click setup/Gmail/dashboard launchers, workspace initializer, dashboard/helper
-  self-check scripts, quickstart, release manifest, checksums, and selected docs.
+  self-check scripts, quickstart, package-local audit snapshot, release manifest, checksums, and selected docs.
 - `scripts/Verify-Alpha.ps1 -IncludeResearch` passed locally with live Brave Search plus BYOK dossier
   modeling. Latest GitLab smoke retrieved 10 docs, used 3 deterministic grounded fallback facts after the model
   proposed 0 facts, and dropped 0 ungrounded facts.
@@ -135,8 +135,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
   job-description artifacts; secret/token/key-looking paths are filtered, unsafe ZIP paths are rejected, and
   import verifies the restored SQLite audit chain.
 - Trusted-tester release ZIP packaging for the published executable, native runtime dependencies, workspace
-  initializer, double-click setup/Gmail/dashboard launchers, quickstart, release manifest, dashboard/helper self-check scripts,
-  SHA-256 checksums, and selected trust/audit docs without local databases, vaults, provider keys, or generated
+  initializer, double-click setup/Gmail/dashboard launchers, quickstart, package-local audit snapshot, release
+  manifest, dashboard/helper self-check scripts, SHA-256 checksums, and selected trust/audit docs without local databases, vaults, provider keys, or generated
   artifacts.
 - GitHub CI mirrors the offline alpha verifier for `main`, `agent/**`, `codex/**`, and PRs into `main`.
 

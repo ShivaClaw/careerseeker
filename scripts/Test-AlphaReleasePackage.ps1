@@ -74,6 +74,7 @@ try {
         "Start-CareerSeeker-Alpha.cmd",
         "e_sqlite3.dll",
         "README-alpha.txt",
+        "AUDIT-SNAPSHOT.txt",
         "RELEASE-MANIFEST.json",
         "SHA256SUMS.txt",
         "scripts/Initialize-AlphaWorkspace.ps1",
@@ -93,6 +94,9 @@ try {
     if ($manifest.includes.nativeRuntimeDependencies -notcontains "e_sqlite3.dll") {
         throw "Release manifest does not list e_sqlite3.dll."
     }
+    if ($manifest.includes.auditSnapshot -ne "AUDIT-SNAPSHOT.txt") {
+        throw "Release manifest does not reference AUDIT-SNAPSHOT.txt."
+    }
     if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
         throw "Release manifest does not list the dashboard launcher."
     }
@@ -110,6 +114,18 @@ try {
     }
     if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {
         throw "Release manifest does not reference SHA256SUMS.txt."
+    }
+
+    $auditSnapshot = Get-Content -LiteralPath (Resolve-RootPath "AUDIT-SNAPSHOT.txt") -Raw
+    foreach ($snippet in @(
+        "CareerSeeker Alpha Audit Snapshot",
+        "Package-local verification commands",
+        "L1 creates Gmail drafts only",
+        "Secret values are not included"
+    )) {
+        if (-not $auditSnapshot.Contains($snippet)) {
+            throw "Audit snapshot missing '$snippet'."
+        }
     }
 
     $checksumCount = 0
