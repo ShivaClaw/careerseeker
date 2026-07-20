@@ -119,6 +119,39 @@ Invoke-Step "Alpha workspace initializer dry run" {
     }
 }
 
+Invoke-Step "Source-control hygiene smoke" {
+    $gitignore = Get-Content -LiteralPath ".gitignore" -Raw
+    Assert-Contains $gitignore @(
+        'secrets/',
+        '.appdata/',
+        'tmp/',
+        'output/'
+    ) ".gitignore"
+
+    $tracked = & git ls-files -- secrets .appdata tmp output 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "git ls-files failed while checking generated/local-secret paths: $tracked"
+    }
+
+    $trackedText = (($tracked | ForEach-Object { "$_" }) -join "`n").Trim()
+    if ($trackedText.Length -ne 0) {
+        throw "Generated/local-secret paths are tracked and must be removed from source control:`n$trackedText"
+    }
+
+    foreach ($sample in @(
+        "secrets/env.secrets",
+        ".appdata/oauth/gmail-token.dpapi",
+        ".appdata/secrets/byok-keys.dpapi",
+        "tmp/verify-alpha-demo/demo.db",
+        "output/release/CareerSeeker-alpha-win-x64.zip"
+    )) {
+        & git check-ignore -q -- $sample
+        if ($LASTEXITCODE -ne 0) {
+            throw "Expected git to ignore local/generated path '$sample'."
+        }
+    }
+}
+
 Invoke-Step "Engine SQLite demo smoke" {
     Invoke-Dotnet @(
         "run",
@@ -216,6 +249,7 @@ Invoke-Step "Public README and harness count smoke" {
         'ATS-clean resume PDF is rendered and attached to Gmail drafts',
         'Real BYOK Tailor and Gate providers are wired through the Gateway',
         'Brave Search company research is grounded and fails closed on missing keys',
+        'source-control hygiene smoke',
         'Dashboard controls are loopback, token-protected, and evidence-oriented'
     ) "docs/External-Audit-Handoff.md"
 

@@ -47,7 +47,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 | ATS-clean resume PDF is rendered and attached to Gmail drafts | `src/Dispatcher/AtsPdfDocumentRenderer.cs`, `src/Dispatcher/Packaging.cs`, `src/Dispatcher/Mime.cs` | `RendererHarness`, `DispatcherNoSendHarness`; package selected-job dry-run smoke |
 | Real BYOK Tailor and Gate providers are wired through the Gateway | `src/Gateway/ProvidersHttp.cs`, `src/Gateway/Routing.cs`, `src/Engine/Program.cs` | `Verify-Alpha.ps1 -IncludeLive`; BYOK live provider smoke |
 | Brave Search company research is grounded and fails closed on missing keys | `src/Researcher/BraveSearchWebResearch.cs`, `src/Researcher/Researcher.cs`, `src/Engine/StartupDoctor.cs` | `Verify-Alpha.ps1 -IncludeResearch`; startup doctor Brave check |
-| Local state, OAuth tokens, provider keys, and generated artifacts stay out of source control | `.gitignore`, `scripts/Initialize-AlphaWorkspace.ps1`, `src/Engine/StartupDoctor.cs` | initializer dry run; package manifest/checksum smoke; secret path filters |
+| Local state, OAuth tokens, provider keys, and generated artifacts stay out of source control | `.gitignore`, `scripts/Initialize-AlphaWorkspace.ps1`, `src/Engine/StartupDoctor.cs` | source-control hygiene smoke; initializer dry run; package manifest/checksum smoke; secret path filters |
 | Dashboard controls are loopback, token-protected, and evidence-oriented | `src/Engine/Host.cs`, `src/Engine/Program.cs`, package helper scripts | dashboard one-shot smoke; packaged dashboard-task and evidence export/import smokes |
 
 ## Repeatable Commands
