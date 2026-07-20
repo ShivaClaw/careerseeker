@@ -43,6 +43,10 @@ Note: `src/Store/SeekerSvc.Store.csproj` includes `Microsoft.Data.Sqlite`, the o
 dependency in the tree. `nuget.config` restores it from nuget.org, so first-time builds require network
 access or a warmed NuGet cache.
 
+For local BYOK/live research checks, keep provider keys in ignored `secrets/env.secrets`. The alpha commands
+accept `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` or `GOOGLE_API_KEY`, and Brave Search via
+`BRAVE_SEARCH_API_KEY`, `BRAVE_SEARCH_API`, or `CAREERSEEKER_BRAVE_SEARCH_API_KEY`.
+
 ## Safety Invariants
 - Fabrication Gate: no application state is reachable except through VERIFIED; unsupported claims block.
 - Gateway pinned-Gate: `Stage.VerifierEntailment` is never throttled, never downgraded, fails closed.

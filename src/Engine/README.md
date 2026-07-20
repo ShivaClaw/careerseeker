@@ -54,6 +54,8 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - Live BYOK provider smoke for Anthropic, Gemini, Tailor, Gate, and accounting:
   `dotnet run -c Release --project tests/ByokLiveHarness/ByokLiveHarness.csproj -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
+- Live Brave/BYOK company research smoke:
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- research-company --company GitLab --domain gitlab.com --llm byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
 - Create and import a local source-of-truth profile for Tailor/Gate:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- profile-template --out .appdata/profile.template.json`
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-profile --profile .appdata/profile.template.json --db .appdata/careerseeker-alpha.db`
@@ -88,6 +90,10 @@ profile lookup is available. For quick routine validation, use `--llm byok --fas
 bounded live Gate entailment check, one bounded live Tailor call, then runs the normal Gmail/PDF draft path.
 In BYOK alpha mode, the Gate defaults to the top 3 semantically relevant source candidates per claim to
 keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exhaustive comparison.
+
+`research-company` reads Brave Search keys from `--brave-key`, the process environment, or
+`secrets/env.secrets`. Accepted names are `BRAVE_SEARCH_API_KEY`, `BRAVE_SEARCH_API`, and
+`CAREERSEEKER_BRAVE_SEARCH_API_KEY`.
 
 ## Injected Ports
 
