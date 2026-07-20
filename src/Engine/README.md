@@ -140,7 +140,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 271 passed, 0 failed.
+- Latest offline harness total: 272 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.

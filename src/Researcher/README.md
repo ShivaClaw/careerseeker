@@ -25,7 +25,8 @@ Retrieved document text is treated as untrusted data, never instructions.
 1. Serve a fresh cached dossier if one exists within the TTL; `forceRefresh` bypasses cache.
 2. Web search across overview, funding, and careers queries through `IWebResearch`.
 3. The dossier model proposes facts from the docs.
-4. `GroundingFilter` keeps only source-backed facts and exposes the dropped count.
+4. `GroundingFilter` keeps only source-backed facts and exposes the dropped count; if no model facts
+   survive grounding, deterministic source fallback proposes conservative facts from the retrieved docs.
 5. `Signals.Derive` resolves recruiter-identifiable and domain-verified signals from retrieved docs.
 6. Assemble a content-addressed dossier and cache it.
 
@@ -51,11 +52,11 @@ Retrieved document text is treated as untrusted data, never instructions.
 ## Verified Status
 
 - Compiles clean against the Gateway: `dotnet build -c Release` returns 0 warnings, 0 errors.
-- `ResearcherHarness`: 35 passed, 0 failed.
+- `ResearcherHarness`: 36 passed, 0 failed.
 - Coverage includes the grounding invariant, positive-only signals, cache behavior, Gateway model bridge,
   dossier-to-Scorer seam, and the Brave adapter's auth/query shape, public-page fetch, HTML stripping,
-  localhost refusal, non-text skipping, wrapper-shaped live model responses, deterministic source fallback,
-  and research observability.
+  localhost refusal, non-text skipping, wrapper-shaped live model responses, deterministic source fallback
+  when model facts are empty or all fail grounding, and research observability.
 - Live `research-company` is verified with Brave Search plus BYOK dossier modeling. The command accepts
   `BRAVE_SEARCH_API_KEY`, `BRAVE_SEARCH_API`, or `CAREERSEEKER_BRAVE_SEARCH_API_KEY` from the environment
   or `secrets/env.secrets`.

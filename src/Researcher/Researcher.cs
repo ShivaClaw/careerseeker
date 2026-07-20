@@ -69,13 +69,19 @@ public sealed class Researcher
 
         var proposed = await _model.ProposeAsync(company, docs, ct).ConfigureAwait(false);
         LastProposedFacts = proposed.Count;
-        var factsToGround = proposed;
-        if (factsToGround.Count == 0)
-            factsToGround = FallbackProposals(company, docs);
-        LastFallbackFacts = proposed.Count == 0 ? factsToGround.Count : 0;
 
-        var grounded = GroundingFilter.Apply(factsToGround, docs);
+        var grounded = GroundingFilter.Apply(proposed, docs);
+        LastFallbackFacts = 0;
         LastDroppedUngrounded = grounded.Dropped;
+
+        if (grounded.Grounded.Count == 0)
+        {
+            var fallback = FallbackProposals(company, docs);
+            LastFallbackFacts = fallback.Count;
+            var fallbackGrounded = GroundingFilter.Apply(fallback, docs);
+            LastDroppedUngrounded += fallbackGrounded.Dropped;
+            grounded = new GroundingFilter.Result(fallbackGrounded.Grounded, LastDroppedUngrounded);
+        }
 
         var signals = Signals.Derive(company, docs);
         var dossier = new Dossier(

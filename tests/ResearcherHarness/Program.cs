@@ -111,6 +111,17 @@ Console.WriteLine("\n[ orchestrator + cache ]");
         fallback.LastProposedFacts == 0 && fallback.LastFallbackFacts > 0 && fallbackDossier.Facts.Count > 0);
     Check("fallback provides grounded careers hook from retrieved source metadata",
         fallbackDossier.BestHook?.Text == "Acme has a public careers page.");
+
+    var ungroundedFallback = new Researcher(
+        new FakeWeb(docs),
+        new FakeModel(new[] { new ProposedFact(DossierTopic.Hook, "Acme is opening an office on Mars.", "https://acme.com/about") }),
+        new InMemoryDossierStore());
+    var recoveredDossier = await ungroundedFallback.BuildAsync(company);
+    Check("ungrounded model proposals fall back to grounded source snippets",
+        ungroundedFallback.LastProposedFacts == 1 &&
+        ungroundedFallback.LastDroppedUngrounded == 1 &&
+        ungroundedFallback.LastFallbackFacts > 0 &&
+        recoveredDossier.BestHook?.Text == "Acme has a public careers page.");
 }
 
 // ── bridge: GatewayDossierModel over the LLM Gateway (Stage.FullEvaluation) ─────────────────────────
