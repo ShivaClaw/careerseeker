@@ -35,6 +35,8 @@ if (mode.Equals("export-audit", StringComparison.OrdinalIgnoreCase))
     return await RunExportAuditAsync().ConfigureAwait(false);
 if (mode.Equals("export-alpha-package", StringComparison.OrdinalIgnoreCase))
     return await RunExportAlphaPackageAsync().ConfigureAwait(false);
+if (mode.Equals("import-alpha-package", StringComparison.OrdinalIgnoreCase))
+    return await RunImportAlphaPackageAsync().ConfigureAwait(false);
 if (mode.Equals("doctor", StringComparison.OrdinalIgnoreCase))
     return await RunDoctorAsync().ConfigureAwait(false);
 if (mode.Equals("control-app", StringComparison.OrdinalIgnoreCase))
@@ -696,6 +698,38 @@ async Task<int> RunExportAlphaPackageAsync()
     return result.AuditOk ? 0 : 1;
 }
 
+async Task<int> RunImportAlphaPackageAsync()
+{
+    var packagePath = StringArg("--package") ?? StringArg("--in");
+    if (string.IsNullOrWhiteSpace(packagePath))
+        return Fail("import-alpha-package requires --package <zip>.");
+
+    var importRoot = StringArg("--target") ?? Path.Combine(".appdata", "imported");
+    var dbPath = StringArg("--db") ?? Path.Combine(importRoot, "careerseeker-alpha.db");
+    var artifactsPath = StringArg("--artifacts") ?? Path.Combine(importRoot, "artifacts");
+    var jdDir = StringArg("--jd-dir") ?? Path.Combine(importRoot, "job-descriptions");
+    var result = await AlphaPackageImport.ImportAsync(
+        packagePath,
+        new AlphaPackageImportOptions(
+            dbPath,
+            artifactsPath,
+            jdDir,
+            Overwrite: HasFlag("--overwrite"),
+            IncludeDatabase: !HasFlag("--no-db"),
+            IncludeArtifacts: !HasFlag("--no-artifacts"),
+            IncludeJobDescriptions: !HasFlag("--no-jds"))).ConfigureAwait(false);
+
+    Console.WriteLine("CareerSeeker alpha package import");
+    Console.WriteLine($"  package: {result.PackagePath}");
+    Console.WriteLine($"  db: {dbPath}");
+    Console.WriteLine($"  artifacts: {artifactsPath}");
+    Console.WriteLine($"  job descriptions: {jdDir}");
+    Console.WriteLine($"  imported entries: {result.EntryCount}");
+    Console.WriteLine($"  audit chain: {(result.AuditOk ? "ok" : "FAILED")}");
+    Console.WriteLine("  existing files are preserved unless --overwrite is passed.");
+    return result.AuditOk ? 0 : 1;
+}
+
 async Task<int> RunDoctorAsync()
 {
     var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
@@ -1230,6 +1264,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-alpha-package [--db .appdata/careerseeker-alpha.db] [--out output/careerseeker-alpha-package.zip] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--include-payloads] [--no-db] [--no-artifacts] [--no-jds]");
+    Console.WriteLine("  SeekerSvc.Engine.exe import-alpha-package --package output/careerseeker-alpha-package.zip [--target .appdata/imported] [--db .appdata/imported/careerseeker-alpha.db] [--artifacts .appdata/imported/artifacts] [--jd-dir .appdata/imported/job-descriptions] [--overwrite] [--no-db] [--no-artifacts] [--no-jds]");
     Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe control-app --application-id 123 --action pause|resume|kill [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");

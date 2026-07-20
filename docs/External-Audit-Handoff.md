@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`.
-- Latest local offline verifier: `225 passed, 0 failed`.
+- Latest local offline verifier: `228 passed, 0 failed`.
 - `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish` passed locally after the current alpha wiring:
   offline harnesses, win-x64 single-file publish smoke, BYOK live provider smoke, startup doctor, and
   dashboard smoke.
@@ -64,6 +64,12 @@ Local alpha evidence package:
 dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- export-alpha-package --db .appdata/careerseeker-alpha.db --out output/careerseeker-alpha-package.zip
 ```
 
+Safe local alpha package restore:
+
+```powershell
+dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-alpha-package --package output/careerseeker-alpha-package.zip
+```
+
 Optional per-user Windows logon task preview:
 
 ```powershell
@@ -89,8 +95,8 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
 ## Current Alpha Capabilities
 
 - Runnable `src/Engine` executable with `demo`, `alpha`, `dashboard`, `scout-boards`, `draft-job`,
-  `research-company`, `doctor`, `export-audit`, `export-alpha-package`, `control-app`, OAuth disconnect, and
-  BYOK import/clear modes.
+  `research-company`, `doctor`, `export-audit`, `export-alpha-package`, `import-alpha-package`, `control-app`,
+  OAuth disconnect, and BYOK import/clear modes.
 - Live Greenhouse/Lever/Ashby board ingestion into SQLite with local posting-body artifacts.
 - Selected stored job drafting with posting-body context and dry-run verification.
 - Real ATS-clean resume PDF renderer and Gmail draft attachment packaging.
@@ -99,8 +105,9 @@ powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -
   document routes.
 - BYOK Anthropic/Gemini Tailor and Gate wiring through the Gateway.
 - Brave Search + BYOK company dossier command with deterministic grounding and fallback source snippets.
-- Local alpha ZIP package export with manifest, audit export, SQLite snapshot, draft artifacts, and saved
-  job-description artifacts; secret/token/key-looking paths are filtered.
+- Local alpha ZIP package export/import with manifest, audit export, SQLite snapshot, draft artifacts, and saved
+  job-description artifacts; secret/token/key-looking paths are filtered, unsafe ZIP paths are rejected, and
+  import verifies the restored SQLite audit chain.
 - GitHub CI mirrors the offline alpha verifier for `main`, `agent/**`, `codex/**`, and PRs into `main`.
 
 ## Known Gaps

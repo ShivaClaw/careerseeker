@@ -382,6 +382,60 @@ Console.WriteLine("\n[ alpha package export ]");
                 !n.Contains("token", StringComparison.OrdinalIgnoreCase) &&
                 !n.EndsWith(".dpapi", StringComparison.OrdinalIgnoreCase)),
             string.Join(", ", names));
+
+        var importRoot = Path.Combine(root, "imported");
+        var imported = await AlphaPackageImport.ImportAsync(
+            packagePath,
+            new AlphaPackageImportOptions(
+                Path.Combine(importRoot, "alpha.db"),
+                Path.Combine(importRoot, "artifacts"),
+                Path.Combine(importRoot, "job-descriptions")));
+        Check("alpha package import restores database artifacts and job descriptions",
+            imported.AuditOk &&
+            File.Exists(Path.Combine(importRoot, "alpha.db")) &&
+            File.Exists(Path.Combine(importRoot, "artifacts", "resume.pdf")) &&
+            File.Exists(Path.Combine(importRoot, "job-descriptions", "posting.txt")));
+
+        var overwriteRefused = false;
+        try
+        {
+            await AlphaPackageImport.ImportAsync(
+                packagePath,
+                new AlphaPackageImportOptions(
+                    Path.Combine(importRoot, "alpha.db"),
+                    Path.Combine(importRoot, "artifacts"),
+                    Path.Combine(importRoot, "job-descriptions")));
+        }
+        catch (IOException)
+        {
+            overwriteRefused = true;
+        }
+        Check("alpha package import preserves existing files by default", overwriteRefused);
+
+        var unsafePackage = Path.Combine(root, "unsafe.zip");
+        using (var stream = File.Create(unsafePackage))
+        using (var unsafeZip = new ZipArchive(stream, ZipArchiveMode.Create))
+        {
+            var escape = unsafeZip.CreateEntry("../escape.txt");
+            using var writer = new StreamWriter(escape.Open());
+            writer.Write("bad");
+        }
+
+        var unsafeRejected = false;
+        try
+        {
+            await AlphaPackageImport.ImportAsync(
+                unsafePackage,
+                new AlphaPackageImportOptions(
+                    Path.Combine(root, "unsafe.db"),
+                    Path.Combine(root, "unsafe-artifacts"),
+                    Path.Combine(root, "unsafe-jds")));
+        }
+        catch (InvalidOperationException)
+        {
+            unsafeRejected = true;
+        }
+        Check("alpha package import rejects unsafe zip entries", unsafeRejected);
     }
     finally
     {
