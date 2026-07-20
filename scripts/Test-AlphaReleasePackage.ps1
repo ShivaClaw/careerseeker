@@ -289,6 +289,17 @@ try {
         }
     }
 
+    $setupLauncher = Get-Content -LiteralPath (Resolve-RootPath "Setup-CareerSeeker-Alpha.cmd") -Raw
+    foreach ($snippet in @(
+        "Fill secrets\env.secrets locally with ANTHROPIC_API_KEY and GEMINI_API_KEY or GOOGLE_API_KEY",
+        "BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY",
+        "Connect-CareerSeeker-Providers.cmd"
+    )) {
+        if (-not $setupLauncher.Contains($snippet)) {
+            throw "Setup-CareerSeeker-Alpha.cmd missing '$snippet'."
+        }
+    }
+
     $auditSnapshot = Get-Content -LiteralPath (Resolve-RootPath "AUDIT-SNAPSHOT.txt") -Raw
     foreach ($snippet in @(
         "CareerSeeker Alpha Audit Snapshot",
