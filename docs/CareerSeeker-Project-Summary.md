@@ -376,7 +376,7 @@ Total: 258 passed, 0 failed.
 | `LifecycleHarness` | 37 passed, 0 failed |
 | `RendererHarness` | 6 passed, 0 failed |
 
-Live Scout harness, 2026-07-07:
+Live Scout harness, 2026-07-20:
 
 - Result: 29 passed, 0 failed.
 - Boards configured:
@@ -384,16 +384,18 @@ Live Scout harness, 2026-07-07:
   - Lever: `mistral`, `gohighlevel`, `rws`, `lever`
   - Ashby: `deel`, `ramp`, `suno`, `notable`
 - Observed empty feeds:
+  - Lever `mistral` returned HTTP 200 with zero jobs.
   - Lever `lever` returned HTTP 200 with zero jobs.
   - Ashby `deel` returned HTTP 200 with zero jobs through posting API while the public page existed.
-- Raw jobs: 1169
-- Deduped jobs: 803
-- Duplicates collapsed: 366
-- Remote or hybrid jobs: 493
-- Compensation present: 388
-- Structured compensation: 188
-- Parsed-from-text compensation: 200
-- Prompt-injection signals: 160
+- All configured boards responded and all three ATS kinds produced jobs.
+- Raw jobs: 942
+- Deduped jobs: 635
+- Duplicates collapsed: 307
+- Remote or hybrid jobs: 403
+- Compensation present: 389
+- Structured compensation: 191
+- Parsed-from-text compensation: 198
+- Prompt-injection signals: 81
 
 Live Gmail harness, 2026-07-08:
 

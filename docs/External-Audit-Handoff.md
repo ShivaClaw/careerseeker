@@ -22,6 +22,9 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
   passed locally on this branch. It covered the offline harness suite, win-x64 single-file publish smoke,
   BYOK key import, BYOK live provider smoke, required Gmail/BYOK startup doctor, dashboard one-shot smoke,
   and live Brave/BYOK company research.
+- Fresh live Scout harness, 2026-07-20: all configured Greenhouse/Lever/Ashby boards responded, all three ATS
+  kinds produced jobs, Store ingest round-tripped, and the run found 942 raw jobs, 635 deduped jobs, 389
+  compensation-bearing jobs, and 81 prompt-injection signals.
 - `scripts/Verify-Alpha.ps1 -IncludePackage` passed locally and produced a trusted-tester ZIP with the alpha
   executable, native runtime dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/audit-export/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper
   self-check scripts, quickstart, tester walkthrough, package-local audit snapshot, release manifest, checksums,
@@ -47,6 +50,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 | L1 cannot send or submit applications | `src/Dispatcher/Dispatch.cs`, `src/Dispatcher/Dispatcher.cs`, `src/Pipeline/ApplicationPipeline.cs` | `DispatcherNoSendHarness`; offline `Verify-Alpha.ps1` |
 | Gmail is draft-only in the application even though `gmail.compose` can authorize sends | `src/Dispatcher/GoogleOAuth.cs`, `src/Dispatcher/Providers.cs`, trust docs | `DispatcherNoSendHarness`; trust wording smoke |
 | Tailor output is checked against local profile evidence before drafting | `src/Tailor`, `src/Verifier`, `src/Pipeline` | `HookHarness`, `GatewayGateHarness`, `Slice`; live BYOK Gate smoke |
+| Live ATS board ingest discovers and stores real jobs | `src/Scout`, `src/Engine/Program.cs`, `src/Store` | `ScoutLiveHarness`; `Run-CareerSeeker-Scout.cmd` package preview |
 | ATS-clean resume PDF is rendered and attached to Gmail drafts | `src/Dispatcher/AtsPdfDocumentRenderer.cs`, `src/Dispatcher/Packaging.cs`, `src/Dispatcher/Mime.cs` | `RendererHarness`, `DispatcherNoSendHarness`; package selected-job dry-run smoke |
 | Real BYOK Tailor and Gate providers are wired through the Gateway | `src/Gateway/ProvidersHttp.cs`, `src/Gateway/Routing.cs`, `src/Engine/Program.cs` | `Verify-Alpha.ps1 -IncludeLive`; BYOK live provider smoke |
 | Brave Search company research is grounded and fails closed on missing keys | `src/Researcher/BraveSearchWebResearch.cs`, `src/Researcher/Researcher.cs`, `src/Engine/StartupDoctor.cs` | `Verify-Alpha.ps1 -IncludeResearch`; startup doctor Brave check |

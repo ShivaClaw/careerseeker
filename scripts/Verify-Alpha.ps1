@@ -253,6 +253,7 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $handoff @(
         'Latest local offline verifier: `258 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
+        'Fresh live Scout harness, 2026-07-20',
         'BYOK live provider smoke',
         'live Brave/BYOK company research',
         'Cloudflare Email Routing MX records',
@@ -260,6 +261,7 @@ Invoke-Step "Public README and harness count smoke" {
         '## Evidence Map',
         'ATS-clean resume PDF is rendered and attached to Gmail drafts',
         'Real BYOK Tailor and Gate providers are wired through the Gateway',
+        'Live ATS board ingest discovers and stores real jobs',
         'Brave Search company research is grounded and fails closed on missing keys',
         'source-control hygiene smoke',
         'Trusted-tester ZIP carries source provenance, payload checksums, and provider-key quickstart guidance',
