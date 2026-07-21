@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using SeekerSvc.Store;
 
 int passed = 0, failed = 0;
@@ -62,8 +63,92 @@ Check("state-set id lookup returns empty for a non-matching state and for empty 
     sqlite.IdsNoneMatching.Count == 0 && sqlite.IdsEmptyInput.Count == 0 &&
     memory.IdsNoneMatching.Count == 0 && memory.IdsEmptyInput.Count == 0);
 
+// Migration (L1): a DB created by an older schema — missing paused_from / resume_path / cover_path /
+// answers_json — must be brought current on open, without dropping the pre-existing row, and the new
+// columns must be writable. Presence is checked via PRAGMA, so a fresh open no longer throws+swallows.
+var migration = await ExerciseMigrationAsync();
+Check("migration adds the four artifact/paused_from columns to a pre-existing old-schema DB",
+    migration.MigratedColumns, migration.ColumnList);
+Check("migration is idempotent and preserves the pre-existing application row and its state",
+    migration.PreExistingState == "SCREENED", migration.PreExistingState);
+Check("artifact columns are writable after migration (round-trip through the store)",
+    migration.RoundTrip is { ResumePath: "r.pdf", CoverPath: "c.pdf", AnswersJson: "{\"q\":\"a\"}" },
+    $"{migration.RoundTrip?.ResumePath}/{migration.RoundTrip?.CoverPath}/{migration.RoundTrip?.AnswersJson}");
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
+
+// Seeds a file DB whose `applications` table predates the four migrated columns, opens it through the
+// store twice (proving idempotency), and confirms the columns arrive, the old row survives, and the
+// new columns round-trip.
+static async Task<MigrationResult> ExerciseMigrationAsync()
+{
+    var path = Path.Combine(Path.GetTempPath(), "CareerSeeker.Migration." + Guid.NewGuid().ToString("N") + ".db");
+    try
+    {
+        var connStr = new SqliteConnectionStringBuilder { DataSource = path }.ToString();
+        await using (var seed = new SqliteConnection(connStr))
+        {
+            await seed.OpenAsync();
+            // Old schema: no paused_from / resume_path / cover_path / answers_json, and no FK (the
+            // migration only adds columns; runtime FK enforcement is exercised by the parity path).
+            using (var ddl = seed.CreateCommand())
+            {
+                ddl.CommandText = @"
+CREATE TABLE applications (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_id         INTEGER NOT NULL,
+  state          TEXT    NOT NULL,
+  autonomy_level TEXT    NOT NULL DEFAULT 'L1',
+  gate_id        INTEGER,
+  channel        TEXT,
+  submitted_at   TEXT,
+  created_at     TEXT    NOT NULL,
+  updated_at     TEXT    NOT NULL
+);";
+                await ddl.ExecuteNonQueryAsync();
+            }
+            using (var ins = seed.CreateCommand())
+            {
+                ins.CommandText = @"INSERT INTO applications (job_id, state, autonomy_level, created_at, updated_at)
+VALUES (1, 'SCREENED', 'L1', '2026-07-01T00:00:00.0000000+00:00', '2026-07-01T00:00:00.0000000+00:00');";
+                await ins.ExecuteNonQueryAsync();
+            }
+        }
+
+        await using var store = SqliteSeekerStore.ForFile(path);
+        await store.InitializeAsync();
+        await store.InitializeAsync(); // idempotent: no duplicate-column throw on the second open
+
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (var check = new SqliteConnection(connStr))
+        {
+            await check.OpenAsync();
+            using var info = check.CreateCommand();
+            info.CommandText = "PRAGMA table_info(applications);";
+            using var r = await info.ExecuteReaderAsync();
+            while (await r.ReadAsync()) columns.Add(r.GetString(1));
+        }
+        var wanted = new[] { "paused_from", "resume_path", "cover_path", "answers_json" };
+
+        const long preExistingId = 1;
+        var preserved = await store.GetApplicationAsync(preExistingId);
+        await store.SaveApplicationArtifactsAsync(preExistingId, "r.pdf", "c.pdf", "{\"q\":\"a\"}");
+        var roundTrip = await store.GetApplicationAsync(preExistingId);
+
+        return new MigrationResult(
+            MigratedColumns: wanted.All(columns.Contains),
+            ColumnList: string.Join(",", columns.OrderBy(c => c)),
+            PreExistingState: preserved?.State,
+            RoundTrip: roundTrip);
+    }
+    finally
+    {
+        DeleteIfExists(path);
+        DeleteIfExists(path + "-wal");
+        DeleteIfExists(path + "-shm");
+    }
+}
 
 static async Task<StoreSnapshot> ExerciseSqliteAsync()
 {
@@ -213,6 +298,12 @@ static void DeleteIfExists(string path)
         // Best-effort cleanup only; a leaked temp DB is less useful than hiding the parity result.
     }
 }
+
+sealed record MigrationResult(
+    bool MigratedColumns,
+    string ColumnList,
+    string? PreExistingState,
+    ApplicationRow? RoundTrip);
 
 sealed class StepClock
 {

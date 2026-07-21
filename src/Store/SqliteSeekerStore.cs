@@ -47,14 +47,7 @@ public sealed class SqliteSeekerStore : ISeekerStore, IAsyncDisposable
             foreach (var pragma in Schema.Pragmas)
                 await ExecAsync(conn, pragma, ct).ConfigureAwait(false);
             await ExecAsync(conn, Schema.Ddl, ct).ConfigureAwait(false);
-            try { await ExecAsync(conn, "ALTER TABLE applications ADD COLUMN paused_from TEXT;", ct).ConfigureAwait(false); }
-            catch (SqliteException) { /* column already exists (fresh DDL or prior migration) */ }
-            try { await ExecAsync(conn, "ALTER TABLE applications ADD COLUMN resume_path TEXT;", ct).ConfigureAwait(false); }
-            catch (SqliteException) { /* column already exists (fresh DDL or prior migration) */ }
-            try { await ExecAsync(conn, "ALTER TABLE applications ADD COLUMN cover_path TEXT;", ct).ConfigureAwait(false); }
-            catch (SqliteException) { /* column already exists (fresh DDL or prior migration) */ }
-            try { await ExecAsync(conn, "ALTER TABLE applications ADD COLUMN answers_json TEXT;", ct).ConfigureAwait(false); }
-            catch (SqliteException) { /* column already exists (fresh DDL or prior migration) */ }
+            await MigrateApplicationColumnsAsync(conn, ct).ConfigureAwait(false);
             _conn = conn;
         }
         finally { _mutex.Release(); }
@@ -772,6 +765,36 @@ LEFT JOIN companies c ON c.id = j.company_id";
         using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Bring an existing <c>applications</c> table up to the current column set. A fresh DB already has
+    /// these columns from <see cref="Schema.Ddl"/>, so this is a no-op there; a DB created by an older
+    /// schema gets exactly the columns it is missing. Presence is checked via <c>PRAGMA table_info</c>
+    /// rather than letting <c>ADD COLUMN</c> throw "duplicate column" on every first-run init — the old
+    /// throw-and-swallow form raised (and caught) four exceptions on every fresh open.
+    /// </summary>
+    private static async Task MigrateApplicationColumnsAsync(SqliteConnection conn, CancellationToken ct)
+    {
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var info = conn.CreateCommand())
+        {
+            info.CommandText = "PRAGMA table_info(applications);";
+            using var r = await info.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await r.ReadAsync(ct).ConfigureAwait(false))
+                existing.Add(r.GetString(1)); // PRAGMA table_info column 1 is the column name
+        }
+
+        (string Column, string Ddl)[] required =
+        {
+            ("paused_from",  "ALTER TABLE applications ADD COLUMN paused_from TEXT;"),
+            ("resume_path",  "ALTER TABLE applications ADD COLUMN resume_path TEXT;"),
+            ("cover_path",   "ALTER TABLE applications ADD COLUMN cover_path TEXT;"),
+            ("answers_json", "ALTER TABLE applications ADD COLUMN answers_json TEXT;"),
+        };
+        foreach (var (column, ddl) in required)
+            if (!existing.Contains(column))
+                await ExecAsync(conn, ddl, ct).ConfigureAwait(false);
     }
 
     private async Task<T> Locked<T>(Func<Task<T>> work, CancellationToken ct)
