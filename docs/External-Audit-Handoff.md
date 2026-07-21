@@ -236,6 +236,18 @@ These are not hidden pass conditions for the current L1 technical alpha:
 - Gmail label tree remains deferred to preserve compose-only L1 scope.
 - Public launch still needs legal/privacy review, signing, OAuth verification, and broader product-shell work.
 
+Accepted residuals from the 2026-07-20 audit (documented, not fixed, because the alpha is loopback-only
+Windows-local):
+
+- **M2** — the document route's control token travels in the query string (`?token=`), so it can land in
+  browser history or a local proxy/access log. Accepted: loopback-bound listener, `RequestCameFromThisDashboard`
+  (loopback + Host + Origin/Referer) already gates the route, the token is per-process, and responses carry
+  `Referrer-Policy: no-referrer` + `Cache-Control: no-store`. Upgrade path (HttpOnly cookie / POST-fetched blob)
+  is noted in a comment at `src/Engine/Host.cs` `HandleDocumentAsync`. Revisit before any non-loopback exposure.
+- **M3 / L2 / L3** — absent `Origin`/`Referer` treated as valid (non-browser clients), `OrdinalIgnoreCase`
+  path-prefix comparison (NTFS-correct), and the package-import directory-entry edge (defense-in-depth holds)
+  all remain deliberate and documented; correct for the Windows-local alpha, revisit for cross-platform.
+
 ## Useful Entry Points
 
 - Product/spec handoff: `docs/CareerSeeker-Project-Summary.md`

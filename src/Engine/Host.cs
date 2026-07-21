@@ -652,6 +652,16 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         }
 
         var kind = Uri.UnescapeDataString(segments[2]);
+        // M2 (accepted for the Windows-local alpha): document links are plain <a> navigations, so the
+        // control token rides in the query string rather than a POST body like the mutating controls.
+        // A URL-borne token can land in browser history or a local proxy/access log. This is accepted
+        // here because: the listener binds loopback only and RequestCameFromThisDashboard() has already
+        // enforced loopback + Host + Origin/Referer before routing; the token is per-process (a new one
+        // each run, so a stale history entry is inert after restart); and the response sets
+        // Referrer-Policy: no-referrer + Cache-Control: no-store, so it cannot leak onward or be cached.
+        // If the dashboard ever leaves loopback, move this to an HttpOnly cookie or a POST-fetched blob
+        // instead of a query param. (Related L2: IsServableDocumentPath compares roots with
+        // OrdinalIgnoreCase — correct on NTFS, revisit if this ever serves from a case-sensitive FS.)
         if (!HasValidControlToken(ctx.Request.QueryString["token"]))
         {
             ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
