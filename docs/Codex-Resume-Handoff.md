@@ -14,7 +14,16 @@ Branch/PR topology now (all draft, none merged — awaiting Friday audit + Brand
 - `agent/repo-cleanup` @ `81d232c` — pre-audit live line; PR #1 → `main`, draft/open.
 - `agent/audit-cleanup-h1h2h3` @ `f3021ec` — the previously-uncommitted H1/H2/H3 + CLAUDE.md, now
   committed. **PR #2 → `agent/repo-cleanup`** (draft, CI green).
-- `claude/hardening-batch` — this session's Phase-3 work, **PR #3 → `agent/audit-cleanup-h1h2h3`** (draft).
+- `claude/hardening-batch` — Phase-3 hardening, **PR #3 → `agent/audit-cleanup-h1h2h3`** (draft, CI green).
+- `claude/alpha-finish` — Phase-4 alpha release candidate, based on the `claude/hardening-batch` tip so it
+  carries every post-checkpoint commit. **PR #4 → `agent/repo-cleanup`** (draft). This PR is the
+  consolidated "what Claude changed after the Codex checkpoint (`81d232c`)" diff you asked for; PR #2 and
+  PR #3 remain open as the granular per-batch views of the same commits. Review whichever is more useful.
+
+  Branch-base note: you suggested branching `claude/alpha-finish` directly off `agent/repo-cleanup`. Doing
+  that literally would have dropped H1/H2/H3 and A1/L1/M1/M2, none of which are merged into
+  `agent/repo-cleanup` yet. Basing on the hardening tip and targeting `agent/repo-cleanup` gives the same
+  single clean diff against the checkpoint while preserving that work and the small per-item commits.
 
 This session's commits on `claude/hardening-batch` (newest first — derive head yourself):
 - `ci: also run on claude/** branches` — CI trigger fix (claude/** branches had no CI).
@@ -33,6 +42,53 @@ Suggested Codex audit focus: A1 (`::` the only v6 gap?), L1 (no-FK old-schema se
 column-index read), M1 (`$ExpectedOfflineTotal` now in the drift-trap set), M2 (documented acceptance, not
 a fix — cookie migration is a deliberate follow-up if wanted). Remaining open from the 2026-07-20 audit
 after this batch: none of A1/L1/M1/M2; M3/L2/L3 are documented-accepted residuals.
+
+### Phase 4 — alpha release candidate (`claude/alpha-finish`)
+
+Commits on this branch beyond the hardening batch:
+- `docs: add Claude alpha build instructions and future design ideas` — the two previously-untracked docs,
+  committed with owner approval after a secret-pattern scan (clean).
+
+Exact commands run this session and their results:
+
+| Command | Result |
+| --- | --- |
+| `dotnet build CareerSeeker.sln -c Release --warnaserror` | **0 warnings, 0 errors** |
+| `scripts\Verify-Alpha.ps1` | **325 passed, 0 failed** (pinned-total assertion passes) |
+| `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | **passed** — details below |
+
+`-IncludePublish`: win-x64 self-contained single-file publish succeeded; published-executable demo smoke
+ran a SQLite demo cycle with `errors: 0`.
+
+`-IncludePackage`: trusted-tester ZIP built at `output\release\CareerSeeker-alpha-win-x64.zip`
+(~31.0 MB), `manifest: ok`, **46 checksums verified**; packaged dashboard smoke `errors: 0`; packaged
+helper smokes, audit export, and evidence export/import into an isolated restore workspace all passed.
+The ZIP is reproducible from committed source — it is a build artifact and is **not** committed
+(`output/`, `.appdata/`, `secrets/`, `tmp/` are gitignored; `git status` is clean after the run).
+
+Per-harness offline breakdown at this head: Slice 28 · EngineHarness 89 · ResearcherHarness 53 ·
+HookHarness 14 · StoreParityHarness 22 · GatewayGateHarness 34 · DispatcherNoSendHarness 35 ·
+LifecycleHarness 44 · RendererHarness 6 = **325**.
+
+**Intentionally skipped, and why:**
+- `-IncludeLive` (live BYOK/Gmail/Gateway smoke) and `-IncludeResearch` (live Brave + BYOK research) —
+  these spend real provider credits and touch Gmail. Held behind the standing human gate (G2); the owner
+  did not authorize live/spending runs this session. Codex's own guidance was to prefer dry-run/live-safe
+  helpers.
+- No real Gmail draft was created. No `Run-CareerSeeker-Live` LIVE path was exercised.
+- Consequence: live evidence in this file dated 2026-07-20 is the most recent live proof; it predates
+  A1/L1/M1/M2. Nothing in this batch touches the Gmail send/draft path, BYOK wiring, or the packaging
+  scripts, but the live path has not been re-proven on this head.
+
+**Known risks / open items for the Friday audit:**
+- Live/research verification is stale by design (see above). Re-running `-IncludeLive` and
+  `-IncludeResearch` is the highest-signal next evidence if the owner authorizes spending.
+- A1's fail-closed multi-address rule still rejects legitimately multi-homed hosts that publish any
+  private address — intended, but it is a behavioral tradeoff worth a second opinion.
+- L1's migration test seeds an old-schema table without the foreign key; it proves column migration and
+  round-trip, not FK-constrained upgrade behavior.
+- M2 is an accepted residual, not a fix; the doc-route token still travels in the query string.
+- `main` remains 156 commits behind the live line; the whole chain is unmerged pending your audit.
 
 ## Session Status (2026-07-21 earlier — audit-findings work, now superseded above)
 
