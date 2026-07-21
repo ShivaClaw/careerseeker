@@ -86,6 +86,15 @@ run for someone else, and a verifier expectation that drifts from the doc
 will silently stop testing what it claims to test. Treat doc content and
 verifier expectations as one unit that changes together.
 
+The offline assertion total is pinned in one place: `$ExpectedOfflineTotal`
+near the top of `Verify-Alpha.ps1`. The run throws if the measured sum drifts
+from it, so adding or removing any harness assertion means bumping that
+variable **and** every doc that reports the total, in the same change. This is
+also what guarantees the real-SQLite harnesses (`EngineHarness`,
+`StoreParityHarness`) can't regress silently: CI runs this whole file on
+`windows-latest`, so they execute on every push/PR, and the pinned total makes
+a dropped assertion a hard failure rather than a quiet count drop.
+
 ## Secrets — never print
 
 Never print, log, or echo the contents of:

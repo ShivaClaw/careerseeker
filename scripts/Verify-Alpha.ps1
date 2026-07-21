@@ -108,6 +108,14 @@ $offlineProjects = @(
     "tests/RendererHarness/RendererHarness.csproj"
 )
 
+# The pinned offline assertion total. CI runs this whole file on windows-latest, so the real-SQLite
+# harnesses above (EngineHarness, StoreParityHarness) are exercised on every push/PR — not just locally.
+# This number is the measured total's expected value: the run below fails if the actual sum drifts from
+# it, so a dropped harness or deleted assertion can no longer regress silently while the doc-smoke grep
+# still finds the stale count. Bump it in lockstep with the per-harness/doc counts (see the drift trap in
+# CLAUDE.md). Last verified at 325 on branch claude/hardening-batch (commit f6fe574 + this change).
+$ExpectedOfflineTotal = 325
+
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
 }
@@ -499,6 +507,9 @@ Write-Host ""
 Write-Host "=== Offline total: $totalPassed passed, $totalFailed failed ==="
 if ($totalFailed -ne 0) {
     throw "Offline harness failures were reported."
+}
+if ($totalPassed -ne $ExpectedOfflineTotal) {
+    throw "Offline assertion total drifted: measured $totalPassed, expected $ExpectedOfflineTotal. A harness or assertion was added/removed without updating `$ExpectedOfflineTotal (and the doc counts). See the drift trap in CLAUDE.md."
 }
 
 if ($IncludePublish) {
