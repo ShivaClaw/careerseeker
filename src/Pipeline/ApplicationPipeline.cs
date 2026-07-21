@@ -304,7 +304,7 @@ public sealed class ApplicationPipeline
                 await _store.DeletePendingDispatchAsync(appId, ct).ConfigureAwait(false);
                 return ReconcileOutcome.CompletedFromRecord;
             }
-            if (last is { Status: "PENDING" }) return ReconcileOutcome.ManualReviewRequired;
+            if (last is { Status: "PENDING" }) return await FlagManualReviewAsync(appId, SubmitKind, ct).ConfigureAwait(false);
             return ReconcileOutcome.RetryAvailable; // FAILED or never attempted: known no-effect
         }
 
@@ -317,11 +317,55 @@ public sealed class ApplicationPipeline
                     "\"reconciled\":true", ct: ct).ConfigureAwait(false);
                 return ReconcileOutcome.CompletedFromRecord;
             }
-            if (drafts.LastOrDefault() is { Status: "PENDING" }) return ReconcileOutcome.ManualReviewRequired;
+            if (drafts.LastOrDefault() is { Status: "PENDING" }) return await FlagManualReviewAsync(appId, DraftKind, ct).ConfigureAwait(false);
             return ReconcileOutcome.NoAction;
         }
 
         return ReconcileOutcome.NoAction;
+    }
+
+    /// <summary>
+    /// A PENDING effect attempt means the provider outcome is unknown, so no automatic action is safe —
+    /// only a human can resolve it. Record that durably as an audit event (not just a console line) so it
+    /// surfaces in the dashboard evidence view, including under a headless service where nobody is watching
+    /// stdout. Performs no side effect and no state transition.
+    /// </summary>
+    private async Task<ReconcileOutcome> FlagManualReviewAsync(long appId, string kind, CancellationToken ct)
+    {
+        await _store.AppendEventAsync(new EventInput("engine", "reconcile_manual_review", "application",
+            appId.ToString(), $"{{\"kind\":\"{kind}\",\"outcome\":\"ManualReviewRequired\"}}"), ct).ConfigureAwait(false);
+        return ReconcileOutcome.ManualReviewRequired;
+    }
+
+    /// <summary>
+    /// Startup crash-recovery sweep: finds every application left in SUBMITTING or READY — the two
+    /// states <see cref="ReconcileAsync"/> can act on — and reconciles each one. Call this once before
+    /// the engine begins normal cycles/dashboard serving, so an application stranded by a prior crash
+    /// (provider succeeded, local commit lost) is completed or flagged before anything else touches it.
+    /// Never performs a side effect itself; each per-application decision is <see cref="ReconcileAsync"/>'s.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<long, ReconcileOutcome>> ReconcileAllAsync(
+        Action<long, Exception>? onError = null, CancellationToken ct = default)
+    {
+        var pending = await _store.GetApplicationIdsInStatesAsync(
+            new[] { AppState.SUBMITTING.ToString(), AppState.READY.ToString() }, ct).ConfigureAwait(false);
+        var outcomes = new Dictionary<long, ReconcileOutcome>();
+        foreach (var appId in pending)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                outcomes[appId] = await ReconcileAsync(appId, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                // One stranded row must never prevent the engine from starting: isolate the failure,
+                // surface it through onError, and keep reconciling the rest.
+                onError?.Invoke(appId, ex);
+            }
+        }
+        return outcomes;
     }
 
     /// <summary>72h elapsed with no tap: expire the gate. Race-tolerant: a no-op if already resolved.</summary>

@@ -1,16 +1,25 @@
 # Codex Resume Handoff
 
-Updated: 2026-07-20
+Updated: 2026-07-21
 
 ## Session Status
 
 - Branch: `agent/repo-cleanup`
 - PR: `https://github.com/ShivaClaw/careerseeker/pull/1`
-- Latest pushed commit: `bd2bf8c Keep alpha verification evidence current`
-- Worktree at handoff creation: clean
+- Current head: **do not trust a SHA embedded in this file — run `git rev-parse --short HEAD`.**
+  At this update the branch head is `81d232c Add Codex resume handoff`. Any version of this handoff
+  is committed *above* the SHA it can name, so an embedded value is always at least one commit stale
+  by construction — treat it as a snapshot pointer, not ground truth. (A prior revision claimed
+  `bd2bf8c`, which was already one commit behind the head that recorded it; that drift is what audit
+  finding H3 flagged.)
+- Worktree: **not clean.** H2 (engine startup reconcile sweep) and H3 (this handoff correction) are in
+  progress in the working tree and not yet committed. Run `git status -sb` before trusting any evidence
+  below; the pushed head still predates the H2 change.
+- Worktree at original handoff creation (2026-07-20): clean
 - PR merge state at handoff creation: `CLEAN`
 - GitHub CI at handoff creation: both `Build and offline harnesses` checks passed
-- User instruction: stop working for this session; resume only after explicit user request.
+- User instruction (2026-07-20 session): stop working; resume only after explicit user request. That
+  resume happened on 2026-07-21 to work the audit findings.
 
 ## What Was Finished
 
@@ -91,6 +100,10 @@ Most recent known-good local evidence on current pushed head:
 
 ## Latest Important Commits
 
+Newest first. This is historical context, not a live head pointer — confirm the actual head with
+`git log --oneline -5` / `git rev-parse --short HEAD`.
+
+- `81d232c Add Codex resume handoff` (records this handoff; the branch head as of 2026-07-20)
 - `bd2bf8c Keep alpha verification evidence current`
 - `114d0cd Reject foreign dashboard hosts on read routes`
 - `db4a0a2 Harden Brave result URL filtering`
@@ -115,7 +128,8 @@ These are not hidden pass conditions for the L1 technical alpha, but they are st
 
 When the user explicitly resumes:
 
-1. Check repo/PR state:
+1. Check repo/PR state (never trust a SHA copied from this file — derive it):
+   - `git rev-parse --short HEAD` and `git log --oneline -5`
    - `git status -sb`
    - `gh pr view 1 --repo ShivaClaw/careerseeker --json mergeStateStatus,statusCheckRollup,headRefName,url`
 2. If code changed externally, rerun the default verifier first:

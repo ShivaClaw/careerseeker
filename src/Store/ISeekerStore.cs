@@ -40,6 +40,13 @@ public interface ISeekerStore
 
     Task<ApplicationRow?> GetApplicationAsync(long applicationId, CancellationToken ct = default);
     Task<IReadOnlyList<ApplicationSummaryRow>> GetRecentApplicationsAsync(int limit = 25, CancellationToken ct = default);
+
+    /// <summary>
+    /// Application ids currently sitting in one of <paramref name="states"/>. Used by the crash-recovery
+    /// reconcile sweep to find applications potentially stranded mid-side-effect (e.g. SUBMITTING/READY)
+    /// without loading every application row.
+    /// </summary>
+    Task<IReadOnlyList<long>> GetApplicationIdsInStatesAsync(IReadOnlyList<string> states, CancellationToken ct = default);
     Task SaveApplicationArtifactsAsync(
         long applicationId,
         string? resumePath,

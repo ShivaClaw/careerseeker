@@ -54,6 +54,13 @@ Check("job summary lookup returns the selected job",
 Check("application artifact metadata persists into app and summary rows",
     sqlite.App is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", AnswersJson: "{\"q\":\"a\"}" } &&
     sqlite.Summaries[0] is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", HasAnswers: true });
+Check("state-set id lookup returns the matching application in both stores",
+    sqlite.IdsMatching.Count == 1 && sqlite.IdsMatching[0] == sqlite.App?.Id &&
+    sqlite.IdsMatching.SequenceEqual(memory.IdsMatching),
+    $"sqlite={string.Join(",", sqlite.IdsMatching)} memory={string.Join(",", memory.IdsMatching)}");
+Check("state-set id lookup returns empty for a non-matching state and for empty input",
+    sqlite.IdsNoneMatching.Count == 0 && sqlite.IdsEmptyInput.Count == 0 &&
+    memory.IdsNoneMatching.Count == 0 && memory.IdsEmptyInput.Count == 0);
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
@@ -158,6 +165,12 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
         var pausedFromSeen = (await store.GetApplicationAsync(appId))?.PausedFrom;
         await store.TryTransitionApplicationAsync(appId, "PAUSED", "EVALUATED", "user");
 
+        // State-set lookup (the reconcile sweep's query) must agree across stores and is a pure read:
+        // it consumes the deterministic clock zero times, so it cannot skew any downstream timestamp.
+        var idsMatching = (await store.GetApplicationIdsInStatesAsync(new[] { "EVALUATED", "SUBMITTING" })).ToList();
+        var idsNoneMatching = (await store.GetApplicationIdsInStatesAsync(new[] { "DRAFTED" })).ToList();
+        var idsEmptyInput = (await store.GetApplicationIdsInStatesAsync(Array.Empty<string>())).ToList();
+
         return new StoreSnapshot(
             CasWrong: casWrong,
             CasRight: casRight,
@@ -165,6 +178,9 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
             PendingAfterDelete: pendingAfterDelete,
             Attempts: attempts,
             PausedFromSeen: pausedFromSeen,
+            IdsMatching: idsMatching,
+            IdsNoneMatching: idsNoneMatching,
+            IdsEmptyInput: idsEmptyInput,
             First: first,
             Second: second,
             Job: await store.GetJobAsync(first.JobId),
@@ -217,6 +233,9 @@ sealed record StoreSnapshot(
     string? PendingAfterDelete,
     IReadOnlyList<EffectAttemptRow> Attempts,
     string? PausedFromSeen,
+    IReadOnlyList<long> IdsMatching,
+    IReadOnlyList<long> IdsNoneMatching,
+    IReadOnlyList<long> IdsEmptyInput,
     JobWriteResult First,
     JobWriteResult Second,
     JobRow? Job,
@@ -251,6 +270,9 @@ sealed record StoreSnapshot(
             if (Attempts[i] != other.Attempts[i])
                 return $"attempt[{i}]: {Attempts[i]} != {other.Attempts[i]}";
         if (PausedFromSeen != other.PausedFromSeen) return "paused_from round-trip differs";
+        if (!IdsMatching.SequenceEqual(other.IdsMatching)) return "state-set id lookup (matching) differs";
+        if (!IdsNoneMatching.SequenceEqual(other.IdsNoneMatching)) return "state-set id lookup (no match) differs";
+        if (!IdsEmptyInput.SequenceEqual(other.IdsEmptyInput)) return "state-set id lookup (empty input) differs";
         if (First != other.First) return $"first write result: {First} != {other.First}";
         if (Second != other.Second) return $"second write result: {Second} != {other.Second}";
         if (Job != other.Job) return $"job row: {Job} != {other.Job}";

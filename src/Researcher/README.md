@@ -18,6 +18,13 @@ enforced in code:
 
 Retrieved document text is treated as untrusted data, never instructions.
 
+The URLs themselves are also untrusted (they come from search results and their redirect targets), so the
+fetch path is SSRF-hardened by `PrivateNetworkGuard`. A cheap string filter rejects literal private/loopback
+hosts up front, and — because that cannot stop redirects or DNS rebinding — every socket the fetch client
+opens is re-validated at connect time against the *resolved* IP. Non-public destinations (private ranges,
+loopback, link-local incl. the `169.254.169.254` cloud-metadata address, CGNAT, benchmark, multicast) fail
+closed, and a fetch failure just drops that URL.
+
 ## Flow
 
 `BuildAsync(company)`:
@@ -47,16 +54,20 @@ Retrieved document text is treated as untrusted data, never instructions.
 - `GatewayDossierModel.cs`: `IDossierModel` over `Stage.FullEvaluation`; parser accepts clean JSON,
   fenced JSON, prose-wrapped JSON, single fact objects, and common source aliases before grounding.
 - `BraveSearchWebResearch.cs`: Brave Search API adapter that fetches result pages before returning docs.
+- `PrivateNetworkGuard.cs`: SSRF defense — public-IP classification, connect-time re-validation with an
+  injectable resolver, and the guarded `HttpClient` factory the fetch path uses.
 - `tests/ResearcherHarness`: offline plain-assertion runner.
 
 ## Verified Status
 
 - Compiles clean against the Gateway: `dotnet build -c Release` returns 0 warnings, 0 errors.
-- `ResearcherHarness`: 36 passed, 0 failed.
+- `ResearcherHarness`: 52 passed, 0 failed.
 - Coverage includes the grounding invariant, positive-only signals, cache behavior, Gateway model bridge,
   dossier-to-Scorer seam, and the Brave adapter's auth/query shape, public-page fetch, HTML stripping,
   localhost refusal, non-text skipping, wrapper-shaped live model responses, deterministic source fallback
-  when model facts are empty or all fail grounding, and research observability.
+  when model facts are empty or all fail grounding, and research observability. The SSRF guard is covered
+  for IP classification, the string pre-filter, redirect-to-metadata, DNS rebinding to private/metadata
+  targets, mixed public/private fail-closed, and unresolvable hosts.
 - Live `research-company` is verified with Brave Search plus BYOK dossier modeling. The command accepts
   `BRAVE_SEARCH_API_KEY`, `BRAVE_SEARCH_API`, or `CAREERSEEKER_BRAVE_SEARCH_API_KEY` from the environment
   or `secrets/env.secrets`.

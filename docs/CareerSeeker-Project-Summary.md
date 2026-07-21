@@ -115,12 +115,20 @@ Completed:
 - Gateway pinned-Gate and Dispatcher no-send invariants now have named offline harnesses.
 - Gate outages now fail closed into `GATE_UNAVAILABLE` instead of being mislabeled as fabrication.
 
-Not complete yet:
+not_completed_yet:
 
-- Headless Chromium/HTML document renderer polish beyond the current ATS-clean text PDF renderer.
-- Windows Service, tray, installer, and code signing.
+- Full production composition root.
+- BYOK Anthropic/Gemini provider key wiring and live inference smoke.
+- Real web research adapter.
+- Headless Chromium document renderer.
+- Windows Service, tray, installer, code signing.
 - OAuth production verification and CASA assessment.
 - Android blind relay and dashboard.
+- Future-state monetization concepts (CareerSeeker Cloud managed-inference
+  subscription, CareerSeeker Pro one-time unlock) are deliberately out of active
+  scope — see docs/future-design-ideas.md. Not roadmap commitments; do not implement,
+  design against, or reference in active spec/ADR work without an explicit decision
+  to promote an item out of that file first.
 
 ## Founding Decisions
 
@@ -156,19 +164,19 @@ Important docs:
 
 ## Module Map
 
-| Module | Purpose | Key Files |
-| --- | --- | --- |
-| `src/Scout` | Ingest public ATS feeds, normalize jobs, detect remote/compensation/injection signals, deduplicate. | `Ats.cs`, `Scout.cs`, `Providers.cs`, `Http.cs`, `Dedup.cs`, `Canon.cs`, `Internal.cs` |
-| `src/Store` | Single source of truth, SQLite schema, in-memory test store, audit chain. | `Schema.cs`, `ISeekerStore.cs`, `InMemorySeekerStore.cs`, `SqliteSeekerStore.cs`, `Ingest.cs`, `Audit.cs` |
-| `src/Scorer` | Deterministic fit and legitimacy scoring; scam floor and red flag multiplier. | `Components.cs`, `Scoring.cs`, `Scorer.cs` |
-| `src/Researcher` | Retrieve company docs, derive grounded dossiers and positive-only legitimacy signals. | `Researcher.cs`, `Grounding.cs`, `Dossier.cs`, `Signals.cs`, `GatewayDossierModel.cs` |
-| `src/Gateway` | LLM routing, budgets, provider contracts, pinned Gate policy, fake and HTTP providers. | `Routing.cs`, `Stages.cs`, `Gateway.cs`, `Budget.cs`, `Accounting.cs`, `Contracts.cs`, `ProvidersHttp.cs` |
-| `src/Tailor` | Generate resume/cover/answers, decompose candidate claims, apply hook safety. | `Tailor.cs`, `Drafting.cs`, `Decomposer.cs`, `GatewayTailorModel.cs`, `Hook.cs`, `Policy.cs` |
-| `src/TailorHookBridge` | Bridge Researcher dossier hooks into Tailor without direct cyclic dependency. | `DossierHookProvider.cs` |
-| `src/Verifier` | Fabrication Gate claim entailment and exact/semantic verification. | `FabricationGate.cs`, `Claims.cs`, `Matchers.cs` |
-| `src/Pipeline` | Application lifecycle state machine and orchestration ports. | `ApplicationPipeline.cs`, `Lifecycle.cs`, `States.cs`, `Ports.cs`, `ClaimMapping.cs` |
-| `src/Dispatcher` | Package verified applications, build MIME, create Gmail drafts, detect channels, run local OAuth token flow. | `Dispatch.cs`, `Dispatcher.cs`, `Mime.cs`, `Packaging.cs`, `Recipients.cs`, `Providers.cs`, `GoogleOAuth.cs` |
-| `src/Engine` | Cycle scheduler, counters, localhost dashboard. | `EngineCore.cs`, `Host.cs` |
+| Module                 | Purpose                                                                                                      | Key Files                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `src/Scout`            | Ingest public ATS feeds, normalize jobs, detect remote/compensation/injection signals, deduplicate.          | `Ats.cs`, `Scout.cs`, `Providers.cs`, `Http.cs`, `Dedup.cs`, `Canon.cs`, `Internal.cs`                       |
+| `src/Store`            | Single source of truth, SQLite schema, in-memory test store, audit chain.                                    | `Schema.cs`, `ISeekerStore.cs`, `InMemorySeekerStore.cs`, `SqliteSeekerStore.cs`, `Ingest.cs`, `Audit.cs`    |
+| `src/Scorer`           | Deterministic fit and legitimacy scoring; scam floor and red flag multiplier.                                | `Components.cs`, `Scoring.cs`, `Scorer.cs`                                                                   |
+| `src/Researcher`       | Retrieve company docs, derive grounded dossiers and positive-only legitimacy signals.                        | `Researcher.cs`, `Grounding.cs`, `Dossier.cs`, `Signals.cs`, `GatewayDossierModel.cs`                        |
+| `src/Gateway`          | LLM routing, budgets, provider contracts, pinned Gate policy, fake and HTTP providers.                       | `Routing.cs`, `Stages.cs`, `Gateway.cs`, `Budget.cs`, `Accounting.cs`, `Contracts.cs`, `ProvidersHttp.cs`    |
+| `src/Tailor`           | Generate resume/cover/answers, decompose candidate claims, apply hook safety.                                | `Tailor.cs`, `Drafting.cs`, `Decomposer.cs`, `GatewayTailorModel.cs`, `Hook.cs`, `Policy.cs`                 |
+| `src/TailorHookBridge` | Bridge Researcher dossier hooks into Tailor without direct cyclic dependency.                                | `DossierHookProvider.cs`                                                                                     |
+| `src/Verifier`         | Fabrication Gate claim entailment and exact/semantic verification.                                           | `FabricationGate.cs`, `Claims.cs`, `Matchers.cs`                                                             |
+| `src/Pipeline`         | Application lifecycle state machine and orchestration ports.                                                 | `ApplicationPipeline.cs`, `Lifecycle.cs`, `States.cs`, `Ports.cs`, `ClaimMapping.cs`                         |
+| `src/Dispatcher`       | Package verified applications, build MIME, create Gmail drafts, detect channels, run local OAuth token flow. | `Dispatch.cs`, `Dispatcher.cs`, `Mime.cs`, `Packaging.cs`, `Recipients.cs`, `Providers.cs`, `GoogleOAuth.cs` |
+| `src/Engine`           | Cycle scheduler, counters, localhost dashboard.                                                              | `EngineCore.cs`, `Host.cs`                                                                                   |
 
 ## Architecture
 
@@ -293,20 +301,20 @@ Secret rules:
 
 ## Store Schema Summary
 
-| Table | Purpose |
-| --- | --- |
-| `profile` | Canonical user profile JSON and version. |
-| `claims` | Atomic source-of-truth profile claims; Gate oracle. |
-| `companies` | ATS handle, company metadata, dossier path. |
-| `jobs` | Normalized discovered postings, compensation, remote state, injection signals, simhash. |
-| `scores` | Fit, legitimacy, red flag multiplier, total. |
-| `applications` | Lifecycle state, autonomy level, artifacts, channel. |
-| `gates` | Human approval gates for apply/reply/calendar/lesson. |
-| `threads` | Gmail thread association for future correspondence. |
-| `events` | Hash-chained audit log. |
-| `lessons` | Opt-in campaign learning. |
-| `stories` | STAR+R story bank. |
-| `config` | Local settings and rails. |
+| Table          | Purpose                                                                                 |
+| -------------- | --------------------------------------------------------------------------------------- |
+| `profile`      | Canonical user profile JSON and version.                                                |
+| `claims`       | Atomic source-of-truth profile claims; Gate oracle.                                     |
+| `companies`    | ATS handle, company metadata, dossier path.                                             |
+| `jobs`         | Normalized discovered postings, compensation, remote state, injection signals, simhash. |
+| `scores`       | Fit, legitimacy, red flag multiplier, total.                                            |
+| `applications` | Lifecycle state, autonomy level, artifacts, channel.                                    |
+| `gates`        | Human approval gates for apply/reply/calendar/lesson.                                   |
+| `threads`      | Gmail thread association for future correspondence.                                     |
+| `events`       | Hash-chained audit log.                                                                 |
+| `lessons`      | Opt-in campaign learning.                                                               |
+| `stories`      | STAR+R story bank.                                                                      |
+| `config`       | Local settings and rails.                                                               |
 
 SQLite pragmas:
 
@@ -333,16 +341,16 @@ SQLite pragmas:
 
 ## Connector Status
 
-| Connector | Status | Notes |
-| --- | --- | --- |
-| Scout | Live verified | Greenhouse, Lever, and Ashby public APIs. Board-level failures are isolated. |
-| Gmail OAuth | Live verified | `gmail.compose`; DPAPI local token vault; no-draft `connect-gmail`; real draft created in alpha/live smoke; custom labels skipped for L1. |
-| LLM providers | Full alpha BYOK path verified | `--llm byok` reads local DPAPI/env/env.secrets keys and registers Anthropic/Gemini providers for Tailor and Gate; BYOK alpha defaults to top-3 Gate semantic candidates per claim; `--fast-smoke` remains a cheaper routine validator. |
-| Research web | Live verified | Brave Search adapter fetches public result pages and `research-company` composes Brave + BYOK dossier modeling with grounding/fallback facts. |
-| Document renderer | Offline verified | Deterministic single-column ATS-clean PDF renderer writes selectable resume text and attaches PDFs to drafts; Chromium/HTML polish remains future work. |
-| SQLite | Source restored | `Microsoft.Data.Sqlite` PackageReference active; `StoreParityHarness` passed. |
-| Windows service/tray | Engine shell only | Service/tray not yet implemented. |
-| Android relay | Not implemented | Intentionally deferred. |
+| Connector            | Status                        | Notes                                                                                                                                                                                                                                  |
+| -------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scout                | Live verified                 | Greenhouse, Lever, and Ashby public APIs. Board-level failures are isolated.                                                                                                                                                           |
+| Gmail OAuth          | Live verified                 | `gmail.compose`; DPAPI local token vault; no-draft `connect-gmail`; real draft created in alpha/live smoke; custom labels skipped for L1.                                                                                              |
+| LLM providers        | Full alpha BYOK path verified | `--llm byok` reads local DPAPI/env/env.secrets keys and registers Anthropic/Gemini providers for Tailor and Gate; BYOK alpha defaults to top-3 Gate semantic candidates per claim; `--fast-smoke` remains a cheaper routine validator. |
+| Research web         | Live verified                 | Brave Search adapter fetches public result pages and `research-company` composes Brave + BYOK dossier modeling with grounding/fallback facts.                                                                                          |
+| Document renderer    | Offline verified              | Deterministic single-column ATS-clean PDF renderer writes selectable resume text and attaches PDFs to drafts; Chromium/HTML polish remains future work.                                                                                |
+| SQLite               | Source restored               | `Microsoft.Data.Sqlite` PackageReference active; `StoreParityHarness` passed.                                                                                                                                                          |
+| Windows service/tray | Engine shell only             | Service/tray not yet implemented.                                                                                                                                                                                                      |
+| Android relay        | Not implemented               | Intentionally deferred.                                                                                                                                                                                                                |
 
 ## Verification Log
 
@@ -366,19 +374,19 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 297 passed, 0 failed.
+Total: 321 passed, 0 failed.
 
-| Harness | Result |
-| --- | --- |
-| `Slice` | 28 passed, 0 failed |
-| `EngineHarness` | 89 passed, 0 failed |
-| `ResearcherHarness` | 37 passed, 0 failed |
-| `HookHarness` | 14 passed, 0 failed |
-| `StoreParityHarness` | 17 passed, 0 failed |
-| `GatewayGateHarness` | 34 passed, 0 failed |
+| Harness                   | Result              |
+| ------------------------- | ------------------- |
+| `Slice`                   | 28 passed, 0 failed |
+| `EngineHarness`           | 89 passed, 0 failed |
+| `ResearcherHarness`       | 52 passed, 0 failed |
+| `HookHarness`             | 14 passed, 0 failed |
+| `StoreParityHarness`      | 19 passed, 0 failed |
+| `GatewayGateHarness`      | 34 passed, 0 failed |
 | `DispatcherNoSendHarness` | 35 passed, 0 failed |
-| `LifecycleHarness` | 37 passed, 0 failed |
-| `RendererHarness` | 6 passed, 0 failed |
+| `LifecycleHarness`        | 44 passed, 0 failed |
+| `RendererHarness`         | 6 passed, 0 failed  |
 
 Live Scout harness, 2026-07-20:
 
@@ -494,6 +502,7 @@ Unconstrained BYOK alpha smoke, 2026-07-19:
   jobs, source/compensation metadata, safe links, repost counts, and prompt-injection flags without raw
   descriptions.
 - Brave Search web-research adapter added; it uses search results only to select URLs, fetches public result pages, strips HTML/script noise, skips localhost/private/non-text results, and leaves final trust to the grounding filter.
+- Research fetch SSRF-hardened (`PrivateNetworkGuard`): the string-level host filter is backed by a connect-time re-validation of the resolved IP on every socket the fetch client opens, so redirects to and DNS rebinding onto private/loopback/link-local (incl. `169.254.169.254`) targets fail closed rather than being followed past the URL check.
 - `research-company` command added for live Brave + BYOK dossier runs when `BRAVE_SEARCH_API_KEY` is available.
 - Gmail draft API preflight added before live draft creation.
 - `connect-gmail` command added for interactive Gmail OAuth setup and draft-access preflight without creating a draft.
@@ -767,4 +776,3 @@ Ignored local artifacts:
 CareerSeeker is now past thirty important proof points: real job ingestion, executable live Scout board ingest, selected-job draft packaging with posting-body context, real Gmail draft creation, no-draft Gmail OAuth connection, restored SQLite source/parity coverage, SQLite-backed executable demo/alpha composition, local draft artifact persistence, live BYOK provider calls, local DPAPI provider-key import, bounded BYOK alpha validation, full BYOK alpha Gmail/PDF drafting, real ATS-clean PDF draft attachments, dashboard-accessible Gmail/application controls, responsive standalone SQLite dashboard mode, Tailor profile-claim minimization, live Brave/BYOK company research, offline-verified real web-research adapter code, local-first JD artifact persistence, local alpha audit/evidence-package export, safe local alpha package import, trusted-tester release ZIP packaging, dashboard-accessible hash-only audit and alpha package export, repeatable local alpha workspace initialization, local source-of-truth profile import, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/audit-export/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers with typed confirmation for live/dangerous/persistent actions, packaged dashboard/helper scripts, release-manifest/checksum/audit-snapshot verification, extracted-package self-checking, isolated packaged readiness helper smokes, isolated packaged dashboard-task dry runs/status, isolated packaged company-research previews, isolated packaged audit exports, isolated packaged evidence-import restores, isolated packaged off-ramp command smokes, and packaged trust-doc command assertions. The architecture remains local-first and L1 compose-only. The immediate next engineering work should focus on Windows product-shell polish.
 
 Do not add hosted pipeline infrastructure. Do not expand Gmail scopes casually. Treat label management as deferred because live testing proved it does not fit `gmail.compose`-only L1.
-

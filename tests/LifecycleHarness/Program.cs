@@ -263,6 +263,54 @@ Console.WriteLine("=== CareerSeeker lifecycle concurrency / recovery / idempoten
     }
 }
 
+// ---------- 14. Startup reconcile sweep finds a stranded application without being told its id ----------
+{
+    var inner = new InMemorySeekerStore();
+    var faulty = new FaultingStore(inner) { FailOnceOnTransitionTo = "APPLIED" };
+    var disp = new CountingDispatcher();
+    var pipe = new ApplicationPipeline(faulty, new StubTailor(), disp, new YesMatcher());
+    await SeedProfileAsync(inner);
+    var appId = (await AdmitL2Async(pipe)).ApplicationId;
+
+    try { await pipe.ResolveApplyGateAsync(appId, approve: true); } catch { /* "crash" */ }
+    Check("sweep setup: app left SUBMITTING with a SUCCEEDED submit attempt",
+        await pipe.GetStateAsync(appId) == AppState.SUBMITTING);
+
+    var ids = await inner.GetApplicationIdsInStatesAsync(new[] { "SUBMITTING", "READY" });
+    Check("GetApplicationIdsInStatesAsync finds the stranded application", ids.Contains(appId));
+
+    var outcomes = await pipe.ReconcileAllAsync();
+    Check("startup sweep completes the stranded application without a second submit",
+        outcomes.TryGetValue(appId, out var outcome) && outcome == ReconcileOutcome.CompletedFromRecord
+        && disp.Submits == 1 && await pipe.GetStateAsync(appId) == AppState.AWAITING_RESPONSE);
+}
+
+// ---------- 15. Startup sweep flags an unknown-outcome attempt for manual review ----------
+{
+    var (pipe, store, disp) = await SetupL2Async();
+    var appId = (await AdmitL2Async(pipe)).ApplicationId;
+    disp.FailSubmits = true;
+    try { await pipe.ResolveApplyGateAsync(appId, approve: true); } catch { /* now SUBMITTING */ }
+    await store.BeginEffectAttemptAsync(appId, "submit"); // simulate a crash mid-call: PENDING, outcome unknown
+
+    var outcomes = await pipe.ReconcileAllAsync();
+    Check("startup sweep flags the PENDING attempt for manual review",
+        outcomes.TryGetValue(appId, out var outcome) && outcome == ReconcileOutcome.ManualReviewRequired);
+    var reviewEvents = (await store.GetEventsAsync())
+        .Count(e => e.Kind == "reconcile_manual_review" && e.EntityId == appId.ToString());
+    Check("manual-review outcome is recorded as a durable audit event (visible in evidence view)", reviewEvents == 1,
+        $"reconcile_manual_review events={reviewEvents}");
+    Check("audit chain remains intact after the manual-review record", (await store.VerifyAuditAsync()).Ok);
+}
+
+// ---------- 16. Startup sweep does not touch applications outside SUBMITTING/READY ----------
+{
+    var (pipe, _, _) = await SetupL2Async();
+    var appId = (await AdmitL2Async(pipe)).ApplicationId; // comes to rest at GATE_PENDING
+    var outcomes = await pipe.ReconcileAllAsync();
+    Check("startup sweep ignores a GATE_PENDING application", !outcomes.ContainsKey(appId));
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
@@ -353,6 +401,7 @@ sealed class FaultingStore : ISeekerStore
         => _inner.TransitionApplicationAsync(applicationId, newState, actor, payloadJson, ct);
     public Task<ApplicationRow?> GetApplicationAsync(long applicationId, CancellationToken ct = default) => _inner.GetApplicationAsync(applicationId, ct);
     public Task<IReadOnlyList<ApplicationSummaryRow>> GetRecentApplicationsAsync(int limit = 25, CancellationToken ct = default) => _inner.GetRecentApplicationsAsync(limit, ct);
+    public Task<IReadOnlyList<long>> GetApplicationIdsInStatesAsync(IReadOnlyList<string> states, CancellationToken ct = default) => _inner.GetApplicationIdsInStatesAsync(states, ct);
     public Task SaveApplicationArtifactsAsync(long applicationId, string? resumePath, string? coverPath, string? answersJson, CancellationToken ct = default) => _inner.SaveApplicationArtifactsAsync(applicationId, resumePath, coverPath, answersJson, ct);
     public Task<long> AppendEventAsync(EventInput e, CancellationToken ct = default) => _inner.AppendEventAsync(e, ct);
     public Task<IReadOnlyList<EventRow>> GetEventsAsync(CancellationToken ct = default) => _inner.GetEventsAsync(ct);

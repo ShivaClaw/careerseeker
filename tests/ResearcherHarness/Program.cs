@@ -79,6 +79,51 @@ Console.WriteLine("\n[ Brave web adapter ]");
         found.All(d => !d.Url.Contains("files.example")));
 }
 
+// ── SSRF guard (H1: redirect + DNS-rebinding at connect time) ───────────────────────────────────────
+Console.WriteLine("\n[ SSRF guard ]");
+{
+    // IP classification: public accepted, every private/reserved family rejected (incl. mapped v4).
+    Check("public IPv4 is routable", PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse("8.8.8.8")));
+    Check("public IPv6 is routable", PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse("2606:2800:220:1:248:1893:25c8:1946")));
+    Check("cloud metadata IP is not routable", !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse("169.254.169.254")));
+    Check("private/loopback/CGNAT/benchmark IPv4 rejected",
+        new[] { "10.0.0.1", "172.16.5.5", "192.168.1.1", "127.0.0.1", "100.64.0.1", "198.18.0.1", "0.0.0.0", "224.0.0.1" }
+            .All(s => !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse(s))));
+    Check("loopback/link-local/ULA IPv6 rejected",
+        new[] { "::1", "fe80::1", "fc00::1" }.All(s => !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse(s))));
+    Check("IPv4-mapped private IPv6 rejected", !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse("::ffff:10.0.0.1")));
+
+    // String pre-filter (first layer): literal private hosts and localhost blocked; names pass through.
+    Check("string filter blocks localhost and literal private hosts",
+        new[] { "localhost", "127.0.0.1", "10.0.0.1", "[fc00::1]", "169.254.169.254" }.All(PrivateNetworkGuard.IsBlockedHost));
+    Check("string filter lets public literals and names through",
+        !PrivateNetworkGuard.IsBlockedHost("example.com") && !PrivateNetworkGuard.IsBlockedHost("8.8.8.8"));
+
+    // Connect-time guard (second layer): the resolver is injected, so both bypasses are exercised offline.
+    PrivateNetworkGuard.DnsResolver Resolves(params string[] ips) =>
+        (_, _) => Task.FromResult(ips.Select(IPAddress.Parse).ToArray());
+
+    async Task<bool> BlocksAsync(string host, PrivateNetworkGuard.DnsResolver resolve)
+    {
+        try { await PrivateNetworkGuard.ResolveGuardedAsync(host, resolve, default); return false; }
+        catch (SsrfBlockedException) { return true; }
+    }
+
+    var publicIp = await PrivateNetworkGuard.ResolveGuardedAsync("93.184.216.34", Resolves(), default);
+    Check("literal public IP connects", publicIp.ToString() == "93.184.216.34");
+    Check("redirect straight to a literal metadata IP is blocked",
+        await BlocksAsync("169.254.169.254", Resolves()));
+    Check("DNS rebinding to the metadata IP is blocked",
+        await BlocksAsync("research.attacker.example", Resolves("169.254.169.254")));
+    Check("DNS rebinding to a private IP is blocked",
+        await BlocksAsync("intranet.attacker.example", Resolves("10.0.0.5")));
+    var legit = await PrivateNetworkGuard.ResolveGuardedAsync("news.example", Resolves("93.184.216.34"), default);
+    Check("a name resolving only to public addresses connects", legit.ToString() == "93.184.216.34");
+    Check("a name resolving to mixed public+private fails closed",
+        await BlocksAsync("mixed.attacker.example", Resolves("93.184.216.34", "10.0.0.5")));
+    Check("an unresolvable host is blocked", await BlocksAsync("nxdomain.example", Resolves()));
+}
+
 // ── orchestrator + caching (fakes) ──────────────────────────────────────────────────────────────────
 Console.WriteLine("\n[ orchestrator + cache ]");
 {

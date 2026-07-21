@@ -286,6 +286,21 @@ public sealed class InMemorySeekerStore : ISeekerStore
         finally { _mutex.Release(); }
     }
 
+    public async Task<IReadOnlyList<long>> GetApplicationIdsInStatesAsync(
+        IReadOnlyList<string> states, CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return _apps.Values
+                .Where(a => states.Contains(a.State))
+                .OrderBy(a => a.Id)
+                .Select(a => a.Id)
+                .ToList();
+        }
+        finally { _mutex.Release(); }
+    }
+
     public async Task<IReadOnlyList<ApplicationSummaryRow>> GetRecentApplicationsAsync(
         int limit = 25,
         CancellationToken ct = default)

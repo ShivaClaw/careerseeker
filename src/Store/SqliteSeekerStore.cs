@@ -316,6 +316,24 @@ WHERE id=$id AND state=$expected;";
                 r.IsDBNull(10) ? null : r.GetString(10));
         }, ct);
 
+    public Task<IReadOnlyList<long>> GetApplicationIdsInStatesAsync(
+        IReadOnlyList<string> states, CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            var ids = new List<long>();
+            if (states.Count == 0) return (IReadOnlyList<long>)ids;
+
+            using var cmd = Conn.CreateCommand();
+            var placeholders = string.Join(",", states.Select((_, i) => $"$s{i}"));
+            cmd.CommandText = $"SELECT id FROM applications WHERE state IN ({placeholders}) ORDER BY id;";
+            for (var i = 0; i < states.Count; i++)
+                P(cmd, $"$s{i}", states[i]);
+            using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await r.ReadAsync(ct).ConfigureAwait(false))
+                ids.Add(r.GetInt64(0));
+            return (IReadOnlyList<long>)ids;
+        }, ct);
+
     public Task<IReadOnlyList<ApplicationSummaryRow>> GetRecentApplicationsAsync(
         int limit = 25,
         CancellationToken ct = default)

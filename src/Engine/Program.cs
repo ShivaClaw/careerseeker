@@ -75,6 +75,7 @@ async Task<int> RunDemoAsync()
 
         await using var sqlite = SqliteSeekerStore.ForFile(dbPath);
         await sqlite.InitializeAsync().ConfigureAwait(false);
+        await ReconcileStartupAsync(sqlite).ConfigureAwait(false);
         var profileId = await SeedProfileOnceAsync(sqlite, "demo.profileId").ConfigureAwait(false);
         return await RunDemoWithStoreAsync(sqlite, profileId, $"SQLite db: {dbPath}").ConfigureAwait(false);
     }
@@ -186,6 +187,7 @@ async Task<int> RunAlphaAsync()
 
     await using var store = SqliteSeekerStore.ForFile(dbPath);
     await store.InitializeAsync().ConfigureAwait(false);
+    await ReconcileStartupAsync(store).ConfigureAwait(false);
     var profileId = await SeedProfileOnceAsync(store, "alpha.profileId").ConfigureAwait(false);
 
     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(IntArg("--http-timeout-seconds", 60)) };
@@ -274,9 +276,14 @@ async Task<int> RunResearchCompanyAsync()
         return Fail("research-company currently requires --llm byok so the dossier model can run through real providers.");
 
     var keyVaultPath = StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi");
-    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(IntArg("--http-timeout-seconds", 60)) };
+    var httpTimeout = TimeSpan.FromSeconds(IntArg("--http-timeout-seconds", 60));
+    using var http = new HttpClient { Timeout = httpTimeout };
+    // Untrusted web fetches (search results and their redirect targets) go through an SSRF-guarded
+    // client that re-validates the resolved IP of every connection; the plain client above is only for
+    // first-party BYOK provider calls.
+    using var researchHttp = PrivateNetworkGuard.CreateGuardedHttpClient(httpTimeout);
     var gateway = BuildGateway(llmMode, envFilePath, keyVaultPath, http, out var keySourceName, out var byokProviders);
-    var web = new BraveSearchWebResearch(http, new BraveSearchOptions(braveKey));
+    var web = new BraveSearchWebResearch(researchHttp, new BraveSearchOptions(braveKey));
     var researcher = new SeekerSvc.Researcher.Researcher(
         web,
         new GatewayDossierModel(gateway),
@@ -373,6 +380,7 @@ async Task<int> RunDashboardAsync()
 
     await using var store = SqliteSeekerStore.ForFile(dbPath);
     await store.InitializeAsync().ConfigureAwait(false);
+    await ReconcileStartupAsync(store).ConfigureAwait(false);
 
     var evidence = LocalDashboardEvidence.FromStore(store);
     var counters = new EngineCounters();
@@ -1239,6 +1247,24 @@ EngineCycle BuildDemoCycleCore(
         pipeline,
         new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email, profileId, companyHandle, companyName),
         counters);
+}
+
+async Task ReconcileStartupAsync(ISeekerStore store)
+{
+    var pipeline = BuildControlPipeline(store);
+    var outcomes = await pipeline.ReconcileAllAsync(
+        onError: (appId, ex) => Console.WriteLine(
+            $"  WARNING: reconcile failed for application {appId} ({ex.GetType().Name}: {ex.Message}); engine startup continues."))
+        .ConfigureAwait(false);
+    if (outcomes.Count == 0) return;
+
+    Console.WriteLine($"Startup reconcile: {outcomes.Count} application(s) found in SUBMITTING/READY.");
+    foreach (var (appId, outcome) in outcomes)
+    {
+        Console.WriteLine($"  application {appId}: {outcome}");
+        if (outcome == ReconcileOutcome.ManualReviewRequired)
+            Console.WriteLine($"  WARNING: application {appId} has a PENDING effect attempt with an unknown outcome. Resolve manually before retrying. (Recorded to the audit log; visible in the dashboard evidence view.)");
+    }
 }
 
 ApplicationPipeline BuildControlPipeline(ISeekerStore store)
