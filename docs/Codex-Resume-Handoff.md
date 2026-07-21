@@ -2,7 +2,39 @@
 
 Updated: 2026-07-21
 
-## Session Status
+## 2026-07-21 (Opus session) — audit batch committed + hardening batch
+
+Never trust a SHA in this file — derive with `git rev-parse --short HEAD` / `git log --oneline -8`.
+Roles switched this session: Claude Code (Fable for audit, Opus for building) is now primary coding
+agent; Codex is the external auditor from Friday 2026-07-24. See
+`Desktop/Career Seeker/Opus-Build-Roadmap-2026-07-21.md` for milestones (M-A..M-E) and gates (G1..G6).
+
+Branch/PR topology now (all draft, none merged — awaiting Friday audit + Brandon):
+- `main` @ `3fa65f5` — stale (156 behind the live line).
+- `agent/repo-cleanup` @ `81d232c` — pre-audit live line; PR #1 → `main`, draft/open.
+- `agent/audit-cleanup-h1h2h3` @ `f3021ec` — the previously-uncommitted H1/H2/H3 + CLAUDE.md, now
+  committed. **PR #2 → `agent/repo-cleanup`** (draft, CI green).
+- `claude/hardening-batch` — this session's Phase-3 work, **PR #3 → `agent/audit-cleanup-h1h2h3`** (draft).
+
+This session's commits on `claude/hardening-batch` (newest first — derive head yourself):
+- `ci: also run on claude/** branches` — CI trigger fix (claude/** branches had no CI).
+- `M2` — document accepted query-string doc-token tradeoff (no behavior change).
+- `M1` — pin `$ExpectedOfflineTotal` in Verify-Alpha.ps1 and assert it (closes silent-total-drift;
+  confirmed CI already runs the SQLite harnesses on windows-latest).
+- `L1` — presence-check SQLite migration (`PRAGMA table_info`, no more throw-and-swallow) + pre-existing-DB
+  migration test in StoreParityHarness.
+- `A1` — reject IPv6 unspecified `::` in `PrivateNetworkGuard.IsPubliclyRoutable` + SSRF-guard test.
+
+Verification (this session, on the hardening-batch tree): `dotnet build -c Release --warnaserror` 0W/0E;
+`scripts\Verify-Alpha.ps1` **325 passed, 0 failed** (Researcher 52→53, StoreParity 19→22; pinned-total
+assertion passes). Counts synced across docs + verifier per the CLAUDE.md drift trap.
+
+Suggested Codex audit focus: A1 (`::` the only v6 gap?), L1 (no-FK old-schema seed acceptable? PRAGMA
+column-index read), M1 (`$ExpectedOfflineTotal` now in the drift-trap set), M2 (documented acceptance, not
+a fix — cookie migration is a deliberate follow-up if wanted). Remaining open from the 2026-07-20 audit
+after this batch: none of A1/L1/M1/M2; M3/L2/L3 are documented-accepted residuals.
+
+## Session Status (2026-07-21 earlier — audit-findings work, now superseded above)
 
 - Branch: `agent/repo-cleanup`
 - PR: `https://github.com/ShivaClaw/careerseeker/pull/1`
