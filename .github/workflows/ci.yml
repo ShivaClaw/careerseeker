@@ -6,6 +6,7 @@ on:
       - main
       - agent/**
       - codex/**
+      - claude/**
   pull_request:
     branches: [main]
   workflow_dispatch:
