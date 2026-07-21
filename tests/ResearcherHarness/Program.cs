@@ -92,10 +92,11 @@ Console.WriteLine("\n[ SSRF guard ]");
     Check("loopback/link-local/ULA IPv6 rejected",
         new[] { "::1", "fe80::1", "fc00::1" }.All(s => !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse(s))));
     Check("IPv4-mapped private IPv6 rejected", !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse("::ffff:10.0.0.1")));
+    Check("IPv6 unspecified address (::) is not routable (A1)", !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.IPv6Any));
 
     // String pre-filter (first layer): literal private hosts and localhost blocked; names pass through.
     Check("string filter blocks localhost and literal private hosts",
-        new[] { "localhost", "127.0.0.1", "10.0.0.1", "[fc00::1]", "169.254.169.254" }.All(PrivateNetworkGuard.IsBlockedHost));
+        new[] { "localhost", "127.0.0.1", "10.0.0.1", "[fc00::1]", "169.254.169.254", "[::]" }.All(PrivateNetworkGuard.IsBlockedHost));
     Check("string filter lets public literals and names through",
         !PrivateNetworkGuard.IsBlockedHost("example.com") && !PrivateNetworkGuard.IsBlockedHost("8.8.8.8"));
 

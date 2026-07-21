@@ -250,11 +250,11 @@ Invoke-Step "Public README and harness count smoke" {
         'no open-source license',
         'all rights are reserved',
         'EngineHarness` (89)',
-        'ResearcherHarness` (52)',
+        'ResearcherHarness` (53)',
         'HookHarness` (14)',
         'GatewayGateHarness` (34)',
         'admitted hooks stay prompt',
-        'Latest offline total: 321 assertions'
+        'Latest offline total: 322 assertions'
     ) "README.md"
     Assert-DoesNotContain $readme @(
         'free Windows service (.exe)'
@@ -265,7 +265,7 @@ Invoke-Step "Public README and harness count smoke" {
     # re-pads them); collapse runs of spaces so the row assertions tolerate that padding.
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
-        'Total: 321 passed, 0 failed.',
+        'Total: 322 passed, 0 failed.',
         'imports require the CareerSeeker alpha profile',
         'document responses carry no-store, nosniff, no-referrer',
         '`/evidence.html`',
@@ -275,14 +275,14 @@ Invoke-Step "Public README and harness count smoke" {
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
         '| `EngineHarness` | 89 passed, 0 failed |',
-        '| `ResearcherHarness` | 52 passed, 0 failed |',
+        '| `ResearcherHarness` | 53 passed, 0 failed |',
         '| `HookHarness` | 14 passed, 0 failed |',
         '| `GatewayGateHarness` | 34 passed, 0 failed |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 321 passed, 0 failed.',
+        'Latest offline harness total: 322 passed, 0 failed.',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
         '`INSTALL`',
@@ -294,7 +294,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `321 passed, 0 failed`.',
+        'Latest local offline verifier: `322 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'Fresh live Scout harness, 2026-07-20',
         'BYOK live provider smoke',
@@ -331,7 +331,7 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $historicalAudit @(
         'Current-status note, 2026-07-20',
         'this is preserved as historical audit input, not as current status for',
-        'the default verifier reports 321 passed / 0 failed'
+        'the default verifier reports 322 passed / 0 failed'
     ) "docs/repo-audit-2026-07-13.md"
 
     Assert-Contains $summary @(

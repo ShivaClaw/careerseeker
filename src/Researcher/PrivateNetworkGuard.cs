@@ -50,6 +50,7 @@ public static class PrivateNetworkGuard
                    !ip.IsIPv6SiteLocal &&
                    !ip.IsIPv6Multicast &&
                    !IPAddress.IsLoopback(ip) &&
+                   !ip.Equals(IPAddress.IPv6Any) && // :: — unspecified; dialing it typically hits loopback
                    (b[0] & 0xfe) != 0xfc;
         }
 
