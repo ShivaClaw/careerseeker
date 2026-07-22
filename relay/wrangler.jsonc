@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "careerseeker-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-22",
+
+  // One Durable Object per pairing. The DO is the only stateful component, and it
+  // holds ciphertext blobs and header metadata -- never keys, never plaintext.
+  //
+  // Uses the declarative `exports` form rather than the legacy `migrations` array:
+  // this is a new class, so there is no migration history to preserve.
+  "exports": {
+    "PairingChannel": { "type": "durable-object", "storage": "sqlite" }
+  },
+
+  "durable_objects": {
+    "bindings": [{ "name": "PAIRING", "class_name": "PairingChannel" }]
+  },
+
+  // Deliberately absent, and each absence is load-bearing:
+  //   - no KV / D1 / R2      the relay has nothing durable to keep outside the DO
+  //   - no secrets           it holds no key material of any kind
+  //   - no analytics engine  "nothing that watches you" applies to our own infra too
+  //   - no logpush of bodies envelope bodies must never be logged
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}
