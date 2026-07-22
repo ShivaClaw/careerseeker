@@ -121,12 +121,14 @@ First-run flow:
 
   Double-click Verify-CareerSeeker-Alpha.cmd to verify the extracted release package before setup.
   Double-click Setup-CareerSeeker-Alpha.cmd to create the local workspace.
+  Double-click Run-CareerSeeker-Demo.cmd to create local demo evidence without Gmail.
+    Do this one first. It needs no profile, no API keys, and no Gmail connection, so it is the
+    quickest way to see a full cycle end to end before you set anything else up.
   Double-click Import-CareerSeeker-Profile.cmd after editing .appdata\profile.template.json.
   Double-click Connect-CareerSeeker-Providers.cmd to import AI provider keys without printing them.
     Provider key file: secrets\env.secrets accepts ANTHROPIC_API_KEY, GEMINI_API_KEY or GOOGLE_API_KEY, and optional Brave Search as BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY.
   Double-click Connect-CareerSeeker-Gmail.cmd to connect Gmail without creating a draft.
   Double-click Check-CareerSeeker-LiveReadiness.cmd to confirm live Gmail/BYOK readiness.
-  Double-click Run-CareerSeeker-Demo.cmd to create local demo evidence without Gmail.
   Double-click Run-CareerSeeker-Scout.cmd to discover jobs from public ATS boards without Gmail.
   Double-click Research-CareerSeeker-Company.cmd to run live Brave/BYOK company research without Gmail.
   Double-click Draft-CareerSeeker-Job.cmd after choosing a job id in the dashboard; it defaults to a no-Gmail dry-run preview and requires typing LIVE before creating a Gmail draft.
