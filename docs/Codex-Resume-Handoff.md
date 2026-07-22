@@ -29,18 +29,38 @@ sitting in the repo root (a site snapshot, not repo content). Moved to
 clean tree, and `*.zip` is not gitignored at the repo root — worth adding to `.gitignore` so this cannot
 recur or, worse, get committed.
 
-**W1 — distribution infrastructure: BLOCKED, needs Brandon.** The roadmap assumed the only risk was
-token scope. It is worse than that:
-- `CLOUDFLARE_ACCOUNT_API_TOKEN` is valid (it lists the `careerseeker-site` Pages project fine) but has
-  **no R2 permission** — `wrangler r2 bucket list` fails with API error **10000** (authentication).
-- An independent credential path (Cloudflare MCP, separate OAuth) authenticates but fails with error
-  **10042: "Please enable R2 through the Cloudflare Dashboard."**
+**W1 — distribution infrastructure: RESOLVED and working.** It was blocked mid-session for a reason the
+roadmap did not anticipate. The roadmap assumed the only risk was token scope; there were two distinct
+failures:
+- `CLOUDFLARE_ACCOUNT_API_TOKEN` is valid (it lists the `careerseeker-site` Pages project fine) but had
+  **no R2 permission** — `wrangler r2 bucket list` failed with API error **10000** (authentication).
+- An independent credential path (Cloudflare MCP OAuth) authenticated fine but failed with error
+  **10042: "Please enable R2 through the Cloudflare Dashboard"** — i.e. **R2 had never been activated on
+  the account**, a one-time owner action that no token grant substitutes for.
 
-So **R2 is not enabled on the account at all** — this is a one-time account-level product activation
-(dashboard → R2), not something a token grant can fix, and not something an agent should do on the
-owner's behalf. Until R2 is enabled *and* a token with R2 read+write exists, W1.2 (bucket + upload),
-W1.4 (`RELEASES` binding), and W1.5 (prove the pipe) cannot run. Roadmap §2's GitHub-Releases fallback
-remains available and needs only a one-line change to the serving Function (302 redirect).
+Brandon then enabled R2, created bucket **`careerseeker`** (note: *not* `careerseeker-releases` as the
+roadmap specified — harmless, because the Function references the *binding* name `RELEASES`, which is
+independent of the bucket name), and added `CLOUDFLARE_R2_API_TOKEN` (R2 + Pages edit) to
+`secrets/env.secrets`.
+
+**Credential map — which token does what (learned the hard way, none of them covers everything):**
+
+| Operation | Working credential |
+| --- | --- |
+| R2 bucket/object ops | `CLOUDFLARE_R2_API_TOKEN` |
+| Pages project GET/PATCH (bindings), deploys | `CLOUDFLARE_R2_API_TOKEN` (also has Pages edit) |
+| Pages project list | `CLOUDFLARE_ACCOUNT_API_TOKEN` |
+| **KV read/write/list** | **none of the tokens — use the stored `wrangler` OAuth session** (unset `CLOUDFLARE_API_TOKEN` and wrangler falls back to it) |
+| Zone cache purge | none (zone token returns 401) — dashboard only |
+
+**`wrangler kv key list` defaults to a LOCAL simulated namespace.** Without `--remote` it returns `[]`
+with no error and no auth required — which looks exactly like "the namespace is empty". Every KV command
+here needs `--remote`. This produced one wrong claim earlier in the session (see the correction below).
+
+**W1.2/W1.4/W1.5 — done and proven.** ZIP uploaded to `careerseeker/alpha/CareerSeeker-alpha-win-x64.zip`;
+`r2 object get` round-trip hash matched the local hash exactly. `RELEASES` binding added to **both**
+production and preview via a PATCH built from the live config so `BETA_KV` was carried forward rather
+than clobbered (verified present in both afterwards). Redeployed; both Functions lines printed.
 
 **Site changes made (live only in `C:\Users\bkirk\Desktop\site-v2`, still NOT under version control —
 strongly recommend git-initializing it).** Backup taken first at `Desktop/site-v2-backup-2026-07-22`.
@@ -67,11 +87,43 @@ command targets **production**, not preview — `--branch <name>` is what gives 
 | `POST /api/verify` bad code | 403 `{"error":"Invalid code…"}` — **BETA_KV survived adding the new Function** |
 | control: `/definitely-not-a-real-page-xyz` | serves the site index — i.e. Pages' default 404, proving the `/releases/` 404 above really is the Function |
 
-This is all of W1.5 except the R2 round-trip hash. Deploying before R2 exists was deliberate and carries
-no regression: BETA_KV is **empty** (zero signups, zero issued codes — checked before deploying), and the
-`download_url` 404s exactly as the old `Setup.exe` URL did. It proves the Function compiles and ships now
-rather than on go-live day. The `!env.RELEASES` guard is confirmed working in production — the binding is
-genuinely absent and the route 404s cleanly.
+That first deploy happened while R2 was still blocked, which was deliberate: it proved the Function
+compiles and ships, and confirmed the `!env.RELEASES` guard against a genuinely absent binding.
+
+**Correction to a claim made earlier this session:** the justification given at the time was "BETA_KV is
+empty — zero signups, zero issued codes, checked before deploying." That check ran `wrangler kv key list`
+**without `--remote`**, so it read the local simulated namespace and was not valid evidence of anything.
+The conclusion happened to be correct — a later `--remote` list via the OAuth session showed the
+namespace genuinely held no keys — but the reasoning was unsound when it was stated, and the same mistake
+would silently hide real signups. Always pass `--remote`.
+
+**After the binding landed — the full tester journey, verified end to end on `https://careerseeker.app`:**
+
+| Step | Result |
+| --- | --- |
+| `POST /api/signup` | `{"ok":true}` and the key **actually persisted** (`signup:…`, confirmed with `--remote`) |
+| Issue code via `wrangler kv key put --remote` | written |
+| `POST /api/verify` with that code | `{"ok":true,"download_url":"https://careerseeker.app/releases/CareerSeeker-alpha-win-x64.zip"}` |
+| GET that URL | **200**, `application/zip`, 31,018,621 bytes, SHA-256 **matches** the built artifact exactly |
+| Response headers | `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, ETag present |
+| `/releases/..%2fsecrets`, `/releases/nested/path.zip`, `/releases/.env`, `/releases/*.bak` | all 404 |
+| `/releases/alpha/…` (probing the prefix) | 404 — the `alpha/` prefix does not leak |
+| After deleting the test code | `POST /api/verify` returns 403 again |
+
+Test keys (`code:SMOKETEST22`, `signup:alpha-rehearsal-test@…`) were deleted; KV is empty again.
+
+**⚠ FRIDAY HAZARD — edge cache will serve the stale ZIP.** The download responds with
+`Cache-Control: public, max-age=14400` and `cf-cache-status: HIT` (observed `Age: 244`). The Function
+sets `max-age=3600`; something zone-side (likely Browser Cache TTL) rewrites it to **4 hours**, so the
+Function's own header is not authoritative. Overwriting the R2 object in F2.3 therefore does **not**
+immediately change what testers download — for up to 4 hours the edge can serve Wednesday's bytes while
+`/download/` advertises Friday's SHA-256. That mismatch is indistinguishable from a corrupted download
+and would burn tester trust on day one. The zone token **cannot** purge (401). Two fixes, pick one:
+1. **Publish under a dated filename** (e.g. `CareerSeeker-alpha-win-x64-2026-07-24.zip`) and point
+   `verify.js` + `/download/` at it. A new URL is never stale — no permissions needed, deterministic,
+   and doubles as provenance. **Recommended.**
+2. Brandon purges the URL from the dashboard (Caching → Configuration) immediately after upload, then
+   re-fetches and re-checks the hash before handing any code to a tester.
 
 **Per-deploy URLs lag.** The first verification pass against `b656a582.careerseeker-site.pages.dev`
 returned Cloudflare's *"Deployment Not Found"* page, which is a 404 that looks exactly like a real one.
@@ -96,15 +148,17 @@ Friction list from the rehearsal (tester-facing, small):
    double-clicking tester, but they make headless/CI invocation hang. Not a tester defect; noted so the
    next session does not mistake it for one.
 
-**Not yet done:** W1.2 (bucket + upload) and W1.4 (`RELEASES` binding) — both blocked on R2 being
-enabled; the R2 round-trip hash check from W1.5; W2.3 beta-flow rehearsal and W3.2 SmartScreen
-observation, which both need a download that actually serves; W4 live verification (Gate B, not
-approved); F1/F2 (Friday). Gates C1/C2 remain Brandon's.
+**Not yet done:** W3.2 SmartScreen observation in a real browser (the download now serves, so this is
+unblocked and is the next task); W4 live verification (Gate B, **not approved** — no live/spending run
+has happened, G2 intact); F1 audit support and F2 merge/build/publish (Friday). Gates C1/C2 remain
+Brandon's.
 
-**The moment R2 is enabled**, the remaining work is short and unblocked: create bucket
-`careerseeker-releases`, upload the ZIP under `alpha/`, add the `RELEASES` binding to **both**
-production and preview (send the *merged* Pages config — a PATCH that omits `BETA_KV` breaks the beta
-API), redeploy, then re-run the table above expecting a 200 whose SHA-256 equals the recorded hash.
+**Friday runbook deltas — read before F2.3.** The distribution path is already built and proven, so
+Friday is: merge (C1) → rebuild the ZIP from merged `main` (F2.2) → upload → update the published hash →
+deploy → issue codes (C2). Three things differ from the roadmap as written:
+1. The bucket is **`careerseeker`**, not `careerseeker-releases`.
+2. KV commands need `--remote` **and** the OAuth session, not a token.
+3. The edge-cache hazard above — use a dated filename or purge, or testers get Wednesday's bytes.
 
 ## 2026-07-22 (Codex-role audit, Fable 5) — PR #2/#4 triage + one confirmed fix
 
