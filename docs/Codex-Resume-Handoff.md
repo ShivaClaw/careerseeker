@@ -193,8 +193,59 @@ uncommitted work. This bit twice in one session (the stray site zip, then the la
   unsigned + MOTW files rather than something observed here. **Brandon should eyeball this once** on a
   real download before testers do; if the wording differs, fix `/download/` and `README-alpha.txt`.
 
-**Not yet done:** W4 live verification (Gate B, **not approved** — no live/spending run has happened,
-G2 intact); F1 audit support and F2 merge/build/publish (Friday). Gates C1/C2 remain Brandon's.
+**Gate B approved and executed (2026-07-22) — W4.1 and W4.2 are green on the F2-consolidated head.**
+The live evidence gap the roadmap flagged (live-path proof dated 2026-07-20, predating H1..M2/F2) is
+closed. Evidence from `Verify-Alpha.ps1 -IncludeLive -IncludeResearch`, exit 0:
+
+| Step | Result |
+| --- | --- |
+| Offline suite (same run) | 327 passed, 0 failed |
+| BYOK live provider smoke | **7 passed, 0 failed** — Anthropic completion, Gemini completion, Gateway Tailor parseable draft, Gate live entailment, Gate spend accounted, **and the live Tailor draft passes the bounded Fabrication Gate** |
+| Startup doctor (require Gmail + BYOK) | all OK — sqlite audit chain, artifacts, OAuth client, token vault, byok `anthropic, google`, Brave |
+| Dashboard one-shot | audit chain ok, 72 events, all controls available |
+| Live Brave/BYOK research (W4.2 — exercises H1+A1+F2 against the real network) | GitLab via brave: 9 docs retrieved, **facts: 4**, passed on attempt 1 of 3 |
+
+**The first Gate B attempt failed, and the reason matters for testers.** The Anthropic account had
+run out of prepaid credit; the harness reported only `HttpRequestException: 400 (Bad Request)` because
+both providers read the response body and then discarded it via `EnsureSuccessStatusCode()`. The body
+said *"Your credit balance is too low to access the Anthropic API."* Fixed in `4c30249`: both providers
+now raise the provider's own error text (600-char cap; no key exposure — keys travel in headers).
+Verified live: the same failure now prints the credit message verbatim. This is the single most likely
+BYOK failure mode for testers — exhausted credit, revoked key, rate limit all arrive as a bare 4xx.
+`/download/` now carries a prepaid-key heads-up (deploy `0a71f9cc`).
+
+Two observations from the outage worth keeping:
+1. **The Gemini fallback path through Tailor failed both times it actually served.** While Anthropic
+   was declining, StrongCloud failed over to `gemini-3.1-pro-preview` and the Tailor draft parse threw
+   `JsonReaderException` in both runs. With Anthropic healthy, Tailor parses fine. So Gemini currently
+   works as a completion provider but not as a Tailor-stage server — relevant to the provider-priority
+   question below, and worth a targeted look regardless: it is the failover the design counts on.
+2. Research quality note: the GitLab dossier shows `proposed facts: 0, fallback facts: 4` — extraction
+   proposed nothing and the dossier was built from fallback facts. The smoke's criterion (`facts > 0`)
+   passed legitimately, but the extraction path deserves a quality pass post-alpha.
+
+**Provider-priority question (Brandon, 2026-07-22 — decision deliberately deferred past Friday).**
+Prompted by the credit outage, Brandon suggested considering Google as the primary inference provider:
+Google bills post-facto while Anthropic requires a prepaid balance a novice won't monitor, and testers
+already link a Google account for Gmail. Recorded pros/cons for when this is picked up:
+- *For:* post-paid billing; AI Studio keys have a free tier (a tester can mint a working key with no
+  billing set up at all); same Google account as the Gmail link (though note: Gmail OAuth does **not**
+  provision a Gemini API key — the tester still creates one in AI Studio, so the friction win is
+  smaller than it looks).
+- *Against, currently:* `GatewayGateHarness` pins the StrongCloud primary **by name and price**
+  (`claude-sonnet-4-6`, 3.00/15.00) and the exact failover order — the switch is an audited, asserted
+  routing change with doc/count lockstep, not a config flip; observation 1 above means Gemini needs
+  Tailor-stage parsing/prompt work before it could be primary; and the routing comment's design intent
+  is "two strong vendors, neither alone load-bearing", which a same-vendor primary+Gmail coupling cuts
+  against. **Do not change routing before Friday** — it would invalidate the Gate B evidence above and
+  reopen the audited diff.
+
+**Not yet done:** W4.3 — one real self-addressed Gmail draft via the packaged LIVE path, using the new
+test account `careerseeker.test.brandon@gmail.com` (already added as a test user on the OAuth consent
+screen). Run it from a **freshly extracted ZIP**, not the repo root: the repo root's
+`.appdata/oauth/gmail-token.dpapi` holds Brandon's real-account token, and `Connect-CareerSeeker-Gmail.cmd`
+writes to that path — connecting the test account there would overwrite the dev vault. Then F1 audit
+support and F2 merge/build/publish (Friday). Gates C1/C2 remain Brandon's.
 
 **Seven untracked planning docs appeared in `docs/` and were removed — resolved.** At 11:27 local on
 2026-07-22 these landed in `docs/` (all created in the same second, contents dating back to June):
