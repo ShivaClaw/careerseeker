@@ -2,6 +2,84 @@
 
 Updated: 2026-07-22
 
+## 2026-07-22 (Opus session) — publish-to-web roadmap, phases W0–W3 (blocked at W1 on R2)
+
+Executing the 60-hour alpha publish roadmap (`Alpha-Publish-Roadmap-2026-07-22.md`, Fable 5) toward a
+tester-downloadable alpha on `careerseeker.app`. Never trust a SHA here — re-derive.
+
+**W0 — consolidation (done).** `claude/alpha-finish` fast-forwarded onto the F2 branch
+(`claude/codex-audit-pr2-triage-mjdur6`) and pushed, so PR #4 is now the single complete Friday diff
+(checkpoint → H1/H2/H3 → A1/L1/M1/M2 → F2). **The F2 claim is now verified on Windows**, closing the
+"not executed here" caveat in the Fable section below: `dotnet build -c Release --warnaserror` 0W/0E,
+and the full `scripts/Verify-Alpha.ps1` prints `Offline total: 327 passed, 0 failed` with the measured
+total equal to the pinned `$ExpectedOfflineTotal`. The packaged path Fable could not exercise on Linux
+is green too: `-IncludePublish -IncludePackage` gave publish smoke `errors: 0`, `manifest: ok`,
+`checksums: 46 verified`.
+
+**Release candidate artifact (rehearsal build, from head `1d1a5a4`):**
+`output/release/CareerSeeker-alpha-win-x64.zip`, 31,018,621 bytes,
+SHA-256 `D8F4916F949E225E87B3FB4B8D09A6FEF50DC7F2B68E0E19ED0BDC1CB981C7C7`.
+This is the **rehearsal** artifact for infra testing only — the tester-facing ZIP is rebuilt from the
+merged line on Friday and its hash replaces this one everywhere.
+
+**Trap worth recording:** the first `-IncludePackage` run failed with *"Alpha release manifest was
+generated from a dirty working tree"*. Cause was an untracked, **non-gitignored** `careerseeker-site-v2.zip`
+sitting in the repo root (a site snapshot, not repo content). Moved to
+`Desktop/careerseeker-site-v2-snapshot-2026-07-21.zip`; the run then passed. The packaging step requires a
+clean tree, and `*.zip` is not gitignored at the repo root — worth adding to `.gitignore` so this cannot
+recur or, worse, get committed.
+
+**W1 — distribution infrastructure: BLOCKED, needs Brandon.** The roadmap assumed the only risk was
+token scope. It is worse than that:
+- `CLOUDFLARE_ACCOUNT_API_TOKEN` is valid (it lists the `careerseeker-site` Pages project fine) but has
+  **no R2 permission** — `wrangler r2 bucket list` fails with API error **10000** (authentication).
+- An independent credential path (Cloudflare MCP, separate OAuth) authenticates but fails with error
+  **10042: "Please enable R2 through the Cloudflare Dashboard."**
+
+So **R2 is not enabled on the account at all** — this is a one-time account-level product activation
+(dashboard → R2), not something a token grant can fix, and not something an agent should do on the
+owner's behalf. Until R2 is enabled *and* a token with R2 read+write exists, W1.2 (bucket + upload),
+W1.4 (`RELEASES` binding), and W1.5 (prove the pipe) cannot run. Roadmap §2's GitHub-Releases fallback
+remains available and needs only a one-line change to the serving Function (302 redirect).
+
+**Site changes made (live only in `C:\Users\bkirk\Desktop\site-v2`, still NOT under version control —
+strongly recommend git-initializing it).** Backup taken first at `Desktop/site-v2-backup-2026-07-22`.
+- New `functions/releases/[[path]].js` — streams from the `RELEASES` R2 binding under the `alpha/`
+  prefix, flat-filename regex (no traversal), `Content-Disposition: attachment`, `nosniff`. Added one
+  guard beyond the roadmap's listing: a missing `env.RELEASES` returns 404 rather than throwing a 500
+  with a stack — which is the *current* state, since the binding does not exist yet.
+- `functions/api/verify.js` — `download_url` now
+  `https://careerseeker.app/releases/CareerSeeker-alpha-win-x64.zip` (the dead `CareerSeeker-Alpha-Setup.exe`
+  TODO is gone). This URL is identical under both the R2 and GitHub-Releases paths, so it is not blocked.
+- `download/index.html` — rewritten: ZIP contents, tester quickstart, the draft-only invariant stated
+  plainly, SHA-256 in a `<code>` block marked `<!-- SHA-UPDATED-F2.3 -->`, and unsigned-binary/SmartScreen
+  guidance. Sole CTA is still "Request alpha access" → `/beta/`; the raw file URL stays unpublished.
+- **Nothing has been deployed.** No `wrangler pages deploy` has run this session; the live site is
+  untouched. Note the roadmap's W1.5 command deploys to **production**, not preview — prefer
+  `--branch <name>` for a preview deploy, and treat any production deploy as Gate C2 material.
+
+**W3.1 clean-machine rehearsal — done, green.** Fresh extract of the ZIP to `%TEMP%`, then:
+`Verify-CareerSeeker-Alpha.cmd` → `manifest: ok`, `checksums: 46 verified`, `dashboard smoke: passed`;
+`Setup-CareerSeeker-Alpha.cmd` → workspace, `profile.template.json`, `secrets/env.secrets` all created;
+`Run-CareerSeeker-Demo.cmd` → `errors: 0` (cycles 1, discovered 3, acted 1, drafted 1, blocked 1,
+rejected 1); dashboard → `/` and `/evidence.html` both HTTP 200 carrying `no-store` / `nosniff` /
+`no-referrer`. No credits spent, no Gmail, no network.
+
+Friction list from the rehearsal (tester-facing, small):
+1. **`Setup-CareerSeeker-Alpha.cmd` lists the demo as step 6** — behind profile editing, API keys, Gmail
+   OAuth, and live-readiness. The demo needs none of those. A tester following that order hits three
+   credential chores before seeing the product work. Reorder so the demo is step 1. (Site copy already
+   says "run the demo first", so the launcher currently contradicts the download page.)
+2. Setup step 3 tells the tester to hand-edit `secrets\env.secrets` in Notepad to add API keys. That is
+   the roughest edge in the flow and undercuts the "the app walks you through setup" promise.
+3. Setup spawns Notepad on `profile.template.json` and the launchers end in `pause` — both correct for a
+   double-clicking tester, but they make headless/CI invocation hang. Not a tester defect; noted so the
+   next session does not mistake it for one.
+
+**Not yet done:** W1.2/W1.4/W1.5 (blocked above), W2.3 beta-flow rehearsal (needs a deploy), W3.2
+SmartScreen observation (needs a real download URL), W4 live verification (Gate B, unapproved),
+F1/F2 (Friday). Gates C1/C2 remain Brandon's.
+
 ## 2026-07-22 (Codex-role audit, Fable 5) — PR #2/#4 triage + one confirmed fix
 
 Never trust a SHA in this file — derive with `git rev-parse --short HEAD` / `git log --oneline -8`.
