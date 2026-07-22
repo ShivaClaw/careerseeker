@@ -54,9 +54,29 @@ strongly recommend git-initializing it).** Backup taken first at `Desktop/site-v
 - `download/index.html` — rewritten: ZIP contents, tester quickstart, the draft-only invariant stated
   plainly, SHA-256 in a `<code>` block marked `<!-- SHA-UPDATED-F2.3 -->`, and unsigned-binary/SmartScreen
   guidance. Sole CTA is still "Request alpha access" → `/beta/`; the raw file URL stays unpublished.
-- **Nothing has been deployed.** No `wrangler pages deploy` has run this session; the live site is
-  untouched. Note the roadmap's W1.5 command deploys to **production**, not preview — prefer
-  `--branch <name>` for a preview deploy, and treat any production deploy as Gate C2 material.
+**Deployed to production** (Brandon authorized production deploys explicitly; note the roadmap's W1.5
+command targets **production**, not preview — `--branch <name>` is what gives a preview). Deploy
+`b656a582`, run from inside `site-v2`, printed both required lines — `Compiled Worker successfully` and
+`Uploading Functions bundle` — so Functions shipped. Verified against both the per-deploy URL and
+`https://careerseeker.app`:
+
+| Check | Result |
+| --- | --- |
+| `/releases/CareerSeeker-alpha-win-x64.zip` | 404, body exactly `Not found.` — the Function's own body, **not** a 500 |
+| `/releases/..%2fsecrets`, `/releases/nested/path.zip` | 404 (path hygiene holds) |
+| `POST /api/verify` bad code | 403 `{"error":"Invalid code…"}` — **BETA_KV survived adding the new Function** |
+| control: `/definitely-not-a-real-page-xyz` | serves the site index — i.e. Pages' default 404, proving the `/releases/` 404 above really is the Function |
+
+This is all of W1.5 except the R2 round-trip hash. Deploying before R2 exists was deliberate and carries
+no regression: BETA_KV is **empty** (zero signups, zero issued codes — checked before deploying), and the
+`download_url` 404s exactly as the old `Setup.exe` URL did. It proves the Function compiles and ships now
+rather than on go-live day. The `!env.RELEASES` guard is confirmed working in production — the binding is
+genuinely absent and the route 404s cleanly.
+
+**Per-deploy URLs lag.** The first verification pass against `b656a582.careerseeker-site.pages.dev`
+returned Cloudflare's *"Deployment Not Found"* page, which is a 404 that looks exactly like a real one.
+Re-probe after ~30 s and check the **body**, not just the status code, before concluding anything is
+broken. (The existing note about the `preview.` alias lagging applies to the hash URL too.)
 
 **W3.1 clean-machine rehearsal — done, green.** Fresh extract of the ZIP to `%TEMP%`, then:
 `Verify-CareerSeeker-Alpha.cmd` → `manifest: ok`, `checksums: 46 verified`, `dashboard smoke: passed`;
@@ -76,9 +96,15 @@ Friction list from the rehearsal (tester-facing, small):
    double-clicking tester, but they make headless/CI invocation hang. Not a tester defect; noted so the
    next session does not mistake it for one.
 
-**Not yet done:** W1.2/W1.4/W1.5 (blocked above), W2.3 beta-flow rehearsal (needs a deploy), W3.2
-SmartScreen observation (needs a real download URL), W4 live verification (Gate B, unapproved),
-F1/F2 (Friday). Gates C1/C2 remain Brandon's.
+**Not yet done:** W1.2 (bucket + upload) and W1.4 (`RELEASES` binding) — both blocked on R2 being
+enabled; the R2 round-trip hash check from W1.5; W2.3 beta-flow rehearsal and W3.2 SmartScreen
+observation, which both need a download that actually serves; W4 live verification (Gate B, not
+approved); F1/F2 (Friday). Gates C1/C2 remain Brandon's.
+
+**The moment R2 is enabled**, the remaining work is short and unblocked: create bucket
+`careerseeker-releases`, upload the ZIP under `alpha/`, add the `RELEASES` binding to **both**
+production and preview (send the *merged* Pages config — a PATCH that omits `BETA_KV` breaks the beta
+API), redeploy, then re-run the table above expecting a 200 whose SHA-256 equals the recorded hash.
 
 ## 2026-07-22 (Codex-role audit, Fable 5) — PR #2/#4 triage + one confirmed fix
 
