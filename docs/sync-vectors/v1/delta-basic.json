@@ -1,0 +1,40 @@
+{
+  "name": "delta-basic",
+  "valid": true,
+  "notes": "Baseline engine-to-phone delta. Round-trips to plaintext_json exactly.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=1|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "DdBLf_RgqbiyBXZ8",
+  "plaintext_json": {
+    "kind": "delta",
+    "body": {
+      "since_seq": 48210,
+      "applications": [
+        {
+          "id": "app_01H8XK",
+          "state": "READY",
+          "company": "Northwind Labs",
+          "title": "Senior Platform Engineer",
+          "score": 82
+        }
+      ],
+      "counters": {
+        "discovered": 3,
+        "drafted": 1,
+        "blocked": 0
+      }
+    }
+  },
+  "ciphertext_b64u": "PtScLsi0qr-amNKFgQTsop24_zMYb5kUp4JPPFKqGa5tt5dZVlBQc6JMeJgiqOO3SfdPcqecM1vpxqwor_uwNteq0GyCVDAxUmgI2NIZzTTVpZykqBrlSe3sre3XLWcJOOkovOn2_oBUkd0m6BBku1PUiGQcnQz-uCdddqFMFAKfSaLYh_mMfG9F-jiapGuoQnJi_FXVrMSzIXddkL5Sh7LGQHAkhr5Oybr9eElM74tL2eiugv5j0MFpED5CaNrTmRjohyJOKwol_qHf2ZZRQUCiQdIgqgNkYPjn_nJdoyUmlMMdVZphT323GKTB",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 1,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "DdBLf_RgqbiyBXZ8",
+    "ciphertext": "PtScLsi0qr-amNKFgQTsop24_zMYb5kUp4JPPFKqGa5tt5dZVlBQc6JMeJgiqOO3SfdPcqecM1vpxqwor_uwNteq0GyCVDAxUmgI2NIZzTTVpZykqBrlSe3sre3XLWcJOOkovOn2_oBUkd0m6BBku1PUiGQcnQz-uCdddqFMFAKfSaLYh_mMfG9F-jiapGuoQnJi_FXVrMSzIXddkL5Sh7LGQHAkhr5Oybr9eElM74tL2eiugv5j0MFpED5CaNrTmRjohyJOKwol_qHf2ZZRQUCiQdIgqgNkYPjn_nJdoyUmlMMdVZphT323GKTB"
+  },
+  "expect_error": null
+}

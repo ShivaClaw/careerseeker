@@ -1,0 +1,31 @@
+{
+  "name": "heartbeat-unicode",
+  "valid": true,
+  "notes": "Non-ASCII plaintext. Catches implementations that treat UTF-8 as Latin-1 or mangle surrogate pairs.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=3|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "spKuSLUSvBJBcMzc",
+  "plaintext_json": {
+    "kind": "heartbeat",
+    "body": {
+      "ts": "2026-06-11T14:02:11Z",
+      "cycle": 12,
+      "counters": {
+        "discovered": 3
+      },
+      "note": "café — naïve 日本語 🙂"
+    }
+  },
+  "ciphertext_b64u": "N0vLCovGwWXE09iYH9jEH3L3FuIUyBVXvnBeBLWioFqOhIxOqdR972TqovChnaFOO8BEifesVE8RtcmweATLYXkUBkRz4nWdNrnWd1sn67Q8L-wnXM4hNmzpoS4Nkyx_4p-6jPunYlcmybGqOobOBvsNf5t7rXzDcHHJVm7vkDXzAJVoqBKdF7vMmE3E7KToqwrCNRTHs8ZP",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 3,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "spKuSLUSvBJBcMzc",
+    "ciphertext": "N0vLCovGwWXE09iYH9jEH3L3FuIUyBVXvnBeBLWioFqOhIxOqdR972TqovChnaFOO8BEifesVE8RtcmweATLYXkUBkRz4nWdNrnWd1sn67Q8L-wnXM4hNmzpoS4Nkyx_4p-6jPunYlcmybGqOobOBvsNf5t7rXzDcHHJVm7vkDXzAJVoqBKdF7vMmE3E7KToqwrCNRTHs8ZP"
+  },
+  "expect_error": null
+}

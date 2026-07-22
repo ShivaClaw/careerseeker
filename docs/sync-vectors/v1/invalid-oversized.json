@@ -1,0 +1,13 @@
+{
+  "name": "invalid-oversized",
+  "valid": false,
+  "notes": "Envelope exceeds the 1048576-byte limit. Rejected on size before any crypto. ciphertext_b64u is given as a repeat count rather than inline so this file stays readable; consumers synthesize it as \"A\" repeated synth_ciphertext_len times.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=11|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "sY9D7IbW249TveFl",
+  "plaintext_json": null,
+  "ciphertext_b64u": null,
+  "synth_ciphertext_len": 1048577,
+  "envelope_json": null,
+  "expect_error": "too_large"
+}

@@ -1,0 +1,40 @@
+{
+  "name": "invalid-aad-tampered-seq",
+  "valid": false,
+  "notes": "Envelope seq rewritten to 9999 after sealing, as a malicious relay would. The AAD no longer matches, so the tag check fails. This is the vector that proves header fields are actually bound into the AEAD.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=6|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "P-yygeszjnzFC6mB",
+  "plaintext_json": {
+    "kind": "delta",
+    "body": {
+      "since_seq": 48210,
+      "applications": [
+        {
+          "id": "app_01H8XK",
+          "state": "READY",
+          "company": "Northwind Labs",
+          "title": "Senior Platform Engineer",
+          "score": 82
+        }
+      ],
+      "counters": {
+        "discovered": 3,
+        "drafted": 1,
+        "blocked": 0
+      }
+    }
+  },
+  "ciphertext_b64u": "PqyYB3GdZyevVGYh01W9Z1WnSKxeedRBX3gUI_Ui6Y_Pe3CsAW3V2T5Rz2E7r2yDb5Ke7Urvxmdq5HcLjVFUoVWo_vQyJ9OF8Hn_-hEebLXbsfjEtSQqjBLuaSe74YrRbcqUMwrggwdMrwrS2Ks7Ea7Cl4Q4CFh1T-DwPkwpu7bkBaxCXL7GuMNqFOBnXQa7OlL2AGTOb6jpQ-DViq6NBbqMfxulO8hU0rlbX4LYf_9YxHmPNgLmHfDJPXv8Ig457bte_BmES6EDdrDhkbUTpj9jUGgqBueLNYboaGeT3xAv13XIR_vnW6Hal-fL",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 9999,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "P-yygeszjnzFC6mB",
+    "ciphertext": "PqyYB3GdZyevVGYh01W9Z1WnSKxeedRBX3gUI_Ui6Y_Pe3CsAW3V2T5Rz2E7r2yDb5Ke7Urvxmdq5HcLjVFUoVWo_vQyJ9OF8Hn_-hEebLXbsfjEtSQqjBLuaSe74YrRbcqUMwrggwdMrwrS2Ks7Ea7Cl4Q4CFh1T-DwPkwpu7bkBaxCXL7GuMNqFOBnXQa7OlL2AGTOb6jpQ-DViq6NBbqMfxulO8hU0rlbX4LYf_9YxHmPNgLmHfDJPXv8Ig457bte_BmES6EDdrDhkbUTpj9jUGgqBueLNYboaGeT3xAv13XIR_vnW6Hal-fL"
+  },
+  "expect_error": "decrypt_failed"
+}

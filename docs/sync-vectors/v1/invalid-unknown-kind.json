@@ -1,0 +1,26 @@
+{
+  "name": "invalid-unknown-kind",
+  "valid": false,
+  "notes": "Decrypts cleanly, then fails on kind. Proves the kind check is real and not implied by decryption.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=8|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "XbhK5ElkFy1lfyUw",
+  "plaintext_json": {
+    "kind": "telemetry_upload",
+    "body": {
+      "anything": true
+    }
+  },
+  "ciphertext_b64u": "hk_FCU0PtPauGuQl9D0RHDmMUDEmz-tglNTSHUWZf07KnRXgyu7hoXb6avTaeAEVGynNoE2nX_TPfVyPLJTDW_rTJr0",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 8,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "XbhK5ElkFy1lfyUw",
+    "ciphertext": "hk_FCU0PtPauGuQl9D0RHDmMUDEmz-tglNTSHUWZf07KnRXgyu7hoXb6avTaeAEVGynNoE2nX_TPfVyPLJTDW_rTJr0"
+  },
+  "expect_error": "unknown_kind"
+}

@@ -1,0 +1,26 @@
+{
+  "name": "invalid-reserved-kind-l2",
+  "valid": false,
+  "notes": "A reserved L2 kind must be rejected by a v1 receiver. This is the guard that stops the phone acquiring engine control before that has been audited.",
+  "key_hex": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=p2e|seq=2|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "tLFlq8XyR6NOs2QC",
+  "plaintext_json": {
+    "kind": "kill",
+    "body": {
+      "scope": "all"
+    }
+  },
+  "ciphertext_b64u": "5aS9GYzjyS3hDAnai346bPOSZWWHRFYKhcx4EaVZCoiHE-GyzhSDqkvprS5TI1Cz-3VZzfTN",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "p2e",
+    "seq": 2,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "tLFlq8XyR6NOs2QC",
+    "ciphertext": "5aS9GYzjyS3hDAnai346bPOSZWWHRFYKhcx4EaVZCoiHE-GyzhSDqkvprS5TI1Cz-3VZzfTN"
+  },
+  "expect_error": "unknown_kind"
+}

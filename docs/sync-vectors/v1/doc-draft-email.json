@@ -1,0 +1,30 @@
+{
+  "name": "doc-draft-email",
+  "valid": true,
+  "notes": "Document payload with multi-line text and a rev. Exercises UTF-8 and newlines.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=2|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "f1jKbdKoajUwbsm4",
+  "plaintext_json": {
+    "kind": "doc",
+    "body": {
+      "app_id": "app_01H8XK",
+      "doc_kind": "draft_email",
+      "rev": 4,
+      "verified": true,
+      "text": "Hello,\n\nI am writing about the Senior Platform Engineer role.\n\nRegards,\nB."
+    }
+  },
+  "ciphertext_b64u": "EtxmP8-f3N_k_Fbuc3RMHttcOxcVBBhC4NmuBGwuCX77xJpjLZtb1sYnVbk0zMzEIj0Cb6-KW3KtbRS3HTi81x9-jLFS1ONaUstVkIrcR7SE7z1jn_cekoJfBjZ9cGUGWBy5pwfJisNB4ZX7N9x81T2mwSm2w8FLZ1FyxotoSPMZfOUkEZTU3uutywY6fYRrOwKe9GusioLJZfOLmgCBHk4RR85_8lMLT26U21yf51tKQmMprJe3iBoA9BPQDJUt7QEkS5uzZQ",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 2,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "f1jKbdKoajUwbsm4",
+    "ciphertext": "EtxmP8-f3N_k_Fbuc3RMHttcOxcVBBhC4NmuBGwuCX77xJpjLZtb1sYnVbk0zMzEIj0Cb6-KW3KtbRS3HTi81x9-jLFS1ONaUstVkIrcR7SE7z1jn_cekoJfBjZ9cGUGWBy5pwfJisNB4ZX7N9x81T2mwSm2w8FLZ1FyxotoSPMZfOUkEZTU3uutywY6fYRrOwKe9GusioLJZfOLmgCBHk4RR85_8lMLT26U21yf51tKQmMprJe3iBoA9BPQDJUt7QEkS5uzZQ"
+  },
+  "expect_error": null
+}
