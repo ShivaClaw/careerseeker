@@ -14,6 +14,27 @@ public interface IApiKeySource
     string GetKey(string provider);
 }
 
+/// <summary>
+/// Turns a non-2xx provider response into an exception that carries the provider's own error text.
+/// <see cref="HttpResponseMessage.EnsureSuccessStatusCode"/> discards the body, which is where every
+/// actionable BYOK failure actually lives — exhausted credit, revoked key, rate limit, bad model id all
+/// arrive as a bare 400/401/429. A tester reading "400 (Bad Request)" has nothing to act on; the body
+/// says e.g. "Your credit balance is too low". Truncated because provider errors can embed the request.
+/// Never contains the API key: it echoes the response, and keys travel in headers.
+/// </summary>
+internal static class ProviderHttpErrors
+{
+    public static void ThrowIfError(string provider, System.Net.Http.HttpResponseMessage resp, string body)
+    {
+        if (resp.IsSuccessStatusCode) return;
+        var detail = string.IsNullOrWhiteSpace(body)
+            ? "(empty response body)"
+            : body.Length > 600 ? body.Substring(0, 600) + "…" : body;
+        throw new HttpRequestException(
+            $"{provider} API returned {(int)resp.StatusCode} {resp.StatusCode}: {detail}");
+    }
+}
+
 /// <summary>A fixed-key source (tests, single-tenant). Production reads the DPAPI vault.</summary>
 public sealed class StaticKeySource : IApiKeySource
 {
@@ -122,7 +143,7 @@ public sealed class AnthropicProvider : ILlmProvider
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        resp.EnsureSuccessStatusCode();
+        ProviderHttpErrors.ThrowIfError(Name, resp, json);
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -183,7 +204,7 @@ public sealed class GoogleProvider : ILlmProvider
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        resp.EnsureSuccessStatusCode();
+        ProviderHttpErrors.ThrowIfError(Name, resp, json);
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
