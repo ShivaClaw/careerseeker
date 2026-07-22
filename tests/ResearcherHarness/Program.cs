@@ -93,6 +93,16 @@ Console.WriteLine("\n[ SSRF guard ]");
         new[] { "::1", "fe80::1", "fc00::1" }.All(s => !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse(s))));
     Check("IPv4-mapped private IPv6 rejected", !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse("::ffff:10.0.0.1")));
     Check("IPv6 unspecified address (::) is not routable (A1)", !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.IPv6Any));
+    // v6 forms that embed/route to a private v4 must be classified by that v4, not waved through as v6:
+    // IPv4-compatible ::/96 (deprecated ::a.b.c.d), NAT64 64:ff9b::/96, and 6to4 2002::/16.
+    Check("IPv4-compatible/NAT64/6to4 IPv6 embedding a private v4 rejected",
+        new[] { "::7f00:1", "::127.0.0.1", "::169.254.169.254", "::10.0.0.1",
+                "64:ff9b::7f00:1", "64:ff9b::10.0.0.5", "2002:7f00:1::1", "2002:a00:1::1" }
+            .All(s => !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse(s))));
+    Check("a genuinely public IPv6 and a NAT64/6to4 wrapping a public v4 stay routable",
+        PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse("2606:2800:220:1:248:1893:25c8:1946")) &&
+        PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse("64:ff9b::8.8.8.8")) &&
+        PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse("2002:808:808::1")));
 
     // String pre-filter (first layer): literal private hosts and localhost blocked; names pass through.
     Check("string filter blocks localhost and literal private hosts",

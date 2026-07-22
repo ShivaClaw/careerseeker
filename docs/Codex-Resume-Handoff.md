@@ -1,6 +1,65 @@
 # Codex Resume Handoff
 
-Updated: 2026-07-21
+Updated: 2026-07-22
+
+## 2026-07-22 (Codex-role audit, Fable 5) — PR #2/#4 triage + one confirmed fix
+
+Never trust a SHA in this file — derive with `git rev-parse --short HEAD` / `git log --oneline -8`.
+This session ran the Phase-2 audit-support role (Codex active) against the consolidated post-checkpoint
+diff (PR #4 `claude/alpha-finish` → `agent/repo-cleanup`, which carries PR #2's H1/H2/H3 + CLAUDE.md and
+PR #3's A1/L1/M1/M2). Work landed on branch `claude/codex-audit-pr2-triage-mjdur6`, based on the
+`claude/alpha-finish` tip so the fix rides on top of everything under audit.
+
+**Environment note:** audited on Linux with .NET 8; the offline harnesses are cross-platform and were run
+directly. `scripts/Verify-Alpha.ps1` is Windows/PowerShell-oriented (workspace initializer, docs-site,
+publish/package steps) and was **not** executed here; instead the two things it would catch were validated
+directly — the measured offline total (327, matching `$ExpectedOfflineTotal`) and every count-bearing
+doc-smoke assertion string. Re-run the full `Verify-Alpha.ps1` on Windows to confirm the packaged path.
+
+Triage verdicts against source (confirm = claim holds; the PR bodies' self-disclosures all held up):
+- **H1 connect-time guard** — CONFIRMED sound: fail-closed multi-address rule, dials the validated IP
+  (no re-resolution TOCTOU), redirects re-enter the ConnectCallback. **But** its IP classifier had a real
+  gap (see the fix below).
+- **H2 sweep scope** (demo/alpha/dashboard swept; six one-shots unswept) — CONFIRMED correct.
+- **Store parity** `GetApplicationIdsInStatesAsync` — CONFIRMED a pure read, zero `Now()` in both stores;
+  parity case passes (StoreParity 22).
+- **A1** (`::` rejected), **L1** (`PRAGMA table_info` migration; column index 1 is the name; idempotent,
+  pre-existing row preserved, round-trips), **M1** (pinned `$ExpectedOfflineTotal` + drift throw; the
+  premise correction that CI already runs the SQLite harnesses is right), **M2** (query-string doc token
+  is a documented acceptance behind loopback + `RequestCameFromThisDashboard` + per-process token) — all
+  CONFIRMED as described.
+- **Verifier whitespace-normalized row assertions** — CONFIRMED robust.
+
+**Confirmed finding fixed this session — F2 (SSRF classifier, IPv6 embedded-IPv4):**
+`PrivateNetworkGuard.IsPubliclyRoutable` returned `true` for IPv6 forms that embed or route to a private/
+loopback IPv4 — IPv4-compatible `::/96` (e.g. `::7f00:1` = 127.0.0.1, `::169.254.169.254`), NAT64
+`64:ff9b::/96`, and 6to4 `2002::/16`. The guard already unwraps IPv4-*mapped* `::ffff:` for exactly this
+reason and A1 had just closed `::`; these were the same family of gap left open. Fix reclassifies any such
+address by the IPv4 it reaches (`TryExtractEmbeddedIPv4`), so a private v4 can no longer slip through in a
+v6 disguise. Two harness cases added to the `[ SSRF guard ]` section (reject the private-embedding forms;
+regression-guard that genuinely-public v6 and NAT64/6to4-wrapping-a-public-v4 stay routable).
+ResearcherHarness 53→55, offline total 325→327; `$ExpectedOfflineTotal` and all five asserted doc counts
+bumped in lockstep per the CLAUDE.md drift trap.
+
+**Residual noted, NOT changed (needs a product decision — G6-adjacent):** the guarded `HttpClient` leaves
+`SocketsHttpHandler.UseProxy` at its default (true), so if a system/environment HTTP proxy is configured
+the `ConnectCallback` validates the *proxy's* address, not the redirect target — the connect-time IP guard
+is bypassed for the real destination when a proxy is present. Confirmed by repro (the handler routed
+through an injected env proxy). Low/situational for a local Windows alpha (the string pre-filter still
+blocks literal-IP private targets). Forcing `UseProxy=false` would break testers who need a corporate
+proxy for outbound internet, so this is left for Brandon/Opus to decide rather than changed in a triage
+pass.
+
+Verification (this session, on this branch): `dotnet build CareerSeeker.sln -c Release --warnaserror`
+0W/0E; all nine offline harnesses green, measured total **327** (Slice 28 · Engine 89 · Researcher 55 ·
+Hook 14 · StoreParity 22 · GatewayGate 34 · DispatcherNoSend 35 · Lifecycle 44 · Renderer 6), equal to the
+pinned `$ExpectedOfflineTotal`. Invariants unchanged: no Gate bypass, `VerifierEntailment` pin untouched,
+Dispatcher still no-send, local-first, reconcile side-effect-free. No secrets printed; no live/spending
+runs (G2 intact); no Gmail draft created.
+
+**Gate G1 (merge PR #2/#4 → `agent/repo-cleanup`) is unchanged and remains Brandon's call** — nothing was
+merged this session. When G1 happens, re-derive the merged head with `git rev-parse --short HEAD` and
+record it here (no embedded head, per H3).
 
 ## 2026-07-21 (Opus session) — audit batch committed + hardening batch
 

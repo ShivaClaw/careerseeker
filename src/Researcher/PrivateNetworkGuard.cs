@@ -25,13 +25,18 @@ public static class PrivateNetworkGuard
     /// <summary>
     /// True when <paramref name="ip"/> is a globally routable public address — i.e. not loopback,
     /// private, link-local (incl. the cloud metadata range 169.254/16), CGNAT, benchmark, multicast, or
-    /// an unspecified/reserved range. IPv4-mapped IPv6 is unwrapped first so a mapped private v4 cannot
-    /// slip through as v6.
+    /// an unspecified/reserved range. Any IPv6 form that carries an embedded IPv4 destination — mapped
+    /// (<c>::ffff:0:0/96</c>), compatible (<c>::/96</c>), NAT64 (<c>64:ff9b::/96</c>), or 6to4
+    /// (<c>2002::/16</c>) — is unwrapped and re-classified as that IPv4, so a private v4 cannot slip
+    /// through as v6 in any of these disguises.
     /// </summary>
     public static bool IsPubliclyRoutable(IPAddress ip)
     {
         if (ip.IsIPv4MappedToIPv6)
             ip = ip.MapToIPv4();
+        else if (ip.AddressFamily == AddressFamily.InterNetworkV6 &&
+                 TryExtractEmbeddedIPv4(ip.GetAddressBytes()) is { } embedded)
+            ip = embedded; // ::/96, 64:ff9b::/96, or 2002::/16 — judge by the IPv4 it reaches
 
         var b = ip.GetAddressBytes();
         if (ip.AddressFamily == AddressFamily.InterNetwork)
@@ -55,6 +60,40 @@ public static class PrivateNetworkGuard
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// If <paramref name="b"/> (16 IPv6 bytes) is a form that carries an embedded IPv4 destination,
+    /// returns that IPv4 so the caller can classify by where the packet actually lands; otherwise null.
+    /// Covers IPv4-compatible <c>::/96</c> (the deprecated <c>::a.b.c.d</c>, still parseable and the
+    /// classic filter bypass — e.g. <c>::7f00:1</c> is 127.0.0.1), NAT64 <c>64:ff9b::/96</c>, and 6to4
+    /// <c>2002::/16</c>. IPv4-mapped <c>::ffff:0:0/96</c> is handled by the framework's
+    /// <see cref="IPAddress.IsIPv4MappedToIPv6"/> before this is reached. A public global-unicast v6
+    /// address never matches these fixed prefixes, so legitimate v6 is untouched.
+    /// </summary>
+    private static IPAddress? TryExtractEmbeddedIPv4(byte[] b)
+    {
+        static bool AllZero(byte[] a, int start, int count)
+        {
+            for (var i = start; i < start + count; i++)
+                if (a[i] != 0) return false;
+            return true;
+        }
+
+        // 2002::/16 — 6to4: the embedded IPv4 is bytes 2..5.
+        if (b[0] == 0x20 && b[1] == 0x02)
+            return new IPAddress(new[] { b[2], b[3], b[4], b[5] });
+
+        // 64:ff9b::/96 — NAT64 well-known prefix: embedded IPv4 is the low 32 bits.
+        if (b[0] == 0x00 && b[1] == 0x64 && b[2] == 0xff && b[3] == 0x9b && AllZero(b, 4, 8))
+            return new IPAddress(new[] { b[12], b[13], b[14], b[15] });
+
+        // ::/96 — IPv4-compatible (high 96 bits zero). Excludes :: and ::1, which the v6 checks already
+        // reject as unspecified/loopback; reclassifying them as 0.0.0.0/0.0.0.1 would reject them anyway.
+        if (AllZero(b, 0, 12) && !(b[12] == 0 && b[13] == 0 && b[14] == 0 && b[15] <= 1))
+            return new IPAddress(new[] { b[12], b[13], b[14], b[15] });
+
+        return null;
     }
 
     /// <summary>

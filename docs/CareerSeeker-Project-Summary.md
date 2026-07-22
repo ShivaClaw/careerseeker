@@ -374,13 +374,13 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 325 passed, 0 failed.
+Total: 327 passed, 0 failed.
 
 | Harness                   | Result              |
 | ------------------------- | ------------------- |
 | `Slice`                   | 28 passed, 0 failed |
 | `EngineHarness`           | 89 passed, 0 failed |
-| `ResearcherHarness`       | 53 passed, 0 failed |
+| `ResearcherHarness`       | 55 passed, 0 failed |
 | `HookHarness`             | 14 passed, 0 failed |
 | `StoreParityHarness`      | 22 passed, 0 failed |
 | `GatewayGateHarness`      | 34 passed, 0 failed |
