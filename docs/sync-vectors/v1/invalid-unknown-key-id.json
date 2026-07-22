@@ -1,0 +1,40 @@
+{
+  "name": "invalid-unknown-key-id",
+  "valid": false,
+  "notes": "Sealed under a SUPERSEDED key id but with key material that still decrypts. This is the revoked-device case: the tag check cannot see it, so key_id must be checked explicitly against the active pairing BEFORE decryption. A receiver that answers decrypt_failed here is relying on cryptography to enforce revocation, which it does not do.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=7|ts=2026-06-11T14:02:11Z|key_id=k-2020-01-01",
+  "nonce_b64u": "ml8l4XOloofUoCI7",
+  "plaintext_json": {
+    "kind": "delta",
+    "body": {
+      "since_seq": 48210,
+      "applications": [
+        {
+          "id": "app_01H8XK",
+          "state": "READY",
+          "company": "Northwind Labs",
+          "title": "Senior Platform Engineer",
+          "score": 82
+        }
+      ],
+      "counters": {
+        "discovered": 3,
+        "drafted": 1,
+        "blocked": 0
+      }
+    }
+  },
+  "ciphertext_b64u": "DtPckBtBjSjwWVBFc8EjhNbdZcN1mamx3d65g507xnWKE9Hb-7psPcAzrCBU7iqeNIBxX8aaSorORm9e9abUNd2IuxflL1eYoLVtc31XeJYwmGH2QGIqiPZB0rXYGeYLr2u__p1xrEUQuIXF5FxolqHSMHuY71X4Od1xXEgoFe3GHIzA_IaT3vqo53lZc_xE_IJDGRRnJ-oLuKNWFL0VVYKCMKVOZjQ-82cg_6VTPX2K6OP5Ge_S9qEs3BWdl2KnEFw3obfzHkTz3_XiHUDvjvCoHeCBUflFmGNsYKk7M3EdyZeiqU7-XmkBaYYe",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 7,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2020-01-01",
+    "nonce": "ml8l4XOloofUoCI7",
+    "ciphertext": "DtPckBtBjSjwWVBFc8EjhNbdZcN1mamx3d65g507xnWKE9Hb-7psPcAzrCBU7iqeNIBxX8aaSorORm9e9abUNd2IuxflL1eYoLVtc31XeJYwmGH2QGIqiPZB0rXYGeYLr2u__p1xrEUQuIXF5FxolqHSMHuY71X4Od1xXEgoFe3GHIzA_IaT3vqo53lZc_xE_IJDGRRnJ-oLuKNWFL0VVYKCMKVOZjQ-82cg_6VTPX2K6OP5Ge_S9qEs3BWdl2KnEFw3obfzHkTz3_XiHUDvjvCoHeCBUflFmGNsYKk7M3EdyZeiqU7-XmkBaYYe"
+  },
+  "expect_error": "key_unknown"
+}

@@ -106,7 +106,8 @@ $offlineProjects = @(
     "tests/GatewayGateHarness/GatewayGateHarness.csproj",
     "tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj",
     "tests/LifecycleHarness/LifecycleHarness.csproj",
-    "tests/RendererHarness/RendererHarness.csproj"
+    "tests/RendererHarness/RendererHarness.csproj",
+    "tests/SyncHarness/SyncHarness.csproj"
 )
 
 # The pinned offline assertion total. CI runs this whole file on windows-latest, so the real-SQLite
