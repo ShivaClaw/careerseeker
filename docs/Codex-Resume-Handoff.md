@@ -125,6 +125,15 @@ and would burn tester trust on day one. The zone token **cannot** purge (401). T
 2. Brandon purges the URL from the dashboard (Caching → Configuration) immediately after upload, then
    re-fetches and re-checks the hash before handing any code to a tester.
 
+**DECIDED (Brandon, 2026-07-22): option 1 — Friday's build publishes under a dated filename, never
+overwriting.** Concretely, F2.3 becomes: upload to
+`careerseeker/alpha/CareerSeeker-alpha-win-x64-2026-07-24.zip`, point `verify.js`'s `download_url` at
+`https://careerseeker.app/releases/CareerSeeker-alpha-win-x64-2026-07-24.zip`, update the SHA-256 at the
+`<!-- SHA-UPDATED-F2.3 -->` marker plus the filename referenced in the quickstart's `Get-FileHash`
+example, then redeploy. The serving Function needs **no change** — it already accepts any flat filename
+under `alpha/`. Leave the old undated object in place; it is unreferenced once `verify.js` moves, and
+deleting it would only make an already-cached URL start 404ing.
+
 **Per-deploy URLs lag.** The first verification pass against `b656a582.careerseeker-site.pages.dev`
 returned Cloudflare's *"Deployment Not Found"* page, which is a 404 that looks exactly like a real one.
 Re-probe after ~30 s and check the **body**, not just the status code, before concluding anything is
@@ -187,17 +196,20 @@ uncommitted work. This bit twice in one session (the stray site zip, then the la
 **Not yet done:** W4 live verification (Gate B, **not approved** — no live/spending run has happened,
 G2 intact); F1 audit support and F2 merge/build/publish (Friday). Gates C1/C2 remain Brandon's.
 
-**Seven untracked planning docs were parked out of the repo — Brandon needs to decide.** At 11:27 local
-on 2026-07-22 these appeared in `docs/` (all created in the same second, contents dating back to June):
+**Seven untracked planning docs appeared in `docs/` and were removed — resolved.** At 11:27 local on
+2026-07-22 these landed in `docs/` (all created in the same second, contents dating back to June):
 `Alpha-Publish-Roadmap-2026-07-22.md`, `Android-Dashboard-Pro-Spec-2026-07-22.md`,
 `CareerSeeker-Spec-5.6-LLM-Gateway.md`, `Cleanup-Handoff-2026-07-21.md`, `Opus-Build-Roadmap-2026-07-21.md`,
 `alpha-audit-2026-07-20.md`, `claude-code-deploy-prompt.md`. They blocked packaging (untracked files make
-the tree dirty) and **this repo is public**, so committing them would publish internal planning —
-including an Android spec, when the Android work is deliberately kept in a private repo. They were moved
-to `Desktop/careerseeker-docs-parked-2026-07-22/` rather than committed or deleted. A scan for
-credential-shaped strings found **none**, so this is a publication-appropriateness call, not a leak.
-Brandon: either move them back and commit deliberately, or leave them parked and add `docs/*.md`
-exceptions to `.gitignore`.
+the tree dirty), and since **this repo is public**, committing them would have published internal planning —
+including an Android spec, when the Android work is deliberately kept in a private repo. A scan found no
+credential-shaped strings, so it was a publication-appropriateness question, not a leak. Brandon confirmed
+they were copied in by mistake and belong only in his offline `Desktop\Career Seeker\` folder. Each parked
+copy was verified **byte-identical (SHA-256)** to the copy already in that folder before deletion, so
+nothing was lost. `docs/` is clean again.
+
+*Guard worth adding later:* nothing prevents a repeat — a stray file in `docs/` or a `*.zip` at the repo
+root both silently break packaging, and the second one nearly got committed earlier in the session.
 
 **Friday runbook deltas — read before F2.3.** The distribution path is already built and proven, so
 Friday is: merge (C1) → rebuild the ZIP from merged `main` (F2.2) → upload → update the published hash →
