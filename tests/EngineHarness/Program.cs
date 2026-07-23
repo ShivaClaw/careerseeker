@@ -11,6 +11,7 @@ using SeekerSvc.Pipeline;
 using SeekerSvc.Scorer;
 using SeekerSvc.Scout;
 using SeekerSvc.Store;
+using SeekerSvc.Sync;
 using SeekerSvc.Tailor;
 using SeekerSvc.Verifier;
 
@@ -1132,6 +1133,69 @@ Console.WriteLine("\n[ dispatcher safety ]");
         threw = true;
     }
     Check("L1 SubmitAsync throws NotSupportedException", threw);
+}
+
+// ---------------------------------------------------------------- P2 sync bridge
+//
+// EngineSyncBridge projects live engine state (counters + recent application/job summaries) into
+// the read-only dashboard payloads and drives a SyncPublisher: snapshot first, deltas thereafter,
+// plus a counters-only heartbeat. Here it runs against a real SyncPublisher whose sink is a fake
+// (no relay) sealing under a fixed k_e2p, so the projection and the snapshot->delta drive are
+// proven offline. Each pushed envelope is opened by the shipping receiver, and the load-bearing
+// check confirms no raw posting body ever rides to the phone (untrusted-text rule).
+
+Console.WriteLine("\n[ P2 sync bridge: projects engine state and drives the publisher ]");
+{
+    var bridgeStore = await SeededStoreAsync();
+    var bridgeCounters = new EngineCounters();
+    var bridgePipeline = new ApplicationPipeline(bridgeStore, tailor, MakeDispatcher(new FakeGmail()),
+        new GatewaySemanticMatcher(gateway), new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+    var bridgeCycle = new EngineCycle(bridgeStore, new FakeFeed(new[] { Healthy("Senior Software Engineer") }),
+        new FakeSemantic(), bridgePipeline, opt, bridgeCounters);
+    await bridgeCycle.TickAsync();
+
+    var kE2p = Convert.FromHexString("a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90");
+    var pushed = new List<string>();
+    Func<string, CancellationToken, Task<bool>> sink = (env, _) => { pushed.Add(env); return Task.FromResult(true); };
+    var publisher = new SyncPublisher(kE2p, "p_bridge_test", "k-bridge", sink);
+    var bridge = new EngineSyncBridge(bridgeCounters, LocalDashboardEvidence.FromStore(bridgeStore), publisher);
+
+    var receiver = new EnvelopeReceiver("k-bridge");
+    (string Kind, string Plain) Open(string envJson)
+    {
+        using var d = JsonDocument.Parse(envJson);
+        var e = d.RootElement;
+        var env = new ReceivedEnvelope(e.GetProperty("v").GetInt32(), e.GetProperty("pairing").GetString()!,
+            e.GetProperty("dir").GetString()!, e.GetProperty("seq").GetInt64(), e.GetProperty("ts").GetString()!,
+            e.GetProperty("key_id").GetString()!, e.GetProperty("nonce").GetString()!, e.GetProperty("ciphertext").GetString()!,
+            e.TryGetProperty("sig", out var s) ? s.GetString() : null);
+        var r = receiver.Receive(env, _ => kE2p);
+        return r.Accepted ? (r.Kind!, Encoding.UTF8.GetString(r.Plaintext!)) : ($"REJECTED:{r.Error?.ToWire()}", "");
+    }
+
+    Check("bridge starts with no snapshot sent", !bridge.SnapshotSent);
+    var okSnap = await bridge.PublishAsync();
+    Check("bridge first publish sends a snapshot at seq 1", okSnap && bridge.SnapshotSent && bridge.HighestSeq == 1);
+    Check("bridge pushed exactly one envelope", pushed.Count == 1);
+
+    var (snapKind, snapPlain) = Open(pushed[0]);
+    Check("bridge snapshot is accepted as kind=snapshot", snapKind == "snapshot");
+    Check("bridge snapshot carries the live counters (a cycle ran)",
+        snapPlain.Contains("\"discovered\":1") && snapPlain.Contains("\"cycles\":1"));
+    Check("bridge snapshot carries application summary fields",
+        snapPlain.Contains("\"state\":") && snapPlain.Contains("\"company\":") && snapPlain.Contains("\"score\":"));
+    Check("bridge snapshot carries NO raw posting body (untrusted-text rule)",
+        !snapPlain.Contains("jd_path") && !snapPlain.Contains("description") && !snapPlain.Contains("posting_body") && !snapPlain.Contains("\"body\":\""));
+
+    var okDelta = await bridge.PublishAsync();
+    Check("bridge second publish sends a delta at seq 2", okDelta && bridge.HighestSeq == 2 && Open(pushed[1]).Kind == "delta");
+
+    var okBeat = await bridge.PublishHeartbeatAsync();
+    Check("bridge heartbeat is accepted as kind=heartbeat", okBeat && Open(pushed[2]).Kind == "heartbeat");
+
+    // Projection unit checks: counters map straight across; flags are display-only booleans.
+    var mapped = EngineSyncBridge.MapCounters(bridgeCounters);
+    Check("MapCounters mirrors EngineCounters", mapped.Discovered == bridgeCounters.Discovered && mapped.Cycles == bridgeCounters.Cycles);
 }
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
