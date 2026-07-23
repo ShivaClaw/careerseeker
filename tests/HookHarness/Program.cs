@@ -70,6 +70,30 @@ Console.WriteLine("\n[ prompt wiring ]");
 }
 
 // ── end-to-end via the dossier bridge: grounded qualitative hook flows; quantified hook is dropped ──────
+Console.WriteLine("\n[ draft parsing ]");
+{
+    const string draftJson = "{\"resume\":\"R\",\"cover\":\"C\",\"claims\":[],\"answers\":{}}";
+    async Task<TailorDraft> GenerateFromAsync(string raw)
+    {
+        var gw = new LlmGateway(RoutingTable.Default(), GatewayMode.Managed, new BudgetMeter(100m),
+            new ILlmProvider[] { new FakeProvider("anthropic", respond: _ => raw), new FakeProvider("google"), new FakeProvider("local", true) });
+        return await new GatewayTailorModel(gw).GenerateAsync(new TailorModelRequest(
+            new PipelineJob(1, "Senior Engineer", "Acme"),
+            new List<SourceClaim> { new("c1", ClaimKind.Skill, "distributed systems", Confidence.Verified) },
+            new List<string>(),
+            StyleCard.Default,
+            new List<string>()));
+    }
+
+    var prose = await GenerateFromAsync("Here is the JSON draft:\n" + draftJson);
+    Check("Tailor parser extracts prose-wrapped JSON object",
+        prose.ResumeText == "R" && prose.CoverText == "C");
+
+    var brackets = await GenerateFromAsync("Sources [1]\n{\"resume\":\"R {kept}\",\"cover\":\"C\",\"claims\":[],\"answers\":{}}\nDone.");
+    Check("Tailor parser skips bracket citations before JSON and preserves string braces",
+        brackets.ResumeText == "R {kept}" && brackets.CoverText == "C");
+}
+
 Console.WriteLine("\n[ profile minimization ]");
 {
     var cap = new CapturingProvider();

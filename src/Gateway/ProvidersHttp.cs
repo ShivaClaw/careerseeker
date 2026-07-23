@@ -19,19 +19,37 @@ public interface IApiKeySource
 /// <see cref="HttpResponseMessage.EnsureSuccessStatusCode"/> discards the body, which is where every
 /// actionable BYOK failure actually lives — exhausted credit, revoked key, rate limit, bad model id all
 /// arrive as a bare 400/401/429. A tester reading "400 (Bad Request)" has nothing to act on; the body
-/// says e.g. "Your credit balance is too low". Truncated because provider errors can embed the request.
-/// Never contains the API key: it echoes the response, and keys travel in headers.
+/// says e.g. "Your credit balance is too low". The app sends keys in headers, never request bodies, but
+/// it still redacts the known key before surfacing the body in case a provider or proxy echoes headers.
+/// Truncated because provider errors can embed the request.
 /// </summary>
 internal static class ProviderHttpErrors
 {
-    public static void ThrowIfError(string provider, System.Net.Http.HttpResponseMessage resp, string body)
+    public static void ThrowIfError(
+        string provider,
+        System.Net.Http.HttpResponseMessage resp,
+        string body,
+        params string[] secretsToRedact)
     {
         if (resp.IsSuccessStatusCode) return;
-        var detail = string.IsNullOrWhiteSpace(body)
+
+        var redacted = RedactSecrets(body, secretsToRedact);
+        var detail = string.IsNullOrWhiteSpace(redacted)
             ? "(empty response body)"
-            : body.Length > 600 ? body.Substring(0, 600) + "…" : body;
+            : redacted.Length > 600 ? redacted.Substring(0, 600) + "…" : redacted;
         throw new HttpRequestException(
             $"{provider} API returned {(int)resp.StatusCode} {resp.StatusCode}: {detail}");
+    }
+
+    private static string RedactSecrets(string body, IEnumerable<string> secrets)
+    {
+        var redacted = body;
+        foreach (var secret in secrets)
+        {
+            if (string.IsNullOrWhiteSpace(secret)) continue;
+            redacted = redacted.Replace(secret, "[redacted-api-key]", StringComparison.Ordinal);
+        }
+        return redacted;
     }
 }
 
@@ -136,14 +154,15 @@ public sealed class AnthropicProvider : ILlmProvider
         if (!string.IsNullOrEmpty(system)) body["system"] = system;
         if (call.Temperature is { } t) body["temperature"] = t;
 
+        var apiKey = _keys.GetKey(Name);
         using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
-        req.Headers.TryAddWithoutValidation("x-api-key", _keys.GetKey(Name));
+        req.Headers.TryAddWithoutValidation("x-api-key", apiKey);
         req.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
         req.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        ProviderHttpErrors.ThrowIfError(Name, resp, json);
+        ProviderHttpErrors.ThrowIfError(Name, resp, json, apiKey);
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -197,14 +216,15 @@ public sealed class GoogleProvider : ILlmProvider
         if (!string.IsNullOrEmpty(system))
             body["systemInstruction"] = new { parts = new[] { new { text = system } } };
 
+        var apiKey = _keys.GetKey(Name);
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/{call.ModelId}:generateContent";
         using var req = new HttpRequestMessage(HttpMethod.Post, url);
-        req.Headers.TryAddWithoutValidation("x-goog-api-key", _keys.GetKey(Name));
+        req.Headers.TryAddWithoutValidation("x-goog-api-key", apiKey);
         req.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
 
         using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
         var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        ProviderHttpErrors.ThrowIfError(Name, resp, json);
+        ProviderHttpErrors.ThrowIfError(Name, resp, json, apiKey);
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;

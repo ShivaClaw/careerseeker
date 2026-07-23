@@ -197,6 +197,30 @@ Console.WriteLine("\n[ BYOK provider HTTP shapes ]");
         result.Text == "anthropic-ok" && result.Usage == new LlmUsage(12, 3));
 }
 {
+    const string apiKey = "anthropic-test-key-for-redaction";
+    var handler = new CapturingHandler(HttpStatusCode.BadRequest,
+        "{\"error\":{\"message\":\"credit too low; echoed x-api-key=" + apiKey + "\"}}");
+    var provider = new AnthropicProvider(new HttpClient(handler),
+        new StaticKeySource(new Dictionary<string, string> { ["anthropic"] = apiKey }));
+
+    var redacted = false;
+    try
+    {
+        await provider.CompleteAsync(new ProviderCall(
+            "claude-sonnet-4-6",
+            new[] { LlmMessage.User("candidate facts") },
+            128,
+            0));
+    }
+    catch (HttpRequestException ex)
+    {
+        redacted = ex.Message.Contains("credit too low", StringComparison.Ordinal)
+            && ex.Message.Contains("[redacted-api-key]", StringComparison.Ordinal)
+            && !ex.Message.Contains(apiKey, StringComparison.Ordinal);
+    }
+    Check("Anthropic provider redacts echoed API key from error body", redacted);
+}
+{
     var handler = new CapturingHandler(HttpStatusCode.OK,
         """{"candidates":[{"content":{"parts":[{"text":"google-ok"}]}}],"usageMetadata":{"promptTokenCount":7,"candidatesTokenCount":2}}""");
     var provider = new GoogleProvider(new HttpClient(handler),
@@ -216,6 +240,30 @@ Console.WriteLine("\n[ BYOK provider HTTP shapes ]");
         && handler.LastBody.Contains("\"generationConfig\"", StringComparison.Ordinal));
     Check("Google provider parses text and usage",
         result.Text == "google-ok" && result.Usage == new LlmUsage(7, 2));
+}
+{
+    const string apiKey = "gemini-test-key-for-redaction";
+    var handler = new CapturingHandler(HttpStatusCode.Unauthorized,
+        "{\"error\":{\"message\":\"invalid key; echoed x-goog-api-key=" + apiKey + "\"}}");
+    var provider = new GoogleProvider(new HttpClient(handler),
+        new StaticKeySource(new Dictionary<string, string> { ["google"] = apiKey }));
+
+    var redacted = false;
+    try
+    {
+        await provider.CompleteAsync(new ProviderCall(
+            "gemini-3.1-pro-preview",
+            new[] { LlmMessage.User("candidate facts") },
+            64,
+            0));
+    }
+    catch (HttpRequestException ex)
+    {
+        redacted = ex.Message.Contains("invalid key", StringComparison.Ordinal)
+            && ex.Message.Contains("[redacted-api-key]", StringComparison.Ordinal)
+            && !ex.Message.Contains(apiKey, StringComparison.Ordinal);
+    }
+    Check("Google provider redacts echoed API key from error body", redacted);
 }
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");

@@ -129,12 +129,31 @@ public sealed class GatewayTailorModel : ITailorModel
         return sb.ToString();
     }
 
-    /// <summary>Parse the model's JSON into a draft. Tolerates accidental code fences; throws on real failure.</summary>
+    /// <summary>Parse the model's JSON into a draft. Tolerates accidental fences/prose; throws on real failure.</summary>
     internal static TailorDraft ParseDraft(string raw)
     {
         var json = StripFences(raw).Trim();
-        using var doc = JsonDocument.Parse(json); // throws -> Pipeline treats as generation failure
+        foreach (var candidate in JsonObjectCandidates(json))
+        {
+            try
+            {
+                return ParseDraftObject(candidate);
+            }
+            catch (JsonException)
+            {
+                // Try the next balanced object candidate, if any.
+            }
+        }
+
+        return ParseDraftObject(json); // throws -> Pipeline treats as generation failure
+    }
+
+    private static TailorDraft ParseDraftObject(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+            throw new JsonException("Tailor draft must be a JSON object.");
 
         var resume = GetString(root, "resume");
         var cover = GetString(root, "cover");
@@ -170,6 +189,77 @@ public sealed class GatewayTailorModel : ITailorModel
         if (first >= 0) s = s[(first + 1)..];
         var fence = s.LastIndexOf("```", StringComparison.Ordinal);
         return fence >= 0 ? s[..fence] : s;
+    }
+
+    private static IEnumerable<string> JsonObjectCandidates(string s)
+    {
+        if (s.Length == 0)
+        {
+            yield return s;
+            yield break;
+        }
+
+        if (s[0] == '{')
+            yield return s;
+
+        for (var i = 0; i < s.Length; i++)
+        {
+            if (s[i] != '{') continue;
+            if (TryFindJsonEnd(s, i, out var end))
+                yield return s[i..(end + 1)];
+        }
+    }
+
+    private static bool TryFindJsonEnd(string s, int start, out int end)
+    {
+        var stack = new Stack<char>();
+        var inString = false;
+        var escaped = false;
+        end = -1;
+
+        for (var i = start; i < s.Length; i++)
+        {
+            var ch = s[i];
+            if (inString)
+            {
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+                if (ch == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (ch == '"') inString = false;
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                inString = true;
+                continue;
+            }
+
+            if (ch is '[' or '{')
+            {
+                stack.Push(ch is '[' ? ']' : '}');
+                continue;
+            }
+
+            if (ch is ']' or '}')
+            {
+                if (stack.Count == 0 || stack.Pop() != ch) return false;
+                if (stack.Count == 0)
+                {
+                    end = i;
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static string GetString(JsonElement e, string name) =>

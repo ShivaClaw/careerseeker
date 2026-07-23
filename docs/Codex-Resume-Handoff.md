@@ -1,6 +1,50 @@
 # Codex Resume Handoff
 
-Updated: 2026-07-22
+Updated: 2026-07-23
+
+## 2026-07-23 (Codex external-auditor F1) — provider error redaction + Gemini Tailor parser hardening
+
+Environment note: this Codex environment reports Thursday 2026-07-23 America/Denver; the resume prompt
+and seed are dated Friday 2026-07-24. Dates below use observed local session dates. Never trust a SHA in
+this file — derive with git before acting.
+
+Derived starting state after `git fetch origin --prune`: checkout was clean on `claude/alpha-finish`,
+tracking `origin/claude/alpha-finish`, with head `04d57a2` before this audit work. Open PRs observed with
+`gh pr list --state open`: #1 `agent/repo-cleanup`, #2 `agent/audit-cleanup-h1h2h3`, #3
+`claude/hardening-batch`, #4 `claude/alpha-finish`, #5 `claude/android-apk-build-setup-90d9d5`, #6
+`claude/p1-sync`. No merges were performed.
+
+Baseline evidence before edits:
+- `dotnet build CareerSeeker.sln -c Release --warnaserror` -> 0 warnings, 0 errors.
+- `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` -> `Offline total: 327 passed, 0 failed`.
+
+Triage and fixes:
+- **Provider error-body surfacing (`4c30249`) — confirmed too strong as written, fixed.** Source confirms
+  the app sends provider keys in headers only: Anthropic uses `x-api-key`, Google uses `x-goog-api-key`,
+  and neither request JSON body carries a key. The prior "never contains the API key" claim still relied
+  on providers/proxies never echoing headers in diagnostic response bodies. `ProviderHttpErrors` now
+  redacts the exact key used for the request before truncating and surfacing provider error text. Added
+  GatewayGateHarness coverage for both Anthropic and Google error bodies that deliberately echo the dummy
+  request key; both must keep actionable error text while replacing the dummy key with `[redacted-api-key]`.
+- **Gemini-as-Tailor-fallback `JsonReaderException` — confirmed likely parser asymmetry, fixed offline.**
+  Tailor previously parsed the entire model response after stripping only leading markdown fences, while
+  Researcher already tolerated prose-wrapped balanced JSON. `GatewayTailorModel.ParseDraft` now extracts
+  balanced JSON object candidates from prose/fenced responses, preserves braces inside strings, rejects
+  non-object JSON, and still throws on real parse failure. Added HookHarness coverage for prose-prefixed
+  JSON and citation-bracket text before the JSON object.
+
+Post-fix verification:
+- `dotnet run --project tests\GatewayGateHarness\GatewayGateHarness.csproj -c Release` -> `36 passed, 0 failed`.
+- `dotnet run --project tests\HookHarness\HookHarness.csproj -c Release` -> `16 passed, 0 failed`.
+- `dotnet build CareerSeeker.sln -c Release --warnaserror` -> 0 warnings, 0 errors.
+- `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` -> `Offline total: 331 passed, 0 failed`.
+  Per-harness count is now Slice 28 · Engine 89 · Researcher 55 · Hook 16 · StoreParity 22 · GatewayGate
+  36 · DispatcherNoSend 35 · Lifecycle 44 · Renderer 6. `$ExpectedOfflineTotal` and the count-bearing
+  docs/verifier assertions were bumped in lockstep.
+
+No secrets were printed; only dummy test keys appear in harness fixtures. No live BYOK/Gmail run was
+performed, so the parser fix has offline evidence but not a fresh live Gemini Tailor proof. Gates C1/C2
+remain Brandon-only decisions.
 
 ## 2026-07-22 (Opus session) — publish-to-web roadmap, phases W0–W3 (blocked at W1 on R2)
 
