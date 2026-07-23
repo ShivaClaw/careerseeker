@@ -2,6 +2,30 @@
 
 Updated: 2026-07-23
 
+## 2026-07-23 (Codex readiness recheck) - PR #4 still green
+
+Continuation recheck at local time `2026-07-23 15:06:18 -06:00`. This environment still reports
+Thursday 2026-07-23 America/Denver; the Friday gates remain Brandon-only regardless of the date label.
+
+Fresh derived state after `git fetch origin --prune`:
+- `git rev-parse --short HEAD` -> `95b389a`.
+- `git status -sb` -> clean on `claude/alpha-finish...origin/claude/alpha-finish`.
+- Open PR topology remained #1 `agent/repo-cleanup`, #2 `agent/audit-cleanup-h1h2h3`, #3
+  `claude/hardening-batch`, #4 `claude/alpha-finish`, #5 `claude/android-apk-build-setup-90d9d5`,
+  and #6 `claude/p1-sync`. PR #5 remains chained onto PR #4, and PR #6 remains chained onto PR #5.
+- PR #4 remained an open draft from `claude/alpha-finish` to `agent/repo-cleanup`, merge state `CLEAN`.
+- Latest observed PR #4 check was GitHub Actions run `30044492077`, job `89332202866`,
+  `Build and offline harnesses`, conclusion `SUCCESS`, completed `2026-07-23T21:02:53Z`.
+
+Fresh local evidence on the same head:
+- `dotnet build CareerSeeker.sln -c Release --warnaserror` -> 0 warnings, 0 errors.
+- `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` -> Release build 0 warnings,
+  0 errors; `Offline total: 334 passed, 0 failed`.
+
+No code changes, live provider calls, Gmail actions, package builds, merges, deployments, or secret-value
+prints were performed in this continuation. C1/C2 are still pending Brandon approval. During C1, re-derive
+the current Android branch tips and verify the merged `main` does not contain PR #5/#6 content.
+
 ## 2026-07-23 (Codex external-auditor F1) — provider error redaction + Gemini Tailor parser hardening
 
 Environment note: this Codex environment reports Thursday 2026-07-23 America/Denver; the resume prompt
