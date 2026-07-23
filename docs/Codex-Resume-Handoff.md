@@ -82,6 +82,14 @@ H2-fix evidence:
   `Offline total: 334 passed, 0 failed`.
 - The count-bearing docs, verifier assertions, and `$ExpectedOfflineTotal` moved together from 333 to 334.
 
+GitHub/release closeout:
+- PR #4 remains an open draft targeting `agent/repo-cleanup`; no review submissions or inline review threads
+  were present. Its stale description was replaced with the current 334-test evidence, F1 fixes, residuals,
+  and the explicit no-merge/no-deploy gate language.
+- After a fresh fetch, both current Android branch tips returned exit code 1 from
+  `git merge-base --is-ancestor <tip> HEAD`: neither PR #5 nor PR #6 content is contained in the alpha head.
+  Re-derive those tips and repeat the check against merged `main` during Gate C1.
+
 ## 2026-07-22 (Opus session) — publish-to-web roadmap, phases W0–W3 (blocked at W1 on R2)
 
 Executing the 60-hour alpha publish roadmap (`Alpha-Publish-Roadmap-2026-07-22.md`, Fable 5) toward a
