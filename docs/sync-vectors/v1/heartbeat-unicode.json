@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "heartbeat-unicode",
   "valid": true,
   "notes": "Non-ASCII plaintext. Catches implementations that treat UTF-8 as Latin-1 or mangle surrogate pairs.",

@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "invalid-unknown-key-id",
   "valid": false,
   "notes": "Sealed under a SUPERSEDED key id but with key material that still decrypts. This is the revoked-device case: the tag check cannot see it, so key_id must be checked explicitly against the active pairing BEFORE decryption. A receiver that answers decrypt_failed here is relying on cryptography to enforce revocation, which it does not do.",
