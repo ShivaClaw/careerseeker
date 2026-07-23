@@ -96,6 +96,45 @@ Check("phone pulls exactly one e2p envelope", e2pPulled.Count == 1);
 var e2pResult = ReceiveFrom(e2pPulled[0], _ => paired.KeyEngineToPhone);
 Check("phone decrypts the delta to its plaintext", e2pResult is not null && e2pResult.Contains("drafted"));
 
+// ---- engine -> phone via the shipping SyncPublisher: snapshot + delta ---------------
+//
+// The same builder the engine host uses: seal SyncPayloads with k_e2p and push through the
+// RelayClient. A simulated phone then pulls both, opens them under k_e2p, and reconstructs the
+// dashboard counters -- the P2 §2.2 acceptance, live against the real relay.
+Console.WriteLine("\n[ SyncPublisher snapshot + delta round-trip ]");
+{
+    var liveCounters = new Counters(Discovered: 5, Acted: 2, Drafted: 2, Blocked: 0, Rejected: 1, Errors: 0, Cycles: 3);
+    var liveApps = new[] { new AppSummary("app_live_1", "DRAFTED", "Northwind Labs", "Senior Platform Engineer", 82) };
+    var liveJobs = new[] { new JobSummary("job_live_1", "Northwind Labs", "Senior Platform Engineer", Repost: false, InjectionFlag: false) };
+
+    // key_id must match the phone receiver's active key ("k-live"); startSeq 1 continues the e2p
+    // stream after the hand-built delta above, so the relay's per-direction monotonicity is honored.
+    var publisher = new SyncPublisher(paired.KeyEngineToPhone, pairing, "k-live",
+        (envJson, ct) => client.PushAsync(finalToken, envJson, ct), startSeq: 1);
+
+    Check("publisher pushes a snapshot (seq 2)", await publisher.PublishSnapshotAsync(liveCounters, liveApps, liveJobs));
+    Check("publisher pushes a delta (seq 3)", await publisher.PublishDeltaAsync(2, liveCounters, liveApps, liveJobs));
+
+    var (published, latest) = await client.PullAsync(finalToken, "e2p", 1);
+    Check("phone pulls the two new e2p envelopes", published.Count == 2 && latest == 3);
+
+    var phoneReceiver = new EnvelopeReceiver("k-live");
+    var kinds = new List<string>();
+    Counters? reconstructed = null;
+    foreach (var env in published.OrderBy(e => e.GetProperty("seq").GetInt64()))
+    {
+        var r = phoneReceiver.Receive(ToReceived(env), _ => paired.KeyEngineToPhone);
+        if (!r.Accepted) { kinds.Add($"REJECTED:{r.Error?.ToWire()}"); continue; }
+        kinds.Add(r.Kind!);
+        using var doc = JsonDocument.Parse(r.Plaintext!);
+        if (doc.RootElement.GetProperty("body").TryGetProperty("counters", out var c))
+            reconstructed = JsonSerializer.Deserialize<Counters>(c.GetRawText());
+    }
+    Check("phone opens snapshot then delta in order", kinds.SequenceEqual(new[] { "snapshot", "delta" }));
+    Check("phone reconstructs the dashboard counters from the payload",
+        reconstructed is not null && reconstructed.Drafted == 2 && reconstructed.Cycles == 3 && reconstructed.Discovered == 5);
+}
+
 // ---- phone -> engine: a SIGNED doc_edit --------------------------------------------
 var editPlain = JsonSerializer.SerializeToUtf8Bytes(new { kind = "doc_edit", body = new { app_id = "app_live", doc_kind = "cover_letter", base_rev = 1, new_text = "Live edit." } });
 var p2eEnvelope = SealEnvelope(pairing, "p2e", 1, phoneKeys.KeyPhoneToEngine, editPlain, sig: phoneSigning);
