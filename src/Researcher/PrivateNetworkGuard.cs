@@ -19,6 +19,10 @@ namespace SeekerSvc.Researcher;
 /// </summary>
 public static class PrivateNetworkGuard
 {
+    private static readonly byte[] IetfProtocolAssignments = { 0x20, 0x01, 0x00 };
+    private static readonly byte[] DocumentationV6 = { 0x20, 0x01, 0x0d, 0xb8 };
+    private static readonly byte[] DocumentationV6New = { 0x3f, 0xff, 0x00 };
+
     /// <summary>Resolves a host to its candidate addresses. Injectable so the guard is testable offline.</summary>
     public delegate Task<IPAddress[]> DnsResolver(string host, CancellationToken ct);
 
@@ -45,13 +49,24 @@ public static class PrivateNetworkGuard
                    !(b[0] == 100 && b[1] >= 64 && b[1] <= 127) &&
                    !(b[0] == 169 && b[1] == 254) &&
                    !(b[0] == 172 && b[1] >= 16 && b[1] <= 31) &&
+                   !(b[0] == 192 && b[1] == 0 && b[2] == 0) &&
+                   !(b[0] == 192 && b[1] == 0 && b[2] == 2) &&
+                   !(b[0] == 192 && b[1] == 88 && b[2] == 99) &&
                    !(b[0] == 192 && b[1] == 168) &&
-                   !(b[0] == 198 && b[1] >= 18 && b[1] <= 19);
+                   !(b[0] == 198 && b[1] >= 18 && b[1] <= 19) &&
+                   !(b[0] == 198 && b[1] == 51 && b[2] == 100) &&
+                   !(b[0] == 203 && b[1] == 0 && b[2] == 113);
         }
 
         if (ip.AddressFamily == AddressFamily.InterNetworkV6)
         {
-            return !ip.IsIPv6LinkLocal &&
+            // Globally assigned unicast is 2000::/3. Translation forms handled above are judged by
+            // their embedded IPv4; the exclusions inside /3 are IANA non-global special-purpose blocks.
+            return (b[0] & 0xe0) == 0x20 &&
+                   !InPrefix(b, IetfProtocolAssignments, 23) &&
+                   !InPrefix(b, DocumentationV6, 32) &&
+                   !InPrefix(b, DocumentationV6New, 20) &&
+                   !ip.IsIPv6LinkLocal &&
                    !ip.IsIPv6SiteLocal &&
                    !ip.IsIPv6Multicast &&
                    !IPAddress.IsLoopback(ip) &&
@@ -60,6 +75,18 @@ public static class PrivateNetworkGuard
         }
 
         return false;
+    }
+
+    private static bool InPrefix(byte[] address, byte[] prefix, int prefixLength)
+    {
+        var wholeBytes = prefixLength / 8;
+        for (var i = 0; i < wholeBytes; i++)
+            if (address[i] != prefix[i]) return false;
+
+        var remainingBits = prefixLength % 8;
+        if (remainingBits == 0) return true;
+        var mask = (byte)(0xff << (8 - remainingBits));
+        return (address[wholeBytes] & mask) == (prefix[wholeBytes] & mask);
     }
 
     /// <summary>

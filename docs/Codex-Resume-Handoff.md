@@ -46,6 +46,23 @@ No secrets were printed; only dummy test keys appear in harness fixtures. No liv
 performed, so the parser fix has offline evidence but not a fresh live Gemini Tailor proof. Gates C1/C2
 remain Brandon-only decisions.
 
+Subsequent F1 SSRF scrutiny found and fixed one additional classifier gap. `IsPubliclyRoutable` still
+accepted IANA non-global special-purpose destinations, including RFC 8215's local-use translation prefix
+`64:ff9b:1::/48`, plus IPv4 documentation/protocol-assignment ranges. The guard now admits globally
+assigned IPv6 unicast (with the already-audited public NAT64/6to4 handling) and rejects the non-global
+IANA ranges covered by new tests. Primary references:
+`https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml`,
+`https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml`, and
+`https://www.rfc-editor.org/info/rfc8215`.
+
+SSRF-fix evidence:
+- `dotnet run --project tests\ResearcherHarness\ResearcherHarness.csproj -c Release` -> `57 passed, 0 failed`.
+- `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` -> Release build 0 warnings, 0 errors;
+  `Offline total: 333 passed, 0 failed`.
+- The count-bearing docs, verifier assertions, and `$ExpectedOfflineTotal` moved together from 331 to 333.
+- The configured-system-proxy (`SocketsHttpHandler.UseProxy`) residual remains accepted and unchanged; changing
+  proxy policy is a Brandon product decision.
+
 ## 2026-07-22 (Opus session) — publish-to-web roadmap, phases W0–W3 (blocked at W1 on R2)
 
 Executing the 60-hour alpha publish roadmap (`Alpha-Publish-Roadmap-2026-07-22.md`, Fable 5) toward a

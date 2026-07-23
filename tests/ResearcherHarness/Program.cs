@@ -89,8 +89,14 @@ Console.WriteLine("\n[ SSRF guard ]");
     Check("private/loopback/CGNAT/benchmark IPv4 rejected",
         new[] { "10.0.0.1", "172.16.5.5", "192.168.1.1", "127.0.0.1", "100.64.0.1", "198.18.0.1", "0.0.0.0", "224.0.0.1" }
             .All(s => !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse(s))));
+    Check("IANA non-global IPv4 special-purpose ranges rejected",
+        new[] { "192.0.0.8", "192.0.2.1", "192.88.99.2", "198.51.100.1", "203.0.113.1" }
+            .All(s => !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse(s))));
     Check("loopback/link-local/ULA IPv6 rejected",
         new[] { "::1", "fe80::1", "fc00::1" }.All(s => !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse(s))));
+    Check("IANA non-global IPv6 special-purpose ranges rejected",
+        new[] { "64:ff9b:1::1", "100::1", "2001:2::1", "2001:db8::1", "3fff::1", "5f00::1" }
+            .All(s => !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse(s))));
     Check("IPv4-mapped private IPv6 rejected", !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.Parse("::ffff:10.0.0.1")));
     Check("IPv6 unspecified address (::) is not routable (A1)", !PrivateNetworkGuard.IsPubliclyRoutable(IPAddress.IPv6Any));
     // v6 forms that embed/route to a private v4 must be classified by that v4, not waved through as v6:
