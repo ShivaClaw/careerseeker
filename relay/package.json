@@ -1,0 +1,20 @@
+{
+  "name": "careerseeker-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Blind end-to-end-encrypted relay between the CareerSeeker engine and the Android dashboard. Stores ciphertext, never keys.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "wrangler types && tsc --noEmit",
+    "dry-run": "wrangler deploy --dry-run",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.7",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.113.0"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "careerseeker-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-22",
+
+  // The relay is reachable at exactly one hostname (gate P1-DOMAIN, 2026-07-23).
+  //
+  // workers_dev is disabled deliberately, not left at its default. Two live hostnames
+  // would mean two ways in, and the *.workers.dev one would sit outside the certificate
+  // pin set the app ships in P2 -- an unpinned bypass of the pinned path. It also keeps
+  // the relay off a domain that corporate networks blanket-block, which would otherwise
+  // surface as "relay unreachable" bugs that are really firewall rules.
+  "workers_dev": false,
+  "routes": [{ "pattern": "relay.careerseeker.app", "custom_domain": true }],
+
+  // One Durable Object per pairing. The DO is the only stateful component, and it
+  // holds ciphertext blobs and header metadata -- never keys, never plaintext.
+  //
+  // Uses the declarative `exports` form rather than the legacy `migrations` array:
+  // this is a new class, so there is no migration history to preserve.
+  "exports": {
+    "PairingChannel": { "type": "durable-object", "storage": "sqlite" }
+  },
+
+  "durable_objects": {
+    "bindings": [{ "name": "PAIRING", "class_name": "PairingChannel" }]
+  },
+
+  // Deliberately absent, and each absence is load-bearing:
+  //   - no KV / D1 / R2      the relay has nothing durable to keep outside the DO
+  //   - no secrets           it holds no key material of any kind
+  //   - no analytics engine  "nothing that watches you" applies to our own infra too
+  //   - no logpush of bodies envelope bodies must never be logged
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "invalid-version",
+  "valid": false,
+  "notes": "v=2. Must be rejected WITHOUT attempting decryption.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=2|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=9|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "6j3PjlgmWHOk8CXS",
+  "plaintext_json": {
+    "kind": "delta",
+    "body": {
+      "since_seq": 48210,
+      "applications": [
+        {
+          "id": "app_01H8XK",
+          "state": "READY",
+          "company": "Northwind Labs",
+          "title": "Senior Platform Engineer",
+          "score": 82
+        }
+      ],
+      "counters": {
+        "discovered": 3,
+        "drafted": 1,
+        "blocked": 0
+      }
+    }
+  },
+  "ciphertext_b64u": "0NU32F9MCV23vVGEklsDxcCvjyu6p0dqFKb1507EtPARxzSJxrFYkYTj4ODOY6Ve47-2WWsvkfH28gO0cTH7C90fWOpXPMVYdj55EJJmY0NKzXOqYdENx4G_pNjxAyXT7nBCDFIylSfRpP-_bsVzPuX5UGfuIjDTZAtx5R0yPxSPgwr0Insmi5EZagKZVV4ozqDklEZyGMQJE_AwelH2u1DnYPfma-3Ufy08BiuAQ0BxwhQZXWcp2_oiI1ymjS87LAouEh1vntp-wWtY55N_G0CmlBDAGRfdi3COXaeEHAoD7lX03mX0JBslb_vs",
+  "envelope_json": {
+    "v": 2,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 9,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "6j3PjlgmWHOk8CXS",
+    "ciphertext": "0NU32F9MCV23vVGEklsDxcCvjyu6p0dqFKb1507EtPARxzSJxrFYkYTj4ODOY6Ve47-2WWsvkfH28gO0cTH7C90fWOpXPMVYdj55EJJmY0NKzXOqYdENx4G_pNjxAyXT7nBCDFIylSfRpP-_bsVzPuX5UGfuIjDTZAtx5R0yPxSPgwr0Insmi5EZagKZVV4ozqDklEZyGMQJE_AwelH2u1DnYPfma-3Ufy08BiuAQ0BxwhQZXWcp2_oiI1ymjS87LAouEh1vntp-wWtY55N_G0CmlBDAGRfdi3COXaeEHAoD7lX03mX0JBslb_vs"
+  },
+  "expect_error": "version_unsupported"
+}

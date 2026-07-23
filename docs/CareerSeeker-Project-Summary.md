@@ -374,7 +374,7 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 327 passed, 0 failed.
+Total: 366 passed, 0 failed.
 
 | Harness                   | Result              |
 | ------------------------- | ------------------- |
@@ -387,6 +387,7 @@ Total: 327 passed, 0 failed.
 | `DispatcherNoSendHarness` | 35 passed, 0 failed |
 | `LifecycleHarness`        | 44 passed, 0 failed |
 | `RendererHarness`         | 6 passed, 0 failed  |
+| `SyncHarness`             | 39 passed, 0 failed |
 
 Live Scout harness, 2026-07-20:
 

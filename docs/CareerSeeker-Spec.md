@@ -386,17 +386,28 @@ config(key, value)                                      -- rails, autonomy level
 ```
 
 ### 7.2 Sync envelope (engine ⇄ relay ⇄ apk)
+
+> **Amended 2026-07-22 — [`docs/Sync-Protocol.md`](Sync-Protocol.md) is now normative for the wire format.**
+> This section is kept for context; where the two disagree, `Sync-Protocol.md` wins. Three changes:
+> **(1)** the cipher is **AES-256-GCM**, not XChaCha20-Poly1305 (Gate P0-CIPHER — .NET implements
+> AES-GCM natively and XChaCha20 not at all, so honoring the original text meant adding a
+> third-party crypto library to the engine's security-critical path); **(2)** the envelope gains a
+> required `pairing` field and `device` becomes `dir` (`e2p`/`p2e`); **(3)** the event kinds below
+> are **reserved for L2 and rejected by a v1 receiver** — v1 ships the payload kinds in
+> `Sync-Protocol.md` §4.3.
+
 ```json
 { "v": 1,
-  "device": "engine|phone",
+  "pairing": "p_7Fq2mXk9LtVbN3wR",
+  "dir": "e2p|p2e",
   "seq": 48211,
   "ts": "2026-06-11T14:02:11Z",
   "key_id": "k-2026-06-01",
   "nonce": "…",
-  "ciphertext": "…"            // XChaCha20-Poly1305( event JSON ), keys from QR pairing
+  "ciphertext": "…"            // AES-256-GCM( payload JSON ), keys from QR pairing
 }
 ```
-The relay sees sender, sequence, size, timing — never content. Event kinds inside the ciphertext: `state_change, gate_request, gate_resolve, heartbeat, metric, lesson_proposal, kill, config_change`. Gate resolutions are signed by the phone's device key so the engine can prove "a paired device approved this" in the audit log.
+The relay sees sender, sequence, size, timing — never content. Event kinds reserved for a future L2, and rejected in v1: `state_change, gate_request, gate_resolve, metric, lesson_proposal, kill, config_change`. Phone-originated state changes are signed by the phone's device key (Ed25519, Android Keystore) so the engine can prove "a paired device did this" in the audit log.
 
 ### 7.3 Local API (engine, 127.0.0.1:7777)
 ```

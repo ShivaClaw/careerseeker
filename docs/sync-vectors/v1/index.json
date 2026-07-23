@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "spec": "docs/Sync-Protocol.md",
+  "generator": "docs/sync-vectors/generate.mjs",
+  "cipher": "AES-256-GCM",
+  "max_envelope_bytes": 1048576,
+  "active_key_id": "k-2026-06-01",
+  "warning": "Published test keys and fixed nonces. Never use in a build.",
+  "vectors": [
+    {
+      "name": "delta-basic",
+      "valid": true,
+      "expect_error": null
+    },
+    {
+      "name": "doc-draft-email",
+      "valid": true,
+      "expect_error": null
+    },
+    {
+      "name": "doc-edit-signed",
+      "valid": true,
+      "expect_error": null
+    },
+    {
+      "name": "heartbeat-unicode",
+      "valid": true,
+      "expect_error": null
+    },
+    {
+      "name": "empty-body",
+      "valid": true,
+      "expect_error": null
+    },
+    {
+      "name": "invalid-seq-regression",
+      "valid": false,
+      "expect_error": "replay_rejected"
+    },
+    {
+      "name": "invalid-truncated-tag",
+      "valid": false,
+      "expect_error": "decrypt_failed"
+    },
+    {
+      "name": "invalid-aad-tampered-seq",
+      "valid": false,
+      "expect_error": "decrypt_failed"
+    },
+    {
+      "name": "invalid-unknown-key-id",
+      "valid": false,
+      "expect_error": "key_unknown"
+    },
+    {
+      "name": "invalid-unknown-kind",
+      "valid": false,
+      "expect_error": "unknown_kind"
+    },
+    {
+      "name": "invalid-reserved-kind-l2",
+      "valid": false,
+      "expect_error": "unknown_kind"
+    },
+    {
+      "name": "invalid-version",
+      "valid": false,
+      "expect_error": "version_unsupported"
+    },
+    {
+      "name": "invalid-padded-base64",
+      "valid": false,
+      "expect_error": "decrypt_failed"
+    },
+    {
+      "name": "invalid-oversized",
+      "valid": false,
+      "expect_error": "too_large"
+    }
+  ]
+}

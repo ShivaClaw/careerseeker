@@ -1,0 +1,40 @@
+{
+  "name": "invalid-seq-regression",
+  "valid": false,
+  "notes": "seq 1 arriving after seq 4 was accepted. Must be rejected on the header, BEFORE any decryption attempt. Consume this vector after delta-basic..empty-body.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=1|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "Z2Kf3LOnTK9UEd-N",
+  "plaintext_json": {
+    "kind": "delta",
+    "body": {
+      "since_seq": 48210,
+      "applications": [
+        {
+          "id": "app_01H8XK",
+          "state": "READY",
+          "company": "Northwind Labs",
+          "title": "Senior Platform Engineer",
+          "score": 82
+        }
+      ],
+      "counters": {
+        "discovered": 3,
+        "drafted": 1,
+        "blocked": 0
+      }
+    }
+  },
+  "ciphertext_b64u": "04vL60-zyi7atsI1M0wZKQXBKf9gKrnm5OGeyD9BBaoiLpfdl2XawewYY_iA96HC9IK8qDMUGhLx70lgaumNC1K19V3CCRt-uK_h4ttVngCcJWE2Ofq8OcSgosojKIbmdiRrv9q7H2UEV86q0LxvhPex2Ps83U1f7yvXk4tl20JFRKrS-cyV5zC2T_qrlhsejZTXYZrKSW9ggmMmch0l9ZU4L3gECajMuNKG49RM3zArDdL8xOaFBj36UQmV-qdpPvM2xLSKKuCyIt3YKIjrgd3LcGSHTUZL_upD6hheH4WfKtZScEH9qPfWfucJ",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 1,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "Z2Kf3LOnTK9UEd-N",
+    "ciphertext": "04vL60-zyi7atsI1M0wZKQXBKf9gKrnm5OGeyD9BBaoiLpfdl2XawewYY_iA96HC9IK8qDMUGhLx70lgaumNC1K19V3CCRt-uK_h4ttVngCcJWE2Ofq8OcSgosojKIbmdiRrv9q7H2UEV86q0LxvhPex2Ps83U1f7yvXk4tl20JFRKrS-cyV5zC2T_qrlhsejZTXYZrKSW9ggmMmch0l9ZU4L3gECajMuNKG49RM3zArDdL8xOaFBj36UQmV-qdpPvM2xLSKKuCyIt3YKIjrgd3LcGSHTUZL_upD6hheH4WfKtZScEH9qPfWfucJ"
+  },
+  "expect_error": "replay_rejected"
+}
