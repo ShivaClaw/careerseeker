@@ -2,6 +2,29 @@
 
 Updated: 2026-07-23
 
+## 2026-07-23 (Codex package preflight) - tester ZIP path re-verified
+
+Continuation preflight at local time `2026-07-23 15:11:37 -06:00`, still before Brandon-only C1/C2
+approval. Fresh derived state before the run: `git rev-parse --short HEAD` -> `5f187c1`, with
+`git status -sb` clean on `claude/alpha-finish...origin/claude/alpha-finish`; PR #4 remained draft/clean
+from `claude/alpha-finish` to `agent/repo-cleanup`.
+
+Fresh offline package evidence:
+- `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage`
+  completed successfully.
+- Default offline verifier inside that run: `Offline total: 334 passed, 0 failed`.
+- Win-x64 single-file publish completed.
+- Published executable demo smoke completed with final counters `errors: 0`.
+- Trusted-tester ZIP built at `output\release\CareerSeeker-alpha-win-x64.zip`, `31,020,857` bytes.
+- ZIP SHA-256: `34B8200018C9371BC85D3ECD1CBEF2369EA31CAF543A17CDDC3C67A88073786B`.
+- Package self-check reported `manifest: ok`, `checksums: 46 verified`, and `dashboard smoke: passed`.
+- Packaged helper smokes exercised readiness, scheduled-task dry run, safe demo evidence, Scout dry run,
+  research preview, selected-job preview, live-L1 dry run, audit export, BYOK clear, Gmail disconnect,
+  evidence package export, and evidence package import.
+
+No live provider calls, real Gmail draft, merge, deploy, or secret-value prints were performed. The package
+artifact is local release evidence only until Brandon approves C1/C2 and the production download is exposed.
+
 ## 2026-07-23 (Codex readiness recheck) - PR #4 still green
 
 Continuation recheck at local time `2026-07-23 15:06:18 -06:00`. This environment still reports
