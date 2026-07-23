@@ -240,12 +240,33 @@ already link a Google account for Gmail. Recorded pros/cons for when this is pic
   against. **Do not change routing before Friday** — it would invalidate the Gate B evidence above and
   reopen the audited diff.
 
-**Not yet done:** W4.3 — one real self-addressed Gmail draft via the packaged LIVE path, using the new
-test account `careerseeker.test.brandon@gmail.com` (already added as a test user on the OAuth consent
-screen). Run it from a **freshly extracted ZIP**, not the repo root: the repo root's
-`.appdata/oauth/gmail-token.dpapi` holds Brandon's real-account token, and `Connect-CareerSeeker-Gmail.cmd`
-writes to that path — connecting the test account there would overwrite the dev vault. Then F1 audit
-support and F2 merge/build/publish (Friday). Gates C1/C2 remain Brandon's.
+**W4.3 complete (2026-07-23, ~10:41 local) — Gate B is fully closed and all W-phases are done.**
+Brandon ran the packaged LIVE path from a fresh extraction (`Desktop\dryrun`) of the F2-consolidated
+ZIP, connected to the dedicated test account `careerseeker.test.brandon@gmail.com`. Evidence, from two
+independent sources that agree to the minute:
+- **Gmail:** a new draft at 10:41 AM — subject "Application for Senior Software Engineer at CareerSeeker
+  Alpha", **self-addressed to the test account**, ATS resume **PDF attached** — distinct in subject and
+  time from every pre-hardening draft (Jul 8–19). **Sent remained empty.**
+- **The extraction's own audit chain:** 10 events at 2026-07-23T16:41:42–45Z (= 10:41 local) for
+  application/1 — six `state_change`, two `effect_attempt`, one `artifacts_saved` — with the hash chain
+  intact at the tail.
+
+Two traps hit on the way, both worth folding into tester docs later:
+1. A fresh extraction's `secrets\env.secrets` is an empty template; the live path fails with
+   "BYOK mode could not find provider keys" until the tester fills it (or runs
+   `Connect-CareerSeeker-Providers.cmd`). The error message itself was clear — it named every location
+   it checked and the exact variables expected.
+2. **Opening an old Gmail draft resaves it**, bumping its date to today and floating it to the top —
+   which looks exactly like a new draft. The repo-root audit chain (flat since Jul 19, count matching
+   the Gate B dashboard's 72) is what proved the first "new" draft was a re-dated old one. Verify
+   drafts by audit-chain timestamp, not by Gmail's date column.
+
+Also of standing value: the test account's Drafts hold ~16 drafts accumulated across Jul 8–23 with
+**zero messages ever in Sent** — a two-week cumulative demonstration of the draft-only invariant.
+
+**Remaining:** F1 audit support and F2 merge/build/publish (Friday 2026-07-24). Gates C1/C2 remain
+Brandon's. The Friday runbook deltas earlier in this section still apply (dated filename, `--remote`
+on KV, bucket named `careerseeker`).
 
 **Seven untracked planning docs appeared in `docs/` and were removed — resolved.** At 11:27 local on
 2026-07-22 these landed in `docs/` (all created in the same second, contents dating back to June):
