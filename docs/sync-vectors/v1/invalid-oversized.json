@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "invalid-oversized",
   "valid": false,
   "notes": "Envelope exceeds the 1048576-byte limit. Rejected on size before any crypto. ciphertext_b64u is given as a repeat count rather than inline so this file stays readable; consumers synthesize it as \"A\" repeated synth_ciphertext_len times.",

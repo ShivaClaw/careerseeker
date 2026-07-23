@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "invalid-truncated-tag",
   "valid": false,
   "notes": "Last 4 bytes of the 16-byte GCM tag removed. Must fail authentication, not throw a parse error.",

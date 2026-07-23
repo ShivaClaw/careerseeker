@@ -25,6 +25,9 @@ export const MAX_TTL_SECONDS = 30 * 24 * 60 * 60;
 /** Default retention. Shorter than the ceiling on purpose: keep less, for less time. */
 export const DEFAULT_TTL_SECONDS = 7 * 24 * 60 * 60;
 
+/** Envelopes per pull page. Clients loop until `latest` is reached. */
+export const PULL_PAGE_SIZE = 100;
+
 export type Direction = 'e2p' | 'p2e';
 
 export const DIRECTIONS: readonly Direction[] = ['e2p', 'p2e'];

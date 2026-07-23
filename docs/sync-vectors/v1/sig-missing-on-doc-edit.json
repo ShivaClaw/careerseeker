@@ -1,0 +1,30 @@
+{
+  "type": "envelope",
+  "name": "sig-missing-on-doc-edit",
+  "valid": false,
+  "notes": "State-changing p2e kind with no sig field at all. Rejected after decryption reveals the kind.",
+  "key_hex": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=p2e|seq=5|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "DcaHDP5igpnDakw3",
+  "plaintext_json": {
+    "kind": "doc_edit",
+    "body": {
+      "app_id": "app_01H8XK",
+      "doc_kind": "cover_letter",
+      "base_rev": 4,
+      "new_text": "Revised opening paragraph."
+    }
+  },
+  "ciphertext_b64u": "RVq6BNVEHUCfJLJVPdTOLKXY4Lh6Q9jyhZOxodcfjE9F6QZXHLnVIsjpO79ZNhzhDB_6fGhzZ5hoGVZviHe5NCJDXm8kMc4MFCJNft1BBcSNcibwPNeFCbxm1LVgXhrfZJSLR-SgoVpoG7oJyroYs1ba3ntszSMHHIWaEWSrXoP54eFQulL5bbxgO6LTR_K59g",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "p2e",
+    "seq": 5,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "DcaHDP5igpnDakw3",
+    "ciphertext": "RVq6BNVEHUCfJLJVPdTOLKXY4Lh6Q9jyhZOxodcfjE9F6QZXHLnVIsjpO79ZNhzhDB_6fGhzZ5hoGVZviHe5NCJDXm8kMc4MFCJNft1BBcSNcibwPNeFCbxm1LVgXhrfZJSLR-SgoVpoG7oJyroYs1ba3ntszSMHHIWaEWSrXoP54eFQulL5bbxgO6LTR_K59g"
+  },
+  "expect_error": "bad_signature"
+}

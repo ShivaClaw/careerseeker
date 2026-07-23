@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "empty-body",
   "valid": true,
   "notes": "Empty object body. AES-GCM over a short plaintext still produces a full 16-byte tag.",

@@ -1,0 +1,42 @@
+{
+  "type": "envelope",
+  "name": "sig-on-e2p",
+  "valid": false,
+  "notes": "An e2p envelope must never carry sig; the engine has no device key. Field injected post-seal.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=10|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "P9SOav0tvhJ08WIc",
+  "plaintext_json": {
+    "kind": "delta",
+    "body": {
+      "since_seq": 48210,
+      "applications": [
+        {
+          "id": "app_01H8XK",
+          "state": "READY",
+          "company": "Northwind Labs",
+          "title": "Senior Platform Engineer",
+          "score": 82
+        }
+      ],
+      "counters": {
+        "discovered": 3,
+        "drafted": 1,
+        "blocked": 0
+      }
+    }
+  },
+  "ciphertext_b64u": "YlJ_2_30TiReU098BTGRFJu6yff6CYkOpT0MTLMN1ipKi93oCf0UrS_8a20-zmPAhiiULSarrx_cTqj8d-xb6L8GUQdK0IUcxi_V6b9OZZyCabzNO9oq35FzcViTajNOSZulOu_lxabCD8950qG_H3Ll8KMSKkrfPMAwrL5JYE3p9M05eR4H2USYErLJRq6IEAIliDgYz3iXCk8WqMCchMmbhwh6YTC_LvKKZgcv04XAae6uE-zPRDgRXHrXjxxrp6Z80eN3Argm3C6JPifjE-yxUkF0kqxJDdtPRJUTh9A5_NlLvAM1JazGk7ZV",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 10,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "P9SOav0tvhJ08WIc",
+    "ciphertext": "YlJ_2_30TiReU098BTGRFJu6yff6CYkOpT0MTLMN1ipKi93oCf0UrS_8a20-zmPAhiiULSarrx_cTqj8d-xb6L8GUQdK0IUcxi_V6b9OZZyCabzNO9oq35FzcViTajNOSZulOu_lxabCD8950qG_H3Ll8KMSKkrfPMAwrL5JYE3p9M05eR4H2USYErLJRq6IEAIliDgYz3iXCk8WqMCchMmbhwh6YTC_LvKKZgcv04XAae6uE-zPRDgRXHrXjxxrp6Z80eN3Argm3C6JPifjE-yxUkF0kqxJDdtPRJUTh9A5_NlLvAM1JazGk7ZV",
+    "sig": "AAAA"
+  },
+  "expect_error": "bad_signature"
+}
