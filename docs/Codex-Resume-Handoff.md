@@ -2,6 +2,45 @@
 
 Updated: 2026-07-23
 
+## 2026-07-23 (Codex C1 containment preflight) - Android still excluded
+
+Continuation preflight at local time `2026-07-23 15:16:39 -06:00`. No merge or deployment was performed.
+Fresh derived state after `git fetch origin --prune`: `HEAD` on `claude/alpha-finish` was `7b9736c`,
+with `git status -sb` clean on `claude/alpha-finish...origin/claude/alpha-finish`.
+
+Open PR topology remained:
+- #1 `agent/repo-cleanup` -> `main`, draft/clean.
+- #2 `agent/audit-cleanup-h1h2h3` -> `agent/repo-cleanup`, draft/clean.
+- #3 `claude/hardening-batch` -> `agent/audit-cleanup-h1h2h3`, draft/clean.
+- #4 `claude/alpha-finish` -> `agent/repo-cleanup`, draft/clean.
+- #5 `claude/android-apk-build-setup-90d9d5` -> `claude/alpha-finish`, draft/unknown.
+- #6 `claude/p1-sync` -> `claude/android-apk-build-setup-90d9d5`, draft/clean.
+
+Current branch tips derived during this check:
+- Alpha head: `7b9736c`.
+- PR #4 base `origin/agent/repo-cleanup`: `81d232c`.
+- `origin/main`: `3fa65f5`.
+- Android P0 tip `origin/claude/android-apk-build-setup-90d9d5`: `940c4e1`.
+- Android P1 tip `origin/claude/p1-sync`: `6c46545`.
+- Additional non-PR remote `origin/claude/p2-publisher`: `74dd862`; it contains P0/P1 and is also out of
+  alpha/main.
+
+Containment evidence:
+- PR #4 currently has `25` commits over `origin/agent/repo-cleanup`.
+- `origin/agent/repo-cleanup`, `origin/agent/audit-cleanup-h1h2h3`, and `origin/claude/hardening-batch`
+  all returned exit code `0` from `git merge-base --is-ancestor <branch> HEAD`, confirming those intended
+  audit branches are contained in alpha.
+- Android/P2 tips returned exit code `1` from `git merge-base --is-ancestor <tip> HEAD`, confirming none is
+  contained in alpha.
+- The same Android/P2 tips returned exit code `1` from `git merge-base --is-ancestor <tip> origin/main`,
+  confirming none is in current `main`.
+- Android branches fork from alpha at `dca6eb5`; alpha is now `12` commits past that fork, while Android P0
+  is `3` commits down its own branch.
+
+C1 reminder: re-derive all branch tips again immediately before Brandon's merge approval. After PR #4's
+content is brought into `main`, repeat the Android/P2 `merge-base --is-ancestor <tip> main` checks and
+expect exit code `1` for each excluded branch tip.
+
 ## 2026-07-23 (Codex package preflight) - tester ZIP path re-verified
 
 Continuation preflight at local time `2026-07-23 15:11:37 -06:00`, still before Brandon-only C1/C2
