@@ -11,6 +11,7 @@ token*.json
 .appdata/
 .dotnet/
 .nuget/
+.wrangler/
 desktop.ini
 output/
 tmp/

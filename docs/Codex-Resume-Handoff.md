@@ -2,6 +2,48 @@
 
 Updated: 2026-07-23
 
+## 2026-07-23 (Codex C2 preflight) - live readiness and cache trap
+
+Continuation preflight at local time `2026-07-23 15:25:55 -06:00`. No merge, deployment, R2 upload,
+KV write, beta-code issue, live provider call, or Gmail draft was performed.
+
+Fresh derived state at start: `HEAD` on `claude/alpha-finish` was `b1b4fc4`, with `git status -sb`
+clean on `claude/alpha-finish...origin/claude/alpha-finish`; PR #4 remained draft/clean with latest
+GitHub Actions success from run `30045604897`.
+
+Readiness evidence:
+- `powershell -ExecutionPolicy Bypass -File scripts\Check-AlphaLiveReadiness.ps1 -RequireGmail -RequireByok`
+  passed. Startup doctor reported SQLite/audit ok, artifacts writable, Gmail OAuth client JSON parsed,
+  Gmail token vault present, BYOK providers `anthropic, google`, and Brave Search configured via
+  `BRAVE_SEARCH_API`. Secret values were not printed.
+- Public `https://careerseeker.app/download/` returned 200 and still advertises the old undated ZIP:
+  first SHA on the page was `D8F4916F949E225E87B3FB4B8D09A6FEF50DC7F2B68E0E19ED0BDC1CB981C7C7`,
+  with `CareerSeeker-alpha-win-x64.zip` as the ZIP reference.
+- Public HEAD for `/releases/CareerSeeker-alpha-win-x64.zip` returned 200 with length `31,018,621` and
+  `Cache-Control: public, max-age=14400`.
+- Public HEAD for `/releases/CareerSeeker-alpha-win-x64-2026-07-24.zip` returned 404, as expected before
+  Friday C2 upload/deploy.
+- Public release path probes for encoded traversal, nested path, `.env`, and `.bak` names returned 404.
+- Bad-code `POST /api/verify` returned 403; no valid beta code was used.
+- `wrangler --version` reported `4.112.0`; `wrangler whoami` succeeded with the stored OAuth profile;
+  `wrangler r2 bucket list` showed bucket `careerseeker`. The attempted `wrangler r2 object list`
+  command is not valid in Wrangler 4.112.0 under `r2 object` and should not be used as a C2 proof.
+
+Confirmed local packaging trap and fix:
+- The first current-head `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` attempt failed because
+  Wrangler created an untracked repo-local `.wrangler/cache/wrangler-account.json`, and the release manifest
+  correctly refused a dirty working tree.
+- `.wrangler/` is now ignored in `.gitignore` so read-only Wrangler probes from the repo root do not poison
+  release packaging.
+- After removing the generated cache file, `git status -sb` was clean and the current-head package rerun
+  passed through publish/package/self-check/helper smokes. The local ZIP produced before this docs commit had
+  manifest source commit `b1b4fc4`, `dirty: false`, size `31,020,876`, and SHA-256
+  `DE617F1B389AD17F8FC262496B67B72FA8696AE1A9CDFA066626FEF20EBEB58B`.
+
+C2 reminder: because `RELEASE-MANIFEST.json` pins the exact source commit, rebuild the final ZIP after every
+commit and again after Brandon's C1 merge to `main`. Do not upload a ZIP whose manifest source commit differs
+from the merged `main` head.
+
 ## 2026-07-23 (Codex C1 containment preflight) - Android still excluded
 
 Continuation preflight at local time `2026-07-23 15:16:39 -06:00`. No merge or deployment was performed.
