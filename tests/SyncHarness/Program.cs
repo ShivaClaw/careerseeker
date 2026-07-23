@@ -228,6 +228,63 @@ Check("rejections never advanced the sequence tracker",
     receiver.HighestAccepted("e2p") == 4 && receiver.HighestAccepted("p2e") == 1,
     $"e2p={receiver.HighestAccepted("e2p")} p2e={receiver.HighestAccepted("p2e")}");
 
+// ---------------------------------------------------------------- pairing manager
+//
+// Drives the engine's PairingManager through a full handshake using the pairing-basic
+// vector's fixed keys, so the manager's orchestration (invite, provisional token,
+// completion verification, secret burn) is checked against the same derivations the
+// cross-repo vectors pin.
+
+Console.WriteLine("\n[ engine PairingManager completes the handshake ]");
+
+{
+    var engineD = (string)pairingBasic["engine"]!["d_hex"]!;
+    using var fixedEngineKey = ImportEcdh(engineD, (string)pairingBasic["engine"]!["pub_b64u"]!);
+    var pairingId = (string)index["pairing_id"]!;
+    using var mgr = new PairingManager("https://relay.careerseeker.app",
+        engineKey: fixedEngineKey, oneTimeSecret: secret, pairingId: pairingId);
+
+    var invite = mgr.CreateInvite();
+    Check("invite carries the suite and engine pubkey",
+        invite.Suite == Protocol.Suite && invite.EnginePub == (string)pairingBasic["engine"]!["pub_b64u"]!);
+    Check("provisional token matches the derived value",
+        mgr.ProvisionalRelayToken() == (string)expected["provisional_token_b64u"]!);
+
+    // The phone's completion, reconstructed from the vector.
+    var completionJson = JsonSerializer.Serialize(new
+    {
+        suite = Protocol.Suite,
+        phone_pub = (string)pairingBasic["phone"]!["pub_b64u"]!,
+        nonce = (string)completion["nonce_b64u"]!,
+        ciphertext = (string)completion["ciphertext_b64u"]!,
+    });
+
+    var paired = mgr.CompletePairing(completionJson, out var err);
+    Check("completion succeeds", paired is not null, err);
+    Check("paired confirm code matches the vector", paired?.ConfirmCode == (string)expected["confirm"]!);
+    Check("paired relay token matches the vector", paired?.RelayToken == (string)expected["relay_token_b64u"]!);
+    Check("paired device key equals the one inside the completion",
+        paired is not null && Base64Url.Encode(paired.DeviceSigPub) == (string)pairingBasic["device_sig"]!["pub_b64u"]!);
+
+    // Single-use secret: a second completion, even the same valid one, is refused.
+    var replay = mgr.CompletePairing(completionJson, out var replayErr);
+    Check("secret is single-use (second completion refused)", replay is null, replayErr);
+
+    // A key-swapped completion (the MITM vector) does not decrypt.
+    var mitmJson = JsonSerializer.Serialize(new
+    {
+        suite = Protocol.Suite,
+        phone_pub = (string)mitm["phone"]!["pub_b64u"]!,
+        nonce = (string)mitm["completion"]!["nonce_b64u"]!,
+        ciphertext = (string)mitm["completion"]!["ciphertext_b64u"]!,
+    });
+    using var mgr2 = new PairingManager("https://relay.careerseeker.app",
+        engineKey: ImportEcdh(engineD, (string)pairingBasic["engine"]!["pub_b64u"]!),
+        oneTimeSecret: secret, pairingId: pairingId);
+    var mitmResult = mgr2.CompletePairing(mitmJson, out _);
+    Check("PairingManager rejects a key-swapped completion", mitmResult is null);
+}
+
 // ---------------------------------------------------------------- protocol rules
 
 Console.WriteLine("\n[ protocol rules independent of any single vector ]");
