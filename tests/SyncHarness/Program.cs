@@ -285,6 +285,46 @@ Console.WriteLine("\n[ engine PairingManager completes the handshake ]");
     Check("PairingManager rejects a key-swapped completion", mitmResult is null);
 }
 
+// ---------------------------------------------------------------- P2 publisher payloads
+//
+// The engine->phone snapshot/delta/heartbeat builders (SyncPayloads) seal through the
+// codec, decode back to their kind, pass the receiver, and -- the load-bearing check --
+// carry only structured dashboard fields, never a raw posting body (the untrusted-text
+// invariant). Sealed with the pairing-basic k_e2p so it rides the same proven key.
+
+Console.WriteLine("\n[ P2 snapshot/delta/heartbeat payloads ]");
+
+{
+    var kE2p = Convert.FromHexString((string)expected["k_e2p_hex"]!);
+    var counters = new Counters(Discovered: 3, Acted: 1, Drafted: 1, Blocked: 0, Rejected: 1, Errors: 0, Cycles: 7);
+    var apps = new[] { new AppSummary("app_01H8XK", "READY", "Northwind Labs", "Senior Platform Engineer", 82) };
+    var jobs = new[] { new JobSummary("job_1", "Northwind Labs", "Senior Platform Engineer", Repost: false, InjectionFlag: false) };
+
+    string SealAndKind(byte[] plaintext, long seq)
+    {
+        var header = new EnvelopeHeader(1, (string)index["pairing_id"]!, "e2p", seq, "2026-07-23T12:00:00Z", activeKeyId);
+        var nonce = System.Security.Cryptography.RandomNumberGenerator.GetBytes(12);
+        var ct = EnvelopeCodec.Seal(kE2p, nonce, header.Aad(), plaintext);
+        var env = new ReceivedEnvelope(1, header.Pairing, "e2p", seq, header.Ts, activeKeyId,
+            Base64Url.Encode(nonce), Base64Url.Encode(ct), null);
+        var r = new EnvelopeReceiver(activeKeyId).Receive(env, _ => kE2p);
+        return r.Accepted ? r.Kind! : $"REJECTED:{r.Error?.ToWire()}";
+    }
+
+    var snap = SyncPayloads.Snapshot(counters, apps, jobs);
+    Check("snapshot seals, decodes, and is accepted as kind=snapshot", SealAndKind(snap, 1) == "snapshot");
+    Check("delta is accepted as kind=delta", SealAndKind(SyncPayloads.Delta(1, counters, apps, jobs), 2) == "delta");
+    Check("heartbeat is accepted as kind=heartbeat", SealAndKind(SyncPayloads.Heartbeat("2026-07-23T12:00:00Z", 7, counters), 3) == "heartbeat");
+
+    var snapText = Encoding.UTF8.GetString(snap);
+    Check("snapshot carries the live counters", snapText.Contains("\"drafted\":1") && snapText.Contains("\"cycles\":7"));
+    Check("snapshot carries application summary fields", snapText.Contains("\"score\":82") && snapText.Contains("Senior Platform Engineer"));
+    // The untrusted-text invariant, asserted: no field name that would carry a raw posting body.
+    Check("snapshot carries NO raw posting body (untrusted-text rule)",
+        !snapText.Contains("jd_path") && !snapText.Contains("description") && !snapText.Contains("posting_body") && !snapText.Contains("\"body\":\""),
+        "a P2 dashboard payload must never ship an interpolable posting body");
+}
+
 // ---------------------------------------------------------------- protocol rules
 
 Console.WriteLine("\n[ protocol rules independent of any single vector ]");
