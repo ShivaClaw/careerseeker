@@ -1182,11 +1182,23 @@ public sealed class EngineHost : IAsyncDisposable
         LocalDashboardEvidence? dashboardEvidence = null,
         IEnumerable<string>? dashboardDocumentRoots = null,
         Func<bool>? pauseRequested = null,
-        TimeSpan? maximumBackoff = null)
+        TimeSpan? maximumBackoff = null,
+        EngineSyncBridge? syncBridge = null)
     {
         Counters = counters;
+        // With no sync bridge (the default — sync.enabled off), the tick is exactly cycle.TickAsync.
+        // When a pairing exists and publishing is enabled, each cycle also pushes the read-only
+        // dashboard state to the phone. The publish runs AFTER the cycle and its failures are
+        // swallowed by the scheduler's SafeTick, so a flaky relay never stalls the engine.
+        Func<CancellationToken, Task> tick = syncBridge is null
+            ? cycle.TickAsync
+            : async ct =>
+            {
+                await cycle.TickAsync(ct).ConfigureAwait(false);
+                await syncBridge.PublishAsync(ct).ConfigureAwait(false);
+            };
         var scheduler = new PeriodicScheduler(
-            cycle.TickAsync,
+            tick,
             interval,
             maximumBackoff,
             errorCount: () => counters.Errors,
