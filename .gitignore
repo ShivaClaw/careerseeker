@@ -15,3 +15,4 @@ token*.json
 desktop.ini
 output/
 tmp/
+*.zip

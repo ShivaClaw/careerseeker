@@ -2,6 +2,18 @@
 
 Updated: 2026-07-23
 
+## 2026-07-23 (Codex C2 pre-ZIP audit follow-up) - root ZIP ignore added
+
+Independent pre-ZIP audit confirmed the repo was ready to rebuild from `main` at `be335c0`, with
+`dotnet build CareerSeeker.sln -c Release --warnaserror` reporting `0 Warning(s), 0 Error(s)` and
+`scripts\Verify-Alpha.ps1` reporting `Offline total: 334 passed, 0 failed`. It also flagged the local
+`output\release\CareerSeeker-alpha-win-x64.zip` as stale because its manifest source commit was `c1440a8`,
+not the final `main` head. That artifact must not be uploaded.
+
+Follow-up taken before C2: add a repo-root `*.zip` ignore rule so stray ZIPs dropped outside `output/` do not
+dirty the tree during release preparation. C2 still requires a fresh trusted-tester ZIP rebuild from the final
+`main` head after this commit, followed by package self-check and a new SHA-256.
+
 ## 2026-07-23 (Codex Gate C1 merge completed) - main advanced, Android excluded
 
 Brandon approved Gate C1 in chat during this continuation. Per the seed runbook, the merge was performed as
