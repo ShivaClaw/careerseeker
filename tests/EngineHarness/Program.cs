@@ -160,6 +160,7 @@ Console.WriteLine("\n[ selected-job draft prompt-injection rail ]");
         var dbPath = Path.Combine(root, "alpha.db");
         var artifacts = Path.Combine(root, "artifacts");
         long jobId;
+        long strandedAppId;
         await using (var sqlite = SqliteSeekerStore.ForFile(dbPath))
         {
             await sqlite.InitializeAsync();
@@ -180,6 +181,10 @@ Console.WriteLine("\n[ selected-job draft prompt-injection rail ]");
                 Injected: true,
                 InjectionSignals: "ignore_previous_instructions"));
             jobId = seeded.JobId;
+            strandedAppId = await sqlite.CreateApplicationAsync(jobId, "L1");
+            await sqlite.TransitionApplicationAsync(strandedAppId, "READY", "engine");
+            var attemptId = await sqlite.BeginEffectAttemptAsync(strandedAppId, "draft");
+            await sqlite.ResolveEffectAttemptAsync(attemptId, "SUCCEEDED", "draft-existing");
         }
 
         var refused = await RunEngineCommandAsync(
@@ -194,6 +199,13 @@ Console.WriteLine("\n[ selected-job draft prompt-injection rail ]");
             refused.Output.Contains("refused job", StringComparison.OrdinalIgnoreCase) &&
             refused.Output.Contains("prompt-injection", StringComparison.OrdinalIgnoreCase),
             refused.Output);
+        await using (var reconciled = SqliteSeekerStore.ForFile(dbPath))
+        {
+            await reconciled.InitializeAsync();
+            Check("draft-job reconciles a stranded successful draft before starting new work",
+                (await reconciled.GetApplicationAsync(strandedAppId))?.State == "DRAFTED",
+                refused.Output);
+        }
 
         var allowed = await RunEngineCommandAsync(
             "draft-job",

@@ -584,6 +584,7 @@ async Task<int> RunDraftJobAsync()
 
     await using var store = SqliteSeekerStore.ForFile(dbPath);
     await store.InitializeAsync().ConfigureAwait(false);
+    await ReconcileStartupAsync(store).ConfigureAwait(false);
     var summary = await store.GetJobSummaryAsync(jobId).ConfigureAwait(false);
     var storedJob = await store.GetJobAsync(jobId).ConfigureAwait(false);
     if (summary is null)

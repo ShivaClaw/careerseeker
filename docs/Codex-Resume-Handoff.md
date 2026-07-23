@@ -63,6 +63,25 @@ SSRF-fix evidence:
 - The configured-system-proxy (`SocketsHttpHandler.UseProxy`) residual remains accepted and unchanged; changing
   proxy policy is a Brandon product decision.
 
+H2/store-parity scrutiny:
+- **`draft-job` startup sweep gap confirmed and fixed.** Unlike `demo`, `alpha`, and `dashboard`, the
+  selected-job command initialized the durable SQLite store and immediately began a new L1 pipeline run.
+  It now calls the same side-effect-free `ReconcileStartupAsync` first. A behavioral EngineHarness case
+  leaves a successful draft attempt stranded at `READY`, invokes `draft-job`, and verifies the prior
+  application reaches `DRAFTED` before the command begins new work.
+- The other unswept commands are not autonomous engine starts: `scout-boards` only ingests jobs;
+  `export-audit` and `export-alpha-package` are observational; `import-profile` maintains the claim
+  oracle; and `control-app` is an explicit human action. No automatic sweep was added to those boundaries.
+- **Store parity confirmed.** `GetApplicationIdsInStatesAsync` is a pure read in both stores:
+  the in-memory implementation filters under its mutex, while SQLite executes an ordered parameterized
+  `SELECT`; neither method calls `Now()`.
+
+H2-fix evidence:
+- `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release` -> `90 passed, 0 failed`.
+- `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` -> Release build 0 warnings, 0 errors;
+  `Offline total: 334 passed, 0 failed`.
+- The count-bearing docs, verifier assertions, and `$ExpectedOfflineTotal` moved together from 333 to 334.
+
 ## 2026-07-22 (Opus session) — publish-to-web roadmap, phases W0–W3 (blocked at W1 on R2)
 
 Executing the 60-hour alpha publish roadmap (`Alpha-Publish-Roadmap-2026-07-22.md`, Fable 5) toward a
