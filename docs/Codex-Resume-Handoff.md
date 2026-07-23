@@ -2,6 +2,48 @@
 
 Updated: 2026-07-23
 
+## 2026-07-23 (Codex Gate C1 merge completed) - main advanced, Android excluded
+
+Brandon approved Gate C1 in chat during this continuation. Per the seed runbook, the merge was performed as
+fast-forward branch movement only:
+- `origin/agent/repo-cleanup` advanced from `81d232c` to audited alpha tip `c1440a8`.
+- `origin/main` advanced from `3fa65f5` to `c1440a8`.
+- No Android/P1/P2 branches were merged. No C2 deployment, R2 upload, KV write, beta-code issue, live provider
+  call, or Gmail draft was performed.
+
+Fresh derived state after `git fetch origin --prune` immediately after the merge:
+- `HEAD` was on `main` at `c1440a8`, clean on `main...origin/main`.
+- `origin/main`, `origin/agent/repo-cleanup`, and `origin/claude/alpha-finish` all resolved to `c1440a8`.
+- Android/P1/P2 tips remained `940c4e1`, `6c46545`, and `74dd862`.
+- `git merge-base --is-ancestor origin/claude/alpha-finish origin/main` -> exit `0`.
+- `git merge-base --is-ancestor origin/agent/repo-cleanup origin/main` -> exit `0`.
+- `git merge-base --is-ancestor origin/claude/android-apk-build-setup-90d9d5 origin/main` -> exit `1`.
+- `git merge-base --is-ancestor origin/claude/p1-sync origin/main` -> exit `1`.
+- `git merge-base --is-ancestor origin/claude/p2-publisher origin/main` -> exit `1`.
+
+GitHub state after C1:
+- PR #4 (`claude/alpha-finish` -> `agent/repo-cleanup`) is `MERGED` at `2026-07-23T21:42:34Z`.
+- PR #2 (`agent/audit-cleanup-h1h2h3` -> `agent/repo-cleanup`) is `MERGED` at `2026-07-23T21:42:34Z`.
+- PR #1 (`agent/repo-cleanup` -> `main`) is `MERGED` at `2026-07-23T21:43:23Z`.
+- PR #3 was closed as superseded by C1 after proving `origin/claude/hardening-batch` was contained in
+  `origin/main`.
+- Only Android PRs #5 and #6 remained open.
+
+Stale/superseded branches pruned from origin after proving each tip was already an ancestor of `origin/main`:
+`claude/hardening-batch`, `agent/audit-cleanup-h1h2h3`, `codex/b1-live-scout`,
+`codex/l1-gmail-oauth-draft`.
+
+Post-merge evidence on `main` at merge tip `c1440a8`:
+- `dotnet build CareerSeeker.sln -c Release --warnaserror` completed with `Build succeeded`, `0 Warning(s)`,
+  `0 Error(s)`.
+- `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` completed with
+  `Offline total: 334 passed, 0 failed`.
+- Main GitHub Actions run `30047284490`, job `89341292161`, completed successfully.
+
+C2 reminder: because this handoff update is a docs-only commit after the C1 merge, rebuild the trusted-tester
+ZIP from the final `main` head before any upload. Do not reuse a package whose manifest source commit is
+`c1440a8`.
+
 ## 2026-07-23 (Codex C1 merge rehearsal) - fast-forward candidate proven
 
 Continuation rehearsal at local time `2026-07-23 15:31:20 -06:00`. No branch merge, protected-branch
