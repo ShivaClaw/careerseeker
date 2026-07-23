@@ -325,6 +325,81 @@ Console.WriteLine("\n[ P2 snapshot/delta/heartbeat payloads ]");
         "a P2 dashboard payload must never ship an interpolable posting body");
 }
 
+// ---------------------------------------------------------------- P2 publisher
+//
+// SyncPublisher is the shipping seal-and-push mechanism: it assigns the monotonic e2p seq the
+// relay enforces, seals each SyncPayloads plaintext with k_e2p, and hands the wire envelope to a
+// sink. Here the sink is a fake that records only successful pushes, so sequencing and the
+// gap-on-failure rule are checked offline; the receiver then opens every pushed envelope, proving
+// the bytes are the same shape the phone parses. Sealed with the pairing-basic k_e2p.
+
+Console.WriteLine("\n[ SyncPublisher seals, sequences, and pushes e2p envelopes ]");
+
+{
+    var kE2p = Convert.FromHexString((string)expected["k_e2p_hex"]!);
+    var pairingId = (string)index["pairing_id"]!;
+    var counters = new Counters(Discovered: 3, Acted: 1, Drafted: 1, Blocked: 0, Rejected: 1, Errors: 0, Cycles: 7);
+    var apps = new[] { new AppSummary("app_01H8XK", "READY", "Northwind Labs", "Senior Platform Engineer", 82) };
+    var jobs = new[] { new JobSummary("job_1", "Northwind Labs", "Senior Platform Engineer", Repost: false, InjectionFlag: false) };
+
+    var pushed = new List<string>();
+    var sinkOk = true;
+    // The fake relay records only what it accepts, mirroring a real push: a failed push stores nothing,
+    // so the phone never sees that seq and the burned number becomes a legitimate gap.
+    Func<string, CancellationToken, Task<bool>> sink = (env, _) => { if (sinkOk) pushed.Add(env); return Task.FromResult(sinkOk); };
+
+    // Deterministic clock and nonce keep the harness reproducible; the nonce still advances so no two
+    // envelopes reuse one (nonce reuse under a single GCM key is catastrophic).
+    var nonceCounter = 0;
+    Func<byte[]> nonces = () => { var n = new byte[Protocol.NonceBytes]; n[0] = (byte)(++nonceCounter); return n; };
+    var publisher = new SyncPublisher(kE2p, pairingId, activeKeyId, sink,
+        clock: () => new DateTimeOffset(2026, 7, 23, 12, 0, 0, TimeSpan.Zero), nonceSource: nonces);
+
+    Check("publisher starts at seq 0", publisher.HighestSeq == 0);
+    Check("snapshot push succeeds and advances to seq 1",
+        publisher.PublishSnapshotAsync(counters, apps, jobs).GetAwaiter().GetResult() && publisher.HighestSeq == 1);
+    Check("delta push advances to seq 2",
+        publisher.PublishDeltaAsync(1, counters, apps, jobs).GetAwaiter().GetResult() && publisher.HighestSeq == 2);
+    Check("heartbeat push advances to seq 3",
+        publisher.PublishHeartbeatAsync(7, counters).GetAwaiter().GetResult() && publisher.HighestSeq == 3);
+    Check("publisher pushed three envelopes", pushed.Count == 3);
+
+    // Every pushed envelope opens through the SHIPPING receiver under k_e2p as the intended kind.
+    var recv = new EnvelopeReceiver(activeKeyId);
+    string KindOf(string envJson)
+    {
+        var e = JsonNode.Parse(envJson)!.AsObject();
+        var env = new ReceivedEnvelope((int)e["v"]!, (string)e["pairing"]!, (string)e["dir"]!, (long)e["seq"]!,
+            (string)e["ts"]!, (string)e["key_id"]!, (string)e["nonce"]!, (string)e["ciphertext"]!,
+            e["sig"] is null ? null : (string)e["sig"]!);
+        var r = recv.Receive(env, _ => kE2p);
+        return r.Accepted ? r.Kind! : $"REJECTED:{r.Error?.ToWire()}";
+    }
+    Check("pushed snapshot is accepted as kind=snapshot", KindOf(pushed[0]) == "snapshot");
+    Check("pushed delta is accepted as kind=delta", KindOf(pushed[1]) == "delta");
+    Check("pushed heartbeat is accepted as kind=heartbeat", KindOf(pushed[2]) == "heartbeat");
+
+    var first = JsonNode.Parse(pushed[0])!.AsObject();
+    Check("pushed envelope is e2p, names the active key, and carries no sig",
+        (string)first["dir"]! == "e2p" && (string)first["key_id"]! == activeKeyId && first["sig"] is null);
+    Check("pushed envelopes use distinct nonces",
+        pushed.Select(p => (string)JsonNode.Parse(p)!["nonce"]!).Distinct().Count() == pushed.Count);
+
+    // A failed push reports failure and BURNS the seq — it is never reused — so the next push jumps to 5.
+    sinkOk = false;
+    Check("a failed push reports failure but still burns the seq",
+        !publisher.PublishHeartbeatAsync(8, counters).GetAwaiter().GetResult() && publisher.HighestSeq == 4);
+    sinkOk = true;
+    Check("the next push resumes at seq 5, leaving a gap at 4",
+        publisher.PublishHeartbeatAsync(9, counters).GetAwaiter().GetResult() && publisher.HighestSeq == 5);
+    Check("receiver accepts the post-gap envelope (gaps are legitimate)", KindOf(pushed[3]) == "heartbeat");
+
+    var badKey = false;
+    try { _ = new SyncPublisher(new byte[16], pairingId, activeKeyId, sink); }
+    catch (ArgumentException) { badKey = true; }
+    Check("publisher rejects a wrong-length k_e2p", badKey);
+}
+
 // ---------------------------------------------------------------- protocol rules
 
 Console.WriteLine("\n[ protocol rules independent of any single vector ]");
