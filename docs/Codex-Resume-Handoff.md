@@ -2,6 +2,46 @@
 
 Updated: 2026-07-23
 
+## 2026-07-23 (Codex C1 merge rehearsal) - fast-forward candidate proven
+
+Continuation rehearsal at local time `2026-07-23 15:31:20 -06:00`. No branch merge, protected-branch
+update, deployment, R2 upload, KV write, beta-code issue, live provider call, or Gmail draft was performed.
+
+Fresh derived state after `git fetch origin --prune`:
+- `HEAD` on `claude/alpha-finish`: `7d25f24`, clean on `claude/alpha-finish...origin/claude/alpha-finish`.
+- PR #4 remained draft/clean from `claude/alpha-finish` to `agent/repo-cleanup`.
+- Latest PR #4 CI at the time was run `30046261240`, job `89338006946`, `Build and offline harnesses`,
+  conclusion `SUCCESS`.
+
+Derived branch tips:
+- `origin/main`: `3fa65f5`.
+- `origin/agent/repo-cleanup`: `81d232c`.
+- `origin/agent/audit-cleanup-h1h2h3`: `f3021ec`.
+- `origin/claude/hardening-batch`: `8ba127c`.
+- `origin/claude/alpha-finish`: `7d25f24`.
+- Android/P2 tips: `940c4e1`, `6c46545`, `74dd862`.
+
+C1 rehearsal result:
+- `git merge-base --is-ancestor origin/main origin/agent/repo-cleanup` -> exit `0`.
+- `git merge-base --is-ancestor origin/agent/repo-cleanup origin/agent/audit-cleanup-h1h2h3` -> exit `0`.
+- `git merge-base --is-ancestor origin/agent/audit-cleanup-h1h2h3 origin/claude/hardening-batch` -> exit `0`.
+- `git merge-base --is-ancestor origin/claude/hardening-batch origin/claude/alpha-finish` -> exit `0`.
+- Therefore the non-Android C1 content is a straight fast-forward ancestry chain from current `main` to
+  current alpha. At that moment, the effective C1 candidate tree was exactly `origin/claude/alpha-finish`.
+- `git rev-list --count origin/main..origin/claude/alpha-finish` -> `183`.
+- `git rev-list --count origin/agent/repo-cleanup..origin/claude/alpha-finish` -> `27`.
+
+Android/P2 exclusion at rehearsal time:
+- `git merge-base --is-ancestor <tip> origin/claude/alpha-finish` returned exit `1` for Android/P2 tips
+  `940c4e1`, `6c46545`, and `74dd862`.
+- `git merge-base --is-ancestor <tip> origin/main` returned exit `1` for the same three tips.
+- `git rev-list --count origin/claude/alpha-finish..origin/claude/android-apk-build-setup-90d9d5` -> `3`
+  Android-only commits not present in alpha.
+
+C1 reminder: re-run these ancestry checks after every new commit and immediately before Brandon's merge
+approval. After PR #4 content reaches `main`, the three Android/P2 tips should still return exit `1` from
+`git merge-base --is-ancestor <tip> origin/main`.
+
 ## 2026-07-23 (Codex C2 preflight) - live readiness and cache trap
 
 Continuation preflight at local time `2026-07-23 15:25:55 -06:00`. No merge, deployment, R2 upload,
