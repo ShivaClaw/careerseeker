@@ -1,7 +1,8 @@
 {
+  "type": "envelope",
   "name": "invalid-reserved-kind-l2",
   "valid": false,
-  "notes": "A reserved L2 kind must be rejected by a v1 receiver. This is the guard that stops the phone acquiring engine control before that has been audited.",
+  "notes": "A reserved L2 kind must be rejected by a v1 receiver (checked BEFORE the sig requirement: unknown_kind wins over bad_signature). This is the guard that stops the phone acquiring engine control before that has been audited.",
   "key_hex": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
   "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=p2e|seq=2|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
   "nonce_b64u": "tLFlq8XyR6NOs2QC",

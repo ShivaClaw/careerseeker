@@ -1,0 +1,33 @@
+{
+  "type": "envelope",
+  "name": "sig-by-revoked-key",
+  "valid": false,
+  "notes": "Correctly-formed ECDSA signature by a key that is NOT the pairing's device key. Verifies under the wrong pubkey, so consumers must check against device_sig_pub of the PAIRING, not whatever key the envelope claims. device_sig_pub_b64u here is the revoked key so the vector is self-contained: verify against pairing-basic's device key and reject.",
+  "key_hex": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=p2e|seq=4|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "0n6rP-c2OjZmOccu",
+  "plaintext_json": {
+    "kind": "doc_edit",
+    "body": {
+      "app_id": "app_01H8XK",
+      "doc_kind": "cover_letter",
+      "base_rev": 4,
+      "new_text": "Revised opening paragraph."
+    }
+  },
+  "ciphertext_b64u": "glJxOA5k44uEN_5CDNIojP5FhLHwUWabXur5EsTmikMKujBgkHOKSkYTy7uNLNfaIGugrH7iWR_4DU16SrOenms29ScI4CEspY1A9AKZAqmDSgCE9Q_7MuotwiyFmwFAL4B4uZWLcIyTUSdUELteY4SGk2flyUWNVAjxHBqAtx4FWa_NXp8I8wUuv8-DlgB4EA",
+  "sig_input": "careerseeker/v1/cmd|v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=p2e|seq=4|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01|0n6rP-c2OjZmOccu|03810b8cd9df10ca8e49cab065b9cd29565aa201e406bf27e87e250c5d697cc1",
+  "device_sig_pub_b64u": "BMusN0J6ZI0-ZdFBqhQ_wFwVZ-5ezDJ3Ye2mjaIBirPzCL2mBkuO5etpmVLvW9OeHBclUY5-OojqBGOSHB3UCSY",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "p2e",
+    "seq": 4,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "0n6rP-c2OjZmOccu",
+    "ciphertext": "glJxOA5k44uEN_5CDNIojP5FhLHwUWabXur5EsTmikMKujBgkHOKSkYTy7uNLNfaIGugrH7iWR_4DU16SrOenms29ScI4CEspY1A9AKZAqmDSgCE9Q_7MuotwiyFmwFAL4B4uZWLcIyTUSdUELteY4SGk2flyUWNVAjxHBqAtx4FWa_NXp8I8wUuv8-DlgB4EA",
+    "sig": "Hc60VBoxz7VEjOxF18pCllEf3225xpGDdKIdBxAZi1EPBOZ8CTJxQdAd25GSXvFhkggzoWOcjrXHQWbqUBKLrg"
+  },
+  "expect_error": "bad_signature"
+}

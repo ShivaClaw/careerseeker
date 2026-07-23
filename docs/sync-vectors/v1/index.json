@@ -1,81 +1,133 @@
 {
   "version": 1,
+  "suite": "p256-hkdf-sha256",
   "spec": "docs/Sync-Protocol.md",
   "generator": "docs/sync-vectors/generate.mjs",
   "cipher": "AES-256-GCM",
   "max_envelope_bytes": 1048576,
   "active_key_id": "k-2026-06-01",
+  "pairing_id": "p_7Fq2mXk9LtVbN3wR",
   "warning": "Published test keys and fixed nonces. Never use in a build.",
   "vectors": [
     {
       "name": "delta-basic",
+      "type": "envelope",
       "valid": true,
       "expect_error": null
     },
     {
       "name": "doc-draft-email",
+      "type": "envelope",
       "valid": true,
       "expect_error": null
     },
     {
       "name": "doc-edit-signed",
+      "type": "envelope",
       "valid": true,
       "expect_error": null
     },
     {
       "name": "heartbeat-unicode",
+      "type": "envelope",
       "valid": true,
       "expect_error": null
     },
     {
       "name": "empty-body",
+      "type": "envelope",
       "valid": true,
       "expect_error": null
     },
     {
       "name": "invalid-seq-regression",
+      "type": "envelope",
       "valid": false,
       "expect_error": "replay_rejected"
     },
     {
       "name": "invalid-truncated-tag",
+      "type": "envelope",
       "valid": false,
       "expect_error": "decrypt_failed"
     },
     {
       "name": "invalid-aad-tampered-seq",
+      "type": "envelope",
       "valid": false,
       "expect_error": "decrypt_failed"
     },
     {
       "name": "invalid-unknown-key-id",
+      "type": "envelope",
       "valid": false,
       "expect_error": "key_unknown"
     },
     {
       "name": "invalid-unknown-kind",
+      "type": "envelope",
       "valid": false,
       "expect_error": "unknown_kind"
     },
     {
       "name": "invalid-reserved-kind-l2",
+      "type": "envelope",
       "valid": false,
       "expect_error": "unknown_kind"
     },
     {
       "name": "invalid-version",
+      "type": "envelope",
       "valid": false,
       "expect_error": "version_unsupported"
     },
     {
+      "name": "sig-tampered",
+      "type": "envelope",
+      "valid": false,
+      "expect_error": "bad_signature"
+    },
+    {
+      "name": "sig-by-revoked-key",
+      "type": "envelope",
+      "valid": false,
+      "expect_error": "bad_signature"
+    },
+    {
+      "name": "sig-missing-on-doc-edit",
+      "type": "envelope",
+      "valid": false,
+      "expect_error": "bad_signature"
+    },
+    {
+      "name": "sig-on-e2p",
+      "type": "envelope",
+      "valid": false,
+      "expect_error": "bad_signature"
+    },
+    {
       "name": "invalid-padded-base64",
+      "type": "envelope",
       "valid": false,
       "expect_error": "decrypt_failed"
     },
     {
       "name": "invalid-oversized",
+      "type": "envelope",
       "valid": false,
       "expect_error": "too_large"
+    },
+    {
+      "name": "pairing-basic",
+      "type": "pairing",
+      "valid": true,
+      "expect_error": null
+    },
+    {
+      "name": "pairing-mitm-keyswap",
+      "type": "pairing",
+      "valid": false,
+      "expect_error": "decrypt_failed"
     }
   ]
 }

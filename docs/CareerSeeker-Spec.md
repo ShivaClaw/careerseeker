@@ -438,7 +438,7 @@ document downloads; no unauthenticated localhost approval or control POST is acc
 
 **8.2 Secrets & scopes.** DPAPI-encrypted vault; incremental OAuth (never request `gmail.send` for an L1 user). `gmail.compose` itself can authorize draft sending at the Google permission level, so L1 safety is structural: the application exposes draft creation only and contains no send implementation. Refresh tokens are revocable from a "Disconnect everything" button that actually calls the revocation endpoints. Google OAuth verification + restricted-scope security assessment is on the launch critical path (Gmail restricted scopes require it) — budget 6–10 weeks of calendar time.
 
-**8.3 Pairing & E2E.** QR code on the PC encodes a one-time X25519 exchange; derived symmetric keys never touch the relay. Re-pair invalidates old phone keys. Relay stores ciphertext with 30-day TTL.
+**8.3 Pairing & E2E.** QR code on the PC encodes a one-time key exchange; derived symmetric keys never touch the relay. Re-pair invalidates old phone keys. Relay stores ciphertext with 30-day TTL. *(Amended 2026-07-23, gate P1-CURVE: the exchange is ECDH P-256 under a versioned suite — not X25519, which .NET 8 lacks and Android Keystore only hardware-backs from API 33 — with the post-quantum hybrid `p256+mlkem768` reserved as a suite bump. [`docs/Sync-Protocol.md`](Sync-Protocol.md) §5.2 is normative.)*
 
 **8.4 Tamper-evident audit.** The hash-chained `events` table plus Gmail Drafts/Sent records, depending on autonomy level, give the user independent records of everything prepared or done in their name. "Show me every draft or action you've ever produced" is a one-click export (PDF + JSON).
 

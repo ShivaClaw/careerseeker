@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "invalid-padded-base64",
   "valid": false,
   "notes": "Padded base64 must be rejected rather than leniently accepted. Accepting both spellings means the vectors no longer pin one encoding.",

@@ -1,0 +1,38 @@
+{
+  "type": "pairing",
+  "name": "pairing-basic",
+  "valid": true,
+  "notes": "Full section-5.2 derivation from fixed keys: ECDH P-256 -> ikm=concat(ss) -> HKDF directional keys, relay token, provisional token, 6-digit confirm code -- plus a sealed completion message. A conforming implementation reproduces every derived value byte-for-byte and decrypts the completion to the stated payload.",
+  "suite": "p256-hkdf-sha256",
+  "secret_b64u": "XsHnorPE1eb3CBkqO0xdbn-AgZKjtMXW5_gJGis8TV4",
+  "engine": {
+    "d_hex": "4f2a1c8be5d3907612384a5b6c7d8e9fa0b1c2d3e4f5061728394a5b6c7d8e9f",
+    "pub_b64u": "BNFzSFyJNs69eOtj7ZVVuEoMiLvtoVpV5pz0NN6KLM-LkKNzIpxqzgDnOfzi2eIFYqRkKN_-l-KCETBVOEkdqfU"
+  },
+  "phone": {
+    "d_hex": "137f5b3d9c2e8a4061725384a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e",
+    "pub_b64u": "BMq7Mz3sZimDdP7G1LHvn8XXq-OsOvRjnp5uFpIuAYtFYzBvosb2E_-ezibJR2_KiQh23e7laAXdPbPi0l1zm1c"
+  },
+  "device_sig": {
+    "d_hex": "29c4e6a80b1d3f52647586a9bacbdcedfe0f102132435465768798a9bacbdcde",
+    "pub_b64u": "BKxF8K8_11xECd9NEpUYKVww4nL3-YazsWNpXFt8qJedrl7-l94OglqF3xmNW7jPgLdWjdOi4hYl0ClHTYQkVpE"
+  },
+  "expected": {
+    "ss_hex": "07f40e6368a31ac2cb0917862339dd63bdc46e535571bbced1e97445a3e63172",
+    "k_e2p_hex": "073e3bf8517a39431376519383db696e198e6a7fa8a4c074fef9021ef9dd69bf",
+    "k_p2e_hex": "759742829d57b821072a562f293e0794cdf7c5b12f735335088622547a01c0d2",
+    "relay_token_b64u": "ysuoLRxqIXNbGClUmkOGEuYHXmws8TCh6msoeeHWYgA",
+    "provisional_token_b64u": "QP_laFtf5tV8lE6AMRQXetAGqFCx0ZDsPB5yn2H1OWg",
+    "confirm": "797174"
+  },
+  "completion": {
+    "aad": "careerseeker/v1/pair|p_7Fq2mXk9LtVbN3wR|p256-hkdf-sha256|BMq7Mz3sZimDdP7G1LHvn8XXq-OsOvRjnp5uFpIuAYtFYzBvosb2E_-ezibJR2_KiQh23e7laAXdPbPi0l1zm1c",
+    "nonce_b64u": "ScZucIlcxLUYtMf5",
+    "payload_json": {
+      "device_sig_pub": "BKxF8K8_11xECd9NEpUYKVww4nL3-YazsWNpXFt8qJedrl7-l94OglqF3xmNW7jPgLdWjdOi4hYl0ClHTYQkVpE",
+      "ts": "2026-06-11T14:02:11Z"
+    },
+    "ciphertext_b64u": "p4v-6wJ4XqilMbuyEFC-soX58IP5t9kiguMRMl_PajdOPJpMN-vRoljgyQhQEUgpJIVEOg-VhsB9R4Zamwqv-CGCJSnFg3WzTRNvkqf0cfXziWZBsTMPZA-IV0nnkAcIL4uP3x2xr-mXray3LcuJmszw9nFsTNZsrT3QERhGc_8X859BlaqzrFFG_PtVUIaaU63xAVxQnPM"
+  },
+  "expect_error": null
+}
