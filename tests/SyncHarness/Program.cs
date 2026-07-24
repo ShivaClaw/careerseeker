@@ -409,6 +409,16 @@ Console.WriteLine("\n[ SyncPublisher seals, sequences, and pushes e2p envelopes 
     Check("publisher publishes evidence as kind=evidence",
         publisher.PublishEvidenceAsync(true, null, 2, evEvents).GetAwaiter().GetResult() && KindOf(pushed[4]) == "evidence");
 
+    // F4: a publisher resumed from a persisted seq continues ABOVE it. The phone's high-water mark
+    // survives a restart, so an engine that resumed at seq 1 would have everything -- including the
+    // recovery snapshot -- rejected as replay. startSeq=N means the first push is seq N+1.
+    var resumed = new SyncPublisher(kE2p, pairingId, activeKeyId, (_, _) => Task.FromResult(true),
+        startSeq: 41, clock: () => new DateTimeOffset(2026, 7, 23, 12, 0, 0, TimeSpan.Zero), nonceSource: nonces);
+    Check("publisher resumes above a persisted seq (F4)",
+        resumed.HighestSeq == 41
+        && resumed.PublishHeartbeatAsync(1, counters).GetAwaiter().GetResult()
+        && resumed.HighestSeq == 42);
+
     var badKey = false;
     try { _ = new SyncPublisher(new byte[16], pairingId, activeKeyId, sink); }
     catch (ArgumentException) { badKey = true; }

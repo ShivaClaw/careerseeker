@@ -174,6 +174,12 @@ EngineCycle BuildDemoCycle(ISeekerStore store, EngineCounters counters, long pro
 // publish to, so --sync is honored but no-ops with an explicit note. Once the vault is present, this
 // is where a SyncPublisher (sink backed by RelayClient.PushAsync against the paired token) and an
 // EngineSyncBridge get constructed and returned.
+//
+// The vault MUST persist the last e2p seq and this method MUST construct the publisher with
+// startSeq = max(vault.last_e2p_seq, relay latest e2p) — Sync-Protocol.md §6.1. The phone's
+// high-water mark survives its restarts; an engine that resumed at seq 1 would have every
+// envelope (including the recovery snapshot) rejected as a replay. SyncPublisher already takes
+// startSeq for exactly this; the vault is what supplies it.
 EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidence evidence, bool enabled)
 {
     if (!enabled)
