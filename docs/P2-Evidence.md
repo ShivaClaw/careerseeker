@@ -6,6 +6,13 @@ This covers the **offline, no-gate** P2 work item (P2-Runbook.md §2.2): the eng
 `/pair` page, the live-tick + airplane-mode exit proof) remain for the device-equipped
 session and are **not** claimed here.
 
+> **Historical transcript note (2026-07-24, per Codex audit finding 2).** The counts below
+> (SyncHarness 88, offline 425) are the values **at capture time** and are preserved verbatim.
+> Later increments on this branch moved the pin: `evidence` payload → 433, checkpoint fixes
+> F1/F4 → 435, Codex-audit fix (failed-first-snapshot retry) → **437** (SyncHarness 94,
+> EngineHarness 105). The current pin lives in `scripts/Verify-Alpha.ps1` and the count-bearing
+> docs, which move in lockstep per the drift trap; this file records what was seen on the day.
+
 ## 1. What landed
 
 - **`src/Sync/SyncPublisher.cs`** — seals `SyncPayloads` (snapshot/delta/heartbeat) with

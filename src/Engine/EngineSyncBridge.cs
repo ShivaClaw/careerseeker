@@ -64,8 +64,17 @@ public sealed class EngineSyncBridge
         var apps = evidence.RecentApplications.Take(_appLimit).Select(MapApplication).ToArray();
         var jobs = evidence.RecentJobs.Take(_jobLimit).Select(MapJob).ToArray();
 
-        if (Interlocked.CompareExchange(ref _snapshotSent, 1, 0) == 0)
-            return await _publisher.PublishSnapshotAsync(counters, apps, jobs, ct).ConfigureAwait(false);
+        // The flag flips only AFTER a successful snapshot push (audit finding, 2026-07-24): marking
+        // it sent up front meant a failed or thrown first push burned the seq and every later
+        // publish was a delta -- which a fresh phone merges into demo fixture rows, presenting demo
+        // data as real. On failure (or throw) the flag stays unset, so the next cycle retries the
+        // snapshot; the burned seq is a legitimate gap.
+        if (!SnapshotSent)
+        {
+            var ok = await _publisher.PublishSnapshotAsync(counters, apps, jobs, ct).ConfigureAwait(false);
+            if (ok) Volatile.Write(ref _snapshotSent, 1);
+            return ok;
+        }
 
         // since_seq is the last envelope this publisher sent; the phone applies latest-wins over it.
         return await _publisher.PublishDeltaAsync(_publisher.HighestSeq, counters, apps, jobs, ct).ConfigureAwait(false);
