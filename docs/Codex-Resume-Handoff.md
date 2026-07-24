@@ -2,6 +2,62 @@
 
 Updated: 2026-07-24
 
+## 2026-07-24 (Opus post-launch iteration) - SQLitePCLRaw advisory cleared, 8AM deploy batch staged
+
+Picked up after the mitigation round landed. That round was already committed and pushed as
+`ffe3622 Harden alpha provider setup` (working tree was clean, not dirty as the session seed expected —
+`02953f7 -> ffe3622 (amend)` in the reflog), so no re-commit was needed. Derived state: `main @ ffe3622`,
+synced with origin.
+
+Security dependency fix (committed `7018ff9`, pushed to `main`):
+
+- Cleared advisory GHSA-2m69-gcr7-jv3q (High). `Microsoft.Data.Sqlite 8.0.11` pulled
+  `SQLitePCLRaw.lib.e_sqlite3 2.1.6` transitively (vulnerable `<= 2.1.11`). Pinned
+  `SQLitePCLRaw.bundle_e_sqlite3` to `2.1.12` directly in `src/Store/SeekerSvc.Store.csproj`; the direct
+  (nearest-wins) reference propagates 2.1.12 to every project that references Store.
+  `dotnet list package --vulnerable --include-transitive` now reports **no vulnerable packages across all
+  23 projects**; resolved lib/core/provider = 2.1.12; `Microsoft.Data.Sqlite` unchanged at 8.0.11.
+- Fixed a latent packager bug exposed by the bump: `scripts/Package-AlphaRelease.ps1` selected the
+  NuGet-cache fallback `e_sqlite3.dll` with `Sort-Object FullName -Descending`, a lexical sort that ranks
+  `2.1.6` above `2.1.12` (char `6` > `1`) and would reship the vulnerable native SQLite when both versions
+  are cached. Now sorts by parsed `[System.Version]`. Verified the corrected selector picks 2.1.12.
+
+Verification (all run this session):
+
+- `scripts\Verify-Alpha.ps1`: **341 passed, 0 failed** (count-neutral; the bump added no assertions).
+- `dotnet build CareerSeeker.sln -c Release --warnaserror`: 0 Warning(s), 0 Error(s).
+- `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage`: green — win-x64 single-file publish + demo
+  smoke, package self-check (manifest ok, 50 checksums, dashboard + Alpha 2.0 setup smokes).
+
+New Bridge ZIP (built from clean `7018ff9`, staged locally, NOT yet uploaded):
+
+- `output/release/CareerSeeker-alpha2-bridge-win-x64-2026-07-24-7018ff9.zip`
+- sha256 `3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2`, 64,937,092 bytes,
+  manifest pins `7018ff9 / dirty:False`.
+- Proof the fix shipped: the packaged `e_sqlite3.dll` sha256 (`B7385D72...FB2E`) is a byte-for-byte match
+  to the cached **2.1.12** native lib and differs from 2.1.6 (`DCCBABB2...`).
+
+Signup hygiene (site source `Desktop\site-v2`, off-repo, staged only):
+
+- `functions/api/signup.js`: `signup-event:*` KV puts now carry `{ expirationTtl: 7776000 }` (90 days) so
+  that keyspace stops growing forever.
+- Built operator tool `Desktop\Process-PendingOAuthTestUsers.ps1`: lists `oauth-test-user-pending:*` via the
+  wrangler OAuth session (`--remote`, `CLOUDFLARE_API_TOKEN` cleared), prints a paste-ready email list for
+  Google Console > Audience > Test users, and with `-Apply` stamps each `signup:` record
+  `oauth_test_user.status = "added"` and deletes the processed markers. Read-only by default.
+
+8AM deploy batch — STAGED AND HELD (embargo: nothing deployed/uploaded to Cloudflare this session):
+
+- Site edits in `Desktop\site-v2`: `functions/api/verify.js` download_url and `download/index.html`
+  (filename x3 + hash, `SHA-UPDATED-F2.3` marker preserved) moved `ffe3622 -> 7018ff9` and
+  `19BF787F... -> 3A4251F6...`.
+- Remaining `[8AM]` steps unchanged from the seed: R2 upload of the new ZIP to
+  `careerseeker/alpha/<new-name>.zip`, `wrangler pages deploy .` from inside `site-v2`, end-to-end verify,
+  then email enablement + `/api/signup` rate-limit + one controlled e2e signup test.
+
+Housekeeping: the `Desktop\dryrun` folder (flagged in the seed as still holding real API keys) no longer
+exists — that cleanup already happened; nothing to delete.
+
 ## 2026-07-24 (Alpha 2.0 Bridge) - setup ZIP built and post-audit fixes applied
 
 Alpha 2.0 Bridge is the current local package target; the real per-user installer is intentionally deferred
