@@ -117,7 +117,15 @@ try {
         $nativeSqlite = Get-ChildItem -LiteralPath (Join-Path $env:USERPROFILE ".nuget/packages/sqlitepclraw.lib.e_sqlite3") `
                 -Filter "e_sqlite3.dll" -Recurse -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -like "*\runtimes\$Runtime\native\e_sqlite3.dll" } |
-            Sort-Object FullName -Descending |
+            Sort-Object -Descending -Property @{ Expression = {
+                # Path shape: ...\sqlitepclraw.lib.e_sqlite3\<version>\runtimes\<rid>\native\e_sqlite3.dll
+                # Sort by PARSED package version, not FullName. A lexical descending
+                # sort ranks "2.1.6" above "2.1.12" (char '6' > '1') and would reship
+                # the GHSA-2m69-gcr7-jv3q-vulnerable native SQLite when both are cached.
+                $verName = $_.Directory.Parent.Parent.Parent.Name
+                $parsed = $null
+                if ([System.Version]::TryParse($verName, [ref]$parsed)) { $parsed } else { [System.Version]"0.0.0" }
+            } } |
             Select-Object -First 1
         if ($null -eq $nativeSqlite) {
             throw "Published output did not include e_sqlite3.dll and the restored $Runtime native SQLite DLL was not found under the NuGet package cache."

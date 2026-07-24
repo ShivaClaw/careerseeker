@@ -9,5 +9,10 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
+    <!-- Pin the native SQLite bundle to 2.1.12 to clear GHSA-2m69-gcr7-jv3q
+         (vulnerable <= 2.1.11, transitive via Microsoft.Data.Sqlite -> bundle
+         2.1.6). Direct reference wins nearest-wins resolution and propagates
+         2.1.12 to every project that references Store. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
   </ItemGroup>
 </Project>
