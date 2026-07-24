@@ -1196,6 +1196,7 @@ public sealed class EngineHost : IAsyncDisposable
             {
                 await cycle.TickAsync(ct).ConfigureAwait(false);
                 await syncBridge.PublishAsync(ct).ConfigureAwait(false);
+                await syncBridge.PublishEvidenceAsync(ct).ConfigureAwait(false);
             };
         var scheduler = new PeriodicScheduler(
             tick,
