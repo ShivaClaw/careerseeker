@@ -82,6 +82,29 @@ exists — that cleanup already happened; nothing to delete.
   `/api/signup` (dashboard) and the one controlled real-mail e2e test (his explicit go) remain.
 - Operator tool `Desktop\Process-PendingOAuthTestUsers.ps1` in place for working the OAuth test-user queue.
 
+### Email enablement — LIVE (2026-07-24 ~11:38 local)
+
+Brandon onboarded careerseeker.app to Cloudflare Email **Sending** (dashboard; `cf-bounce`
+DKIM/SPF/DMARC auto-created, no conflict with the root Email Routing), created an
+`Email Sending: Edit` token, and added the two Pages production secrets
+(`CLOUDFLARE_EMAIL_ACCOUNT_ID` plain_text + `CLOUDFLARE_EMAIL_API_TOKEN` secret_text). I redeployed
+to bind them (`d1af7641`) and confirmed both vars present with `BETA_KV`/`RELEASES` intact.
+
+**Send-shape gotcha (important):** the Email Service REST endpoint and the Workers binding use
+DIFFERENT named-address keys — REST wants `from: { address, name }`, the binding wants
+`{ email, name }`. My first signup.js "fix" wrongly changed the REST branch to `{ email }`, which
+returns `10001 invalid_request_schema`; the original `{ address }` was right. Corrected back to
+`{ address, name }` (+ `reply_to` as a plain string) and redeployed (`a717e17b`). A live REST smoke
+to `careerseeker.test.brandon@gmail.com` returned `success:true` and **delivered to inbox** with the
+`CareerSeeker Testers <testers@careerseeker.app>` display name. The `env.EMAIL` binding branch was
+already correct and untouched.
+
+**Signup email now works end-to-end.** Remaining: (1) the backlog that signed up while email was
+inert still needs codes delivered — `mdodson@gmail.com` + `testers@careerseeker.app` have codes (a
+resend delivers), `akirksey1@gmail.com` + `dkirksey.jobs@gmail.com` have none (re-submit issues one);
+(2) `/api/signup` rate-limit rule (dashboard); (3) OAuth test-user queue (2 pending: `mdodson`,
+`testers@`) via `Process-PendingOAuthTestUsers.ps1`.
+
 ## 2026-07-24 (Alpha 2.0 Bridge) - setup ZIP built and post-audit fixes applied
 
 Alpha 2.0 Bridge is the current local package target; the real per-user installer is intentionally deferred
