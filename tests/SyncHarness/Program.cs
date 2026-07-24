@@ -425,6 +425,55 @@ Console.WriteLine("\n[ SyncPublisher seals, sequences, and pushes e2p envelopes 
     Check("publisher rejects a wrong-length k_e2p", badKey);
 }
 
+// ---------------------------------------------------------------- entitlement wire conformance (P4)
+//
+// `entitlement` is a state-changing p2e kind. This proves the WIRE layer (P4 §2.2): each
+// vector decrypts under k_p2e to kind=entitlement carrying {original_json, signature}, and the
+// envelope's device ECDSA sig verifies under the pairing device key. The RSA verification and
+// the distinct accept/reject reasons are the GoogleSignedPayloadVerifier's job (P4 §2.3), which
+// consumes the same five vectors.
+
+Console.WriteLine("\n[ entitlement vectors: wire conformance (decrypt + device signature) ]");
+
+var entitlementVectors = vectors.Where(v => (string)v["type"]! == "entitlement").ToList();
+Check("entitlement suite has a valid vector and rejection vectors",
+    entitlementVectors.Any(v => (bool)v["valid"]!) && entitlementVectors.Any(v => !(bool)v["valid"]!));
+
+foreach (var v in entitlementVectors.OrderBy(v => (string)v["name"]!, StringComparer.Ordinal))
+{
+    var name = (string)v["name"]!;
+    try
+    {
+        var text = Encoding.UTF8.GetString(EnvelopeCodec.Open(
+            Convert.FromHexString((string)v["key_hex"]!), B64u((string)v["nonce_b64u"]!),
+            (string)v["aad"]!, B64u((string)v["ciphertext_b64u"]!)));
+        var plain = JsonNode.Parse(text)!.AsObject();
+        Check($"{name} decrypts to kind=entitlement with {{original_json, signature}}",
+            (string?)plain["kind"] == "entitlement"
+            && plain["body"]!["original_json"] is not null && plain["body"]!["signature"] is not null
+            && Canonical(plain) == Canonical(v["plaintext_json"]));
+    }
+    catch (Exception ex) { Check($"{name} decrypts to kind=entitlement", false, ex.GetType().Name); }
+
+    // A state-changing p2e kind MUST carry a valid device sig, over the same pairing device key.
+    var ciphertext = B64u((string)v["ciphertext_b64u"]!);
+    var input = DeviceSignature.SigInput((string)v["aad"]!, (string)v["nonce_b64u"]!, ciphertext);
+    Check($"{name} carries the device ECDSA sig and it verifies under the pairing key",
+        v["envelope_json"]!["sig"] is not null
+        && DeviceSignature.Verify(devicePub, input, B64u((string)v["envelope_json"]!["sig"]!)));
+}
+
+// The signature field is Play's STANDARD base64 (not the envelope's base64url). Decoding it as
+// base64url MUST fail -- which is exactly why §4.3.2 flags it as payload content, not framing.
+{
+    var validEnt = entitlementVectors.Single(v => (string)v["name"]! == "entitlement-valid");
+    var sigField = (string)validEnt["plaintext_json"]!["body"]!["signature"]!;
+    Check("entitlement signature decodes as standard base64 to a 2048-bit RSA signature (256 bytes)",
+        Convert.TryFromBase64String(sigField, new byte[512], out var written) && written == 256);
+    Check("entitlement signature is rejected by the envelope base64url decoder (it is payload content)",
+        !Base64Url.TryDecode(sigField, out _));
+}
+
 // ---------------------------------------------------------------- protocol rules
 
 Console.WriteLine("\n[ protocol rules independent of any single vector ]");
