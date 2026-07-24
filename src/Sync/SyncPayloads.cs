@@ -30,6 +30,15 @@ public static class SyncPayloads
     public static byte[] Heartbeat(string tsUtc, long cycle, Counters counters)
         => Encode("heartbeat", new { ts = tsUtc, cycle, counters });
 
+    /// <summary>
+    /// Audit-chain metadata for the phone's Evidence screen (Sync-Protocol.md §4.3 kind
+    /// `evidence`): the engine's own verification verdict plus recent audit-event metadata —
+    /// seq/ts/actor/kind/entity only. It deliberately carries NO event payload bodies: the audit
+    /// events reference engine-internal entities, and the raw bodies stay on the desktop.
+    /// </summary>
+    public static byte[] Evidence(bool auditOk, long? firstBrokenSeq, int eventCount, IReadOnlyList<EvidenceEvent> events)
+        => Encode("evidence", new { audit_ok = auditOk, first_broken_seq = firstBrokenSeq, event_count = eventCount, events });
+
     private static byte[] Encode(string kind, object body)
         => JsonSerializer.SerializeToUtf8Bytes(new { kind, body }, Options);
 }
@@ -59,3 +68,16 @@ public sealed record JobSummary(
     [property: JsonPropertyName("title")] string Title,
     [property: JsonPropertyName("repost")] bool Repost,
     [property: JsonPropertyName("injection_flag")] bool InjectionFlag);
+
+/// <summary>
+/// One audit-chain event as the phone's Evidence screen renders it — metadata only. `actor`,
+/// `kind`, `entity`, and `entity_id` are engine-internal structured identifiers, not untrusted
+/// job text; a raw event payload body never rides here.
+/// </summary>
+public sealed record EvidenceEvent(
+    [property: JsonPropertyName("seq")] long Seq,
+    [property: JsonPropertyName("ts")] string Ts,
+    [property: JsonPropertyName("actor")] string Actor,
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("entity")] string Entity,
+    [property: JsonPropertyName("entity_id")] string EntityId);

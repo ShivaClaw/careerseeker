@@ -145,7 +145,7 @@ Engine → phone:
 | `snapshot` | Full dashboard state. Sent on pairing and on engine start. |
 | `delta` | Applications/jobs/counters changed since a given seq. |
 | `doc` | One document: `{app_id, doc_kind, rev, text, verified}`. `doc_kind` ∈ `draft_email` \| `cover_letter` \| `resume_text`. |
-| `evidence` | Audit-event metadata (kind, ts, entity, hash) — never full payloads. |
+| `evidence` | `{audit_ok, first_broken_seq?, event_count, events:[{seq, ts, actor, kind, entity, entity_id}]}` — the engine's audit-chain verdict plus recent event metadata. Never full event payload bodies. |
 | `heartbeat` | `{ts, cycle, counters}`. Drives the app's "last seen" indicator. |
 | `conflict` | Rejection of a `doc_edit`: `{app_id, doc_kind, base_rev, current_rev}`. |
 | `entitlement_ack` | Engine confirms a Pro voucher was accepted. |

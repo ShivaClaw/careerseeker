@@ -75,6 +75,20 @@ public sealed class EngineSyncBridge
     public Task<bool> PublishHeartbeatAsync(CancellationToken ct = default)
         => _publisher.PublishHeartbeatAsync(_counters.Cycles, MapCounters(_counters), ct);
 
+    /// <summary>
+    /// Publish the engine's audit-chain verdict + recent event metadata for the Evidence screen.
+    /// Sourced from the same <see cref="DashboardEvidence"/> the local dashboard's evidence page
+    /// renders, so the phone sees exactly what the desktop reports — never a raw event payload.
+    /// </summary>
+    public async Task<bool> PublishEvidenceAsync(CancellationToken ct = default)
+    {
+        var e = await _evidence.LoadAsync(ct).ConfigureAwait(false);
+        var events = e.RecentEvents
+            .Select(x => new EvidenceEvent(x.Seq, x.Ts, x.Actor, x.Kind, x.Entity, x.EntityId))
+            .ToArray();
+        return await _publisher.PublishEvidenceAsync(e.AuditOk, e.FirstBrokenSeq, e.EventCount, events, ct).ConfigureAwait(false);
+    }
+
     public static Counters MapCounters(EngineCounters c) =>
         new(c.Discovered, c.Acted, c.Drafted, c.Blocked, c.Rejected, c.Errors, c.Cycles);
 

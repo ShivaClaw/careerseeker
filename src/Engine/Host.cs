@@ -1011,6 +1011,7 @@ public sealed class EngineHost : IAsyncDisposable
             {
                 await cycle.TickAsync(ct).ConfigureAwait(false);
                 await syncBridge.PublishAsync(ct).ConfigureAwait(false);
+                await syncBridge.PublishEvidenceAsync(ct).ConfigureAwait(false);
             };
         _scheduler = new PeriodicScheduler(tick, interval);
         _dashboard = new LocalDashboard(counters, dashboardPort, dashboardActions, dashboardEvidence, dashboardDocumentRoots);

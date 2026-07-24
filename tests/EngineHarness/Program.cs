@@ -1193,6 +1193,14 @@ Console.WriteLine("\n[ P2 sync bridge: projects engine state and drives the publ
     var okBeat = await bridge.PublishHeartbeatAsync();
     Check("bridge heartbeat is accepted as kind=heartbeat", okBeat && Open(pushed[2]).Kind == "heartbeat");
 
+    var okEvidence = await bridge.PublishEvidenceAsync();
+    var (evKind, evPlain) = Open(pushed[3]);
+    Check("bridge evidence is accepted as kind=evidence", okEvidence && evKind == "evidence");
+    Check("bridge evidence carries the audit verdict and event metadata (a cycle appended events)",
+        evPlain.Contains("\"audit_ok\":") && evPlain.Contains("\"events\":") && evPlain.Contains("\"entity_id\":"));
+    Check("bridge evidence carries NO raw event payload body",
+        !evPlain.Contains("posting_body") && !evPlain.Contains("\"body\":\"") && !evPlain.Contains("description"));
+
     // Projection unit checks: counters map straight across; flags are display-only booleans.
     var mapped = EngineSyncBridge.MapCounters(bridgeCounters);
     Check("MapCounters mirrors EngineCounters", mapped.Discovered == bridgeCounters.Discovered && mapped.Cycles == bridgeCounters.Cycles);

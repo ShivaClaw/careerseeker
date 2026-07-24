@@ -73,6 +73,12 @@ public sealed class SyncPublisher
         return PushSealedAsync(SyncPayloads.Heartbeat(ts, cycle, counters), ts, ct);
     }
 
+    /// <summary>Audit-chain verdict + recent event metadata for the phone's Evidence screen.</summary>
+    public Task<bool> PublishEvidenceAsync(
+        bool auditOk, long? firstBrokenSeq, int eventCount, IReadOnlyList<EvidenceEvent> events,
+        CancellationToken ct = default)
+        => PushSealedAsync(SyncPayloads.Evidence(auditOk, firstBrokenSeq, eventCount, events), ct);
+
     private Task<bool> PushSealedAsync(byte[] plaintext, CancellationToken ct)
         => PushSealedAsync(plaintext, Iso(_clock()), ct);
 

@@ -323,6 +323,17 @@ Console.WriteLine("\n[ P2 snapshot/delta/heartbeat payloads ]");
     Check("snapshot carries NO raw posting body (untrusted-text rule)",
         !snapText.Contains("jd_path") && !snapText.Contains("description") && !snapText.Contains("posting_body") && !snapText.Contains("\"body\":\""),
         "a P2 dashboard payload must never ship an interpolable posting body");
+
+    // evidence: the audit-chain verdict + event metadata for the Evidence screen.
+    var events = new[] { new EvidenceEvent(1, "2026-07-23T09:00:11Z", "engine", "scout_ingest", "scout", "b41f") };
+    var evidence = SyncPayloads.Evidence(auditOk: true, firstBrokenSeq: null, eventCount: 42, events: events);
+    Check("evidence seals, decodes, and is accepted as kind=evidence", SealAndKind(evidence, 4) == "evidence");
+    var evText = Encoding.UTF8.GetString(evidence);
+    Check("evidence carries the audit verdict and event metadata",
+        evText.Contains("\"audit_ok\":true") && evText.Contains("\"event_count\":42") && evText.Contains("\"entity_id\":\"b41f\""));
+    Check("evidence omits first_broken_seq when the chain is intact", !evText.Contains("first_broken_seq"));
+    Check("evidence carries NO raw event payload body (metadata only)",
+        !evText.Contains("payload") && !evText.Contains("\"body\":\"") && !evText.Contains("description"));
 }
 
 // ---------------------------------------------------------------- P2 publisher
@@ -393,6 +404,10 @@ Console.WriteLine("\n[ SyncPublisher seals, sequences, and pushes e2p envelopes 
     Check("the next push resumes at seq 5, leaving a gap at 4",
         publisher.PublishHeartbeatAsync(9, counters).GetAwaiter().GetResult() && publisher.HighestSeq == 5);
     Check("receiver accepts the post-gap envelope (gaps are legitimate)", KindOf(pushed[3]) == "heartbeat");
+
+    var evEvents = new[] { new EvidenceEvent(1, "2026-07-23T09:00:11Z", "engine", "scout_ingest", "scout", "b41f") };
+    Check("publisher publishes evidence as kind=evidence",
+        publisher.PublishEvidenceAsync(true, null, 2, evEvents).GetAwaiter().GetResult() && KindOf(pushed[4]) == "evidence");
 
     var badKey = false;
     try { _ = new SyncPublisher(new byte[16], pairingId, activeKeyId, sink); }
