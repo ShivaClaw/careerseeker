@@ -2252,6 +2252,39 @@ Console.WriteLine("\n[ P2 sync bridge: projects engine state and drives the publ
     Check("bridge evidence carries NO raw event payload body",
         !evPlain.Contains("posting_body") && !evPlain.Contains("\"body\":\"") && !evPlain.Contains("description"));
 
+    // Audit finding (2026-07-24): a failed FIRST snapshot must not flip the bridge to delta mode.
+    // The phone merges deltas into whatever it holds -- on a fresh install that is demo fixture
+    // data -- so the snapshot must be retried until one actually lands.
+    {
+        var flakyPushed = new List<string>();
+        var flakySinkOk = false;
+        Func<string, CancellationToken, Task<bool>> flakySink = (env, _) =>
+        {
+            if (flakySinkOk) flakyPushed.Add(env);
+            return Task.FromResult(flakySinkOk);
+        };
+        var flakyBridge = new EngineSyncBridge(
+            bridgeCounters, LocalDashboardEvidence.FromStore(bridgeStore),
+            new SyncPublisher(kE2p, "p_bridge_test", "k-bridge", flakySink));
+
+        var firstOk = await flakyBridge.PublishAsync();
+        Check("a failed first snapshot leaves SnapshotSent unset", !firstOk && !flakyBridge.SnapshotSent);
+
+        flakySinkOk = true;
+        var secondOk = await flakyBridge.PublishAsync();
+        var retried = JsonDocument.Parse(flakyPushed.Single()).RootElement;
+        var retryReceiver = new EnvelopeReceiver("k-bridge");
+        var retryResult = retryReceiver.Receive(
+            new ReceivedEnvelope(retried.GetProperty("v").GetInt32(), retried.GetProperty("pairing").GetString()!,
+                retried.GetProperty("dir").GetString()!, retried.GetProperty("seq").GetInt64(),
+                retried.GetProperty("ts").GetString()!, retried.GetProperty("key_id").GetString()!,
+                retried.GetProperty("nonce").GetString()!, retried.GetProperty("ciphertext").GetString()!, null),
+            _ => kE2p);
+        Check("the retry publishes a snapshot after the burned seq, not a delta",
+            secondOk && flakyBridge.SnapshotSent && retryResult.Accepted
+            && retryResult.Kind == "snapshot" && retried.GetProperty("seq").GetInt64() == 2);
+    }
+
     // Projection unit checks: counters map straight across; flags are display-only booleans.
     var mapped = EngineSyncBridge.MapCounters(bridgeCounters);
     Check("MapCounters mirrors EngineCounters", mapped.Discovered == bridgeCounters.Discovered && mapped.Cycles == bridgeCounters.Cycles);
