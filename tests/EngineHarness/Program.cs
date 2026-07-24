@@ -49,6 +49,90 @@ const string fabricated =
     "{\"resume\":\"Senior Software Engineer.\",\"cover\":\"I personally increased company revenue by 200% in one quarter.\"," +
     "\"claims\":[{\"kind\":\"Metric\",\"text\":\"increased revenue 200%\",\"number\":200,\"unit\":\"%\"}],\"answers\":{}}";
 
+Console.WriteLine("\n[ Alpha 2.0 provider diagnostics and local resume extraction ]");
+{
+    var sanitized = AlphaProviderDiagnostics.SanitizePastedKey(" \u200b\"AQ.sample-key\" \r\n");
+    Check("setup sanitizes quoted keys and invisible paste characters", sanitized == "AQ.sample-key", sanitized);
+
+    var unauthorized = new ProviderHttpException(
+        "google",
+        HttpStatusCode.Unauthorized,
+        """{"error":{"status":"UNAUTHENTICATED","details":[{"reason":"ACCESS_TOKEN_TYPE_UNSUPPORTED"}]}}""",
+        "UNAUTHENTICATED",
+        "ACCESS_TOKEN_TYPE_UNSUPPORTED",
+        "invalid authentication credentials");
+    var rejected = AlphaProviderDiagnostics.Classify("Gemini", unauthorized, "AQ.sample-key");
+    Check("AQ authorization-key 401 is rejected with rollout guidance",
+        rejected.Outcome == ProviderTestOutcome.InvalidCredentials &&
+        !rejected.CredentialAuthenticated &&
+        !rejected.CanSaveWithoutSuccessfulTest &&
+        rejected.FriendlyMessage.Contains("rollout", StringComparison.OrdinalIgnoreCase));
+
+    var quota = AlphaProviderDiagnostics.Classify(
+        "Gemini",
+        new ProviderHttpException("google", HttpStatusCode.TooManyRequests, "quota", null, null, "quota"),
+        "AQ.sample-key");
+    Check("provider 429 authenticates and preserves the credential",
+        quota.Outcome == ProviderTestOutcome.QuotaExceeded && quota.CredentialAuthenticated);
+
+    var transient = AlphaProviderDiagnostics.Classify(
+        "Anthropic",
+        new ProviderHttpException("anthropic", HttpStatusCode.ServiceUnavailable, "temporary", null, null, "temporary"),
+        "sk-ant-sample");
+    Check("provider 5xx allows an unverified later retry",
+        transient.Outcome == ProviderTestOutcome.TransientFailure &&
+        transient.CanSaveWithoutSuccessfulTest &&
+        !transient.CredentialAuthenticated);
+
+    var normalized = ResumeTextExtractor.Normalize("Name\u0000\r\n\r\n\r\n  Senior\t Engineer  \r\nExperience");
+    Check("resume text normalization removes controls and repeated blank lines",
+        normalized == "Name\n\nSenior Engineer\nExperience", normalized.Replace("\n", "\\n", StringComparison.Ordinal));
+
+    var root = Path.Combine(Path.GetTempPath(), "careerseeker-resume-extract-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var docxPath = Path.Combine(root, "resume.docx");
+        using (var archive = ZipFile.Open(docxPath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("word/document.xml");
+            using var writer = new StreamWriter(entry.Open(), Encoding.UTF8);
+            writer.Write("""
+                         <?xml version="1.0" encoding="UTF-8"?>
+                         <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                           <w:body>
+                             <w:p><w:r><w:t>Jordan Lee</w:t></w:r></w:p>
+                             <w:p><w:r><w:t>Senior Software Engineer with distributed systems experience.</w:t></w:r></w:p>
+                           </w:body>
+                         </w:document>
+                         """);
+        }
+        var docxText = await ResumeTextExtractor.ExtractAsync(docxPath);
+        Check("local DOCX resume extraction preserves paragraph text",
+            docxText.Contains("Jordan Lee", StringComparison.Ordinal) &&
+            docxText.Contains("distributed systems experience", StringComparison.Ordinal));
+
+        var renderer = new AtsPdfDocumentRenderer(new AtsPdfRendererOptions("Jordan Lee"));
+        var pdf = await renderer.RenderResumeAsync(
+            new PipelineJob(1, "Senior Software Engineer", "Acme"),
+            new TailoredApplication(
+                Array.Empty<TailoredClaim>(),
+                "Jordan Lee\nSenior Software Engineer\nBuilt reliable distributed systems in Go.",
+                "",
+                new Dictionary<string, string>()));
+        var pdfPath = Path.Combine(root, "resume.pdf");
+        await File.WriteAllBytesAsync(pdfPath, pdf.Content);
+        var pdfText = await ResumeTextExtractor.ExtractAsync(pdfPath);
+        Check("local PDF resume extraction preserves selectable text",
+            pdfText.Contains("Jordan Lee", StringComparison.Ordinal) &&
+            pdfText.Contains("distributed systems", StringComparison.Ordinal));
+    }
+    finally
+    {
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+    }
+}
+
 // one Tailor serving the whole cycle: fabricates only when the prompt names the "Fabricator" job
 string Respond(ProviderCall call)
 {

@@ -23,7 +23,7 @@ Trust/OAuth docs:
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
   `EngineHarness` (90), `ResearcherHarness` (57), `HookHarness` (16), `StoreParityHarness` (22),
   `GatewayGateHarness` (36), `DispatcherNoSendHarness` (35), `LifecycleHarness` (44), and
-  `RendererHarness` (6). Latest offline total: 334 assertions. Run each with
+  `RendererHarness` (6). Latest offline total: 341 assertions. Run each with
   `dotnet run -c Release`.
 - `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. It builds, runs the initializer dry run,
   source-mode SQLite demo smoke, and offline harness suite. Add `-IncludeLive` for local BYOK/Gmail checks,

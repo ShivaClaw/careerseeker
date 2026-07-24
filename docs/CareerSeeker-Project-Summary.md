@@ -1,6 +1,6 @@
 # CareerSeeker Project Summary
 
-Updated: 2026-07-20
+Updated: 2026-07-23
 Audience: LLM agents, coding agents, test harnesses, planning agents
 Source repo: repository root
 Primary branch: `main`
@@ -23,6 +23,12 @@ Overall status: technical Windows alpha path implemented; SQLite source restorat
 
 Completed:
 
+- The Alpha 2.0 setup bridge now offers Gemini, Anthropic, or manual profile setup; retests saved credentials
+  before use; classifies provider failures without dumping raw JSON; removes definite 401/403 failures; and
+  limits unverified storage to timeout/provider-server failures.
+- Resume onboarding extracts bounded selectable text locally from PDF, DOCX, TXT, or Markdown before consent,
+  sends only normalized text through a provider-neutral extraction path, and keeps the existing claim review
+  and approval gate.
 - B1 live Scout ATS ingestion verified against real Greenhouse, Lever, and Ashby APIs.
 - B5 Gmail draft client verified with a real Google OAuth token and a real Gmail draft in the test account.
 - OAuth token storage works through a local DPAPI-backed token vault.
@@ -374,12 +380,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 334 passed, 0 failed.
+Total: 341 passed, 0 failed.
 
 | Harness                   | Result              |
 | ------------------------- | ------------------- |
 | `Slice`                   | 28 passed, 0 failed |
-| `EngineHarness`           | 90 passed, 0 failed |
+| `EngineHarness`           | 97 passed, 0 failed |
 | `ResearcherHarness`       | 57 passed, 0 failed |
 | `HookHarness`             | 16 passed, 0 failed |
 | `StoreParityHarness`      | 22 passed, 0 failed |

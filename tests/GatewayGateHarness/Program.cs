@@ -48,7 +48,7 @@ Check("VerifierEntailment is pinned", GatewayPolicy.IsPinned(Stage.VerifierEntai
 Check("pinned throttle priority is int.MaxValue",
     GatewayPolicy.ThrottlePriority(Stage.VerifierEntailment) == int.MaxValue);
 Check("Gate nominal class is StrongCloud", routes.NominalClass(Stage.VerifierEntailment) == CapabilityClass.StrongCloud);
-Check("routing price list is dated", routes.PricingAsOf == "2026-07-20");
+Check("routing price list is dated", routes.PricingAsOf == "2026-07-23");
 Check("routing price list names official provider sources",
     routes.PricingSources.Any(u => u.Host.Contains("claude", StringComparison.OrdinalIgnoreCase))
     && routes.PricingSources.Any(u => u.Host.Contains("google", StringComparison.OrdinalIgnoreCase)));
@@ -244,7 +244,8 @@ Console.WriteLine("\n[ BYOK provider HTTP shapes ]");
 {
     const string apiKey = "gemini-test-key-for-redaction";
     var handler = new CapturingHandler(HttpStatusCode.Unauthorized,
-        "{\"error\":{\"message\":\"invalid key; echoed x-goog-api-key=" + apiKey + "\"}}");
+        "{\"error\":{\"message\":\"invalid key; echoed x-goog-api-key=" + apiKey +
+        "\",\"status\":\"UNAUTHENTICATED\",\"details\":[{\"reason\":\"ACCESS_TOKEN_TYPE_UNSUPPORTED\"}]}}");
     var provider = new GoogleProvider(new HttpClient(handler),
         new StaticKeySource(new Dictionary<string, string> { ["google"] = apiKey }));
 
@@ -261,9 +262,13 @@ Console.WriteLine("\n[ BYOK provider HTTP shapes ]");
     {
         redacted = ex.Message.Contains("invalid key", StringComparison.Ordinal)
             && ex.Message.Contains("[redacted-api-key]", StringComparison.Ordinal)
-            && !ex.Message.Contains(apiKey, StringComparison.Ordinal);
+            && !ex.Message.Contains(apiKey, StringComparison.Ordinal)
+            && ex is ProviderHttpException providerError
+            && providerError.StatusCode == HttpStatusCode.Unauthorized
+            && providerError.ProviderStatus == "UNAUTHENTICATED"
+            && providerError.ProviderReason == "ACCESS_TOKEN_TYPE_UNSUPPORTED";
     }
-    Check("Google provider redacts echoed API key from error body", redacted);
+    Check("Google provider redacts keys and retains structured error fields", redacted);
 }
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");

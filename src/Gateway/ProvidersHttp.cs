@@ -23,6 +23,35 @@ public interface IApiKeySource
 /// it still redacts the known key before surfacing the body in case a provider or proxy echoes headers.
 /// Truncated because provider errors can embed the request.
 /// </summary>
+public sealed class ProviderHttpException : HttpRequestException
+{
+    public ProviderHttpException(
+        string provider,
+        System.Net.HttpStatusCode statusCode,
+        string responseBody,
+        string? providerStatus,
+        string? providerReason,
+        string? providerMessage)
+        : base(
+            $"{provider} API returned {(int)statusCode} {statusCode}: " +
+            (string.IsNullOrWhiteSpace(responseBody) ? "(empty response body)" : responseBody),
+            inner: null,
+            statusCode)
+    {
+        Provider = provider;
+        ResponseBody = responseBody;
+        ProviderStatus = providerStatus;
+        ProviderReason = providerReason;
+        ProviderMessage = providerMessage;
+    }
+
+    public string Provider { get; }
+    public string ResponseBody { get; }
+    public string? ProviderStatus { get; }
+    public string? ProviderReason { get; }
+    public string? ProviderMessage { get; }
+}
+
 internal static class ProviderHttpErrors
 {
     public static void ThrowIfError(
@@ -37,8 +66,47 @@ internal static class ProviderHttpErrors
         var detail = string.IsNullOrWhiteSpace(redacted)
             ? "(empty response body)"
             : redacted.Length > 600 ? redacted.Substring(0, 600) + "…" : redacted;
-        throw new HttpRequestException(
-            $"{provider} API returned {(int)resp.StatusCode} {resp.StatusCode}: {detail}");
+        var (providerStatus, providerReason, providerMessage) = ParseProviderError(redacted);
+        throw new ProviderHttpException(
+            provider,
+            resp.StatusCode,
+            detail,
+            providerStatus,
+            providerReason,
+            providerMessage);
+    }
+
+    private static (string? Status, string? Reason, string? Message) ParseProviderError(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("error", out var error))
+                return (null, null, null);
+
+            var status = error.TryGetProperty("status", out var statusNode)
+                ? statusNode.GetString()
+                : null;
+            var message = error.TryGetProperty("message", out var messageNode)
+                ? messageNode.GetString()
+                : null;
+            string? reason = null;
+            if (error.TryGetProperty("details", out var details) && details.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var detailNode in details.EnumerateArray())
+                {
+                    if (!detailNode.TryGetProperty("reason", out var reasonNode)) continue;
+                    reason = reasonNode.GetString();
+                    if (!string.IsNullOrWhiteSpace(reason)) break;
+                }
+            }
+
+            return (status, reason, message);
+        }
+        catch (JsonException)
+        {
+            return (null, null, null);
+        }
     }
 
     private static string RedactSecrets(string body, IEnumerable<string> secrets)

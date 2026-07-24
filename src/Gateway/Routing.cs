@@ -69,11 +69,11 @@ public sealed class RoutingTable
     /// </summary>
     public static RoutingTable Default()
     {
-        const string pricingAsOf = "2026-07-20";
+        const string pricingAsOf = "2026-07-23";
 
         // Prices are USD / 1M tokens (input, output). Local = 0.
         var local      = new ModelSpec("local",     "llama-3.x-8b-instruct",  0m,    0m,    IsLocal: true);
-        var flashLite  = new ModelSpec("google",    "gemini-2.5-flash-lite",  0.10m, 0.40m);
+        var flashLite  = new ModelSpec("google",    "gemini-3.1-flash-lite",  0.25m, 1.50m);
         var haiku      = new ModelSpec("anthropic", "claude-haiku-4-5",       1.00m, 5.00m);
         var flash      = new ModelSpec("google",    "gemini-2.5-flash",       0.30m, 2.50m);
         var sonnet5    = new ModelSpec("anthropic", "claude-sonnet-5",        2.00m, 10.00m);

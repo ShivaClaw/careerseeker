@@ -29,7 +29,7 @@ The tester experience should feel like this:
 1. Download CareerSeeker.
 2. Open `CareerSeeker Setup`.
 3. Choose a recent resume.
-4. Paste a Gemini API key.
+4. Choose Gemini or Anthropic and paste that provider's API key, or continue with manual profile setup.
 5. Sign in with Gmail.
 6. Review and approve extracted profile facts.
 7. Start the dashboard.
@@ -163,21 +163,28 @@ Do not permanently copy the resume outside the local workspace unless the user a
 
 ### 4. AI Provider Connection
 
-For Alpha 2.0, default to Gemini BYOK:
+For Alpha 2.0, default to Gemini BYOK with Anthropic and manual fallbacks:
 
 - accepted key names: `GEMINI_API_KEY` or `GOOGLE_API_KEY`
 - setup field label: `Gemini API key`
-- default extraction model: `gemini-2.5-flash-lite`
+- default Gemini extraction model: `gemini-3.1-flash-lite`
+- accepted Anthropic key name: `ANTHROPIC_API_KEY`
+- default Anthropic extraction model: `claude-haiku-4-5`
 - model must be configurable so the alpha can move to a newer Flash-Lite model without changing the wizard
 
 The wizard should:
 
 - link to Google AI Studio key creation
+- link to Anthropic key management when Anthropic is selected
 - provide paste-and-test
 - mask the key after entry
 - store the key directly in DPAPI
 - run a low-cost provider doctor
 - never print or log the secret value
+- retest a saved credential before sending resume text
+- reject and remove definite 401/403 credential failures
+- retain quota-authenticated credentials, and offer unverified storage only for timeouts or provider 5xx failures
+- keep raw provider errors behind an explicit advanced-details action
 
 Manual fallback:
 
@@ -186,7 +193,8 @@ Manual fallback:
 
 ### 5. Resume Extraction
 
-After explicit consent, send only the resume text/content needed for extraction to Gemini.
+Extract selectable resume text locally from PDF, DOCX, TXT, or Markdown. After explicit consent, send only that
+normalized text to the selected AI provider; do not upload the original resume file in the bridge flow.
 
 The extraction prompt should request structured JSON with:
 
@@ -290,7 +298,7 @@ Recommended structure:
 
 - download link and code
 - "After download, open `START HERE - CareerSeeker Setup.exe`"
-- prerequisites: Windows, Gmail account, Gemini API key, recent resume
+- prerequisites: Windows, Gmail account, Gemini or Anthropic API key (optional with manual setup), recent resume
 - safety promise: creates drafts only, sends nothing
 - support link
 - advanced/manual guide link
@@ -300,7 +308,7 @@ Recommended structure:
 Alpha 2.0 must preserve the local-first alpha promise:
 
 - SQLite, OAuth tokens, provider keys, generated drafts, evidence packages, and resume-derived profile data stay local by default.
-- Resume content is sent to Gemini only after explicit consent.
+- Locally extracted resume text is sent to the selected AI provider only after explicit consent.
 - AI-extracted profile claims are tagged with AI/resume provenance and capped at `stated`.
 - API keys are stored in per-user DPAPI.
 - Gmail tokens are stored in per-user DPAPI.

@@ -347,7 +347,9 @@ try {
     foreach ($snippet in @(
         "CareerSeeker Alpha 2.0 Bridge",
         "START HERE - CareerSeeker Setup.exe",
-        "Gemini API key",
+        "Gemini, Anthropic, or manual profile setup",
+        "tests provider credentials before use",
+        "extracts resume text locally",
         "review/edit it before import",
         "packaged OAuth client",
         "setup creates no Gmail draft",

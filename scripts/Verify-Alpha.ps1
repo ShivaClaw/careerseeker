@@ -113,8 +113,8 @@ $offlineProjects = @(
 # This number is the measured total's expected value: the run below fails if the actual sum drifts from
 # it, so a dropped harness or deleted assertion can no longer regress silently while the doc-smoke grep
 # still finds the stale count. Bump it in lockstep with the per-harness/doc counts (see the drift trap in
-# CLAUDE.md). Last verified at 334 on branch claude/alpha-finish (draft-job startup reconcile).
-$ExpectedOfflineTotal = 334
+# CLAUDE.md). Seven onboarding/provider assertions were added for Alpha 2.0.1.
+$ExpectedOfflineTotal = 341
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -262,7 +262,7 @@ Invoke-Step "Public README and harness count smoke" {
         'HookHarness` (16)',
         'GatewayGateHarness` (36)',
         'admitted hooks stay prompt',
-        'Latest offline total: 334 assertions'
+        'Latest offline total: 341 assertions'
     ) "README.md"
     Assert-DoesNotContain $readme @(
         'free Windows service (.exe)'
@@ -273,7 +273,7 @@ Invoke-Step "Public README and harness count smoke" {
     # re-pads them); collapse runs of spaces so the row assertions tolerate that padding.
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
-        'Total: 334 passed, 0 failed.',
+        'Total: 341 passed, 0 failed.',
         'imports require the CareerSeeker alpha profile',
         'document responses carry no-store, nosniff, no-referrer',
         '`/evidence.html`',
@@ -282,7 +282,7 @@ Invoke-Step "Public README and harness count smoke" {
         'admitted company hooks stay prompt'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| `EngineHarness` | 90 passed, 0 failed |',
+        '| `EngineHarness` | 97 passed, 0 failed |',
         '| `ResearcherHarness` | 57 passed, 0 failed |',
         '| `HookHarness` | 16 passed, 0 failed |',
         '| `GatewayGateHarness` | 36 passed, 0 failed |'
@@ -290,7 +290,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 334 passed, 0 failed.',
+        'Latest offline harness total: 341 passed, 0 failed.',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
         '`INSTALL`',
@@ -302,7 +302,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `334 passed, 0 failed`.',
+        'Latest local offline verifier: `341 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'Fresh live Scout harness, 2026-07-20',
         'BYOK live provider smoke',
@@ -339,7 +339,7 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $historicalAudit @(
         'Current-status note, 2026-07-20',
         'this is preserved as historical audit input, not as current status for',
-        'the default verifier reports 334 passed / 0 failed'
+        'the default verifier reports 341 passed / 0 failed'
     ) "docs/repo-audit-2026-07-13.md"
 
     Assert-Contains $summary @(
@@ -425,13 +425,45 @@ Invoke-Step "LLM provider registry smoke" {
 
     $routing = Get-Content -LiteralPath "src/Gateway/Routing.cs" -Raw
     Assert-Contains $routing @(
-        'const string pricingAsOf = "2026-07-20"',
+        'const string pricingAsOf = "2026-07-23"',
+        'gemini-3.1-flash-lite',
         'claude-sonnet-5',
         'claude-sonnet-4-6',
         'gemini-3.1-pro-preview',
         'https://platform.claude.com/docs/en/about-claude/pricing',
         'https://ai.google.dev/gemini-api/docs/gemini-3'
     ) "src/Gateway/Routing.cs"
+}
+
+Invoke-Step "Alpha 2.0 provider onboarding smoke" {
+    $setupBridge = Get-Content -LiteralPath "src/Engine/AlphaSetupBridge.cs" -Raw
+    Assert-Contains $setupBridge @(
+        'AI resume provider',
+        'Gemini',
+        'Anthropic',
+        'Continue without AI',
+        'Retesting the saved credential before any resume content can be sent.',
+        'The rejected saved credential was removed from the local vault.',
+        'Save this credential for a later retry?',
+        'ResumeTextExtractor.ExtractAsync',
+        'Send the extracted resume text to',
+        'gemini-3.1-flash-lite',
+        'claude-haiku-4-5'
+    ) "src/Engine/AlphaSetupBridge.cs"
+    Assert-DoesNotContain $setupBridge @(
+        'Save this key anyway?',
+        'gemini-2.5-flash-lite',
+        'Send this resume to Gemini'
+    ) "src/Engine/AlphaSetupBridge.cs"
+
+    $providerDiagnostics = Get-Content -LiteralPath "src/Engine/AlphaProviderDiagnostics.cs" -Raw
+    Assert-Contains $providerDiagnostics @(
+        'ACCESS_TOKEN_TYPE_UNSUPPORTED',
+        'HttpStatusCode.Unauthorized',
+        'HttpStatusCode.TooManyRequests',
+        'HttpStatusCode.RequestTimeout',
+        'CanSaveWithoutSuccessfulTest'
+    ) "src/Engine/AlphaProviderDiagnostics.cs"
 }
 
 Invoke-Step "Code-signing guidance smoke" {
@@ -563,26 +595,28 @@ if ($IncludePackage) {
             $entries = @($zip.Entries | ForEach-Object { $_.FullName.Replace("\", "/") })
             foreach ($required in @(
                 "SeekerSvc.Engine.exe",
-                "Connect-CareerSeeker-Providers.cmd",
-                "Connect-CareerSeeker-Gmail.cmd",
-                "Check-CareerSeeker-LiveReadiness.cmd",
-                "Clear-CareerSeeker-Providers.cmd",
-                "Disconnect-CareerSeeker-Gmail.cmd",
-                "Import-CareerSeeker-Profile.cmd",
-                "Setup-CareerSeeker-Alpha.cmd",
-                "Run-CareerSeeker-Demo.cmd",
-                "Run-CareerSeeker-Scout.cmd",
-                "Research-CareerSeeker-Company.cmd",
-                "Draft-CareerSeeker-Job.cmd",
-                "Run-CareerSeeker-Live.cmd",
-                "Export-CareerSeeker-Audit.cmd",
-                "Export-CareerSeeker-Evidence.cmd",
-                "Import-CareerSeeker-Package.cmd",
-                "Verify-CareerSeeker-Alpha.cmd",
-                "Start-CareerSeeker-Alpha.cmd",
-                "Install-CareerSeeker-DashboardTask.cmd",
-                "Status-CareerSeeker-DashboardTask.cmd",
-                "Uninstall-CareerSeeker-DashboardTask.cmd",
+                "START HERE - CareerSeeker Setup.exe",
+                "README - Start Here.txt",
+                "Advanced Tools/Connect-CareerSeeker-Providers.cmd",
+                "Advanced Tools/Connect-CareerSeeker-Gmail.cmd",
+                "Advanced Tools/Check-CareerSeeker-LiveReadiness.cmd",
+                "Advanced Tools/Clear-CareerSeeker-Providers.cmd",
+                "Advanced Tools/Disconnect-CareerSeeker-Gmail.cmd",
+                "Advanced Tools/Import-CareerSeeker-Profile.cmd",
+                "Advanced Tools/Setup-CareerSeeker-Alpha.cmd",
+                "Advanced Tools/Run-CareerSeeker-Demo.cmd",
+                "Advanced Tools/Run-CareerSeeker-Scout.cmd",
+                "Advanced Tools/Research-CareerSeeker-Company.cmd",
+                "Advanced Tools/Draft-CareerSeeker-Job.cmd",
+                "Advanced Tools/Run-CareerSeeker-Live.cmd",
+                "Advanced Tools/Export-CareerSeeker-Audit.cmd",
+                "Advanced Tools/Export-CareerSeeker-Evidence.cmd",
+                "Advanced Tools/Import-CareerSeeker-Package.cmd",
+                "Advanced Tools/Verify-CareerSeeker-Alpha.cmd",
+                "Advanced Tools/Start-CareerSeeker-Alpha.cmd",
+                "Advanced Tools/Install-CareerSeeker-DashboardTask.cmd",
+                "Advanced Tools/Status-CareerSeeker-DashboardTask.cmd",
+                "Advanced Tools/Uninstall-CareerSeeker-DashboardTask.cmd",
                 "e_sqlite3.dll",
                 "README-alpha.txt",
                 "AUDIT-SNAPSHOT.txt",
@@ -727,64 +761,64 @@ if ($IncludePackage) {
             if ($manifest.includes.scripts -notcontains "scripts/Test-AlphaReleasePackage.ps1") {
                 throw "Alpha release manifest missing package self-check script."
             }
-            if ($manifest.includes.launchers -notcontains "Start-CareerSeeker-Alpha.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Start-CareerSeeker-Alpha.cmd") {
                 throw "Alpha release manifest missing double-click alpha launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Setup-CareerSeeker-Alpha.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Setup-CareerSeeker-Alpha.cmd") {
                 throw "Alpha release manifest missing double-click setup launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Import-CareerSeeker-Profile.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Import-CareerSeeker-Profile.cmd") {
                 throw "Alpha release manifest missing double-click profile import launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Connect-CareerSeeker-Providers.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Connect-CareerSeeker-Providers.cmd") {
                 throw "Alpha release manifest missing double-click provider connect launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Connect-CareerSeeker-Gmail.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Connect-CareerSeeker-Gmail.cmd") {
                 throw "Alpha release manifest missing double-click Gmail connect launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Check-CareerSeeker-LiveReadiness.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Check-CareerSeeker-LiveReadiness.cmd") {
                 throw "Alpha release manifest missing double-click live readiness launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Clear-CareerSeeker-Providers.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Clear-CareerSeeker-Providers.cmd") {
                 throw "Alpha release manifest missing double-click provider clear launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Disconnect-CareerSeeker-Gmail.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Disconnect-CareerSeeker-Gmail.cmd") {
                 throw "Alpha release manifest missing double-click Gmail disconnect launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Demo.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Run-CareerSeeker-Demo.cmd") {
                 throw "Alpha release manifest missing double-click demo cycle launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Scout.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Run-CareerSeeker-Scout.cmd") {
                 throw "Alpha release manifest missing double-click Scout ingest launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Research-CareerSeeker-Company.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Research-CareerSeeker-Company.cmd") {
                 throw "Alpha release manifest missing double-click company research launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Draft-CareerSeeker-Job.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Draft-CareerSeeker-Job.cmd") {
                 throw "Alpha release manifest missing double-click selected-job draft launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Live.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Run-CareerSeeker-Live.cmd") {
                 throw "Alpha release manifest missing double-click live alpha launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Export-CareerSeeker-Evidence.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Export-CareerSeeker-Evidence.cmd") {
                 throw "Alpha release manifest missing double-click evidence export launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Export-CareerSeeker-Audit.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Export-CareerSeeker-Audit.cmd") {
                 throw "Alpha release manifest missing double-click audit export launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Import-CareerSeeker-Package.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Import-CareerSeeker-Package.cmd") {
                 throw "Alpha release manifest missing double-click alpha package import launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Verify-CareerSeeker-Alpha.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Verify-CareerSeeker-Alpha.cmd") {
                 throw "Alpha release manifest missing double-click release verification launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Install-CareerSeeker-DashboardTask.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Install-CareerSeeker-DashboardTask.cmd") {
                 throw "Alpha release manifest missing double-click dashboard task install launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Status-CareerSeeker-DashboardTask.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Status-CareerSeeker-DashboardTask.cmd") {
                 throw "Alpha release manifest missing double-click dashboard task status launcher."
             }
-            if ($manifest.includes.launchers -notcontains "Uninstall-CareerSeeker-DashboardTask.cmd") {
+            if ($manifest.includes.launchers -notcontains "Advanced Tools/Uninstall-CareerSeeker-DashboardTask.cmd") {
                 throw "Alpha release manifest missing double-click dashboard task uninstall launcher."
             }
             if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {

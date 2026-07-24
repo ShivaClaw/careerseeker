@@ -247,8 +247,9 @@ First click:
 What setup does:
 
   - creates the local CareerSeeker workspace
-  - asks for a Gemini API key and stores it in the Windows user vault
-  - asks for a recent resume and sends it to Gemini only after consent
+  - lets you choose Gemini, Anthropic, or manual profile setup
+  - tests provider credentials before use and stores accepted keys in the Windows user vault
+  - extracts resume text locally and sends it to the chosen provider only after consent
   - opens the extracted profile so you can review/edit it before import
   - connects Gmail through CareerSeeker's packaged OAuth client
   - checks readiness and opens the localhost dashboard

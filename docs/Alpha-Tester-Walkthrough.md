@@ -22,9 +22,10 @@ Most testers should start here:
 
 1. Unzip the release package into a local folder.
 2. Double-click `START HERE - CareerSeeker Setup.exe`.
-3. Paste a Gemini API key when setup asks for it. Setup stores it in the local Windows user vault, not in
-   `secrets\env.secrets`.
-4. Choose a recent resume only if you consent to sending it to Gemini for profile extraction.
+3. Choose Gemini, Anthropic, or manual profile setup. Setup tests provider credentials before use and stores
+   accepted keys in the local Windows user vault, not in `secrets\env.secrets`.
+4. Choose a recent resume only if you consent to sending its locally extracted text to the selected AI provider.
+   CareerSeeker does not upload the original PDF or DOCX during this flow.
 5. Review and edit the generated profile draft when it opens, then review each extracted claim. AI-extracted
    resume claims are imported as `stated` with `sourceDoc: "resume-ai"`, not as `verified`.
 6. Sign in with Gmail when the browser opens. The package should include CareerSeeker's OAuth client metadata;
@@ -33,6 +34,14 @@ Most testers should start here:
 
 Setup creates no Gmail draft. Live draft helpers still require typing `LIVE` before creating one Gmail draft for
 review.
+
+Provider setup retests saved keys before resume extraction. Definite authentication and permission failures are
+not retained; quota-authenticated keys are retained, while timeout and provider-server failures may be saved only
+for a later retry. Raw provider responses are hidden unless the tester asks for advanced details.
+
+Advanced launchers may preselect/configure onboarding with `--ai-provider gemini|anthropic|manual`,
+`--gemini-model <model>`, or `--anthropic-model <model>`. The model defaults can also be overridden through
+`CAREERSEEKER_GEMINI_MODEL` and `CAREERSEEKER_ANTHROPIC_MODEL`.
 
 ## Advanced / Manual First Run
 
