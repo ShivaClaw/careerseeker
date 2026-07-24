@@ -58,6 +58,30 @@ Signup hygiene (site source `Desktop\site-v2`, off-repo, staged only):
 Housekeeping: the `Desktop\dryrun` folder (flagged in the seed as still holding real API keys) no longer
 exists — that cleanup already happened; nothing to delete.
 
+### 8AM Cloudflare push — EXECUTED (Brandon's go). Scope chosen: core deploy + tee up email (no real mail)
+
+- **R2:** uploaded object `alpha/CareerSeeker-alpha2-bridge-win-x64-2026-07-24-7018ff9.zip` to bucket
+  `careerseeker` (new object; the old `ffe3622` object left untouched — never overwrite). Auth =
+  `CLOUDFLARE_R2_API_TOKEN`.
+- **Pages deploy:** `wrangler pages deploy .` from inside `site-v2` to production branch `main` (project
+  `careerseeker-site`). Both success signals present ("Compiled Worker successfully" + "Uploading Functions
+  bundle"). Deployments `fe23b36b` (site edits) then `2a57c81e` (signup.js REST-shape fix).
+- **E2E verified on careerseeker.app:** public ZIP sha256 == `3A4251F6…E900F2` == build (64,937,092 bytes);
+  `/download/` shows the new filename + hash with no stale refs; bad code -> **403**; traversal ->
+  404/404/400 (all rejected).
+- **Fixed a live signup.js bug while teeing up email:** the REST branch sent `from: { address, name }` and
+  `reply_to: { address }`, but Cloudflare Email Service REST wants `from: { email, name }` and `reply_to`
+  as a string — it would have 400'd every send even after onboarding + secrets. Fixed and deployed. (The
+  `env.EMAIL` binding branch was already correct.)
+- **Email enablement TEED UP, not enabled.** Production Pages `env_vars` still NONE -> leg still inert
+  (honest 503; KV/codes still created). Handoff artifacts on Brandon's Desktop:
+  `Email-Enablement-Checklist.md` + `pages-email-secrets.PATCH.json` (full merged config, preserves
+  `BETA_KV`/`RELEASES`). Brandon's remaining steps: dashboard Onboard Domain (auto-creates the `cf-bounce`
+  MX/SPF/DKIM/DMARC records; separate from the existing root Email Routing, no conflict), create an
+  `Email Sending: Edit` token, add the two Pages secrets, redeploy. Then the rate-limit rule on
+  `/api/signup` (dashboard) and the one controlled real-mail e2e test (his explicit go) remain.
+- Operator tool `Desktop\Process-PendingOAuthTestUsers.ps1` in place for working the OAuth test-user queue.
+
 ## 2026-07-24 (Alpha 2.0 Bridge) - setup ZIP built and post-audit fixes applied
 
 Alpha 2.0 Bridge is the current local package target; the real per-user installer is intentionally deferred
