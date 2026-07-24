@@ -2255,6 +2255,15 @@ Console.WriteLine("\n[ P2 sync bridge: projects engine state and drives the publ
     // Projection unit checks: counters map straight across; flags are display-only booleans.
     var mapped = EngineSyncBridge.MapCounters(bridgeCounters);
     Check("MapCounters mirrors EngineCounters", mapped.Discovered == bridgeCounters.Discovered && mapped.Cycles == bridgeCounters.Cycles);
+
+    // F1: the 0-5 engine total is projected to a 0-100 int so real scores share the phone UI's scale.
+    ApplicationSummaryRow RowWithTotal(double? total) => new(
+        1, "READY", "L1", null, "t", "t", null, 1, "Engineer", "Acme", null, null, "Remote", "about:blank", null,
+        null, null, total, null, null, null, null, false);
+    Check("MapApplication scales the 0-5 engine total to a 0-100 int",
+        EngineSyncBridge.ScoreToWire(4.1) == 82 && EngineSyncBridge.ScoreToWire(5.0) == 100
+        && EngineSyncBridge.ScoreToWire(0.0) == 0 && EngineSyncBridge.ScoreToWire(null) == 0
+        && EngineSyncBridge.MapApplication(RowWithTotal(4.1)).Score == 82);
 }
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");

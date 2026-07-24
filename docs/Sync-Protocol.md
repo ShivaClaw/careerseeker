@@ -142,9 +142,9 @@ Engine → phone:
 
 | Kind | Body |
 | --- | --- |
-| `snapshot` | Full dashboard state. Sent on pairing and on engine start. |
-| `delta` | Applications/jobs/counters changed since a given seq. |
-| `doc` | One document: `{app_id, doc_kind, rev, text, verified}`. `doc_kind` ∈ `draft_email` \| `cover_letter` \| `resume_text`. |
+| `snapshot` | Full dashboard state (counters + application/job summaries). Body in §4.3.1. Sent on pairing and on engine start. |
+| `delta` | Recent-window dashboard state with a `since_seq` marker; receiver applies latest-wins. Body in §4.3.1. |
+| `doc` | One document: `{app_id, doc_kind, rev, text, verified}`. `doc_kind` ∈ `draft_email` \| `cover_letter` \| `resume_text`. Not emitted in v1 — see the note after §4.3.1. |
 | `evidence` | `{audit_ok, first_broken_seq?, event_count, events:[{seq, ts, actor, kind, entity, entity_id}]}` — the engine's audit-chain verdict plus recent event metadata. Never full event payload bodies. |
 | `heartbeat` | `{ts, cycle, counters}`. Drives the app's "last seen" indicator. |
 | `conflict` | Rejection of a `doc_edit`: `{app_id, doc_kind, base_rev, current_rev}`. |
@@ -171,6 +171,41 @@ approval from the phone a non-goal for v1 while reserving the envelope kinds.
 kill switch: a remote stop command is an L2 control-plane action, and shipping it in v1
 would mean the phone can change engine behaviour before the signing and audit story has
 been through an external audit.
+
+### 4.3.1 Dashboard bodies (`snapshot`, `delta`)
+
+Both carry the same dashboard projection. `snapshot` is the full current state — the receiver
+replaces its application and job tables wholesale — and `delta` is the recent window plus a
+`since_seq` marker, which the receiver **upserts** (latest-wins by envelope seq). Scores are
+**0–100 integers** on the wire: the engine scores on an internal 0–5 axis (`total = min(fit,
+legitimacy) · multiplier`) and scales it by 20 before publishing, so the phone renders one scale
+for demo and live data alike. No raw posting body ever rides here (§8.6) — only the short
+structured fields below.
+
+```
+snapshot body = {
+  "counters": { "discovered","acted","drafted","blocked","rejected","errors","cycles" },  // all long
+  "applications": [ { "id","state","company","title","score" } ],   // score: int 0–100
+  "jobs":         [ { "id","company","title","repost","injection_flag" } ]  // repost, injection_flag: bool
+}
+
+delta body = snapshot body + { "since_seq": <long> }
+```
+
+`delta` currently carries the recent window (a bounded set), not a computed diff; `since_seq` is
+the last envelope the publisher sent, and the receiver applies latest-wins over what it holds. A
+large seq gap is a signal to request a fresh `snapshot` (§6.2), never to reconstruct missing
+deltas. The field set is pinned here because it is the contract a third implementation reads —
+the C# `SyncHarness` and the Kotlin applier tests each mirror it, but tests pin implementations,
+not the wire.
+
+**`doc` is specified but not emitted in v1 (opens P3).** The canonical `doc_kind` set is
+`draft_email | cover_letter | resume_text` — the three documents spec §4.1 screen 4 renders;
+screening-question answers are deliberately not a v1 `doc_kind`. Emitting `doc` requires engine
+work that P3 opens with: the engine renders these to PDF and today persists only the file paths,
+so it must first persist the tailored source **text** and a per-document **rev**, and decide how
+the draft-email body — which lives in Gmail as a draft, not in the store — is sourced. Until that
+lands, no implementation carries a `doc` branch, by the no-parser-for-unshipped-shapes rule.
 
 ### 4.4 Chunking
 
@@ -370,7 +405,15 @@ unchanged, which is why it is built now rather than when L2 needs it.
 ### 6.1 Sequence numbers
 
 Each direction has an independent counter starting at 1, incremented per envelope, and
-persisted by the sender across restarts.
+**persisted by the sender across restarts**. This is load-bearing on the engine side: the phone
+persists its highest-accepted e2p seq — it survives a process restart (a fresh in-memory receiver
+would otherwise re-accept an old seq) — so an engine that resumed its counter at 1 after its own
+restart would have every envelope, *including the recovery `snapshot`*, rejected as
+`replay_rejected`: a silent, total, one-sided sync death. The engine MUST therefore resume its
+e2p counter above `max(persisted_seq, relay_latest_e2p_seq)` — the value from its pairing store,
+reconciled on startup against the relay's current `latest` for the direction
+(`GET /pull?dir=e2p&since=0` returns it) as a belt-and-suspenders should the store lag. The
+pairing store is the device-session deliverable; this rule is what it must satisfy.
 
 ### 6.2 Receiver rules
 

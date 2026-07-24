@@ -97,7 +97,15 @@ public sealed class EngineSyncBridge
         r.State,
         r.CompanyName ?? r.CompanyDomain ?? "-",
         r.JobTitle,
-        r.Total is { } total ? (int)Math.Round(total, MidpointRounding.AwayFromZero) : 0);
+        ScoreToWire(r.Total));
+
+    /// <summary>
+    /// The engine scores on a 0–5 axis (Scorer: total = min(fit, legitimacy) · multiplier, all ≤5);
+    /// the phone's UI speaks 0–100. The wire unit is 0–100 int (Sync-Protocol.md §4.3), so a real
+    /// score renders on the same scale as the demo fixture rather than as a bare "4" beside an "82".
+    /// </summary>
+    public static int ScoreToWire(double? engineTotal) =>
+        engineTotal is { } t ? (int)Math.Round(Math.Clamp(t * 20.0, 0.0, 100.0), MidpointRounding.AwayFromZero) : 0;
 
     public static JobSummary MapJob(JobSummaryRow r) => new(
         r.JobId.ToString(CultureInfo.InvariantCulture),
