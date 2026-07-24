@@ -82,6 +82,33 @@ exists — that cleanup already happened; nothing to delete.
   `/api/signup` (dashboard) and the one controlled real-mail e2e test (his explicit go) remain.
 - Operator tool `Desktop\Process-PendingOAuthTestUsers.ps1` in place for working the OAuth test-user queue.
 
+### 2026-07-24 (later) - tester setup guide + animated homepage mark (all deployed + e2e-verified)
+
+Site source is off-repo at `Desktop\site-v2`; deploys via `wrangler pages deploy .` from inside it.
+
+- **Signup email upgraded** (`functions/api/signup.js`): first email now carries the "Most testers should start
+  here" walkthrough (7 steps + safety notes) in text+HTML, and **attaches a setup-guide PDF**. The PDF is read
+  at request time from R2 (`env.RELEASES.get("assets/CareerSeeker-Alpha-Setup-Guide.pdf")`, chunked base64,
+  ~3 MiB raw guard for the CF Email Service 5 MiB message cap; sends without it rather than failing signup if
+  missing). NOTE: the REST send shape is `from: { address, name }` + `reply_to` string — a live smoke proved
+  `{ email }` returns 10001; do not "fix" it to match the docs.
+- **Setup guide** (from the Claude Design project "Screenshots to infographic guide", `.dc.html`) ported to clean
+  static HTML — no dc runtime. Rendered two ways: (1) embedded on the **beta post-signup state** (`beta/index.html`
+  `#step-thanks`, "While you wait" section), and (2) a **regenerated 315 KB PDF** (Edge headless print of
+  `Desktop\Career Seeker\setup-guide-print.html`) that replaced the original 1.6 MB image-only PDF as the email
+  attachment. Screenshots live at `site-v2/assets/setup-guide/step[1-6]-*.png`.
+- **Security fix on the screenshots:** Step 5 ("Copy key") showed a (throwaway) Gemini key + project ids; the
+  API-key / project-name / project-number rows are pixelated (System.Drawing, `assets/setup-guide/step5-copy-key.png`)
+  before publishing. The other screenshots are clean UI (SmartScreen, AI Studio, setup console).
+- **Homepage** (`index.html`): added the **animated watch/radar hero mark** from the Claude Design "CareerSeeker
+  Site Reskin" project — inline SVG + vanilla-JS rAF loop (minute hand 120 deg/s over a 36 s cycle, hour hand 1/12,
+  lime radar-sweep wedge between them), `prefers-reduced-motion` aware. Scoped to just the icon in a two-column
+  hero; the rest of the page is unchanged. Verified animating via two-frame headless diff.
+- Live verification on careerseeker.app: beta page carries the guide + 6 step images; `step5` served bytes ==
+  local blurred bytes; the PDF is NOT publicly reachable via `/releases/...` (assets/ prefix, releases fn only
+  serves alpha/) -> 404; bad code still 403; download page still 200 with the 3A4251F6 hash; homepage serves the
+  animated mark with the reduced-motion guard and correct UTF-8.
+
 ### Email enablement — LIVE (2026-07-24 ~11:38 local)
 
 Brandon onboarded careerseeker.app to Cloudflare Email **Sending** (dashboard; `cf-bounce`
