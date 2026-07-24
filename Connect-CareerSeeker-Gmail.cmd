@@ -10,9 +10,13 @@ if not exist "%~dp0SeekerSvc.Engine.exe" (
   exit /b 1
 )
 
-if not exist "%~dp0secrets\google-oauth-client.json" (
-  echo CareerSeeker Gmail connect could not find secrets\google-oauth-client.json.
-  echo Add your Google OAuth client JSON there, then run this again.
+set "CAREERSEEKER_GOOGLE_CLIENT=%~dp0resources\google-client.json"
+if not exist "%CAREERSEEKER_GOOGLE_CLIENT%" (
+  set "CAREERSEEKER_GOOGLE_CLIENT=%~dp0secrets\google-oauth-client.json"
+)
+if not exist "%CAREERSEEKER_GOOGLE_CLIENT%" (
+  echo CareerSeeker Gmail connect could not find the packaged Google client metadata.
+  echo Ask the alpha owner for a package that includes resources\google-client.json.
   pause
   exit /b 1
 )
@@ -20,7 +24,7 @@ if not exist "%~dp0secrets\google-oauth-client.json" (
 echo Connecting CareerSeeker Alpha to Gmail...
 echo This checks gmail.compose draft access and creates no draft.
 echo.
-"%~dp0SeekerSvc.Engine.exe" connect-gmail --client secrets\google-oauth-client.json --vault .appdata\oauth\gmail-token.dpapi
+"%~dp0SeekerSvc.Engine.exe" connect-gmail --client "%CAREERSEEKER_GOOGLE_CLIENT%" --vault .appdata\oauth\gmail-token.dpapi
 set "status=%ERRORLEVEL%"
 
 if not "%status%"=="0" (

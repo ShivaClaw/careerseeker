@@ -9,7 +9,7 @@ param(
     [string] $ArtifactsPath = ".appdata/artifacts",
     [string] $SecretsPath = "secrets/env.secrets",
     [string] $ByokVaultPath = ".appdata/secrets/byok-keys.dpapi",
-    [string] $GmailClientPath = "secrets/google-oauth-client.json",
+    [string] $GmailClientPath = "resources/google-client.json",
     [string] $GmailVaultPath = ".appdata/oauth/gmail-token.dpapi",
     [string] $ResearchCompany = "GitLab",
     [string] $ResearchDomain = "gitlab.com",
@@ -109,7 +109,7 @@ $offlineProjects = @(
 )
 
 # The pinned offline assertion total. CI runs this whole file on windows-latest, so the real-SQLite
-# harnesses above (EngineHarness, StoreParityHarness) are exercised on every push/PR — not just locally.
+# harnesses above (EngineHarness, StoreParityHarness) are exercised on every push/PR - not just locally.
 # This number is the measured total's expected value: the run below fails if the actual sum drifts from
 # it, so a dropped harness or deleted assertion can no longer regress silently while the doc-smoke grep
 # still finds the stale count. Bump it in lockstep with the per-harness/doc counts (see the drift trap in
@@ -128,7 +128,7 @@ Invoke-Step "Alpha workspace initializer dry run" {
         -JobDescriptionDirectory "tmp/verify-alpha-init/job-descriptions" `
         -ProfileTemplatePath "tmp/verify-alpha-init/profile.template.json" `
         -SecretsPath "tmp/verify-alpha-init/secrets/env.secrets" `
-        -GmailClientPath "tmp/verify-alpha-init/secrets/google-oauth-client.json" `
+        -GmailClientPath "tmp/verify-alpha-init/resources/google-client.json" `
         -GmailVaultPath "tmp/verify-alpha-init/oauth/gmail-token.dpapi" `
         -ByokVaultPath "tmp/verify-alpha-init/secrets/byok-keys.dpapi" `
         -OutputDirectory "tmp/verify-alpha-init/output"
@@ -849,7 +849,7 @@ if ($IncludePackage) {
             -ArtifactsPath ".appdata/package-readiness-artifacts" `
             -SecretsPath "secrets/env.secrets" `
             -ByokVaultPath ".appdata/package-readiness-secrets/byok-keys.dpapi" `
-            -GmailClientPath "secrets/google-oauth-client.json" `
+            -GmailClientPath "resources/google-client.json" `
             -GmailVaultPath ".appdata/package-readiness-oauth/gmail-token.dpapi"
         if ($LASTEXITCODE -ne 0) {
             throw "Packaged live readiness helper smoke failed."
@@ -924,7 +924,7 @@ if ($IncludePackage) {
 
         & (Join-Path $extractRoot "SeekerSvc.Engine.exe") `
             "disconnect-gmail" `
-            "--client" (Join-Path $extractRoot "secrets/google-oauth-client.json") `
+            "--client" (Join-Path $extractRoot "resources/google-client.json") `
             "--vault" (Join-Path $offrampOauthDir "gmail-token.dpapi")
         if ($LASTEXITCODE -ne 0) {
             throw "Packaged Gmail disconnect command smoke failed."

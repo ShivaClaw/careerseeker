@@ -12,7 +12,7 @@ using SeekerSvc.Store;
 using SeekerSvc.Tailor;
 using SeekerSvc.Verifier;
 
-var mode = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal)) ?? "demo";
+var mode = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal)) ?? DefaultModeFromExecutableName();
 if (HasFlag("--help") || HasFlag("-h"))
 {
     PrintUsage();
@@ -21,6 +21,8 @@ if (HasFlag("--help") || HasFlag("-h"))
 
 if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase))
     return await RunDemoAsync().ConfigureAwait(false);
+if (mode.Equals("setup", StringComparison.OrdinalIgnoreCase))
+    return await AlphaSetupBridge.RunAsync(args).ConfigureAwait(false);
 if (mode.Equals("alpha", StringComparison.OrdinalIgnoreCase))
     return await RunAlphaAsync().ConfigureAwait(false);
 if (mode.Equals("dashboard", StringComparison.OrdinalIgnoreCase))
@@ -65,7 +67,7 @@ async Task<int> RunDemoAsync()
     var auditOutPath = StringArg("--audit-out") ?? Path.Combine("output", "careerseeker-audit.json");
     var packageOutPath = StringArg("--package-out") ?? Path.Combine("output", "careerseeker-alpha-package.zip");
     var gmailVaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
-    var gmailClientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+    var gmailClientPath = StringArg("--client") ?? DefaultGoogleOAuthClientPath();
     var gmailControlRequested = HasFlag("--gmail-control");
 
     if (!string.IsNullOrWhiteSpace(dbPath))
@@ -165,7 +167,7 @@ async Task<int> RunAlphaAsync()
     var email = StringArg("--email")
                 ?? Environment.GetEnvironmentVariable("CAREERSEEKER_GMAIL_TEST_EMAIL")
                 ?? EnvFileValue(envFilePath, "CAREERSEEKER_GMAIL_TEST_EMAIL");
-    var clientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+    var clientPath = StringArg("--client") ?? DefaultGoogleOAuthClientPath();
     var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
     var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
     var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
@@ -320,7 +322,7 @@ async Task<int> RunResearchCompanyAsync()
 
 async Task<int> RunConnectGmailAsync()
 {
-    var clientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+    var clientPath = StringArg("--client") ?? DefaultGoogleOAuthClientPath();
     var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
 
     if (string.IsNullOrWhiteSpace(clientPath) || !File.Exists(clientPath))
@@ -372,7 +374,7 @@ async Task<int> RunDashboardAsync()
     var auditOutPath = StringArg("--audit-out") ?? Path.Combine("output", "careerseeker-audit.json");
     var packageOutPath = StringArg("--package-out") ?? Path.Combine("output", "careerseeker-alpha-package.zip");
     var gmailVaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
-    var gmailClientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+    var gmailClientPath = StringArg("--client") ?? DefaultGoogleOAuthClientPath();
     var gmailControlRequested = HasFlag("--gmail-control");
 
     var dbDir = Path.GetDirectoryName(dbPath);
@@ -604,7 +606,7 @@ async Task<int> RunDraftJobAsync()
     }
     else
     {
-        var clientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+        var clientPath = StringArg("--client") ?? DefaultGoogleOAuthClientPath();
         var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
         if (string.IsNullOrWhiteSpace(clientPath) || !File.Exists(clientPath))
             return Fail($"draft-job cannot find OAuth client JSON at '{clientPath ?? "<none>"}'.");
@@ -880,7 +882,7 @@ async Task<int> RunDoctorAsync()
     var report = await StartupDoctor.RunAsync(new StartupDoctorOptions(
         DbPath: StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db"),
         ArtifactDirectory: StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts"),
-        OAuthClientPath: StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json"),
+        OAuthClientPath: StringArg("--client") ?? DefaultGoogleOAuthClientPath(),
         GmailTokenVaultPath: StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi"),
         EnvFilePath: envFilePath,
         KeyVaultPath: StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi"),
@@ -983,7 +985,7 @@ int RunClearByok()
 async Task<int> RunDisconnectGmailAsync()
 {
     var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
-    var clientPath = StringArg("--client") ?? DefaultExisting("secrets/google-oauth-client.json", "client_secret.json");
+    var clientPath = StringArg("--client") ?? DefaultGoogleOAuthClientPath();
 
     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
     var tokens = new GoogleOAuthTokenSource(http, LoadDisconnectGoogleClient(clientPath), new DpapiTokenVault(vaultPath));
@@ -1488,6 +1490,17 @@ string? EnvFileValue(string path, string name)
     return null;
 }
 
+static string DefaultModeFromExecutableName()
+{
+    var exeName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? Environment.GetCommandLineArgs().FirstOrDefault() ?? "");
+    return exeName.Contains("setup", StringComparison.OrdinalIgnoreCase) ? "setup" : "demo";
+}
+
+static string? DefaultGoogleOAuthClientPath() => DefaultExisting(
+    Path.Combine("resources", "google-client.json"),
+    Path.Combine("secrets", "google-oauth-client.json"),
+    "client_secret.json");
+
 static string? DefaultExisting(params string[] paths) => paths.FirstOrDefault(File.Exists) ?? paths.FirstOrDefault();
 
 int Fail(string message)
@@ -1503,10 +1516,11 @@ void PrintUsage()
     Console.WriteLine("CareerSeeker alpha executable");
     Console.WriteLine();
     Console.WriteLine("Usage:");
-    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
-    Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
-    Console.WriteLine("  SeekerSvc.Engine.exe dashboard [--once] [--port 7777] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
-    Console.WriteLine("  SeekerSvc.Engine.exe draft-job --job-id 123 [--dry-run] [--llm fake|byok] [--gate-semantic-candidates 3] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe setup [--smoke] [--skip-gmail] [--skip-ai] [--client resources/google-client.json] [--port 7777]");
+    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
+    Console.WriteLine("  SeekerSvc.Engine.exe dashboard [--once] [--port 7777] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe draft-job --job-id 123 [--dry-run] [--llm fake|byok] [--gate-semantic-candidates 3] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe scout-boards [--board greenhouse:remotecom] [--board lever:mistral] [--db .appdata/careerseeker-alpha.db] [--jd-dir .appdata/job-descriptions] [--timeout-seconds 240]");
     Console.WriteLine("  SeekerSvc.Engine.exe research-company --company Acme [--domain acme.com] --llm byok [--brave-key <key>] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--max-docs-per-query 5]");
     Console.WriteLine("  SeekerSvc.Engine.exe export-audit [--db .appdata/careerseeker-alpha.db] [--out output/audit.json] [--include-payloads]");
@@ -1514,12 +1528,12 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe import-alpha-package --package output/careerseeker-alpha-package.zip [--target .appdata/imported] [--db .appdata/imported/careerseeker-alpha.db] [--artifacts .appdata/imported/artifacts] [--jd-dir .appdata/imported/job-descriptions] [--overwrite] [--no-db] [--no-artifacts] [--no-jds]");
     Console.WriteLine("  SeekerSvc.Engine.exe profile-template [--out .appdata/profile.template.json] [--overwrite]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-profile --profile .appdata/profile.template.json [--db .appdata/careerseeker-alpha.db]");
-    Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe control-app --application-id 123 --action pause|resume|kill [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");
-    Console.WriteLine("  SeekerSvc.Engine.exe connect-gmail [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--http-timeout-seconds 60]");
-    Console.WriteLine("  SeekerSvc.Engine.exe disconnect-gmail [--client secrets/google-oauth-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe connect-gmail [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--http-timeout-seconds 60]");
+    Console.WriteLine("  SeekerSvc.Engine.exe disconnect-gmail [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
 }
 
 sealed class BoundedByokSmokeTailorModel : ITailorModel

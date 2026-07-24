@@ -9,7 +9,7 @@ param(
     [string] $JobDescriptionDirectory = ".appdata/job-descriptions",
     [string] $ProfileTemplatePath = ".appdata/profile.template.json",
     [string] $SecretsPath = "secrets/env.secrets",
-    [string] $GmailClientPath = "secrets/google-oauth-client.json",
+    [string] $GmailClientPath = "resources/google-client.json",
     [string] $GmailVaultPath = ".appdata/oauth/gmail-token.dpapi",
     [string] $ByokVaultPath = ".appdata/secrets/byok-keys.dpapi",
     [string] $OutputDirectory = "output"

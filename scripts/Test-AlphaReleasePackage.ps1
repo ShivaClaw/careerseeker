@@ -84,32 +84,36 @@ Push-Location $Root
 try {
     foreach ($required in @(
         "SeekerSvc.Engine.exe",
-        "Connect-CareerSeeker-Providers.cmd",
-        "Connect-CareerSeeker-Gmail.cmd",
-        "Check-CareerSeeker-LiveReadiness.cmd",
-        "Clear-CareerSeeker-Providers.cmd",
-        "Disconnect-CareerSeeker-Gmail.cmd",
-        "Import-CareerSeeker-Profile.cmd",
-        "Setup-CareerSeeker-Alpha.cmd",
-        "Run-CareerSeeker-Demo.cmd",
-        "Run-CareerSeeker-Scout.cmd",
-        "Research-CareerSeeker-Company.cmd",
-        "Draft-CareerSeeker-Job.cmd",
-        "Run-CareerSeeker-Live.cmd",
-        "Export-CareerSeeker-Audit.cmd",
-        "Export-CareerSeeker-Evidence.cmd",
-        "Import-CareerSeeker-Package.cmd",
-        "Verify-CareerSeeker-Alpha.cmd",
-        "Start-CareerSeeker-Alpha.cmd",
-        "Install-CareerSeeker-DashboardTask.cmd",
-        "Status-CareerSeeker-DashboardTask.cmd",
-        "Uninstall-CareerSeeker-DashboardTask.cmd",
+        "START HERE - CareerSeeker Setup.exe",
+        "README - Start Here.txt",
+        "Advanced Tools/Connect-CareerSeeker-Providers.cmd",
+        "Advanced Tools/Connect-CareerSeeker-Gmail.cmd",
+        "Advanced Tools/Check-CareerSeeker-LiveReadiness.cmd",
+        "Advanced Tools/Clear-CareerSeeker-Providers.cmd",
+        "Advanced Tools/Disconnect-CareerSeeker-Gmail.cmd",
+        "Advanced Tools/Import-CareerSeeker-Profile.cmd",
+        "Advanced Tools/Setup-CareerSeeker-Alpha.cmd",
+        "Advanced Tools/Run-CareerSeeker-Demo.cmd",
+        "Advanced Tools/Run-CareerSeeker-Scout.cmd",
+        "Advanced Tools/Research-CareerSeeker-Company.cmd",
+        "Advanced Tools/Draft-CareerSeeker-Job.cmd",
+        "Advanced Tools/Run-CareerSeeker-Live.cmd",
+        "Advanced Tools/Export-CareerSeeker-Audit.cmd",
+        "Advanced Tools/Export-CareerSeeker-Evidence.cmd",
+        "Advanced Tools/Import-CareerSeeker-Package.cmd",
+        "Advanced Tools/Verify-CareerSeeker-Alpha.cmd",
+        "Advanced Tools/Start-CareerSeeker-Alpha.cmd",
+        "Advanced Tools/Install-CareerSeeker-DashboardTask.cmd",
+        "Advanced Tools/Status-CareerSeeker-DashboardTask.cmd",
+        "Advanced Tools/Uninstall-CareerSeeker-DashboardTask.cmd",
         "e_sqlite3.dll",
         "README-alpha.txt",
         "AUDIT-SNAPSHOT.txt",
         "RELEASE-MANIFEST.json",
         "SHA256SUMS.txt",
+        "resources/google-client.json",
         "docs/Alpha-Tester-Walkthrough.md",
+        "docs/CareerSeeker-Alpha2-Onboarding-Spec.md",
         "scripts/Check-AlphaLiveReadiness.ps1",
         "scripts/Connect-AlphaProviders.ps1",
         "scripts/Draft-AlphaJob.ps1",
@@ -156,8 +160,43 @@ try {
     if ($manifest.includes.auditSnapshot -ne "AUDIT-SNAPSHOT.txt") {
         throw "Release manifest does not reference AUDIT-SNAPSHOT.txt."
     }
+    if ($manifest.alpha2Bridge.setupExecutable -ne "START HERE - CareerSeeker Setup.exe") {
+        throw "Release manifest does not list the Alpha 2.0 setup executable."
+    }
+    if ($manifest.includes.setupExecutable -ne "START HERE - CareerSeeker Setup.exe") {
+        throw "Release manifest includes block does not list the setup executable."
+    }
+    if ($manifest.includes.startHere -ne "README - Start Here.txt") {
+        throw "Release manifest does not reference README - Start Here.txt."
+    }
+    if ($manifest.alpha2Bridge.appOwnedOAuthClientPackaged -ne $true) {
+        throw "Release manifest does not confirm packaged app-owned OAuth client metadata."
+    }
+    if ($manifest.alpha2Bridge.oauthClientPath -ne "resources/google-client.json") {
+        throw "Release manifest does not point to resources/google-client.json for OAuth client metadata."
+    }
+    if ($manifest.includes.resources -notcontains "resources/google-client.json") {
+        throw "Release manifest does not list resources/google-client.json."
+    }
+    $oauthClient = Get-Content -LiteralPath (Resolve-RootPath "resources/google-client.json") -Raw | ConvertFrom-Json
+    if ($null -eq $oauthClient.installed) {
+        throw "Packaged Google OAuth client must be an installed/Desktop client."
+    }
+    if ($null -ne $oauthClient.web) {
+        throw "Packaged Google OAuth client must not be a Web client."
+    }
+    if ([string]::IsNullOrWhiteSpace($oauthClient.installed.client_id)) {
+        throw "Packaged installed OAuth client is missing client_id."
+    }
+    if ([string]::IsNullOrWhiteSpace($oauthClient.installed.auth_uri) -or
+        [string]::IsNullOrWhiteSpace($oauthClient.installed.token_uri)) {
+        throw "Packaged installed OAuth client is missing auth_uri or token_uri."
+    }
     if ($manifest.includes.docs -notcontains "docs/Alpha-Tester-Walkthrough.md") {
         throw "Release manifest does not list the alpha tester walkthrough."
+    }
+    if ($manifest.includes.docs -notcontains "docs/CareerSeeker-Alpha2-Onboarding-Spec.md") {
+        throw "Release manifest does not list the Alpha 2.0 onboarding spec."
     }
     if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
         throw "Release manifest does not list the dashboard launcher."
@@ -198,64 +237,64 @@ try {
     if ($manifest.includes.scripts -notcontains "scripts/Test-AlphaReleasePackage.ps1") {
         throw "Release manifest does not list the package self-check script."
     }
-    if ($manifest.includes.launchers -notcontains "Start-CareerSeeker-Alpha.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Start-CareerSeeker-Alpha.cmd") {
         throw "Release manifest does not list the double-click alpha launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Setup-CareerSeeker-Alpha.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Setup-CareerSeeker-Alpha.cmd") {
         throw "Release manifest does not list the double-click setup launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Import-CareerSeeker-Profile.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Import-CareerSeeker-Profile.cmd") {
         throw "Release manifest does not list the double-click profile import launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Connect-CareerSeeker-Providers.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Connect-CareerSeeker-Providers.cmd") {
         throw "Release manifest does not list the double-click provider connect launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Connect-CareerSeeker-Gmail.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Connect-CareerSeeker-Gmail.cmd") {
         throw "Release manifest does not list the double-click Gmail connect launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Check-CareerSeeker-LiveReadiness.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Check-CareerSeeker-LiveReadiness.cmd") {
         throw "Release manifest does not list the double-click live readiness launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Clear-CareerSeeker-Providers.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Clear-CareerSeeker-Providers.cmd") {
         throw "Release manifest does not list the double-click provider clear launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Disconnect-CareerSeeker-Gmail.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Disconnect-CareerSeeker-Gmail.cmd") {
         throw "Release manifest does not list the double-click Gmail disconnect launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Demo.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Run-CareerSeeker-Demo.cmd") {
         throw "Release manifest does not list the double-click demo cycle launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Scout.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Run-CareerSeeker-Scout.cmd") {
         throw "Release manifest does not list the double-click Scout ingest launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Research-CareerSeeker-Company.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Research-CareerSeeker-Company.cmd") {
         throw "Release manifest does not list the double-click company research launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Draft-CareerSeeker-Job.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Draft-CareerSeeker-Job.cmd") {
         throw "Release manifest does not list the double-click selected-job draft launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Run-CareerSeeker-Live.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Run-CareerSeeker-Live.cmd") {
         throw "Release manifest does not list the double-click live alpha launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Export-CareerSeeker-Evidence.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Export-CareerSeeker-Evidence.cmd") {
         throw "Release manifest does not list the double-click evidence export launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Export-CareerSeeker-Audit.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Export-CareerSeeker-Audit.cmd") {
         throw "Release manifest does not list the double-click audit export launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Import-CareerSeeker-Package.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Import-CareerSeeker-Package.cmd") {
         throw "Release manifest does not list the double-click alpha package import launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Verify-CareerSeeker-Alpha.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Verify-CareerSeeker-Alpha.cmd") {
         throw "Release manifest does not list the double-click release verification launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Install-CareerSeeker-DashboardTask.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Install-CareerSeeker-DashboardTask.cmd") {
         throw "Release manifest does not list the double-click dashboard task install launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Status-CareerSeeker-DashboardTask.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Status-CareerSeeker-DashboardTask.cmd") {
         throw "Release manifest does not list the double-click dashboard task status launcher."
     }
-    if ($manifest.includes.launchers -notcontains "Uninstall-CareerSeeker-DashboardTask.cmd") {
+    if ($manifest.includes.launchers -notcontains "Advanced Tools/Uninstall-CareerSeeker-DashboardTask.cmd") {
         throw "Release manifest does not list the double-click dashboard task uninstall launcher."
     }
     if ($manifest.includes.checksums -ne "SHA256SUMS.txt") {
@@ -264,22 +303,24 @@ try {
 
     $readme = Get-Content -LiteralPath (Resolve-RootPath "README-alpha.txt") -Raw
     foreach ($snippet in @(
-        "First-run flow",
+        "Start here",
+        "START HERE - CareerSeeker Setup.exe",
+        "Setup creates no Gmail draft",
         "Off-ramp command equivalents",
-        "Verify-CareerSeeker-Alpha.cmd",
-        "Install-CareerSeeker-DashboardTask.cmd",
-        "Status-CareerSeeker-DashboardTask.cmd",
-        "Uninstall-CareerSeeker-DashboardTask.cmd",
+        "Advanced Tools/Verify-CareerSeeker-Alpha.cmd",
+        "Advanced Tools/Install-CareerSeeker-DashboardTask.cmd",
+        "Advanced Tools/Status-CareerSeeker-DashboardTask.cmd",
+        "Advanced Tools/Uninstall-CareerSeeker-DashboardTask.cmd",
         "Manage-AlphaDashboardTask.ps1",
-        "Research-CareerSeeker-Company.cmd",
+        "Advanced Tools/Research-CareerSeeker-Company.cmd",
         "Run-AlphaCompanyResearch.ps1",
         "Draft-CareerSeeker-Job.cmd after choosing a job id in the dashboard; it defaults to a no-Gmail dry-run preview",
         "type REVIEWED only when you intentionally want to override the refusal",
-        "Import-CareerSeeker-Package.cmd",
+        "Advanced Tools/Import-CareerSeeker-Package.cmd",
         "Import-AlphaPackage.ps1",
-        "Export-CareerSeeker-Audit.cmd",
+        "Advanced Tools/Export-CareerSeeker-Audit.cmd",
         "Export-AlphaAudit.ps1",
-        "Check-CareerSeeker-LiveReadiness.cmd",
+        "Advanced Tools/Check-CareerSeeker-LiveReadiness.cmd",
         "requires typing LIVE before creating a Gmail draft",
         "Draft-CareerSeeker-Job.cmd and Run-CareerSeeker-Live.cmd double-click helpers default to no-Gmail dry-run previews",
         "powershell -ExecutionPolicy Bypass -File .\scripts\Run-AlphaLiveCycle.ps1 -Published -DryRun",
@@ -302,7 +343,22 @@ try {
         throw "README-alpha.txt shows the live alpha command equivalent without -DryRun."
     }
 
-    $liveLauncher = Get-Content -LiteralPath (Resolve-RootPath "Run-CareerSeeker-Live.cmd") -Raw
+    $startHere = Get-Content -LiteralPath (Resolve-RootPath "README - Start Here.txt") -Raw
+    foreach ($snippet in @(
+        "CareerSeeker Alpha 2.0 Bridge",
+        "START HERE - CareerSeeker Setup.exe",
+        "Gemini API key",
+        "review/edit it before import",
+        "packaged OAuth client",
+        "setup creates no Gmail draft",
+        "has no send path"
+    )) {
+        if (-not $startHere.Contains($snippet)) {
+            throw "README - Start Here.txt missing '$snippet'."
+        }
+    }
+
+    $liveLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Run-CareerSeeker-Live.cmd") -Raw
     foreach ($snippet in @(
         "Type LIVE to create one Gmail draft for review",
         "set `"CAREERSEEKER_LIVE_MODE=`"",
@@ -317,7 +373,7 @@ try {
         }
     }
 
-    $providerClearLauncher = Get-Content -LiteralPath (Resolve-RootPath "Clear-CareerSeeker-Providers.cmd") -Raw
+    $providerClearLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Clear-CareerSeeker-Providers.cmd") -Raw
     foreach ($snippet in @(
         "Type CLEAR to delete the local provider-key vault",
         "set `"CAREERSEEKER_PROVIDER_CLEAR_MODE=`"",
@@ -330,7 +386,7 @@ try {
         }
     }
 
-    $gmailDisconnectLauncher = Get-Content -LiteralPath (Resolve-RootPath "Disconnect-CareerSeeker-Gmail.cmd") -Raw
+    $gmailDisconnectLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Disconnect-CareerSeeker-Gmail.cmd") -Raw
     foreach ($snippet in @(
         "Type DISCONNECT to revoke Gmail access",
         "set `"CAREERSEEKER_GMAIL_DISCONNECT_MODE=`"",
@@ -343,7 +399,7 @@ try {
         }
     }
 
-    $dashboardTaskInstallLauncher = Get-Content -LiteralPath (Resolve-RootPath "Install-CareerSeeker-DashboardTask.cmd") -Raw
+    $dashboardTaskInstallLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Install-CareerSeeker-DashboardTask.cmd") -Raw
     foreach ($snippet in @(
         "Type INSTALL to register the per-user dashboard logon task",
         "set `"CAREERSEEKER_DASHBOARD_TASK_MODE=`"",
@@ -356,7 +412,7 @@ try {
         }
     }
 
-    $dashboardTaskUninstallLauncher = Get-Content -LiteralPath (Resolve-RootPath "Uninstall-CareerSeeker-DashboardTask.cmd") -Raw
+    $dashboardTaskUninstallLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Uninstall-CareerSeeker-DashboardTask.cmd") -Raw
     foreach ($snippet in @(
         "Type UNINSTALL to remove the per-user dashboard logon task",
         "set `"CAREERSEEKER_DASHBOARD_TASK_MODE=`"",
@@ -369,7 +425,7 @@ try {
         }
     }
 
-    $auditExportLauncher = Get-Content -LiteralPath (Resolve-RootPath "Export-CareerSeeker-Audit.cmd") -Raw
+    $auditExportLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Export-CareerSeeker-Audit.cmd") -Raw
     foreach ($snippet in @(
         "set `"CAREERSEEKER_AUDIT_MODE=`"",
         '$env:CAREERSEEKER_AUDIT_MODE -ieq ''PAYLOADS''',
@@ -380,7 +436,7 @@ try {
         }
     }
 
-    $draftJobLauncher = Get-Content -LiteralPath (Resolve-RootPath "Draft-CareerSeeker-Job.cmd") -Raw
+    $draftJobLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Draft-CareerSeeker-Job.cmd") -Raw
     foreach ($snippet in @(
         "set `"CAREERSEEKER_JOB_ID=`"",
         "set `"CAREERSEEKER_INJECTION_MODE=`"",
@@ -401,7 +457,7 @@ try {
         throw "Draft-CareerSeeker-Job.cmd still interpolates the job id directly into the batch command line."
     }
 
-    $companyResearchLauncher = Get-Content -LiteralPath (Resolve-RootPath "Research-CareerSeeker-Company.cmd") -Raw
+    $companyResearchLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Research-CareerSeeker-Company.cmd") -Raw
     foreach ($snippet in @(
         "set `"CAREERSEEKER_RESEARCH_COMPANY=`"",
         '$company = $env:CAREERSEEKER_RESEARCH_COMPANY',
@@ -420,7 +476,7 @@ try {
         throw "Research-CareerSeeker-Company.cmd still interpolates typed research values directly into the batch command line."
     }
 
-    $packageImportLauncher = Get-Content -LiteralPath (Resolve-RootPath "Import-CareerSeeker-Package.cmd") -Raw
+    $packageImportLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Import-CareerSeeker-Package.cmd") -Raw
     foreach ($snippet in @(
         "set `"CAREERSEEKER_IMPORT_PACKAGE=`"",
         '$packagePath = if ([string]::IsNullOrWhiteSpace($env:CAREERSEEKER_IMPORT_PACKAGE))',
@@ -438,9 +494,10 @@ try {
         throw "Import-CareerSeeker-Package.cmd still interpolates typed import paths directly into the batch command line."
     }
 
-    $setupLauncher = Get-Content -LiteralPath (Resolve-RootPath "Setup-CareerSeeker-Alpha.cmd") -Raw
+    $setupLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Setup-CareerSeeker-Alpha.cmd") -Raw
     foreach ($snippet in @(
         "Fill secrets\env.secrets locally with ANTHROPIC_API_KEY and GEMINI_API_KEY or GOOGLE_API_KEY",
+        "resources\google-client.json",
         "BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY",
         "Connect-CareerSeeker-Providers.cmd"
     )) {
@@ -452,27 +509,29 @@ try {
     $auditSnapshot = Get-Content -LiteralPath (Resolve-RootPath "AUDIT-SNAPSHOT.txt") -Raw
     foreach ($snippet in @(
         "CareerSeeker Alpha Audit Snapshot",
+        "START HERE - CareerSeeker Setup.exe",
+        "CareerSeeker-Alpha2-Onboarding-Spec.md",
         "Source branch:",
         "Source commit:",
         "Dirty working tree:",
         "Package-local verification commands",
-        "Import-CareerSeeker-Profile.cmd",
-        "Connect-CareerSeeker-Providers.cmd",
-        "Check-CareerSeeker-LiveReadiness.cmd",
-        "Clear-CareerSeeker-Providers.cmd",
-        "Disconnect-CareerSeeker-Gmail.cmd",
-        "Run-CareerSeeker-Demo.cmd",
-        "Run-CareerSeeker-Scout.cmd",
-        "Research-CareerSeeker-Company.cmd",
-        "Draft-CareerSeeker-Job.cmd",
-        "Run-CareerSeeker-Live.cmd",
-        "Export-CareerSeeker-Audit.cmd",
-        "Export-CareerSeeker-Evidence.cmd",
-        "Import-CareerSeeker-Package.cmd",
-        "Verify-CareerSeeker-Alpha.cmd",
-        "Install-CareerSeeker-DashboardTask.cmd",
-        "Status-CareerSeeker-DashboardTask.cmd",
-        "Uninstall-CareerSeeker-DashboardTask.cmd",
+        "Advanced Tools/Import-CareerSeeker-Profile.cmd",
+        "Advanced Tools/Connect-CareerSeeker-Providers.cmd",
+        "Advanced Tools/Check-CareerSeeker-LiveReadiness.cmd",
+        "Advanced Tools/Clear-CareerSeeker-Providers.cmd",
+        "Advanced Tools/Disconnect-CareerSeeker-Gmail.cmd",
+        "Advanced Tools/Run-CareerSeeker-Demo.cmd",
+        "Advanced Tools/Run-CareerSeeker-Scout.cmd",
+        "Advanced Tools/Research-CareerSeeker-Company.cmd",
+        "Advanced Tools/Draft-CareerSeeker-Job.cmd",
+        "Advanced Tools/Run-CareerSeeker-Live.cmd",
+        "Advanced Tools/Export-CareerSeeker-Audit.cmd",
+        "Advanced Tools/Export-CareerSeeker-Evidence.cmd",
+        "Advanced Tools/Import-CareerSeeker-Package.cmd",
+        "Advanced Tools/Verify-CareerSeeker-Alpha.cmd",
+        "Advanced Tools/Install-CareerSeeker-DashboardTask.cmd",
+        "Advanced Tools/Status-CareerSeeker-DashboardTask.cmd",
+        "Advanced Tools/Uninstall-CareerSeeker-DashboardTask.cmd",
         "L1 creates Gmail drafts only",
         "Secret values are not included",
         "RELEASE-MANIFEST.json records the packaged files and source commit",
@@ -486,14 +545,19 @@ try {
     $walkthrough = Get-Content -LiteralPath (Resolve-RootPath "docs/Alpha-Tester-Walkthrough.md") -Raw
     foreach ($snippet in @(
         "CareerSeeker Alpha Tester Walkthrough",
-        "Verify-CareerSeeker-Alpha.cmd",
-        "Connect-CareerSeeker-Providers.cmd",
-        "Check-CareerSeeker-LiveReadiness.cmd",
-        "Clear-CareerSeeker-Providers.cmd",
-        "Disconnect-CareerSeeker-Gmail.cmd",
+        "First Run (Alpha 2.0 Bridge)",
+        "START HERE - CareerSeeker Setup.exe",
+        "testers should not create or download Google OAuth JSON",
+        'sourceDoc: "resume-ai"',
+        "claim-by-claim review",
+        "Advanced Tools/Verify-CareerSeeker-Alpha.cmd",
+        "Advanced Tools/Connect-CareerSeeker-Providers.cmd",
+        "Advanced Tools/Check-CareerSeeker-LiveReadiness.cmd",
+        "Advanced Tools/Clear-CareerSeeker-Providers.cmd",
+        "Advanced Tools/Disconnect-CareerSeeker-Gmail.cmd",
         "BRAVE_SEARCH_API",
-        "Research-CareerSeeker-Company.cmd",
-        "Draft-CareerSeeker-Job.cmd",
+        "Advanced Tools/Research-CareerSeeker-Company.cmd",
+        "Advanced Tools/Draft-CareerSeeker-Job.cmd",
         "/evidence.html",
         'type `LIVE`',
         "L1 alpha does not send applications",
@@ -506,13 +570,28 @@ try {
         }
     }
 
+    $alpha2Spec = Get-Content -LiteralPath (Resolve-RootPath "docs/CareerSeeker-Alpha2-Onboarding-Spec.md") -Raw
+    foreach ($snippet in @(
+        "CareerSeeker Alpha 2.0 Onboarding Spec",
+        "Alpha 2.0 Bridge",
+        "START HERE - CareerSeeker Setup.exe",
+        "Store Secrets Directly In DPAPI",
+        'capped at `stated`',
+        "untrusted data",
+        "Acceptance Criteria"
+    )) {
+        if (-not $alpha2Spec.Contains($snippet)) {
+            throw "Alpha 2.0 spec missing '$snippet'."
+        }
+    }
+
     $support = Get-Content -LiteralPath (Resolve-RootPath "docs/Support.md") -Raw
     foreach ($snippet in @(
-        "Disconnect-CareerSeeker-Gmail.cmd",
-        "Clear-CareerSeeker-Providers.cmd",
-        "Export-CareerSeeker-Audit.cmd",
-        "Export-CareerSeeker-Evidence.cmd",
-        "Import-CareerSeeker-Package.cmd",
+        "Advanced Tools/Disconnect-CareerSeeker-Gmail.cmd",
+        "Advanced Tools/Clear-CareerSeeker-Providers.cmd",
+        "Advanced Tools/Export-CareerSeeker-Audit.cmd",
+        "Advanced Tools/Export-CareerSeeker-Evidence.cmd",
+        "Advanced Tools/Import-CareerSeeker-Package.cmd",
         "export-audit",
         "export-alpha-package",
         "import-alpha-package"
@@ -525,10 +604,10 @@ try {
     $privacy = Get-Content -LiteralPath (Resolve-RootPath "docs/Privacy-Policy.md") -Raw
     foreach ($snippet in @(
         "disconnect-gmail",
-        "Clear-CareerSeeker-Providers.cmd",
-        "Export-CareerSeeker-Audit.cmd",
-        "Export-CareerSeeker-Evidence.cmd",
-        "Import-CareerSeeker-Package.cmd",
+        "Advanced Tools/Clear-CareerSeeker-Providers.cmd",
+        "Advanced Tools/Export-CareerSeeker-Audit.cmd",
+        "Advanced Tools/Export-CareerSeeker-Evidence.cmd",
+        "Advanced Tools/Import-CareerSeeker-Package.cmd",
         "export-alpha-package",
         "raw event payloads are opt-in"
     )) {
@@ -541,9 +620,9 @@ try {
     foreach ($snippet in @(
         "disconnect-gmail",
         "packaged disconnect helper",
-        "Export-CareerSeeker-Audit.cmd",
-        "Export-CareerSeeker-Evidence.cmd",
-        "Import-CareerSeeker-Package.cmd",
+        "Advanced Tools/Export-CareerSeeker-Audit.cmd",
+        "Advanced Tools/Export-CareerSeeker-Evidence.cmd",
+        "Advanced Tools/Import-CareerSeeker-Package.cmd",
         "export-alpha-package",
         "import-alpha-package"
     )) {
@@ -594,11 +673,23 @@ try {
         }
     }
 
+    $setupOutput = Invoke-CheckedOutput (Resolve-RootPath "START HERE - CareerSeeker Setup.exe") @("--smoke")
+    foreach ($snippet in @(
+        "CareerSeeker Alpha 2.0 Bridge Setup",
+        "Setup smoke completed"
+    )) {
+        if ($setupOutput -notlike "*$snippet*") {
+            throw "Alpha 2.0 setup smoke did not report '$snippet'."
+        }
+    }
+
     Write-Host "CareerSeeker alpha release package self-check"
     Write-Host "  root: $Root"
     Write-Host "  manifest: ok"
+    Write-Host "  OAuth client type: installed/Desktop"
     Write-Host "  checksums: $checksumCount verified"
     Write-Host "  dashboard smoke: $(if ($RunDashboardSmoke) { "passed" } else { "skipped" })"
+    Write-Host "  Alpha 2.0 setup smoke: passed"
 }
 finally {
     Pop-Location

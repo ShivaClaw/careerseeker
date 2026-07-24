@@ -1,6 +1,64 @@
 # Codex Resume Handoff
 
-Updated: 2026-07-23
+Updated: 2026-07-24
+
+## 2026-07-24 (Alpha 2.0 Bridge) - setup ZIP built and post-audit fixes applied
+
+Alpha 2.0 Bridge is the current local package target; the real per-user installer is intentionally deferred
+to Beta. The Bridge package is a ZIP with an obvious first click:
+
+- `START HERE - CareerSeeker Setup.exe`
+- `README - Start Here.txt`
+- `SeekerSvc.Engine.exe`
+- `resources/google-client.json`
+- advanced `.cmd` helpers under `Advanced Tools/`
+
+What the setup bridge now does:
+
+- creates the local alpha workspace
+- accepts a Gemini key and stores it directly in the per-user DPAPI vault
+- asks for explicit consent before sending a resume to Gemini
+- uses `gemini-2.5-flash-lite` for resume profile extraction
+- treats resume text as untrusted data in the extraction prompt
+- caps AI-extracted claims at `stated` and tags them with `sourceDoc: "resume-ai"`
+- performs claim-by-claim review before import
+- connects Gmail using packaged app-owned desktop OAuth metadata
+- runs readiness checks and opens the dashboard
+
+Claude's post-audit findings were resolved:
+
+- D1: AI-extracted claims can no longer reach `AlphaProfileImport` as `verified`; setup normalizes before
+  review and again before import.
+- D2: `config/` is ignored so local OAuth client material is not accidentally committed.
+- D3: resume text is placed in an untrusted-data block for text/Markdown extraction, and binary resume
+  attachments are explicitly labeled as untrusted resume data.
+- D4: the failed Gemini-key "save anyway" path preserves existing BYOK vault entries.
+- D5: an interim claim-by-claim console review exists; a polished WinUI/webview review UI remains Beta work.
+
+Verification after the fixes:
+
+- `dotnet build CareerSeeker.sln -c Release --no-restore` passed with `0 Warning(s), 0 Error(s)`.
+- `dotnet run -c Release --project src\Engine\SeekerSvc.Engine.csproj -- setup --smoke` passed.
+- `scripts\Package-AlphaRelease.ps1 -OutputDirectory output\alpha2-bridge -PackageName CareerSeeker-alpha2-bridge-win-x64.zip`
+  rebuilt the Bridge ZIP.
+- The packaged self-check passed with dashboard smoke and Alpha 2.0 setup smoke.
+- The ZIP scan found no `env.secrets`, DPAPI vaults, tokens, databases, or resume data.
+
+Additional guardrail added after Claude's final note: `scripts\Test-AlphaReleasePackage.ps1` now asserts the
+packaged OAuth metadata at `resources/google-client.json` is an installed/Desktop OAuth client, not a Web
+client. This matters because shipping desktop client metadata is public-by-design; shipping a Web client secret
+would not be acceptable.
+
+Known non-blockers:
+
+- The Bridge ZIP is larger than Alpha 1 because it carries both `SeekerSvc.Engine.exe` and the setup-named copy
+  of the same self-contained executable. Beta installer work should avoid that duplication.
+- Setup is still a console wizard. It is acceptable for Alpha 2.0 Bridge, but the Beta target remains a proper
+  non-technical WinUI/webview onboarding surface.
+
+Current Bridge artifact path:
+
+- `output\alpha2-bridge\CareerSeeker-alpha2-bridge-win-x64.zip`
 
 ## 2026-07-23 (Codex C2 pre-ZIP audit follow-up) - root ZIP ignore added
 

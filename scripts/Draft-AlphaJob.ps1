@@ -9,7 +9,7 @@ param(
     [string] $ArtifactsPath = ".appdata/artifacts",
     [string] $SecretsPath = "secrets/env.secrets",
     [string] $ByokVaultPath = ".appdata/secrets/byok-keys.dpapi",
-    [string] $GmailClientPath = "secrets/google-oauth-client.json",
+    [string] $GmailClientPath = "resources/google-client.json",
     [string] $GmailVaultPath = ".appdata/oauth/gmail-token.dpapi",
     [string] $Email = "",
     [string] $LlmMode = "byok",

@@ -8,7 +8,7 @@ param(
     [string] $Configuration = "Release",
     [string] $DbPath = ".appdata/careerseeker-alpha.db",
     [string] $AuditOutPath = "output/careerseeker-audit.json",
-    [string] $GmailClientPath = "secrets/google-oauth-client.json",
+    [string] $GmailClientPath = "resources/google-client.json",
     [string] $GmailVaultPath = ".appdata/oauth/gmail-token.dpapi"
 )
 

@@ -6,6 +6,7 @@ obj/
 *.db-wal
 *.db-shm
 secrets/
+config/
 client_secret*.json
 token*.json
 .appdata/
