@@ -503,6 +503,7 @@ contain plaintext content.
 | `rev_conflict` | `base_rev` did not match; see the `conflict` payload. |
 | `pairing_unknown` | The relay has no Durable Object for this pairing. |
 | `too_large` | Envelope exceeded the §3.1 limit. |
+| `unimplemented` | A recognised shipping kind the engine does not yet handle (e.g. inbound `doc_edit`, whose editing surface is P3). Distinct from `unknown_kind` — the kind IS known, so the phone should not treat it as a version/vocabulary error. |
 
 A receiver MUST NOT distinguish, in anything the relay can observe, between
 `decrypt_failed` and `bad_signature` by timing or response size. Both are "this envelope

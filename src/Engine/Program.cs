@@ -180,6 +180,15 @@ EngineCycle BuildDemoCycle(ISeekerStore store, EngineCounters counters, long pro
 // high-water mark survives its restarts; an engine that resumed at seq 1 would have every
 // envelope (including the recovery snapshot) rejected as a replay. SyncPublisher already takes
 // startSeq for exactly this; the vault is what supplies it.
+//
+// Inbound (phone → engine, P4 §2.4) mounts at this same seam and is equally inert until the vault:
+// a pull loop (RelayClient.PullAsync("p2e", since) with a cert-pinned client) feeds each envelope to
+// an InboundDispatcher(EnvelopeReceiver, EntitlementService over StoreEntitlementStateStore, outcome
+// applier, snapshot republisher). §6.1 applies to BOTH directions, so the vault MUST persist the p2e
+// high-water mark too (last_p2e_seq) — an engine that resumed its p2e receiver at 0 after a restart
+// would re-accept an already-applied entitlement/outcome. Dispatch is narrow: entitlement → verify +
+// enable; pull_request → re-publish snapshot; outcome → apply; doc_edit → reply `unimplemented` (P3's
+// surface, never stubbed). No inbound kind is a send path. Proven now by the SyncLiveSmoke round-trip.
 EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidence evidence, bool enabled)
 {
     if (!enabled)

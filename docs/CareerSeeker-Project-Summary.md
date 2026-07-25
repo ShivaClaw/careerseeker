@@ -374,12 +374,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 464 passed, 0 failed.
+Total: 479 passed, 0 failed.
 
 | Harness                   | Result              |
 | ------------------------- | ------------------- |
 | `Slice`                   | 28 passed, 0 failed |
-| `EngineHarness`           | 105 passed, 0 failed |
+| `EngineHarness`           | 113 passed, 0 failed |
 | `ResearcherHarness`       | 55 passed, 0 failed |
 | `HookHarness`             | 14 passed, 0 failed |
 | `StoreParityHarness`      | 22 passed, 0 failed |
@@ -387,7 +387,7 @@ Total: 464 passed, 0 failed.
 | `DispatcherNoSendHarness` | 35 passed, 0 failed |
 | `LifecycleHarness`        | 44 passed, 0 failed |
 | `RendererHarness`         | 6 passed, 0 failed  |
-| `SyncHarness`             | 121 passed, 0 failed |
+| `SyncHarness`             | 128 passed, 0 failed |
 
 Live Scout harness, 2026-07-20:
 

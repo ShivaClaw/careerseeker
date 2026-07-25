@@ -1248,6 +1248,40 @@ Console.WriteLine("\n[ P2 sync bridge: projects engine state and drives the publ
         && EngineSyncBridge.MapApplication(RowWithTotal(4.1)).Score == 82);
 }
 
+// ---------------------------------------------------------------- entitlement state store (P4 §2.4)
+//
+// StoreEntitlementStateStore backs EntitlementService with the real config table + hash-chained audit
+// log. The verifier is faked here (RSA verification is proven against the shared vectors in SyncHarness);
+// this proves the ENGINE-side wiring: the flag persists to config, the grant appends a chain-valid audit
+// event carrying product/order/device-fingerprint, and grace/refresh work over the real store.
+Console.WriteLine("\n[ entitlement flag persists in config + audits the grant (P4 §2.4) ]");
+{
+    var entStore = new InMemorySeekerStore();
+    await entStore.InitializeAsync();
+    var adapter = new StoreEntitlementStateStore(entStore);
+    Check("entitlement: no flag before any apply", adapter.Load() is null);
+
+    var now = new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero);
+    var svc = new EntitlementService(new AlwaysAcceptVerifier("pro_unlock", "GPA.ENGINE-1"), adapter, () => now);
+    var verdict = svc.Apply("{\"packageName\":\"app.careerseeker.dashboard\"}", "sig", "feedfacecafe0001");
+    Check("entitlement: apply enables Pro through the real store", verdict.Accepted && svc.IsEntitled());
+    Check("entitlement: enabled flag + last-verified persisted to the config table",
+        await entStore.GetConfigAsync(StoreEntitlementStateStore.EnabledKey) == "true"
+        && await entStore.GetConfigAsync(StoreEntitlementStateStore.LastVerifiedKey) is not null);
+
+    var applied = (await entStore.GetEventsAsync()).SingleOrDefault(e => e.Kind == "entitlement_applied");
+    Check("entitlement: grant appended an audit event with order + product + device fingerprint",
+        applied is not null && applied.EntityId == "GPA.ENGINE-1"
+        && applied.PayloadJson.Contains("pro_unlock") && applied.PayloadJson.Contains("feedfacecafe0001"));
+    Check("entitlement: audit chain intact after the grant", (await entStore.VerifyAuditAsync()).Ok);
+
+    now = now.AddDays(31);
+    Check("entitlement: grace lapses after 30 days of no re-report (revocation by absence)", !svc.IsEntitled());
+    svc.Apply("{\"packageName\":\"app.careerseeker.dashboard\"}", "sig", "feedfacecafe0001");
+    Check("entitlement: a re-report refreshes the persisted flag and re-activates Pro", svc.IsEntitled());
+    Check("entitlement: audit chain intact after the second grant", (await entStore.VerifyAuditAsync()).Ok);
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
@@ -1322,4 +1356,12 @@ sealed class FakeGmail : IGmailDraftClient
 {
     public int Drafts;
     public Task<string> CreateDraftAsync(string raw, IReadOnlyList<string> labelIds, CancellationToken ct = default) { Drafts++; return Task.FromResult("d" + Drafts); }
+}
+
+/// <summary>A fixed-verdict <see cref="IEntitlementVerifier"/> so the store/audit wiring can be tested
+/// without vector data — the real RSA verification is proven against the shared vectors in SyncHarness.</summary>
+sealed class AlwaysAcceptVerifier(string productId, string orderId) : IEntitlementVerifier
+{
+    public EntitlementVerdict Verify(string originalJson, string signatureStandardB64)
+        => new(true, EntitlementReject.None, productId, orderId, true);
 }

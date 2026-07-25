@@ -67,6 +67,9 @@ public enum SyncError
     RevConflict,
     PairingUnknown,
     TooLarge,
+    /// <summary>A recognised (shipping) kind the engine does not yet handle — e.g. inbound `doc_edit`,
+    /// whose editing surface is P3. Distinct from <see cref="UnknownKind"/>: the kind IS known.</summary>
+    Unimplemented,
 }
 
 public static class SyncErrorWire
@@ -82,6 +85,7 @@ public static class SyncErrorWire
         SyncError.RevConflict => "rev_conflict",
         SyncError.PairingUnknown => "pairing_unknown",
         SyncError.TooLarge => "too_large",
+        SyncError.Unimplemented => "unimplemented",
         _ => throw new ArgumentOutOfRangeException(nameof(e)),
     };
 }
