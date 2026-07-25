@@ -319,6 +319,11 @@ Console.WriteLine("\n[ P2 snapshot/delta/heartbeat payloads ]");
     var snapText = Encoding.UTF8.GetString(snap);
     Check("snapshot carries the live counters", snapText.Contains("\"drafted\":1") && snapText.Contains("\"cycles\":7"));
     Check("snapshot carries application summary fields", snapText.Contains("\"score\":82") && snapText.Contains("Senior Platform Engineer"));
+    // Outcome (P4 §2.5) is nullable on the wire: present when set, omitted (absent => null) otherwise.
+    var withOutcome = Encoding.UTF8.GetString(SyncPayloads.Snapshot(counters,
+        new[] { new AppSummary("app_1", "APPLIED", "Acme", "Engineer", 80, "interview") }, jobs));
+    Check("snapshot carries a set outcome", withOutcome.Contains("\"outcome\":\"interview\""));
+    Check("snapshot omits outcome when unset (absent => null on the phone)", !snapText.Contains("outcome"));
     // The untrusted-text invariant, asserted: no field name that would carry a raw posting body.
     Check("snapshot carries NO raw posting body (untrusted-text rule)",
         !snapText.Contains("jd_path") && !snapText.Contains("description") && !snapText.Contains("posting_body") && !snapText.Contains("\"body\":\""),

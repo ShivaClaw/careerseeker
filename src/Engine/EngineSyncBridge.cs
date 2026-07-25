@@ -106,7 +106,8 @@ public sealed class EngineSyncBridge
         r.State,
         r.CompanyName ?? r.CompanyDomain ?? "-",
         r.JobTitle,
-        ScoreToWire(r.Total));
+        ScoreToWire(r.Total),
+        r.Outcome);
 
     /// <summary>
     /// The engine scores on a 0–5 axis (Scorer: total = min(fit, legitimacy) · multiplier, all ≤5);

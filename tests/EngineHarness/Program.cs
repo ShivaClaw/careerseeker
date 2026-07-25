@@ -2333,6 +2333,36 @@ Console.WriteLine("\n[ entitlement flag persists in config + audits the grant (P
     Check("entitlement: audit chain intact after the second grant", (await entStore.VerifyAuditAsync()).Ok);
 }
 
+// ---------------------------------------------------------------- outcome wire field + applier (P4 §2.5b)
+Console.WriteLine("\n[ outcome rides the wire summary + the inbound applier persists it (P4 §2.5b) ]");
+{
+    var mapped = EngineSyncBridge.MapApplication(new ApplicationSummaryRow(
+        5, "APPLIED", "L1", "email", "t", "t", null, 9, "Engineer", "Acme", null, null, "Remote", "about:blank",
+        null, null, null, 4.1, null, null, null, null, false, "interview", "2026-07-24T00:00:00Z"));
+    Check("MapApplication carries the outcome onto the wire summary", mapped.Outcome == "interview" && mapped.Score == 82);
+
+    var ocStore = new InMemorySeekerStore();
+    await ocStore.InitializeAsync();
+    var ocAppId = await ocStore.CreateApplicationAsync(1, "L1");
+    var applier = new StoreOutcomeApplier(ocStore);
+
+    await applier.ApplyAsync($"{{\"app_id\":\"{ocAppId}\",\"outcome\":\"interview\",\"at\":\"2026-07-24T00:00:00Z\"}}", "fp1");
+    Check("outcome applier persists a phone-settable outcome", (await ocStore.GetApplicationAsync(ocAppId))?.Outcome == "interview");
+
+    await applier.ApplyAsync($"{{\"app_id\":\"{ocAppId}\",\"outcome\":\"no_reply\",\"at\":\"2026-07-24T01:00:00Z\"}}", "fp1");
+    Check("outcome applier ignores no_reply from the phone (desktop-set only)", (await ocStore.GetApplicationAsync(ocAppId))?.Outcome == "interview");
+
+    await applier.ApplyAsync($"{{\"app_id\":\"{ocAppId}\",\"outcome\":\"hired\",\"at\":\"x\"}}", "fp1");
+    await applier.ApplyAsync("{\"app_id\":\"not-a-number\",\"outcome\":\"offer\",\"at\":\"x\"}", "fp1");
+    await applier.ApplyAsync("not json at all", "fp1");
+    Check("outcome applier ignores unknown/malformed outcomes without throwing", (await ocStore.GetApplicationAsync(ocAppId))?.Outcome == "interview");
+
+    await applier.ApplyAsync($"{{\"app_id\":\"{ocAppId}\",\"outcome\":\"offer\",\"at\":\"2026-07-25T00:00:00Z\"}}", "fp1");
+    Check("outcome applier updates to a new phone-settable outcome and audits each set",
+        (await ocStore.GetApplicationAsync(ocAppId))?.Outcome == "offer"
+        && (await ocStore.GetEventsAsync()).Count(e => e.Kind == "outcome_set") == 2);
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
