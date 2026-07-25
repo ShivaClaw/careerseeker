@@ -114,7 +114,9 @@ $offlineProjects = @(
 # This number is the measured total's expected value: the run below fails if the actual sum drifts from
 # it, so a dropped harness or deleted assertion can no longer regress silently while the doc-smoke grep
 # still finds the stale count. Bump it in lockstep with the per-harness/doc counts (see the drift trap in
-# CLAUDE.md). Last verified at 479 on branch claude/p4-entitlement (P4 §2.4: SyncHarness 121->128 +
+# CLAUDE.md). Last verified at 482 on branch claude/p4-entitlement (P4 §2.5: StoreParityHarness 22->25 --
+# Pro outcome tracking: an outcome state per application (store migration adds outcome/outcome_at, ALTER for
+# older DBs) that round-trips + audits identically across InMemory and SQLite; P4 §2.4: SyncHarness 121->128 +
 # EngineHarness 105->113 -- the inbound p2e InboundDispatcher (entitlement->service, pull_request->snapshot,
 # outcome->§2.5 seam, doc_edit->unimplemented reply) and StoreEntitlementStateStore (config flag + audit
 # event) over the real store; P4 §2.3: SyncHarness 107->121 -- the
@@ -134,7 +136,7 @@ $offlineProjects = @(
 # payload builders; earlier P1: SyncHarness 39->68 -- the harness now exercises the shipping src/Sync library
 # (codec, pairing crypto, receiver, signatures) against the regenerated shared vectors, including the P-256
 # pairing derivation and ECDSA envelope signatures).
-$ExpectedOfflineTotal = 479
+$ExpectedOfflineTotal = 482
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -283,7 +285,7 @@ Invoke-Step "Public README and harness count smoke" {
         'GatewayGateHarness` (34)',
         'SyncHarness` (128)',
         'admitted hooks stay prompt',
-        'Latest offline total: 479 assertions'
+        'Latest offline total: 482 assertions'
     ) "README.md"
     Assert-DoesNotContain $readme @(
         'free Windows service (.exe)'
@@ -294,7 +296,7 @@ Invoke-Step "Public README and harness count smoke" {
     # re-pads them); collapse runs of spaces so the row assertions tolerate that padding.
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
-        'Total: 479 passed, 0 failed.',
+        'Total: 482 passed, 0 failed.',
         'imports require the CareerSeeker alpha profile',
         'document responses carry no-store, nosniff, no-referrer',
         '`/evidence.html`',
@@ -312,7 +314,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 479 passed, 0 failed.',
+        'Latest offline harness total: 482 passed, 0 failed.',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
         '`INSTALL`',
@@ -324,7 +326,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `479 passed, 0 failed`.',
+        'Latest local offline verifier: `482 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'Fresh live Scout harness, 2026-07-20',
         'BYOK live provider smoke',
@@ -361,7 +363,7 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $historicalAudit @(
         'Current-status note, 2026-07-20',
         'this is preserved as historical audit input, not as current status for',
-        'the default verifier reports 479 passed / 0 failed'
+        'the default verifier reports 482 passed / 0 failed'
     ) "docs/repo-audit-2026-07-13.md"
 
     Assert-Contains $summary @(

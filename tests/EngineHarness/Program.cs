@@ -574,8 +574,8 @@ Console.WriteLine("\n[ localhost dashboard ]");
             Array.Empty<DashboardEvidenceEvent>(),
             new[]
             {
-                new ApplicationSummaryRow(101, AppState.REJECTED_BY_ENGINE.ToString(), "L1", "Email", now, now, null, 201, "Rejected sample", "Example", null, null, "Remote", "", null, null, null, null, null, null, null, null, false),
-                new ApplicationSummaryRow(102, AppState.DRAFTED.ToString(), "L1", "Email", now, now, null, 202, "Drafted sample", "Example", null, null, "Remote", "", null, null, null, null, "SUCCEEDED", "draft-102", null, null, false),
+                new ApplicationSummaryRow(101, AppState.REJECTED_BY_ENGINE.ToString(), "L1", "Email", now, now, null, 201, "Rejected sample", "Example", null, null, "Remote", "", null, null, null, null, null, null, null, null, false, null, null),
+                new ApplicationSummaryRow(102, AppState.DRAFTED.ToString(), "L1", "Email", now, now, null, 202, "Drafted sample", "Example", null, null, "Remote", "", null, null, null, null, "SUCCEEDED", "draft-102", null, null, false, null, null),
             },
             new[]
             {
@@ -1241,7 +1241,7 @@ Console.WriteLine("\n[ P2 sync bridge: projects engine state and drives the publ
     // F1: the 0-5 engine total is projected to a 0-100 int so real scores share the phone UI's scale.
     ApplicationSummaryRow RowWithTotal(double? total) => new(
         1, "READY", "L1", null, "t", "t", null, 1, "Engineer", "Acme", null, null, "Remote", "about:blank", null,
-        null, null, total, null, null, null, null, false);
+        null, null, total, null, null, null, null, false, null, null);
     Check("MapApplication scales the 0-5 engine total to a 0-100 int",
         EngineSyncBridge.ScoreToWire(4.1) == 82 && EngineSyncBridge.ScoreToWire(5.0) == 100
         && EngineSyncBridge.ScoreToWire(0.0) == 0 && EngineSyncBridge.ScoreToWire(null) == 0
