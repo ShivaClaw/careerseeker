@@ -1312,6 +1312,39 @@ Console.WriteLine("\n[ outcome rides the wire summary + the inbound applier pers
         && (await ocStore.GetEventsAsync()).Count(e => e.Kind == "outcome_set") == 2);
 }
 
+// ---------------------------------------------------------------- Pro funnel board (P4 §2.5c)
+Console.WriteLine("\n[ Pro outcome funnel windows 7/30/90d (P4 §2.5c) ]");
+{
+    var funnelNow = new DateTimeOffset(2026, 7, 25, 12, 0, 0, TimeSpan.Zero);
+    string ago(int days) => funnelNow.AddDays(-days).ToString("O");
+    ApplicationSummaryRow FunnelRow(string? outcome, string? at) => new(
+        1, "APPLIED", "L1", null, "t", "t", null, 1, "Engineer", "Acme", null, null, "Remote", "about:blank",
+        null, null, null, null, null, null, null, null, false, outcome, at);
+
+    var funnelApps = new[]
+    {
+        FunnelRow("sent", ago(1)),
+        FunnelRow("no_reply", ago(2)),
+        FunnelRow("replied", ago(3)),
+        FunnelRow("interview", ago(10)),  // in 30 & 90, not 7
+        FunnelRow("offer", ago(40)),      // in 90 only
+        FunnelRow("rejected", ago(80)),   // in 90 only
+        FunnelRow("offer", ago(200)),     // outside every window
+        FunnelRow(null, ago(1)),          // no outcome -> ignored
+        FunnelRow("sent", null),          // no timestamp -> ignored
+    };
+    var board = FunnelBoard.Compute(funnelApps, funnelNow);
+    Check("funnel 7d counts sent/replied/no_reply with an honest reply rate",
+        board.Last7.Sent == 3 && board.Last7.Replied == 1 && board.Last7.NoReply == 1 && board.Last7.ReplyRatePct == 33);
+    Check("funnel 30d rolls in the interview", board.Last30.Sent == 4 && board.Last30.Interviews == 1 && board.Last30.ReplyRatePct == 50);
+    Check("funnel 90d rolls in offer + rejected and excludes the 200-day-old row",
+        board.Last90.Sent == 6 && board.Last90.Offers == 1 && board.Last90.Rejected == 1
+        && board.Last90.Interviews == 2 && board.Last90.Results == 2 && board.Last90.ReplyRatePct == 67);
+    Check("funnel ignores outcome-less and timestamp-less rows", board.Last90.Sent == 6);
+    Check("empty funnel is all-zero, never a divide-by-zero",
+        FunnelBoard.Compute(Array.Empty<ApplicationSummaryRow>(), funnelNow).Last7.ReplyRatePct == 0);
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
