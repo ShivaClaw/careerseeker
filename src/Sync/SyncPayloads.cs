@@ -53,13 +53,18 @@ public sealed record Counters(
     [property: JsonPropertyName("errors")] long Errors,
     [property: JsonPropertyName("cycles")] long Cycles);
 
-/// <summary>One application row as the phone's list/detail renders it. No raw posting body.</summary>
+/// <summary>
+/// One application row as the phone's list/detail renders it. No raw posting body. <c>Outcome</c> is the
+/// nullable Pro outcome-tracking state (P4 §2.5): absent for non-Pro data or an unset outcome — the
+/// null-ignoring serializer omits the field, so absent ⇒ null on the phone, never a malformed value.
+/// </summary>
 public sealed record AppSummary(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("state")] string State,
     [property: JsonPropertyName("company")] string Company,
     [property: JsonPropertyName("title")] string Title,
-    [property: JsonPropertyName("score")] int Score);
+    [property: JsonPropertyName("score")] int Score,
+    [property: JsonPropertyName("outcome")] string? Outcome = null);
 
 /// <summary>One discovered job as the phone's Jobs screen renders it. Flags are display-only.</summary>
 public sealed record JobSummary(

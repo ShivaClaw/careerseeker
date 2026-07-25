@@ -185,12 +185,18 @@ structured fields below.
 ```
 snapshot body = {
   "counters": { "discovered","acted","drafted","blocked","rejected","errors","cycles" },  // all long
-  "applications": [ { "id","state","company","title","score" } ],   // score: int 0–100
+  "applications": [ { "id","state","company","title","score","outcome"? } ],   // score: int 0–100; outcome: see below
   "jobs":         [ { "id","company","title","repost","injection_flag" } ]  // repost, injection_flag: bool
 }
 
 delta body = snapshot body + { "since_seq": <long> }
 ```
+
+`outcome` is the **nullable** Pro outcome-tracking state (P4 §2.5), one of
+`sent | no_reply | replied | interview | offer | rejected`, or **absent** when unset or non-Pro. It is
+display-only, like every other carried string. It is the *store's* superset; the phone-set p2e `outcome`
+kind (§4.3) carries the five-value subset without `no_reply`, which is a desktop-set observation. A
+receiver treats an absent field as "no outcome", never as a malformed value.
 
 `delta` currently carries the recent window (a bounded set), not a computed diff; `since_seq` is
 the last envelope the publisher sent, and the receiver applies latest-wins over what it holds. A
@@ -550,6 +556,7 @@ auditable rather than silent:
 | This doc (P0) | Ed25519 `device_sig` inside the payload body | ECDSA P-256 as top-level `sig` over AAD+nonce+ciphertext-hash (§5.4, P1) |
 | This doc (P0) | `doc_edit` body carries `device_sig` | field removed; the envelope `sig` covers it (§3, §5.4) |
 | This doc (P0/§4.3) | `entitlement` body `{voucher}` (option-A entitlement Worker) | `{original_json, signature}` — the engine verifies Google Play's signature (gate P0-WORKER option C; §4.3.2, P4) |
+| This doc (§4.3.1) | application summary `{id,state,company,title,score}` | adds nullable `outcome` — Pro outcome tracking, absent when unset/non-Pro (§4.3.1, P4 §2.5) |
 
 `CareerSeeker-Spec.md` §7.2 is amended in the same commit that introduces this file. Two
 documents disagreeing about a wire format is precisely the drift `CLAUDE.md` exists to
