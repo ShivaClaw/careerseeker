@@ -51,6 +51,12 @@ Check("recent application summary joins job, company, and score",
     sqlite.Summaries.Count == 1 &&
     sqlite.Summaries[0] is { JobTitle: "Senior Software Engineer", CompanyName: "Acme" } &&
     sqlite.Summaries[0].Total == 4.4);
+Check("outcome persists on the application row (P4 §2.5)",
+    sqlite.App?.Outcome == "interview" && sqlite.App?.OutcomeAt == "2026-07-08T09:00:00Z", sqlite.App?.Outcome);
+Check("outcome surfaces in the recent-applications summary",
+    sqlite.Summaries[0].Outcome == "interview" && memory.Summaries[0].Outcome == "interview");
+Check("an outcome_set audit event was appended in both stores",
+    sqlite.Events.Any(e => e.Kind == "outcome_set") && memory.Events.Any(e => e.Kind == "outcome_set"));
 Check("recent job summary joins job and company metadata",
     sqlite.JobSummaries.Count >= 1 &&
     sqlite.JobSummaries[0] is
@@ -548,6 +554,10 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
         await store.TryTransitionApplicationAsync(appId, "EVALUATED", "PAUSED", "user", null, recordPausedFrom: "EVALUATED");
         var pausedFromSeen = (await store.GetApplicationAsync(appId))?.PausedFrom;
         await store.TryTransitionApplicationAsync(appId, "PAUSED", "EVALUATED", "user");
+
+        // Pro outcome tracking (P4 §2.5): setting the outcome persists on the row + audits, identically
+        // across stores (App.Outcome and the summary's Outcome ride into the compared snapshot).
+        await store.SetOutcomeAsync(appId, "interview", "2026-07-08T09:00:00Z", "user");
 
         // State-set lookup (the reconcile sweep's query) must agree across stores and is a pure read:
         // it consumes the deterministic clock zero times, so it cannot skew any downstream timestamp.

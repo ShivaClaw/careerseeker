@@ -89,7 +89,9 @@ public sealed record ApplicationRow(
     string? PausedFrom = null,
     string? ResumePath = null,
     string? CoverPath = null,
-    string? AnswersJson = null);
+    string? AnswersJson = null,
+    string? Outcome = null,
+    string? OutcomeAt = null);
 
 /// <summary>Read-only dashboard summary for recent applications. Payload bodies stay out of this row.</summary>
 public sealed record ApplicationSummaryRow(
@@ -115,7 +117,9 @@ public sealed record ApplicationSummaryRow(
     string? DraftExternalRef,
     string? ResumePath,
     string? CoverPath,
-    bool HasAnswers);
+    bool HasAnswers,
+    string? Outcome,
+    string? OutcomeAt);
 
 /// <summary>Read-only dashboard summary for recent discovered jobs. The full JD body stays out of this row.</summary>
 public sealed record JobSummaryRow(
