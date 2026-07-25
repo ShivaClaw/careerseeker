@@ -474,6 +474,92 @@ foreach (var v in entitlementVectors.OrderBy(v => (string)v["name"]!, StringComp
         !Base64Url.TryDecode(sigField, out _));
 }
 
+// ---------------------------------------------------------------- entitlement verifier + service (P4)
+//
+// The GoogleSignedPayloadVerifier (option C) against all five vectors: each maps to its distinct
+// rejection reason, so a check firing early would surface as a wrong reason. Then EntitlementService's
+// apply/refresh/grace lifecycle, driven by an injected clock and an in-memory flag store (no phone, no
+// account, no store dependency needed).
+
+Console.WriteLine("\n[ entitlement verifier + service (P4 §2.3) ]");
+
+EntitlementReject ExpectedReject(string expect) => expect switch
+{
+    "accepted" => EntitlementReject.None,
+    "signature_invalid" => EntitlementReject.SignatureInvalid,
+    "wrong_product" => EntitlementReject.WrongProduct,
+    "wrong_package" => EntitlementReject.WrongPackage,
+    "not_purchased" => EntitlementReject.NotPurchased,
+    _ => throw new InvalidOperationException($"unknown expect '{expect}'"),
+};
+
+GoogleSignedPayloadVerifier VerifierFor(JsonObject ent) => new(
+    (string)ent["rsa_pub_spki_b64"]!,
+    (string)ent["package_name_expected"]!,
+    ent["product_ids_expected"]!.AsArray().Select(x => (string)x!).ToHashSet(StringComparer.Ordinal),
+    (int)ent["purchase_state_purchased"]!);
+
+foreach (var v in entitlementVectors.OrderBy(v => (string)v["name"]!, StringComparer.Ordinal))
+{
+    var name = (string)v["name"]!;
+    var ent = v["entitlement"]!.AsObject();
+    var body = v["plaintext_json"]!["body"]!.AsObject();
+    var verdict = VerifierFor(ent).Verify((string)body["original_json"]!, (string)body["signature"]!);
+    var expect = (string)ent["expect"]!;
+    Check($"verifier: {name} -> {expect}",
+        verdict.Accepted == (expect == "accepted") && verdict.Reason == ExpectedReject(expect),
+        $"got accepted={verdict.Accepted} reason={verdict.Reason}");
+}
+
+{
+    // The accepted verdict surfaces exactly the fields the engine audits.
+    var v = entitlementVectors.Single(v => (string)v["name"]! == "entitlement-valid");
+    var body = v["plaintext_json"]!["body"]!.AsObject();
+    var verdict = VerifierFor(v["entitlement"]!.AsObject()).Verify((string)body["original_json"]!, (string)body["signature"]!);
+    Check("verifier: accepted verdict carries product/order/acknowledged",
+        verdict.ProductId == "pro_unlock" && verdict.OrderId == "GPA.3390-8461-2039-11123" && verdict.Acknowledged);
+
+    bool badKeyThrew = false;
+    try { _ = new GoogleSignedPayloadVerifier("not valid base64 %%%", "app.careerseeker.dashboard", new HashSet<string> { "pro_unlock" }); }
+    catch (ArgumentException) { badKeyThrew = true; }
+    Check("verifier: a malformed public key fails fast at construction", badKeyThrew);
+}
+
+{
+    // Service lifecycle: apply / refresh / grace / rejection-is-inert, with an injected clock.
+    var v = entitlementVectors.Single(x => (string)x["name"]! == "entitlement-valid");
+    var body = v["plaintext_json"]!["body"]!.AsObject();
+    var oj = (string)body["original_json"]!;
+    var sig = (string)body["signature"]!;
+    var wrongBody = entitlementVectors.Single(x => (string)x["name"]! == "entitlement-wrong-product")["plaintext_json"]!["body"]!.AsObject();
+
+    var store = new FakeEntitlementStore();
+    var now = new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero);
+    var svc = new EntitlementService(VerifierFor(v["entitlement"]!.AsObject()), store, () => now);
+
+    Check("service: not entitled before any apply", !svc.IsEntitled());
+
+    var applied = svc.Apply(oj, sig, "abcd1234deadbeef");
+    Check("service: a valid apply is accepted and enables Pro", applied.Accepted && svc.IsEntitled());
+    Check("service: apply audits product/order/device fingerprint",
+        store.Audits.Count == 1 && store.Audits[0] == ("pro_unlock", "GPA.3390-8461-2039-11123", "abcd1234deadbeef", true));
+
+    now = now.AddDays(29);
+    Check("service: entitled within the 30-day grace window", svc.IsEntitled());
+    now = now.AddDays(2); // 31 days since the last successful verify
+    Check("service: entitlement lapses once grace expires (revocation by absence)", !svc.IsEntitled());
+
+    var reapplied = svc.Apply(oj, sig, "abcd1234deadbeef");
+    Check("service: a re-report refreshes the grace clock and re-activates Pro", reapplied.Accepted && svc.IsEntitled());
+
+    var auditsBefore = store.Audits.Count;
+    var stateBefore = store.Load();
+    var rejected = svc.Apply((string)wrongBody["original_json"]!, (string)wrongBody["signature"]!, "abcd1234deadbeef");
+    Check("service: a rejected apply changes no state and writes no audit event",
+        !rejected.Accepted && rejected.Reason == EntitlementReject.WrongProduct
+        && store.Audits.Count == auditsBefore && Equals(store.Load(), stateBefore));
+}
+
 // ---------------------------------------------------------------- protocol rules
 
 Console.WriteLine("\n[ protocol rules independent of any single vector ]");
@@ -544,4 +630,16 @@ static string? LocateVectorDirectory()
     return candidates
         .Select(root => Path.Combine(root, "docs", "sync-vectors", "v1"))
         .FirstOrDefault(path => Directory.Exists(path) && File.Exists(Path.Combine(path, "index.json")));
+}
+
+/// <summary>In-memory <see cref="IEntitlementStateStore"/> for the service lifecycle tests: one flag,
+/// a recorded audit list. Stands in for the engine's config table + hash-chained log (wired in §2.4).</summary>
+sealed class FakeEntitlementStore : SeekerSvc.Sync.IEntitlementStateStore
+{
+    private SeekerSvc.Sync.EntitlementState? _state;
+    public readonly List<(string ProductId, string OrderId, string Fingerprint, bool Acknowledged)> Audits = new();
+    public SeekerSvc.Sync.EntitlementState? Load() => _state;
+    public void Save(SeekerSvc.Sync.EntitlementState state) => _state = state;
+    public void AuditApplied(string productId, string orderId, string deviceFingerprint, bool acknowledged)
+        => Audits.Add((productId, orderId, deviceFingerprint, acknowledged));
 }
