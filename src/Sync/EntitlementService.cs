@@ -78,9 +78,14 @@ public sealed class EntitlementService
     /// grace window. Pure read — a lapsed grace window is reported as not-entitled without mutating the
     /// stored flag, so a later re-report re-activates it cleanly.
     /// </summary>
-    public bool IsEntitled()
-    {
-        var state = _store.Load();
-        return state is { Enabled: true } && (_clock() - state.LastVerifiedAt) <= GraceWindow;
-    }
+    public bool IsEntitled() => IsActive(_store.Load(), _clock());
+
+    /// <summary>
+    /// The grace rule as a pure function: enabled AND within <see cref="GraceWindow"/> of the last verify.
+    /// Exposed so a read-only caller (e.g. the desktop dashboard's Pro gate) can answer "is Pro active?"
+    /// from a stored state + clock without constructing a verifier — the production Play key it would need
+    /// does not exist until account day.
+    /// </summary>
+    public static bool IsActive(EntitlementState? state, DateTimeOffset now) =>
+        state is { Enabled: true } && (now - state.LastVerifiedAt) <= GraceWindow;
 }
