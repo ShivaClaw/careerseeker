@@ -65,7 +65,19 @@ public sealed record LocalDashboardActions(
     Func<CancellationToken, Task<DashboardControlResult>>? DisconnectGmailAsync = null,
     Func<long, string, CancellationToken, Task<DashboardControlResult>>? ControlApplicationAsync = null,
     Func<CancellationToken, Task<DashboardControlResult>>? ExportAuditAsync = null,
-    Func<CancellationToken, Task<DashboardControlResult>>? ExportAlphaPackageAsync = null);
+    Func<CancellationToken, Task<DashboardControlResult>>? ExportAlphaPackageAsync = null,
+    // Pro (P4 §2.5): set an application's outcome. (applicationId, outcome) -> result. The desktop may
+    // set any ApplicationOutcome.All value, including no_reply; wired only when Pro is entitled.
+    Func<long, string, CancellationToken, Task<DashboardControlResult>>? SetOutcomeAsync = null);
+
+/// <summary>
+/// The Pro dashboard state (P4 §2.5): whether Pro is currently entitled (EntitlementService.IsEntitled,
+/// grace-aware) and the outcome <see cref="FunnelBoard"/>. Loaded per render behind <see cref="LocalDashboardPro"/>
+/// so the desktop funnel + outcome-marking controls appear only while Pro is unlocked.
+/// </summary>
+public sealed record ProDashboardState(bool Entitled, FunnelBoard Funnel);
+
+public sealed record LocalDashboardPro(Func<CancellationToken, Task<ProDashboardState>> LoadAsync);
 
 public sealed record DashboardEvidence(
     bool AuditOk,
@@ -127,6 +139,7 @@ public sealed class LocalDashboard : IAsyncDisposable
     private readonly EngineCounters _counters;
     private readonly LocalDashboardActions? _actions;
     private readonly LocalDashboardEvidence? _evidence;
+    private readonly LocalDashboardPro? _pro;
     private readonly IReadOnlyList<string> _documentRoots;
     private readonly string _controlToken;
     private readonly int _port;
@@ -157,11 +170,13 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         int port = 7777,
         LocalDashboardActions? actions = null,
         LocalDashboardEvidence? evidence = null,
-        IEnumerable<string>? documentRoots = null)
+        IEnumerable<string>? documentRoots = null,
+        LocalDashboardPro? pro = null)
     {
         _counters = counters;
         _actions = actions;
         _evidence = evidence;
+        _pro = pro;
         _documentRoots = NormalizeDocumentRoots(documentRoots);
         _controlToken = NewControlToken();
         _port = port;
@@ -186,6 +201,8 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
             applicationControlAvailable = _actions?.ControlApplicationAsync is not null,
             auditExportAvailable = _actions?.ExportAuditAsync is not null,
             alphaPackageExportAvailable = _actions?.ExportAlphaPackageAsync is not null,
+            outcomeControlAvailable = _actions?.SetOutcomeAsync is not null,
+            proFunnelAvailable = _pro is not null,
             evidenceAvailable = _evidence is not null,
             applicationsAvailable = _evidence is not null,
             jobsAvailable = _evidence is not null,
@@ -367,7 +384,14 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
             return;
         }
 
-        ctx.Response.StatusCode = path is "/controls/gmail/disconnect" or "/controls/audit/export" or "/controls/package/export" or "/controls/application" or "/evidence" or "/applications" or "/jobs"
+        if (ctx.Request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
+            path == "/controls/application/outcome")
+        {
+            await HandleApplicationOutcomeAsync(ctx, ct).ConfigureAwait(false);
+            return;
+        }
+
+        ctx.Response.StatusCode = path is "/controls/gmail/disconnect" or "/controls/audit/export" or "/controls/package/export" or "/controls/application" or "/controls/application/outcome" or "/evidence" or "/applications" or "/jobs"
             ? (int)HttpStatusCode.MethodNotAllowed
             : (int)HttpStatusCode.NotFound;
         await WriteAsync(ctx, "text/plain; charset=utf-8", "Not found.", ct).ConfigureAwait(false);
@@ -460,23 +484,54 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
             return "<!doctype html><html><body><p>No application evidence source is configured.</p></body></html>";
 
         var evidence = await _evidence.LoadAsync(ct).ConfigureAwait(false);
+        var pro = _pro is null ? null : await _pro.LoadAsync(ct).ConfigureAwait(false);
+        var canMarkOutcome = (pro?.Entitled ?? false) && _actions?.SetOutcomeAsync is not null;
+
         var rows = evidence.RecentApplications.Count == 0
-            ? @"<tr><td colspan=""8"">No applications yet.</td></tr>"
+            ? @"<tr><td colspan=""9"">No applications yet.</td></tr>"
             : string.Concat(evidence.RecentApplications.Select(row => ApplicationRowHtml(
                 row,
                 _actions?.ControlApplicationAsync is not null,
+                canMarkOutcome,
                 _controlToken,
                 IsServableDocumentPath)));
 
-        var body = $@"<section class=""hero""><div><h1>Recent applications</h1><div class=""muted"">{evidence.RecentApplications.Count} applications shown</div></div><a href=""/"">Back to status</a></section>
-<div class=""table-wrap""><table><thead><tr><th>State</th><th>Job</th><th>Company</th><th>Score</th><th>Draft</th><th>Updated</th><th>Links</th><th>Controls</th></tr></thead>
+        var funnel = pro is null ? "" : FunnelPanelHtml(pro);
+        var body = $@"{funnel}<section class=""hero""><div><h1>Recent applications</h1><div class=""muted"">{evidence.RecentApplications.Count} applications shown</div></div><a href=""/"">Back to status</a></section>
+<div class=""table-wrap""><table><thead><tr><th>State</th><th>Job</th><th>Company</th><th>Score</th><th>Outcome</th><th>Draft</th><th>Updated</th><th>Links</th><th>Controls</th></tr></thead>
 <tbody>{rows}</tbody></table></div>";
         return PageHtml("CareerSeeker Applications", "applications", body);
+    }
+
+    // The Pro funnel board (P4 §2.5): 7/30/90-day windows over marked outcomes, or a locked notice when
+    // Pro is not entitled. Gated the honest way -- the panel simply does not compute a funnel unless Pro is on.
+    private static string FunnelPanelHtml(ProDashboardState pro)
+    {
+        if (!pro.Entitled)
+            return @"<section class=""notice"">Outcome tracking is a <strong>CareerSeeker Pro</strong> feature — unlock Pro to mark application outcomes and see your funnel.</section>";
+
+        static string Window(FunnelWindow w) =>
+            $@"<tr><td>{w.Days}d</td><td class=""n"">{w.Sent}</td><td class=""n"">{w.ReplyRatePct}%</td><td class=""n"">{w.Interviews}</td><td class=""n"">{w.Offers}</td><td class=""n"">{w.Results}</td></tr>";
+        return $@"<h2>Pro funnel</h2><div class=""table-wrap""><table><thead><tr><th>Window</th><th>Sent</th><th>Reply rate</th><th>Interviews</th><th>Offers</th><th>Results</th></tr></thead><tbody>{Window(pro.Funnel.Last7)}{Window(pro.Funnel.Last30)}{Window(pro.Funnel.Last90)}</tbody></table></div>";
+    }
+
+    private static readonly string[] OutcomeChoices = { "sent", "no_reply", "replied", "interview", "offer", "rejected" };
+
+    // The outcome cell: the current outcome (always shown as data), plus a marking control when Pro is on.
+    // The desktop may set any outcome including no_reply (a desktop-set observation); the phone cannot.
+    private static string OutcomeCellHtml(ApplicationSummaryRow row, bool canMark, string token)
+    {
+        var current = string.IsNullOrWhiteSpace(row.Outcome) ? "-" : WebUtility.HtmlEncode(row.Outcome.Replace('_', ' '));
+        if (!canMark) return current;
+        var options = string.Concat(OutcomeChoices.Select(o =>
+            $@"<option value=""{o}""{(o == row.Outcome ? " selected" : "")}>{WebUtility.HtmlEncode(o.Replace('_', ' '))}</option>"));
+        return $@"<form method=""post"" action=""/controls/application/outcome""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><input type=""hidden"" name=""applicationId"" value=""{row.ApplicationId}""><select name=""outcome"">{options}</select> <button type=""submit"">Set</button></form>";
     }
 
     private static string ApplicationRowHtml(
         ApplicationSummaryRow row,
         bool canControl,
+        bool canMarkOutcome,
         string token,
         Func<string?, bool> canServeDocument)
     {
@@ -493,7 +548,8 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         var updated = WebUtility.HtmlEncode(row.UpdatedAt);
         var links = LinksHtml(row, token, canServeDocument);
         var controls = canControl ? ApplicationControlsHtml(row, token) : "-";
-        return $@"<tr><td class=""state"">{WebUtility.HtmlEncode(row.State)}</td><td>{job}</td><td>{company}</td><td class=""n"">{score}</td><td>{draft}</td><td class=""n"">{updated}</td><td><div class=""links"">{links}</div></td><td>{controls}</td></tr>";
+        var outcome = OutcomeCellHtml(row, canMarkOutcome, token);
+        return $@"<tr><td class=""state"">{WebUtility.HtmlEncode(row.State)}</td><td>{job}</td><td>{company}</td><td class=""n"">{score}</td><td>{outcome}</td><td>{draft}</td><td class=""n"">{updated}</td><td><div class=""links"">{links}</div></td><td>{controls}</td></tr>";
     }
 
     private static string ApplicationControlsHtml(ApplicationSummaryRow row, string token)
@@ -838,6 +894,58 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         catch (Exception ex)
         {
             _lastActionMessage = "Application control did not complete cleanly: " + ex.Message;
+            RedirectApplications(ctx);
+        }
+    }
+
+    private async Task HandleApplicationOutcomeAsync(HttpListenerContext ctx, CancellationToken ct)
+    {
+        if (_actions?.SetOutcomeAsync is null)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "No outcome control action is configured.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (!RequestCameFromThisDashboard(ctx))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (!IsDashboardFormPost(ctx.Request) || ctx.Request.ContentLength64 is < 0 or > 4096)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        var form = ParseForm(await ReadBodyAsync(ctx).ConfigureAwait(false));
+        if (!HasValidControlToken(form))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (!long.TryParse(form.GetValueOrDefault("applicationId"), out var applicationId) ||
+            !form.TryGetValue("outcome", out var outcome))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Missing outcome fields.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var result = await _actions.SetOutcomeAsync(applicationId, outcome, ct).ConfigureAwait(false);
+            _lastActionMessage = result.Message;
+            RedirectApplications(ctx);
+        }
+        catch (Exception ex)
+        {
+            _lastActionMessage = "Outcome update did not complete cleanly: " + ex.Message;
             RedirectApplications(ctx);
         }
     }

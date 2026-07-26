@@ -269,8 +269,19 @@ Console.WriteLine("\n[ localhost dashboard ]");
         {
             Interlocked.Increment(ref packageExports);
             return Task.FromResult(new DashboardControlResult(true, "Alpha package exported."));
+        },
+        SetOutcomeAsync: async (id, outcome, ct) =>
+        {
+            await evidenceStore.SetOutcomeAsync(id, outcome, DateTimeOffset.UtcNow.ToString("O"), "user", ct);
+            return new DashboardControlResult(true, "Outcome set.");
         });
-    var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore), new[] { artifactDir });
+    // Pro seam (P4 §2.5c): entitlement is a grace-aware read of the store flag; the funnel is computed
+    // from recent outcomes. Toggling the stored flag below drives the locked vs. unlocked assertions.
+    var proSeam = new LocalDashboardPro(async ct =>
+        new ProDashboardState(
+            EntitlementService.IsActive(new StoreEntitlementStateStore(evidenceStore).Load(), DateTimeOffset.UtcNow),
+            FunnelBoard.Compute(await evidenceStore.GetRecentApplicationsAsync(100, ct), DateTimeOffset.UtcNow)));
+    var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore), new[] { artifactDir }, proSeam);
     var listenerOk = true;
     try { dash.Start(); } catch (Exception e) { listenerOk = false; Console.WriteLine("    (HttpListener unavailable in sandbox: " + e.GetType().Name + ")"); }
 
@@ -535,6 +546,49 @@ Console.WriteLine("\n[ localhost dashboard ]");
             appControls == 1 &&
             controlled?.State == AppState.PAUSED.ToString(),
             $"{appPost.StatusCode}, calls={appControls}, state={controlled?.State}");
+
+        // ── Pro funnel board + outcome marking (P4 §2.5c) ──
+        var lockedApps = await http.GetStringAsync("http://localhost:7777/applications");
+        Check("/applications locks the funnel + outcome controls when Pro is not entitled",
+            lockedApps.Contains("Outcome tracking is a") && !lockedApps.Contains("Pro funnel") && !lockedApps.Contains("name=\"outcome\""),
+            "expected the Pro-locked notice, no funnel, no outcome control");
+
+        new StoreEntitlementStateStore(evidenceStore).Save(new EntitlementState(true, DateTimeOffset.UtcNow));
+
+        var proApps = await http.GetStringAsync("http://localhost:7777/applications");
+        Check("/applications shows the funnel + outcome controls once Pro is entitled",
+            proApps.Contains("Pro funnel") && proApps.Contains("Reply rate") && proApps.Contains("name=\"outcome\""),
+            "expected the funnel panel and an outcome select");
+
+        var proStatus = await http.GetStringAsync("http://localhost:7777/status");
+        using (var proStatusDoc = JsonDocument.Parse(proStatus))
+        {
+            Check("/status reports outcome control + Pro funnel availability",
+                proStatusDoc.RootElement.GetProperty("outcomeControlAvailable").GetBoolean()
+                && proStatusDoc.RootElement.GetProperty("proFunnelAvailable").GetBoolean(), proStatus);
+        }
+
+        var forgedOutcome = await noRedirect.PostAsync("http://localhost:7777/controls/application/outcome",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            { ["token"] = "wrong", ["applicationId"] = applicationId.ToString(), ["outcome"] = "interview" }));
+        Check("outcome control rejects a bad token", forgedOutcome.StatusCode == HttpStatusCode.Forbidden, forgedOutcome.StatusCode.ToString());
+
+        using var wrongOutcomeHost = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/application/outcome")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            { ["token"] = token, ["applicationId"] = applicationId.ToString(), ["outcome"] = "interview" }),
+        };
+        wrongOutcomeHost.Headers.Host = "evil.test";
+        var wrongOutcomeHostResp = await noRedirect.SendAsync(wrongOutcomeHost);
+        Check("outcome control rejects a foreign Host header", (int)wrongOutcomeHostResp.StatusCode >= 400, wrongOutcomeHostResp.StatusCode.ToString());
+
+        var outcomePost = await noRedirect.PostAsync("http://localhost:7777/controls/application/outcome",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            { ["token"] = token, ["applicationId"] = applicationId.ToString(), ["outcome"] = "interview" }));
+        var outcomeSet = await evidenceStore.GetApplicationAsync(applicationId);
+        Check("outcome control persists the outcome via the configured action",
+            outcomePost.StatusCode == HttpStatusCode.SeeOther && outcomeSet?.Outcome == "interview",
+            $"{outcomePost.StatusCode}, outcome={outcomeSet?.Outcome}");
     }
     else
     {

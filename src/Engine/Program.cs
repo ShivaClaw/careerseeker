@@ -9,6 +9,7 @@ using SeekerSvc.Researcher;
 using SeekerSvc.Scorer;
 using SeekerSvc.Scout;
 using SeekerSvc.Store;
+using SeekerSvc.Sync;
 using SeekerSvc.Tailor;
 using SeekerSvc.Verifier;
 
@@ -451,7 +452,17 @@ async Task<int> RunDashboardAsync()
         return snapshot.AuditOk ? 0 : 1;
     }
 
-    await using var dashboard = new LocalDashboard(counters, port, actions, evidence, new[] { artifactsPath });
+    // Pro (P4 §2.5): the funnel + outcome controls appear only while Pro is entitled. The gate is a
+    // grace-aware read of the stored flag (no verifier needed — the production Play key arrives on
+    // account day); the funnel is computed on the desktop from recent outcomes.
+    var pro = new LocalDashboardPro(async ct =>
+    {
+        var entitled = EntitlementService.IsActive(new StoreEntitlementStateStore(store).Load(), DateTimeOffset.UtcNow);
+        var apps = await store.GetRecentApplicationsAsync(100, ct).ConfigureAwait(false);
+        return new ProDashboardState(entitled, FunnelBoard.Compute(apps, DateTimeOffset.UtcNow));
+    });
+
+    await using var dashboard = new LocalDashboard(counters, port, actions, evidence, new[] { artifactsPath }, pro);
     using var stop = new CancellationTokenSource();
     var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -1082,8 +1093,26 @@ LocalDashboardActions BuildDashboardActions(
         ControlApplicationAsync = BuildApplicationControlAction(store),
         ExportAuditAsync = BuildDashboardAuditExportAction(store, dbPath, auditOutPath),
         ExportAlphaPackageAsync = BuildDashboardPackageExportAction(store, dbPath, artifactsPath, jdDir, packageOutPath),
+        SetOutcomeAsync = BuildOutcomeControlAction(store),
     };
 }
+
+// The desktop outcome-marking action (P4 §2.5): unlike the phone, the desktop may set ANY outcome in
+// ApplicationOutcome.All, including no_reply. The dashboard shows the control only while Pro is entitled.
+Func<long, string, CancellationToken, Task<DashboardControlResult>> BuildOutcomeControlAction(ISeekerStore store) =>
+    async (applicationId, outcome, ct) =>
+    {
+        if (applicationId <= 0)
+            return new DashboardControlResult(false, "Outcome update requires a positive application id.");
+        var normalized = outcome.Trim().ToLowerInvariant();
+        if (!ApplicationOutcome.All.Contains(normalized))
+            return new DashboardControlResult(false, $"Unknown outcome '{outcome}'.");
+        var before = await store.GetApplicationAsync(applicationId, ct).ConfigureAwait(false);
+        if (before is null)
+            return new DashboardControlResult(false, $"Application {applicationId} was not found.");
+        await store.SetOutcomeAsync(applicationId, normalized, DateTimeOffset.UtcNow.ToString("O"), "user", ct).ConfigureAwait(false);
+        return new DashboardControlResult(true, $"Outcome for application {applicationId} set to {normalized}.");
+    };
 
 Func<CancellationToken, Task<DashboardControlResult>>? BuildDashboardAuditExportAction(
     ISeekerStore store,
