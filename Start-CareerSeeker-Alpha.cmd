@@ -12,7 +12,7 @@ if not exist "%~dp0scripts\Start-AlphaDashboard.ps1" (
 
 echo Starting CareerSeeker Alpha...
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Start-AlphaDashboard.ps1" -Published
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Start-AlphaDashboard.ps1" -Published -Engine
 set "status=%ERRORLEVEL%"
 
 if not "%status%"=="0" (

@@ -8,6 +8,12 @@ using SeekerSvc.Store;
 namespace SeekerSvc.Engine;
 
 /// <summary>
+/// What the scheduler is actually doing. Reported to the dashboard verbatim: the status a user sees is
+/// derived from this, never asserted as a constant, so "running" always means a loop is really turning.
+/// </summary>
+public enum SchedulerState { NotStarted, Running, Stopped, Faulted }
+
+/// <summary>
 /// Runs a tick immediately, then every interval, until stopped. BCL-only (<see cref="PeriodicTimer"/>),
 /// so it is verifiable offline; the production host can swap in Quartz for cron schedules and misfire
 /// policy without changing the cycle. A throwing tick is swallowed so one bad cycle never kills the loop.
@@ -23,6 +29,22 @@ public sealed class PeriodicScheduler : IAsyncDisposable
     {
         _tick = tick;
         _interval = interval;
+    }
+
+    /// <summary>Live state of the loop task. The dashboard renders this instead of a hard-coded string.</summary>
+    public SchedulerState State
+    {
+        get
+        {
+            var loop = _loop;
+            if (loop is null) return SchedulerState.NotStarted;
+            return loop.Status switch
+            {
+                TaskStatus.Faulted => SchedulerState.Faulted,
+                TaskStatus.RanToCompletion or TaskStatus.Canceled => SchedulerState.Stopped,
+                _ => SchedulerState.Running,
+            };
+        }
     }
 
     public void Start()
@@ -125,6 +147,7 @@ public sealed class LocalDashboard : IAsyncDisposable
 {
     private readonly HttpListener _listener = new();
     private readonly EngineCounters _counters;
+    private readonly Func<SchedulerState>? _engineState;
     private readonly LocalDashboardActions? _actions;
     private readonly LocalDashboardEvidence? _evidence;
     private readonly IReadOnlyList<string> _documentRoots;
@@ -152,14 +175,21 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
 @media (max-width:720px){.hero{display:block}.top-inner{align-items:flex-start}.shell{padding:1rem}table{min-width:46rem}}
 """;
 
+    /// <param name="engineState">
+    /// Live scheduler state. Null means no engine is attached to this dashboard at all (the viewer-only
+    /// <c>dashboard</c> mode), which is reported as such: counters that nothing can increment are never
+    /// presented as though a cycle were about to move them.
+    /// </param>
     public LocalDashboard(
         EngineCounters counters,
         int port = 7777,
         LocalDashboardActions? actions = null,
         LocalDashboardEvidence? evidence = null,
-        IEnumerable<string>? documentRoots = null)
+        IEnumerable<string>? documentRoots = null,
+        Func<SchedulerState>? engineState = null)
     {
         _counters = counters;
+        _engineState = engineState;
         _actions = actions;
         _evidence = evidence;
         _documentRoots = NormalizeDocumentRoots(documentRoots);
@@ -168,12 +198,33 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         _listener.Prefixes.Add($"http://localhost:{port}/");
     }
 
+    /// <summary>True when a real engine loop backs these counters.</summary>
+    private bool EngineAttached => _engineState is not null;
+
+    /// <summary>
+    /// The status string the dashboard reports. Derived from the scheduler, never a constant: a viewer
+    /// with no engine says so, and a started-but-not-yet-cycled engine says "starting" rather than
+    /// claiming it is already working.
+    /// </summary>
+    private string StatusLabel()
+    {
+        if (_engineState is null) return "viewer only - no engine attached";
+        return _engineState() switch
+        {
+            SchedulerState.NotStarted => "not started",
+            SchedulerState.Faulted => "faulted",
+            SchedulerState.Stopped => "stopped",
+            _ => _counters.Cycles == 0 ? "starting" : "running",
+        };
+    }
+
     public string StatusJson()
     {
         var c = _counters;
         return JsonSerializer.Serialize(new
         {
-            status = "running",
+            status = StatusLabel(),
+            engineAttached = EngineAttached,
             cycles = c.Cycles,
             lastCycleUtc = c.LastCycleUtc,
             discovered = c.Discovered,
@@ -181,6 +232,7 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
             drafted = c.Drafted,
             blocked = c.Blocked,
             rejected = c.Rejected,
+            quarantined = c.Quarantined,
             errors = c.Errors,
             gmailDisconnectAvailable = _actions?.DisconnectGmailAsync is not null,
             applicationControlAvailable = _actions?.ControlApplicationAsync is not null,
@@ -203,16 +255,29 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
             ? ""
             : @"<h2>Evidence</h2><div class=""links""><a href=""/jobs"">Recent jobs</a><a href=""/applications"">Recent applications</a><a href=""/evidence.html"">audit-chain status</a><a href=""/evidence"">audit JSON</a></div>";
 
-        var body = $@"<section class=""hero""><div><h1>CareerSeeker engine status</h1><div class=""muted"">Last cycle: {WebUtility.HtmlEncode(c.LastCycleUtc?.ToString("u") ?? "-")}</div></div><span class=""pill"">running</span></section>
-{notice}<section class=""cards"">
+        var status = StatusLabel();
+        var lastCycle = c.LastCycleUtc?.ToString("u") ?? "never";
+
+        // With no engine attached these counters are structurally incapable of moving. Saying so is the
+        // difference between "the engine found nothing" and "nothing is looking" - testers cannot tell
+        // those apart from a grid of zeros, and the honest answer is the one that saves the bug report.
+        var counterSection = EngineAttached
+            ? $@"<section class=""cards"">
 {MetricCard("Cycles", c.Cycles)}
 {MetricCard("Discovered", c.Discovered)}
 {MetricCard("Acted", c.Acted)}
 {MetricCard("Drafted", c.Drafted)}
 {MetricCard("Blocked (fabrication)", c.Blocked)}
 {MetricCard("Rejected (engine)", c.Rejected)}
+{MetricCard("Quarantined (injection)", c.Quarantined)}
 {MetricCard("Errors", c.Errors)}
-        </section>{evidence}{controls}";
+        </section>"
+            : @"<p class=""notice"">This window is a read-only view of what is already stored. No engine is
+attached to it, so there are no live counters to show here. Anything below reflects work done by earlier
+runs. To discover and draft on a schedule, start the engine with the <code>run</code> mode.</p>";
+
+        var body = $@"<section class=""hero""><div><h1>CareerSeeker engine status</h1><div class=""muted"">Last cycle: {WebUtility.HtmlEncode(lastCycle)}</div></div><span class=""pill"">{WebUtility.HtmlEncode(status)}</span></section>
+{notice}{counterSection}{evidence}{controls}";
         return PageHtml("CareerSeeker", "status", body);
     }
 
@@ -1000,8 +1065,11 @@ public sealed class EngineHost : IAsyncDisposable
         IEnumerable<string>? dashboardDocumentRoots = null)
     {
         Counters = counters;
-        _scheduler = new PeriodicScheduler(cycle.TickAsync, interval);
-        _dashboard = new LocalDashboard(counters, dashboardPort, dashboardActions, dashboardEvidence, dashboardDocumentRoots);
+        var scheduler = new PeriodicScheduler(cycle.TickAsync, interval);
+        _scheduler = scheduler;
+        _dashboard = new LocalDashboard(
+            counters, dashboardPort, dashboardActions, dashboardEvidence, dashboardDocumentRoots,
+            engineState: () => scheduler.State);
     }
 
     public void Start() { _dashboard.Start(); _scheduler.Start(); }

@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `341 passed, 0 failed`.
+- Latest local offline verifier: `364 passed, 0 failed`.
 - Alpha 2.0.1 onboarding verification, 2026-07-23: the default verifier passed with seven new provider
   diagnostics/local PDF-DOCX extraction assertions. A dirty-worktree package built successfully, and its
   extracted self-check verified 50 checksums plus dashboard and setup smokes. The aggregate package gate
