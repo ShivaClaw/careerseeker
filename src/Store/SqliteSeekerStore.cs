@@ -297,7 +297,7 @@ WHERE id=$id AND state=$expected;";
         => Locked(async () =>
         {
             using var cmd = Conn.CreateCommand();
-            cmd.CommandText = "SELECT id, job_id, state, autonomy_level, channel, created_at, updated_at, paused_from, resume_path, cover_path, answers_json FROM applications WHERE id=$id;";
+            cmd.CommandText = "SELECT id, job_id, state, autonomy_level, channel, created_at, updated_at, paused_from, resume_path, cover_path, answers_json, outcome, outcome_at FROM applications WHERE id=$id;";
             P(cmd, "$id", applicationId);
             using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             if (!await r.ReadAsync(ct).ConfigureAwait(false)) return null;
@@ -306,7 +306,9 @@ WHERE id=$id AND state=$expected;";
                 r.IsDBNull(7) ? null : r.GetString(7),
                 r.IsDBNull(8) ? null : r.GetString(8),
                 r.IsDBNull(9) ? null : r.GetString(9),
-                r.IsDBNull(10) ? null : r.GetString(10));
+                r.IsDBNull(10) ? null : r.GetString(10),
+                r.IsDBNull(11) ? null : r.GetString(11),
+                r.IsDBNull(12) ? null : r.GetString(12));
         }, ct);
 
     public Task<IReadOnlyList<long>> GetApplicationIdsInStatesAsync(
@@ -341,7 +343,7 @@ SELECT
   s.fit, s.legitimacy, s.total,
   (SELECT e.status FROM effect_attempts e WHERE e.application_id=a.id AND e.kind='draft' ORDER BY e.id DESC LIMIT 1) AS draft_status,
   (SELECT e.external_ref FROM effect_attempts e WHERE e.application_id=a.id AND e.kind='draft' ORDER BY e.id DESC LIMIT 1) AS draft_ref,
-  a.resume_path, a.cover_path, a.answers_json
+  a.resume_path, a.cover_path, a.answers_json, a.outcome, a.outcome_at
 FROM applications a
 JOIN jobs j ON j.id = a.job_id
 LEFT JOIN companies c ON c.id = j.company_id
@@ -377,7 +379,9 @@ LIMIT $limit;";
                     S(19),
                     S(20),
                     S(21),
-                    !string.IsNullOrWhiteSpace(S(22))));
+                    !string.IsNullOrWhiteSpace(S(22)),
+                    S(23),
+                    S(24)));
             }
             return (IReadOnlyList<ApplicationSummaryRow>)rows;
         }, ct);
@@ -414,6 +418,32 @@ WHERE id=$id;";
             await tx.CommitAsync(ct).ConfigureAwait(false);
             return null;
         }, ct);
+
+    public Task SetOutcomeAsync(long applicationId, string outcome, string at, string actor, CancellationToken ct = default)
+    {
+        if (!ApplicationOutcome.All.Contains(outcome))
+            throw new ArgumentException($"Unknown outcome '{outcome}'.", nameof(outcome));
+        return Locked<object?>(async () =>
+        {
+            var now = Now();
+            using var tx = (SqliteTransaction)await Conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            using var cmd = Conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "UPDATE applications SET outcome=$outcome, outcome_at=$at, updated_at=$now WHERE id=$id;";
+            P(cmd, "$outcome", outcome);
+            P(cmd, "$at", at);
+            P(cmd, "$now", now);
+            P(cmd, "$id", applicationId);
+            var changed = await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            if (changed == 0) throw new InvalidOperationException($"No application {applicationId}");
+
+            await AppendEventTxAsync(tx, new EventInput(actor, "outcome_set", "application",
+                applicationId.ToString(), $"{{\"outcome\":\"{outcome}\",\"at\":\"{at}\"}}"), ct).ConfigureAwait(false);
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+            return null;
+        }, ct);
+    }
 
     public Task SavePendingDispatchAsync(long applicationId, string payloadJson, CancellationToken ct = default)
         => Locked<object?>(async () =>
@@ -791,6 +821,8 @@ LEFT JOIN companies c ON c.id = j.company_id";
             ("resume_path",  "ALTER TABLE applications ADD COLUMN resume_path TEXT;"),
             ("cover_path",   "ALTER TABLE applications ADD COLUMN cover_path TEXT;"),
             ("answers_json", "ALTER TABLE applications ADD COLUMN answers_json TEXT;"),
+            ("outcome",      "ALTER TABLE applications ADD COLUMN outcome TEXT;"),      // Pro outcome tracking (P4 §2.5)
+            ("outcome_at",   "ALTER TABLE applications ADD COLUMN outcome_at TEXT;"),
         };
         foreach (var (column, ddl) in required)
             if (!existing.Contains(column))

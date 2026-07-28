@@ -128,6 +128,36 @@
       "type": "pairing",
       "valid": false,
       "expect_error": "decrypt_failed"
+    },
+    {
+      "name": "entitlement-valid",
+      "type": "entitlement",
+      "valid": true,
+      "expect_error": null
+    },
+    {
+      "name": "entitlement-tampered-json",
+      "type": "entitlement",
+      "valid": false,
+      "expect_error": null
+    },
+    {
+      "name": "entitlement-wrong-product",
+      "type": "entitlement",
+      "valid": false,
+      "expect_error": null
+    },
+    {
+      "name": "entitlement-wrong-package",
+      "type": "entitlement",
+      "valid": false,
+      "expect_error": null
+    },
+    {
+      "name": "entitlement-not-purchased",
+      "type": "entitlement",
+      "valid": false,
+      "expect_error": null
     }
   ]
 }

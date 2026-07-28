@@ -269,8 +269,19 @@ Console.WriteLine("\n[ localhost dashboard ]");
         {
             Interlocked.Increment(ref packageExports);
             return Task.FromResult(new DashboardControlResult(true, "Alpha package exported."));
+        },
+        SetOutcomeAsync: async (id, outcome, ct) =>
+        {
+            await evidenceStore.SetOutcomeAsync(id, outcome, DateTimeOffset.UtcNow.ToString("O"), "user", ct);
+            return new DashboardControlResult(true, "Outcome set.");
         });
-    var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore), new[] { artifactDir });
+    // Pro seam (P4 §2.5c): entitlement is a grace-aware read of the store flag; the funnel is computed
+    // from recent outcomes. Toggling the stored flag below drives the locked vs. unlocked assertions.
+    var proSeam = new LocalDashboardPro(async ct =>
+        new ProDashboardState(
+            EntitlementService.IsActive(new StoreEntitlementStateStore(evidenceStore).Load(), DateTimeOffset.UtcNow),
+            FunnelBoard.Compute(await evidenceStore.GetRecentApplicationsAsync(100, ct), DateTimeOffset.UtcNow)));
+    var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore), new[] { artifactDir }, proSeam);
     var listenerOk = true;
     try { dash.Start(); } catch (Exception e) { listenerOk = false; Console.WriteLine("    (HttpListener unavailable in sandbox: " + e.GetType().Name + ")"); }
 
@@ -535,6 +546,49 @@ Console.WriteLine("\n[ localhost dashboard ]");
             appControls == 1 &&
             controlled?.State == AppState.PAUSED.ToString(),
             $"{appPost.StatusCode}, calls={appControls}, state={controlled?.State}");
+
+        // ── Pro funnel board + outcome marking (P4 §2.5c) ──
+        var lockedApps = await http.GetStringAsync("http://localhost:7777/applications");
+        Check("/applications locks the funnel + outcome controls when Pro is not entitled",
+            lockedApps.Contains("Outcome tracking is a") && !lockedApps.Contains("Pro funnel") && !lockedApps.Contains("name=\"outcome\""),
+            "expected the Pro-locked notice, no funnel, no outcome control");
+
+        new StoreEntitlementStateStore(evidenceStore).Save(new EntitlementState(true, DateTimeOffset.UtcNow));
+
+        var proApps = await http.GetStringAsync("http://localhost:7777/applications");
+        Check("/applications shows the funnel + outcome controls once Pro is entitled",
+            proApps.Contains("Pro funnel") && proApps.Contains("Reply rate") && proApps.Contains("name=\"outcome\""),
+            "expected the funnel panel and an outcome select");
+
+        var proStatus = await http.GetStringAsync("http://localhost:7777/status");
+        using (var proStatusDoc = JsonDocument.Parse(proStatus))
+        {
+            Check("/status reports outcome control + Pro funnel availability",
+                proStatusDoc.RootElement.GetProperty("outcomeControlAvailable").GetBoolean()
+                && proStatusDoc.RootElement.GetProperty("proFunnelAvailable").GetBoolean(), proStatus);
+        }
+
+        var forgedOutcome = await noRedirect.PostAsync("http://localhost:7777/controls/application/outcome",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            { ["token"] = "wrong", ["applicationId"] = applicationId.ToString(), ["outcome"] = "interview" }));
+        Check("outcome control rejects a bad token", forgedOutcome.StatusCode == HttpStatusCode.Forbidden, forgedOutcome.StatusCode.ToString());
+
+        using var wrongOutcomeHost = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/application/outcome")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            { ["token"] = token, ["applicationId"] = applicationId.ToString(), ["outcome"] = "interview" }),
+        };
+        wrongOutcomeHost.Headers.Host = "evil.test";
+        var wrongOutcomeHostResp = await noRedirect.SendAsync(wrongOutcomeHost);
+        Check("outcome control rejects a foreign Host header", (int)wrongOutcomeHostResp.StatusCode >= 400, wrongOutcomeHostResp.StatusCode.ToString());
+
+        var outcomePost = await noRedirect.PostAsync("http://localhost:7777/controls/application/outcome",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            { ["token"] = token, ["applicationId"] = applicationId.ToString(), ["outcome"] = "interview" }));
+        var outcomeSet = await evidenceStore.GetApplicationAsync(applicationId);
+        Check("outcome control persists the outcome via the configured action",
+            outcomePost.StatusCode == HttpStatusCode.SeeOther && outcomeSet?.Outcome == "interview",
+            $"{outcomePost.StatusCode}, outcome={outcomeSet?.Outcome}");
     }
     else
     {
@@ -574,8 +628,8 @@ Console.WriteLine("\n[ localhost dashboard ]");
             Array.Empty<DashboardEvidenceEvent>(),
             new[]
             {
-                new ApplicationSummaryRow(101, AppState.REJECTED_BY_ENGINE.ToString(), "L1", "Email", now, now, null, 201, "Rejected sample", "Example", null, null, "Remote", "", null, null, null, null, null, null, null, null, false),
-                new ApplicationSummaryRow(102, AppState.DRAFTED.ToString(), "L1", "Email", now, now, null, 202, "Drafted sample", "Example", null, null, "Remote", "", null, null, null, null, "SUCCEEDED", "draft-102", null, null, false),
+                new ApplicationSummaryRow(101, AppState.REJECTED_BY_ENGINE.ToString(), "L1", "Email", now, now, null, 201, "Rejected sample", "Example", null, null, "Remote", "", null, null, null, null, null, null, null, null, false, null, null),
+                new ApplicationSummaryRow(102, AppState.DRAFTED.ToString(), "L1", "Email", now, now, null, 202, "Drafted sample", "Example", null, null, "Remote", "", null, null, null, null, "SUCCEEDED", "draft-102", null, null, false, null, null),
             },
             new[]
             {
@@ -1241,11 +1295,108 @@ Console.WriteLine("\n[ P2 sync bridge: projects engine state and drives the publ
     // F1: the 0-5 engine total is projected to a 0-100 int so real scores share the phone UI's scale.
     ApplicationSummaryRow RowWithTotal(double? total) => new(
         1, "READY", "L1", null, "t", "t", null, 1, "Engineer", "Acme", null, null, "Remote", "about:blank", null,
-        null, null, total, null, null, null, null, false);
+        null, null, total, null, null, null, null, false, null, null);
     Check("MapApplication scales the 0-5 engine total to a 0-100 int",
         EngineSyncBridge.ScoreToWire(4.1) == 82 && EngineSyncBridge.ScoreToWire(5.0) == 100
         && EngineSyncBridge.ScoreToWire(0.0) == 0 && EngineSyncBridge.ScoreToWire(null) == 0
         && EngineSyncBridge.MapApplication(RowWithTotal(4.1)).Score == 82);
+}
+
+// ---------------------------------------------------------------- entitlement state store (P4 §2.4)
+//
+// StoreEntitlementStateStore backs EntitlementService with the real config table + hash-chained audit
+// log. The verifier is faked here (RSA verification is proven against the shared vectors in SyncHarness);
+// this proves the ENGINE-side wiring: the flag persists to config, the grant appends a chain-valid audit
+// event carrying product/order/device-fingerprint, and grace/refresh work over the real store.
+Console.WriteLine("\n[ entitlement flag persists in config + audits the grant (P4 §2.4) ]");
+{
+    var entStore = new InMemorySeekerStore();
+    await entStore.InitializeAsync();
+    var adapter = new StoreEntitlementStateStore(entStore);
+    Check("entitlement: no flag before any apply", adapter.Load() is null);
+
+    var now = new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero);
+    var svc = new EntitlementService(new AlwaysAcceptVerifier("pro_unlock", "GPA.ENGINE-1"), adapter, () => now);
+    var verdict = svc.Apply("{\"packageName\":\"app.careerseeker.dashboard\"}", "sig", "feedfacecafe0001");
+    Check("entitlement: apply enables Pro through the real store", verdict.Accepted && svc.IsEntitled());
+    Check("entitlement: enabled flag + last-verified persisted to the config table",
+        await entStore.GetConfigAsync(StoreEntitlementStateStore.EnabledKey) == "true"
+        && await entStore.GetConfigAsync(StoreEntitlementStateStore.LastVerifiedKey) is not null);
+
+    var applied = (await entStore.GetEventsAsync()).SingleOrDefault(e => e.Kind == "entitlement_applied");
+    Check("entitlement: grant appended an audit event with order + product + device fingerprint",
+        applied is not null && applied.EntityId == "GPA.ENGINE-1"
+        && applied.PayloadJson.Contains("pro_unlock") && applied.PayloadJson.Contains("feedfacecafe0001"));
+    Check("entitlement: audit chain intact after the grant", (await entStore.VerifyAuditAsync()).Ok);
+
+    now = now.AddDays(31);
+    Check("entitlement: grace lapses after 30 days of no re-report (revocation by absence)", !svc.IsEntitled());
+    svc.Apply("{\"packageName\":\"app.careerseeker.dashboard\"}", "sig", "feedfacecafe0001");
+    Check("entitlement: a re-report refreshes the persisted flag and re-activates Pro", svc.IsEntitled());
+    Check("entitlement: audit chain intact after the second grant", (await entStore.VerifyAuditAsync()).Ok);
+}
+
+// ---------------------------------------------------------------- outcome wire field + applier (P4 §2.5b)
+Console.WriteLine("\n[ outcome rides the wire summary + the inbound applier persists it (P4 §2.5b) ]");
+{
+    var mapped = EngineSyncBridge.MapApplication(new ApplicationSummaryRow(
+        5, "APPLIED", "L1", "email", "t", "t", null, 9, "Engineer", "Acme", null, null, "Remote", "about:blank",
+        null, null, null, 4.1, null, null, null, null, false, "interview", "2026-07-24T00:00:00Z"));
+    Check("MapApplication carries the outcome onto the wire summary", mapped.Outcome == "interview" && mapped.Score == 82);
+
+    var ocStore = new InMemorySeekerStore();
+    await ocStore.InitializeAsync();
+    var ocAppId = await ocStore.CreateApplicationAsync(1, "L1");
+    var applier = new StoreOutcomeApplier(ocStore);
+
+    await applier.ApplyAsync($"{{\"app_id\":\"{ocAppId}\",\"outcome\":\"interview\",\"at\":\"2026-07-24T00:00:00Z\"}}", "fp1");
+    Check("outcome applier persists a phone-settable outcome", (await ocStore.GetApplicationAsync(ocAppId))?.Outcome == "interview");
+
+    await applier.ApplyAsync($"{{\"app_id\":\"{ocAppId}\",\"outcome\":\"no_reply\",\"at\":\"2026-07-24T01:00:00Z\"}}", "fp1");
+    Check("outcome applier ignores no_reply from the phone (desktop-set only)", (await ocStore.GetApplicationAsync(ocAppId))?.Outcome == "interview");
+
+    await applier.ApplyAsync($"{{\"app_id\":\"{ocAppId}\",\"outcome\":\"hired\",\"at\":\"x\"}}", "fp1");
+    await applier.ApplyAsync("{\"app_id\":\"not-a-number\",\"outcome\":\"offer\",\"at\":\"x\"}", "fp1");
+    await applier.ApplyAsync("not json at all", "fp1");
+    Check("outcome applier ignores unknown/malformed outcomes without throwing", (await ocStore.GetApplicationAsync(ocAppId))?.Outcome == "interview");
+
+    await applier.ApplyAsync($"{{\"app_id\":\"{ocAppId}\",\"outcome\":\"offer\",\"at\":\"2026-07-25T00:00:00Z\"}}", "fp1");
+    Check("outcome applier updates to a new phone-settable outcome and audits each set",
+        (await ocStore.GetApplicationAsync(ocAppId))?.Outcome == "offer"
+        && (await ocStore.GetEventsAsync()).Count(e => e.Kind == "outcome_set") == 2);
+}
+
+// ---------------------------------------------------------------- Pro funnel board (P4 §2.5c)
+Console.WriteLine("\n[ Pro outcome funnel windows 7/30/90d (P4 §2.5c) ]");
+{
+    var funnelNow = new DateTimeOffset(2026, 7, 25, 12, 0, 0, TimeSpan.Zero);
+    string ago(int days) => funnelNow.AddDays(-days).ToString("O");
+    ApplicationSummaryRow FunnelRow(string? outcome, string? at) => new(
+        1, "APPLIED", "L1", null, "t", "t", null, 1, "Engineer", "Acme", null, null, "Remote", "about:blank",
+        null, null, null, null, null, null, null, null, false, outcome, at);
+
+    var funnelApps = new[]
+    {
+        FunnelRow("sent", ago(1)),
+        FunnelRow("no_reply", ago(2)),
+        FunnelRow("replied", ago(3)),
+        FunnelRow("interview", ago(10)),  // in 30 & 90, not 7
+        FunnelRow("offer", ago(40)),      // in 90 only
+        FunnelRow("rejected", ago(80)),   // in 90 only
+        FunnelRow("offer", ago(200)),     // outside every window
+        FunnelRow(null, ago(1)),          // no outcome -> ignored
+        FunnelRow("sent", null),          // no timestamp -> ignored
+    };
+    var board = FunnelBoard.Compute(funnelApps, funnelNow);
+    Check("funnel 7d counts sent/replied/no_reply with an honest reply rate",
+        board.Last7.Sent == 3 && board.Last7.Replied == 1 && board.Last7.NoReply == 1 && board.Last7.ReplyRatePct == 33);
+    Check("funnel 30d rolls in the interview", board.Last30.Sent == 4 && board.Last30.Interviews == 1 && board.Last30.ReplyRatePct == 50);
+    Check("funnel 90d rolls in offer + rejected and excludes the 200-day-old row",
+        board.Last90.Sent == 6 && board.Last90.Offers == 1 && board.Last90.Rejected == 1
+        && board.Last90.Interviews == 2 && board.Last90.Results == 2 && board.Last90.ReplyRatePct == 67);
+    Check("funnel ignores outcome-less and timestamp-less rows", board.Last90.Sent == 6);
+    Check("empty funnel is all-zero, never a divide-by-zero",
+        FunnelBoard.Compute(Array.Empty<ApplicationSummaryRow>(), funnelNow).Last7.ReplyRatePct == 0);
 }
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
@@ -1322,4 +1473,12 @@ sealed class FakeGmail : IGmailDraftClient
 {
     public int Drafts;
     public Task<string> CreateDraftAsync(string raw, IReadOnlyList<string> labelIds, CancellationToken ct = default) { Drafts++; return Task.FromResult("d" + Drafts); }
+}
+
+/// <summary>A fixed-verdict <see cref="IEntitlementVerifier"/> so the store/audit wiring can be tested
+/// without vector data — the real RSA verification is proven against the shared vectors in SyncHarness.</summary>
+sealed class AlwaysAcceptVerifier(string productId, string orderId) : IEntitlementVerifier
+{
+    public EntitlementVerdict Verify(string originalJson, string signatureStandardB64)
+        => new(true, EntitlementReject.None, productId, orderId, true);
 }

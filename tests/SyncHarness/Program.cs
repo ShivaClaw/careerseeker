@@ -319,6 +319,11 @@ Console.WriteLine("\n[ P2 snapshot/delta/heartbeat payloads ]");
     var snapText = Encoding.UTF8.GetString(snap);
     Check("snapshot carries the live counters", snapText.Contains("\"drafted\":1") && snapText.Contains("\"cycles\":7"));
     Check("snapshot carries application summary fields", snapText.Contains("\"score\":82") && snapText.Contains("Senior Platform Engineer"));
+    // Outcome (P4 §2.5) is nullable on the wire: present when set, omitted (absent => null) otherwise.
+    var withOutcome = Encoding.UTF8.GetString(SyncPayloads.Snapshot(counters,
+        new[] { new AppSummary("app_1", "APPLIED", "Acme", "Engineer", 80, "interview") }, jobs));
+    Check("snapshot carries a set outcome", withOutcome.Contains("\"outcome\":\"interview\""));
+    Check("snapshot omits outcome when unset (absent => null on the phone)", !snapText.Contains("outcome"));
     // The untrusted-text invariant, asserted: no field name that would carry a raw posting body.
     Check("snapshot carries NO raw posting body (untrusted-text rule)",
         !snapText.Contains("jd_path") && !snapText.Contains("description") && !snapText.Contains("posting_body") && !snapText.Contains("\"body\":\""),
@@ -425,6 +430,234 @@ Console.WriteLine("\n[ SyncPublisher seals, sequences, and pushes e2p envelopes 
     Check("publisher rejects a wrong-length k_e2p", badKey);
 }
 
+// ---------------------------------------------------------------- entitlement wire conformance (P4)
+//
+// `entitlement` is a state-changing p2e kind. This proves the WIRE layer (P4 §2.2): each
+// vector decrypts under k_p2e to kind=entitlement carrying {original_json, signature}, and the
+// envelope's device ECDSA sig verifies under the pairing device key. The RSA verification and
+// the distinct accept/reject reasons are the GoogleSignedPayloadVerifier's job (P4 §2.3), which
+// consumes the same five vectors.
+
+Console.WriteLine("\n[ entitlement vectors: wire conformance (decrypt + device signature) ]");
+
+var entitlementVectors = vectors.Where(v => (string)v["type"]! == "entitlement").ToList();
+Check("entitlement suite has a valid vector and rejection vectors",
+    entitlementVectors.Any(v => (bool)v["valid"]!) && entitlementVectors.Any(v => !(bool)v["valid"]!));
+
+foreach (var v in entitlementVectors.OrderBy(v => (string)v["name"]!, StringComparer.Ordinal))
+{
+    var name = (string)v["name"]!;
+    try
+    {
+        var text = Encoding.UTF8.GetString(EnvelopeCodec.Open(
+            Convert.FromHexString((string)v["key_hex"]!), B64u((string)v["nonce_b64u"]!),
+            (string)v["aad"]!, B64u((string)v["ciphertext_b64u"]!)));
+        var plain = JsonNode.Parse(text)!.AsObject();
+        Check($"{name} decrypts to kind=entitlement with {{original_json, signature}}",
+            (string?)plain["kind"] == "entitlement"
+            && plain["body"]!["original_json"] is not null && plain["body"]!["signature"] is not null
+            && Canonical(plain) == Canonical(v["plaintext_json"]));
+    }
+    catch (Exception ex) { Check($"{name} decrypts to kind=entitlement", false, ex.GetType().Name); }
+
+    // A state-changing p2e kind MUST carry a valid device sig, over the same pairing device key.
+    var ciphertext = B64u((string)v["ciphertext_b64u"]!);
+    var input = DeviceSignature.SigInput((string)v["aad"]!, (string)v["nonce_b64u"]!, ciphertext);
+    Check($"{name} carries the device ECDSA sig and it verifies under the pairing key",
+        v["envelope_json"]!["sig"] is not null
+        && DeviceSignature.Verify(devicePub, input, B64u((string)v["envelope_json"]!["sig"]!)));
+}
+
+// The signature field is Play's STANDARD base64 (not the envelope's base64url). Decoding it as
+// base64url MUST fail -- which is exactly why §4.3.2 flags it as payload content, not framing.
+{
+    var validEnt = entitlementVectors.Single(v => (string)v["name"]! == "entitlement-valid");
+    var sigField = (string)validEnt["plaintext_json"]!["body"]!["signature"]!;
+    Check("entitlement signature decodes as standard base64 to a 2048-bit RSA signature (256 bytes)",
+        Convert.TryFromBase64String(sigField, new byte[512], out var written) && written == 256);
+    Check("entitlement signature is rejected by the envelope base64url decoder (it is payload content)",
+        !Base64Url.TryDecode(sigField, out _));
+}
+
+// ---------------------------------------------------------------- entitlement verifier + service (P4)
+//
+// The GoogleSignedPayloadVerifier (option C) against all five vectors: each maps to its distinct
+// rejection reason, so a check firing early would surface as a wrong reason. Then EntitlementService's
+// apply/refresh/grace lifecycle, driven by an injected clock and an in-memory flag store (no phone, no
+// account, no store dependency needed).
+
+Console.WriteLine("\n[ entitlement verifier + service (P4 §2.3) ]");
+
+EntitlementReject ExpectedReject(string expect) => expect switch
+{
+    "accepted" => EntitlementReject.None,
+    "signature_invalid" => EntitlementReject.SignatureInvalid,
+    "wrong_product" => EntitlementReject.WrongProduct,
+    "wrong_package" => EntitlementReject.WrongPackage,
+    "not_purchased" => EntitlementReject.NotPurchased,
+    _ => throw new InvalidOperationException($"unknown expect '{expect}'"),
+};
+
+GoogleSignedPayloadVerifier VerifierFor(JsonObject ent) => new(
+    (string)ent["rsa_pub_spki_b64"]!,
+    (string)ent["package_name_expected"]!,
+    ent["product_ids_expected"]!.AsArray().Select(x => (string)x!).ToHashSet(StringComparer.Ordinal),
+    (int)ent["purchase_state_purchased"]!);
+
+foreach (var v in entitlementVectors.OrderBy(v => (string)v["name"]!, StringComparer.Ordinal))
+{
+    var name = (string)v["name"]!;
+    var ent = v["entitlement"]!.AsObject();
+    var body = v["plaintext_json"]!["body"]!.AsObject();
+    var verdict = VerifierFor(ent).Verify((string)body["original_json"]!, (string)body["signature"]!);
+    var expect = (string)ent["expect"]!;
+    Check($"verifier: {name} -> {expect}",
+        verdict.Accepted == (expect == "accepted") && verdict.Reason == ExpectedReject(expect),
+        $"got accepted={verdict.Accepted} reason={verdict.Reason}");
+}
+
+{
+    // The accepted verdict surfaces exactly the fields the engine audits.
+    var v = entitlementVectors.Single(v => (string)v["name"]! == "entitlement-valid");
+    var body = v["plaintext_json"]!["body"]!.AsObject();
+    var verdict = VerifierFor(v["entitlement"]!.AsObject()).Verify((string)body["original_json"]!, (string)body["signature"]!);
+    Check("verifier: accepted verdict carries product/order/acknowledged",
+        verdict.ProductId == "pro_unlock" && verdict.OrderId == "GPA.3390-8461-2039-11123" && verdict.Acknowledged);
+
+    bool badKeyThrew = false;
+    try { _ = new GoogleSignedPayloadVerifier("not valid base64 %%%", "app.careerseeker.dashboard", new HashSet<string> { "pro_unlock" }); }
+    catch (ArgumentException) { badKeyThrew = true; }
+    Check("verifier: a malformed public key fails fast at construction", badKeyThrew);
+}
+
+{
+    // Service lifecycle: apply / refresh / grace / rejection-is-inert, with an injected clock.
+    var v = entitlementVectors.Single(x => (string)x["name"]! == "entitlement-valid");
+    var body = v["plaintext_json"]!["body"]!.AsObject();
+    var oj = (string)body["original_json"]!;
+    var sig = (string)body["signature"]!;
+    var wrongBody = entitlementVectors.Single(x => (string)x["name"]! == "entitlement-wrong-product")["plaintext_json"]!["body"]!.AsObject();
+
+    var store = new FakeEntitlementStore();
+    var now = new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero);
+    var svc = new EntitlementService(VerifierFor(v["entitlement"]!.AsObject()), store, () => now);
+
+    Check("service: not entitled before any apply", !svc.IsEntitled());
+
+    var applied = svc.Apply(oj, sig, "abcd1234deadbeef");
+    Check("service: a valid apply is accepted and enables Pro", applied.Accepted && svc.IsEntitled());
+    Check("service: apply audits product/order/device fingerprint",
+        store.Audits.Count == 1 && store.Audits[0] == ("pro_unlock", "GPA.3390-8461-2039-11123", "abcd1234deadbeef", true));
+
+    now = now.AddDays(29);
+    Check("service: entitled within the 30-day grace window", svc.IsEntitled());
+    now = now.AddDays(2); // 31 days since the last successful verify
+    Check("service: entitlement lapses once grace expires (revocation by absence)", !svc.IsEntitled());
+
+    var reapplied = svc.Apply(oj, sig, "abcd1234deadbeef");
+    Check("service: a re-report refreshes the grace clock and re-activates Pro", reapplied.Accepted && svc.IsEntitled());
+
+    var auditsBefore = store.Audits.Count;
+    var stateBefore = store.Load();
+    var rejected = svc.Apply((string)wrongBody["original_json"]!, (string)wrongBody["signature"]!, "abcd1234deadbeef");
+    Check("service: a rejected apply changes no state and writes no audit event",
+        !rejected.Accepted && rejected.Reason == EntitlementReject.WrongProduct
+        && store.Audits.Count == auditsBefore && Equals(store.Load(), stateBefore));
+}
+
+// ---------------------------------------------------------------- inbound dispatcher (P4 §2.4)
+//
+// The inbound path routes each accepted p2e kind. entitlement/doc_edit cases reuse the signed vectors;
+// outcome/pull_request are minted fresh here with the pairing device private key (pairing-basic carries
+// device_sig.d_hex), so the dispatcher sees genuinely-signed envelopes. Each case uses a fresh dispatcher
+// (its own receiver) so the per-direction seq tracker never crosses cases.
+
+Console.WriteLine("\n[ inbound dispatcher routes each p2e kind (P4 §2.4) ]");
+
+{
+    var pairingId = (string)index["pairing_id"]!;
+    var kP2e = Convert.FromHexString("0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0");
+    var deviceD = Convert.FromHexString((string)pairingBasic["device_sig"]!["d_hex"]!);
+    using var deviceSigner = ECDsa.Create(new ECParameters
+    {
+        Curve = ECCurve.NamedCurves.nistP256, D = deviceD,
+        Q = new ECPoint { X = devicePub[1..33], Y = devicePub[33..] },
+    });
+    var fingerprint = DeviceSignature.Fingerprint(devicePub);
+    var entConfig = entitlementVectors.Single(v => (string)v["name"]! == "entitlement-valid")["entitlement"]!.AsObject();
+    var nonceSeed = 100;
+
+    ReceivedEnvelope SealP2e(long seq, object plaintext, bool sign)
+    {
+        var header = new EnvelopeHeader(1, pairingId, "p2e", seq, "2026-07-24T00:00:00Z", activeKeyId);
+        var aad = header.Aad();
+        var nonce = new byte[Protocol.NonceBytes]; nonce[0] = (byte)nonceSeed++; nonce[1] = 0x2e;
+        var ct = EnvelopeCodec.Seal(kP2e, nonce, aad, JsonSerializer.SerializeToUtf8Bytes(plaintext));
+        string? sig = null;
+        if (sign)
+        {
+            var input = DeviceSignature.SigInput(aad, Base64Url.Encode(nonce), ct);
+            sig = Base64Url.Encode(deviceSigner.SignData(Encoding.ASCII.GetBytes(input), HashAlgorithmName.SHA256));
+        }
+        return new ReceivedEnvelope(1, pairingId, "p2e", seq, "2026-07-24T00:00:00Z", activeKeyId,
+            Base64Url.Encode(nonce), Base64Url.Encode(ct), sig);
+    }
+
+    InboundDispatcher MakeDispatcher(RecordingOutcomeApplier? outcome, RecordingRepublisher? republisher)
+    {
+        var receiver = new EnvelopeReceiver(activeKeyId, devicePub);
+        var svc = new EntitlementService(VerifierFor(entConfig), new FakeEntitlementStore(),
+            () => new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero));
+        return new InboundDispatcher(receiver, svc, fingerprint, _ => kP2e, outcome, republisher);
+    }
+
+    // entitlement (valid) -> applied
+    var rApplied = MakeDispatcher(null, null)
+        .DispatchAsync(ToReceived(entitlementVectors.Single(v => (string)v["name"]! == "entitlement-valid")["envelope_json"]!.AsObject()))
+        .GetAwaiter().GetResult();
+    Check("dispatch: entitlement-valid -> EntitlementApplied", rApplied.Outcome == InboundOutcome.EntitlementApplied);
+
+    // entitlement (wrong product) -> rejected with the distinct reason
+    var rRejected = MakeDispatcher(null, null)
+        .DispatchAsync(ToReceived(entitlementVectors.Single(v => (string)v["name"]! == "entitlement-wrong-product")["envelope_json"]!.AsObject()))
+        .GetAwaiter().GetResult();
+    Check("dispatch: entitlement-wrong-product -> EntitlementRejected(WrongProduct)",
+        rRejected.Outcome == InboundOutcome.EntitlementRejected && rRejected.EntitlementReason == EntitlementReject.WrongProduct);
+
+    // outcome (signed, minted fresh) -> handed to the applier
+    var outcomeApplier = new RecordingOutcomeApplier();
+    var rOutcome = MakeDispatcher(outcomeApplier, null).DispatchAsync(
+        SealP2e(1, new { kind = "outcome", body = new { app_id = "app_1", outcome = "interview", at = "2026-07-24T00:00:00Z" } }, sign: true))
+        .GetAwaiter().GetResult();
+    Check("dispatch: signed outcome -> OutcomeApplied and handed to the §2.5 applier",
+        rOutcome.Outcome == InboundOutcome.OutcomeApplied && outcomeApplier.Applied.Count == 1
+        && outcomeApplier.Applied[0].Body.Contains("interview") && outcomeApplier.Applied[0].Fingerprint == fingerprint);
+
+    // pull_request (not state-changing, so unsigned) -> re-publish snapshot from since_seq
+    var republisher = new RecordingRepublisher();
+    var rPull = MakeDispatcher(null, republisher).DispatchAsync(
+        SealP2e(1, new { kind = "pull_request", body = new { since_seq = 7L } }, sign: false))
+        .GetAwaiter().GetResult();
+    Check("dispatch: pull_request -> SnapshotRepublished(since_seq=7)",
+        rPull.Outcome == InboundOutcome.SnapshotRepublished && republisher.LastSince == 7L);
+
+    // doc_edit (signed) -> recognised but unimplemented; the apply path is NEVER touched
+    var rDoc = MakeDispatcher(null, null)
+        .DispatchAsync(ToReceived(envelopeVectors.Single(v => (string)v["name"]! == "doc-edit-signed")["envelope_json"]!.AsObject()))
+        .GetAwaiter().GetResult();
+    Check("dispatch: doc_edit -> DocEditUnimplemented (P3's surface, not applied)", rDoc.Outcome == InboundOutcome.DocEditUnimplemented);
+    Check("dispatch: doc_edit reply code is 'unimplemented' and distinct from unknown_kind",
+        InboundDispatcher.DocEditReplyCode == "unimplemented" && SyncError.Unimplemented.ToWire() == "unimplemented"
+        && SyncError.Unimplemented.ToWire() != SyncError.UnknownKind.ToWire());
+
+    // a receiver rejection (unsigned state-changing kind) passes through as ReceiveRejected, unapplied
+    var rBad = MakeDispatcher(null, null)
+        .DispatchAsync(ToReceived(envelopeVectors.Single(v => (string)v["name"]! == "sig-missing-on-doc-edit")["envelope_json"]!.AsObject()))
+        .GetAwaiter().GetResult();
+    Check("dispatch: an unsigned state-changing kind is ReceiveRejected(bad_signature), never dispatched",
+        rBad.Outcome == InboundOutcome.ReceiveRejected && rBad.ReceiveError == SyncError.BadSignature);
+}
+
 // ---------------------------------------------------------------- protocol rules
 
 Console.WriteLine("\n[ protocol rules independent of any single vector ]");
@@ -495,4 +728,32 @@ static string? LocateVectorDirectory()
     return candidates
         .Select(root => Path.Combine(root, "docs", "sync-vectors", "v1"))
         .FirstOrDefault(path => Directory.Exists(path) && File.Exists(Path.Combine(path, "index.json")));
+}
+
+/// <summary>In-memory <see cref="IEntitlementStateStore"/> for the service lifecycle tests: one flag,
+/// a recorded audit list. Stands in for the engine's config table + hash-chained log (wired in §2.4).</summary>
+sealed class FakeEntitlementStore : SeekerSvc.Sync.IEntitlementStateStore
+{
+    private SeekerSvc.Sync.EntitlementState? _state;
+    public readonly List<(string ProductId, string OrderId, string Fingerprint, bool Acknowledged)> Audits = new();
+    public SeekerSvc.Sync.EntitlementState? Load() => _state;
+    public void Save(SeekerSvc.Sync.EntitlementState state) => _state = state;
+    public void AuditApplied(string productId, string orderId, string deviceFingerprint, bool acknowledged)
+        => Audits.Add((productId, orderId, deviceFingerprint, acknowledged));
+}
+
+/// <summary>Recording <see cref="SeekerSvc.Sync.IOutcomeApplier"/> — the §2.5 seam stubbed for the §2.4 routing tests.</summary>
+sealed class RecordingOutcomeApplier : SeekerSvc.Sync.IOutcomeApplier
+{
+    public readonly List<(string Body, string Fingerprint)> Applied = new();
+    public Task ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default)
+    { Applied.Add((outcomeBodyJson, deviceFingerprint)); return Task.CompletedTask; }
+}
+
+/// <summary>Recording <see cref="SeekerSvc.Sync.ISnapshotRepublisher"/> — captures the since_seq a pull_request asked to resume from.</summary>
+sealed class RecordingRepublisher : SeekerSvc.Sync.ISnapshotRepublisher
+{
+    public long? LastSince;
+    public Task RepublishSnapshotAsync(long sinceSeq, CancellationToken ct = default)
+    { LastSince = sinceSeq; return Task.CompletedTask; }
 }

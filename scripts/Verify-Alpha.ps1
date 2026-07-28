@@ -114,7 +114,23 @@ $offlineProjects = @(
 # This number is the measured total's expected value: the run below fails if the actual sum drifts from
 # it, so a dropped harness or deleted assertion can no longer regress silently while the doc-smoke grep
 # still finds the stale count. Bump it in lockstep with the per-harness/doc counts (see the drift trap in
-# CLAUDE.md). Last verified at 437 on branch claude/p2-publisher (Codex audit fix: EngineHarness 103->105 -- a
+# CLAUDE.md). Last verified at 500 on branch claude/p4-entitlement (P4 §2.5c: EngineHarness 118->129 --
+# the pure FunnelBoard (sent -> reply rate -> interviews -> results over 7/30/90d) + the desktop dashboard
+# funnel panel and outcome-marking controls, gated by EntitlementService.IsActive with token/Host/Origin
+# guards on the outcome POST; P4 §2.5b: SyncHarness 128->130 +
+# EngineHarness 113->118 -- the nullable `outcome` field on the wire application summary (AppSummary +
+# MapApplication + §4.3.1) and StoreOutcomeApplier filling the inbound outcome seam (phone-settable subset
+# only; malformed no-ops); P4 §2.5a: StoreParityHarness 22->25 --
+# Pro outcome tracking: an outcome state per application (store migration adds outcome/outcome_at, ALTER for
+# older DBs) that round-trips + audits identically across InMemory and SQLite; P4 §2.4: SyncHarness 121->128 +
+# EngineHarness 105->113 -- the inbound p2e InboundDispatcher (entitlement->service, pull_request->snapshot,
+# outcome->§2.5 seam, doc_edit->unimplemented reply) and StoreEntitlementStateStore (config flag + audit
+# event) over the real store; P4 §2.3: SyncHarness 107->121 -- the
+# GoogleSignedPayloadVerifier (option C) against all five entitlement vectors, each mapped to its distinct
+# reject reason, plus EntitlementService apply/refresh/grace with an injected clock; P4 §2.2: SyncHarness
+# 94->107 -- amends the `entitlement` body {voucher}->{original_json,signature} (P0-WORKER option C) and adds
+# five Play-signed entitlement vectors (valid + signature-invalid/wrong-product/wrong-package/not-purchased)
+# with wire-conformance coverage; earlier at 437 on claude/p2-publisher, Codex audit fix: EngineHarness 103->105 -- a
 # failed first snapshot leaves the bridge in snapshot mode and is retried, never downgraded to a delta a fresh
 # phone would merge into demo data; earlier checkpoint F1/F4: EngineHarness 102->103
 # -- MapApplication scales the 0-5 engine total to the wire's 0-100 int; SyncHarness 93->94 -- publisher
@@ -126,7 +142,7 @@ $offlineProjects = @(
 # payload builders; earlier P1: SyncHarness 39->68 -- the harness now exercises the shipping src/Sync library
 # (codec, pairing crypto, receiver, signatures) against the regenerated shared vectors, including the P-256
 # pairing derivation and ECDSA envelope signatures).
-$ExpectedOfflineTotal = 437
+$ExpectedOfflineTotal = 500
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -269,13 +285,13 @@ Invoke-Step "Public README and harness count smoke" {
         'Windows service/tray packaging and the paid Android dashboard still future',
         'no open-source license',
         'all rights are reserved',
-        'EngineHarness` (105)',
+        'EngineHarness` (129)',
         'ResearcherHarness` (55)',
         'HookHarness` (14)',
         'GatewayGateHarness` (34)',
-        'SyncHarness` (94)',
+        'SyncHarness` (130)',
         'admitted hooks stay prompt',
-        'Latest offline total: 437 assertions'
+        'Latest offline total: 500 assertions'
     ) "README.md"
     Assert-DoesNotContain $readme @(
         'free Windows service (.exe)'
@@ -286,7 +302,7 @@ Invoke-Step "Public README and harness count smoke" {
     # re-pads them); collapse runs of spaces so the row assertions tolerate that padding.
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
-        'Total: 437 passed, 0 failed.',
+        'Total: 500 passed, 0 failed.',
         'imports require the CareerSeeker alpha profile',
         'document responses carry no-store, nosniff, no-referrer',
         '`/evidence.html`',
@@ -295,16 +311,16 @@ Invoke-Step "Public README and harness count smoke" {
         'admitted company hooks stay prompt'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| `EngineHarness` | 105 passed, 0 failed |',
+        '| `EngineHarness` | 129 passed, 0 failed |',
         '| `ResearcherHarness` | 55 passed, 0 failed |',
         '| `HookHarness` | 14 passed, 0 failed |',
         '| `GatewayGateHarness` | 34 passed, 0 failed |',
-        '| `SyncHarness` | 94 passed, 0 failed |'
+        '| `SyncHarness` | 130 passed, 0 failed |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 437 passed, 0 failed.',
+        'Latest offline harness total: 500 passed, 0 failed.',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
         '`INSTALL`',
@@ -316,7 +332,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `437 passed, 0 failed`.',
+        'Latest local offline verifier: `500 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'Fresh live Scout harness, 2026-07-20',
         'BYOK live provider smoke',
@@ -353,7 +369,7 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $historicalAudit @(
         'Current-status note, 2026-07-20',
         'this is preserved as historical audit input, not as current status for',
-        'the default verifier reports 437 passed / 0 failed'
+        'the default verifier reports 500 passed / 0 failed'
     ) "docs/repo-audit-2026-07-13.md"
 
     Assert-Contains $summary @(
