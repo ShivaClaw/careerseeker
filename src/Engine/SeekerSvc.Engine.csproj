@@ -10,5 +10,6 @@
     <ProjectReference Include="../Researcher/SeekerSvc.Researcher.csproj" />
     <ProjectReference Include="../Tailor/SeekerSvc.Tailor.csproj" />
     <ProjectReference Include="../Dispatcher/SeekerSvc.Dispatcher.csproj" />
+    <ProjectReference Include="../Sync/SeekerSvc.Sync.csproj" />
   </ItemGroup>
 </Project>
