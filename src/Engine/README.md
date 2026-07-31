@@ -30,6 +30,8 @@ The engine shell adds:
 - `LocalDashboard`: loopback-only responsive HTML dashboard and JSON status on `localhost`, with optional
   token-protected controls.
 - `EngineHost`: composition root for counters, scheduler, and dashboard.
+- `LexicalSemanticScorer`: deterministic local profile/posting overlap with title and Skill/Title
+  weighting; no provider or network dependency.
 
 ## Alpha Executable Modes
 
@@ -49,6 +51,9 @@ The engine shell adds:
   `--once` for a single sweep, and `--board greenhouse:<handle>`
   (repeatable) to choose boards. `--max-drafts-per-cycle` (default 10) bounds how many postings one
   tick may draft; the rest are stored and picked up on the next tick.
+  The default `lexical-v1` ranker loads the active local profile, treats posting text only as
+  untrusted data, and persists CV match, compensation, growth, preference, legitimacy, ranker, and
+  matched-term rationale. `/jobs` orders scored rows by total and renders those components.
 
 ### Crash recovery
 
@@ -157,14 +162,15 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   `IIdentifiedJobFeed` so postings keep their true company and external id); sandbox is a fixed batch.
   Postings Scout flags for prompt injection are stored as evidence and then dropped before any model
   call, counted separately as `quarantined`.
-- `ISemanticScorer`: CV-match and growth sub-scores. Production is the LLM Gateway; sandbox is deterministic.
+- `ISemanticScorer`: injectable CV-match and growth sub-scores. Beta defaults to deterministic
+  offline `lexical-v1`; fixtures can inject fixed scores.
 - `IDocumentRenderer`: production alpha is the deterministic ATS-clean PDF renderer. Future product polish
   can add an HTML/Chromium renderer.
 
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 373 passed, 0 failed.
+- Latest offline harness total: 380 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.

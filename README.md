@@ -21,9 +21,9 @@ Trust/OAuth docs:
   references Pipeline, Tailor, Dispatcher, and Researcher for alpha composition commands. `TailorHookBridge`
   joins Tailor<->Researcher so neither core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
-  `EngineHarness` (127), `ResearcherHarness` (57), `HookHarness` (16), `StoreParityHarness` (23),
+  `EngineHarness` (133), `ResearcherHarness` (57), `HookHarness` (16), `StoreParityHarness` (24),
   `GatewayGateHarness` (36), `DispatcherNoSendHarness` (35), `LifecycleHarness` (45), and
-  `RendererHarness` (6). Latest offline total: 373 assertions. Run each with
+  `RendererHarness` (6). Latest offline total: 380 assertions. Run each with
   `dotnet run -c Release`.
 - `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. It builds, runs the initializer dry run,
   source-mode SQLite demo smoke, and offline harness suite. Add `-IncludeLive` for local BYOK/Gmail checks,
@@ -102,4 +102,6 @@ accept `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` or `GOOGLE_API_KEY`, and Brave Sear
 - HookGuard: a company hook carrying any candidate-claim pattern is omitted; admitted hooks stay prompt
   context only, not applicant-facing evidence.
 - Scorer: `total = min(fit, legitimacy) * red_flags`; a scam can never outrank its worst axis.
+- Ranking: deterministic offline `lexical-v1` weights local profile Skill/Title overlap, emphasizes
+  posting titles over body boilerplate, and persists its explainable components for the dashboard.
 - Store: hash-chained audit log.

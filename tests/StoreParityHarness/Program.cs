@@ -52,6 +52,15 @@ Check("recent job summary joins job and company metadata",
 Check("job summary lookup returns the selected job",
     sqlite.JobSummary is { JobId: var id, Title: "Senior Software Engineer" } &&
     id == sqlite.First.JobId);
+Check("job summary exposes persisted score components and ranker identity",
+    sqlite.JobSummary is
+    {
+        Fit: 4.4,
+        Legitimacy: 4.7,
+        Total: 4.4,
+        SubscoresJson: "{\"cv\":4.4}",
+        ModelUsed: "fake"
+    });
 Check("application artifact metadata persists into app and summary rows",
     sqlite.App is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", AnswersJson: "{\"q\":\"a\"}" } &&
     sqlite.Summaries[0] is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", HasAnswers: true });

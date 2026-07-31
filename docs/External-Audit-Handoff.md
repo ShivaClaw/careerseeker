@@ -17,7 +17,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `373 passed, 0 failed`.
+- Latest local offline verifier: `380 passed, 0 failed`.
 - Alpha 2.0.1 onboarding verification, 2026-07-23: the default verifier passed with seven new provider
   diagnostics/local PDF-DOCX extraction assertions. A dirty-worktree package built successfully, and its
   extracted self-check verified 50 checksums plus dashboard and setup smokes. The aggregate package gate
@@ -59,6 +59,7 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 | Tailor output is checked against local profile evidence before drafting | `src/Tailor`, `src/Verifier`, `src/Pipeline` | `HookHarness`, `GatewayGateHarness`, `Slice`; live BYOK Gate smoke |
 | Source-of-truth profile import replaces the claim oracle and refuses non-alpha profile artifacts, duplicate claim ids, or unknown claim kinds | `src/Engine/AlphaProfileImport.cs`, `src/Engine/Program.cs`, `scripts/Import-AlphaProfile.ps1` | `EngineHarness`; package profile-import launcher checks |
 | Live ATS board ingest discovers and stores real jobs | `src/Scout`, `src/Engine/Program.cs`, `src/Store` | `ScoutLiveHarness`; `Run-CareerSeeker-Scout.cmd` package preview |
+| Real jobs receive deterministic, explainable local-profile ranking and the dashboard exposes persisted components | `src/Engine/LexicalSemanticScorer.cs`, `src/Engine/EngineCore.cs`, `src/Engine/Host.cs`, store job-summary reads | `EngineHarness` lexical ordering, persistence, and dashboard assertions |
 | Selected-job drafting refuses prompt-injection-flagged jobs unless explicitly overridden after manual review | `src/Engine/Program.cs`, `scripts/Draft-AlphaJob.ps1`, `Draft-CareerSeeker-Job.cmd` | `EngineHarness`; package selected-job preview and launcher checks |
 | Untrusted job/profile/question/web text is encoded before entering structured LLM prompt boundaries | `src/Gateway/PromptQuarantine.cs`, `src/Tailor/GatewayTailorModel.cs`, `src/Researcher/GatewayDossierModel.cs` | `HookHarness`; `ResearcherHarness` |
 | ATS-clean resume PDF is rendered and attached to Gmail drafts | `src/Dispatcher/AtsPdfDocumentRenderer.cs`, `src/Dispatcher/Packaging.cs`, `src/Dispatcher/Mime.cs` | `RendererHarness`, `DispatcherNoSendHarness`; package selected-job dry-run smoke |

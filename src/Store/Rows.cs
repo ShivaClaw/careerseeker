@@ -137,7 +137,12 @@ public sealed record JobSummaryRow(
     bool Injected,
     string? InjectionSignals,
     string LastVerified,
-    int RepostCount);
+    int RepostCount,
+    double? Fit = null,
+    double? Legitimacy = null,
+    double? Total = null,
+    string? SubscoresJson = null,
+    string? ModelUsed = null);
 
 /// <summary>
 /// A durable side-effect attempt record bracketing an external call (Gmail draft, ATS submit).

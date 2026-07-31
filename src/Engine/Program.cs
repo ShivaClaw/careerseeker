@@ -388,8 +388,7 @@ async Task<int> RunEngineAsync()
     Console.WriteLine($"  gmail: {(dryRun ? "dry run (no drafts created)" : email)}");
     Console.WriteLine($"  interval: {intervalSeconds}s");
     Console.WriteLine($"  max drafts per cycle: {(maxDraftsPerCycle > 0 ? maxDraftsPerCycle.ToString() : "unlimited")}");
-    Console.WriteLine("  NOTE: CV-match and growth sub-scores are still placeholder constants; ranking between");
-    Console.WriteLine("        real postings is not yet meaningful. The Fabrication Gate is unaffected.");
+    Console.WriteLine("  ranker: deterministic offline lexical-v1 (local profile/posting overlap)");
 
     if (once)
     {
@@ -1430,7 +1429,7 @@ EngineCycle BuildDemoCycleCore(
     return new EngineCycle(
         store,
         feed,
-        new DemoSemanticScorer(),
+        new LexicalSemanticScorer(store, profileId),
         pipeline,
         new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email, profileId, companyHandle, companyName,
             maxActionsPerCycle, draftsEnabled),
@@ -1820,7 +1819,7 @@ sealed class DemoFeed : IJobFeed
         {
             HealthyPosting("Senior Software Engineer"),
             ScamPosting(),
-            HealthyPosting("Fabricator Role"),
+            HealthyPosting("Senior Software Engineer - Fabricator"),
         });
 
     private static JobPosting HealthyPosting(string title) => new()
@@ -1850,12 +1849,6 @@ sealed class DemoFeed : IJobFeed
         RecruiterIdentifiable = false,
         CompanyDomainVerified = false,
     };
-}
-
-sealed class DemoSemanticScorer : ISemanticScorer
-{
-    public Task<SemanticScores> ScoreAsync(JobPosting posting, CancellationToken ct = default) =>
-        Task.FromResult(new SemanticScores(4.6, 4.2));
 }
 
 sealed class DemoPostingSource : IPostingSource

@@ -4,6 +4,7 @@ using SeekerSvc.Pipeline;
 using SeekerSvc.Scorer;
 using SeekerSvc.Scout;
 using SeekerSvc.Store;
+using System.Text.Json;
 
 namespace SeekerSvc.Engine;
 
@@ -82,9 +83,9 @@ public interface IIdentifiedJobFeed : IJobFeed
 }
 
 /// <summary>
-/// Supplies the model-judgment sub-scores the Scorer needs (CV match, growth). In production these come
-/// from the LLM Gateway's QuickScore/FullEvaluation stages; injected here so scoring is deterministic
-/// offline. The Scorer computes everything else without a model.
+/// Supplies the CV-match and growth sub-scores the Scorer needs. Beta defaults to the deterministic
+/// offline lexical implementation; the interface remains injectable for fixtures and future optional
+/// rankers. The Scorer computes everything else deterministically.
 /// </summary>
 public interface ISemanticScorer
 {
@@ -212,6 +213,7 @@ public sealed class EngineCycle
 
                 var sem = await _semantic.ScoreAsync(item.Posting, ct).ConfigureAwait(false);
                 var score = SeekerSvc.Scorer.Scorer.Score(item.Posting, _opt.Preferences, sem);
+                await SaveScoreAsync(write.JobId, score, sem, ct).ConfigureAwait(false);
 
                 // Dry-run/discovery-only means exactly that. In particular, do not route an Act
                 // decision through a fake Gmail client and then label the result DRAFTED: no Gmail
@@ -257,6 +259,7 @@ public sealed class EngineCycle
                 var jobId = await PersistAsync(companyId, posting, ct).ConfigureAwait(false);
                 var sem = await _semantic.ScoreAsync(posting, ct).ConfigureAwait(false);
                 var score = SeekerSvc.Scorer.Scorer.Score(posting, _opt.Preferences, sem);
+                await SaveScoreAsync(jobId, score, sem, ct).ConfigureAwait(false);
 
                 var job = new PipelineJob(jobId, posting.Title, _opt.CompanyName,
                     score.Dispatch == Dispatch.Act ? "mailto:jobs@" + _opt.CompanyHandle + ".com" : null);
@@ -283,6 +286,27 @@ public sealed class EngineCycle
             case AppState.GATE_UNAVAILABLE: _counters.IncErrors(); break;
             case AppState.REJECTED_BY_ENGINE: _counters.IncRejected(); break;
         }
+    }
+
+    private Task SaveScoreAsync(long jobId, ScoreResult score, SemanticScores semantic, CancellationToken ct)
+    {
+        var subscores = JsonSerializer.Serialize(new
+        {
+            cv_match = score.FitParts.CvMatch,
+            comp_vs_target = score.FitParts.CompVsTarget,
+            growth_signal = score.FitParts.GrowthSignal,
+            prefs_alignment = score.FitParts.PrefsAlignment,
+            legitimacy = score.LegitParts,
+            semantic_rationale = semantic.Rationale,
+        });
+        return _store.SaveScoreAsync(new ScoreRow(
+            jobId,
+            score.Fit,
+            score.Legitimacy,
+            score.RedFlagMultiplier,
+            score.Total,
+            subscores,
+            semantic.ModelUsed), ct);
     }
 
     private async Task<long> PersistAsync(long companyId, JobPosting p, CancellationToken ct)

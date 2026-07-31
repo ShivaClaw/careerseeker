@@ -123,7 +123,9 @@ public sealed class InMemorySeekerStore : ISeekerStore
         {
             var safeLimit = Math.Clamp(limit, 1, 100);
             return _jobs.Values
-                .OrderByDescending(j => j.LastVerified)
+                .OrderBy(j => _scores.ContainsKey(j.Id) ? 0 : 1)
+                .ThenByDescending(j => _scores.TryGetValue(j.Id, out var score) ? score.Total : double.MinValue)
+                .ThenByDescending(j => j.LastVerified)
                 .ThenByDescending(j => j.Id)
                 .Take(safeLimit)
                 .Select(JobSummaryLocked)
@@ -135,6 +137,7 @@ public sealed class InMemorySeekerStore : ISeekerStore
     private JobSummaryRow JobSummaryLocked(JobRow job)
     {
         _companies.TryGetValue(job.CompanyId, out var company);
+        _scores.TryGetValue(job.Id, out var score);
         return new JobSummaryRow(
             job.Id,
             job.Source,
@@ -154,7 +157,12 @@ public sealed class InMemorySeekerStore : ISeekerStore
             job.Injected,
             job.InjectionSignals,
             job.LastVerified,
-            job.RepostCount);
+            job.RepostCount,
+            score?.Fit,
+            score?.Legitimacy,
+            score?.Total,
+            score?.SubscoresJson,
+            score?.ModelUsed);
     }
 
     public async Task SaveScoreAsync(ScoreRow score, CancellationToken ct = default)
