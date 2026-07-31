@@ -332,6 +332,16 @@ public sealed class ApplicationPipeline
     /// </summary>
     private async Task<ReconcileOutcome> FlagManualReviewAsync(long appId, string kind, CancellationToken ct)
     {
+        // Periodic reconciliation revisits an unresolved PENDING attempt. Keep the warning durable
+        // without appending the same audit fact on every scheduler interval.
+        var alreadyFlagged = (await _store.GetEventsAsync(ct).ConfigureAwait(false)).Any(e =>
+            e.Kind == "reconcile_manual_review" &&
+            e.Entity == "application" &&
+            e.EntityId == appId.ToString() &&
+            e.PayloadJson.Contains($"\"kind\":\"{kind}\"", StringComparison.Ordinal));
+        if (alreadyFlagged)
+            return ReconcileOutcome.ManualReviewRequired;
+
         await _store.AppendEventAsync(new EventInput("engine", "reconcile_manual_review", "application",
             appId.ToString(), $"{{\"kind\":\"{kind}\",\"outcome\":\"ManualReviewRequired\"}}"), ct).ConfigureAwait(false);
         return ReconcileOutcome.ManualReviewRequired;

@@ -25,7 +25,7 @@ The load-bearing safety paths are covered by harnesses:
 
 The engine shell adds:
 
-- `EngineCycle`: one discovery, decision, and action pass over a batch.
+- `EngineCycle`: one crash-recovery, discovery, decision, and action pass over a batch.
 - `PeriodicScheduler`: immediate tick, then repeated ticks by interval.
 - `LocalDashboard`: loopback-only responsive HTML dashboard and JSON status on `localhost`, with optional
   token-protected controls.
@@ -49,6 +49,17 @@ The engine shell adds:
   `--once` for a single sweep, and `--board greenhouse:<handle>`
   (repeatable) to choose boards. `--max-drafts-per-cycle` (default 10) bounds how many postings one
   tick may draft; the rest are stored and picked up on the next tick.
+
+### Crash recovery
+
+Persistent engine modes sweep applications in `SUBMITTING` or `READY` at startup, before normal work,
+and the scheduled `run` loop repeats that sweep before every discovery tick. Reconciliation only reads
+the local effect-attempt journal and commits missing local transitions; it never calls Gmail or another
+provider. A recorded `SUCCEEDED` draft moves `READY -> DRAFTED`, and a recorded `SUCCEEDED` submission
+moves `SUBMITTING -> APPLIED -> AWAITING_RESPONSE`, without repeating the external effect. A `PENDING`
+attempt has an unknown provider outcome, so it is left in place and one durable manual-review audit
+event is recorded. A store-level sweep failure aborts that cycle rather than acting around uncertain
+state; one malformed stranded row is isolated and counted so other recovery rows can still be checked.
 - Standalone dashboard over the real local alpha DB. Read-only: it renders what earlier runs stored and
   reports "viewer only - no engine attached" rather than implying a cycle is running.
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --db .appdata/careerseeker-alpha.db --gmail-control`
@@ -153,7 +164,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 369 passed, 0 failed.
+- Latest offline harness total: 373 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.

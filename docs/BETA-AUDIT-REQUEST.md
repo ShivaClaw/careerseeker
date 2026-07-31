@@ -6,6 +6,29 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## B2 - Crash recovery
+
+Branch: `codex/beta-M2-crash-recovery`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-07-30 |
+|---|---|---|
+| B2 starts from the confirmed B1 merge. | `git fetch --all; git rev-parse origin/main` | `b5b4a98749d5bff814d067d37c310512c7e8b70b`. |
+| The startup sweep covers every local application in `SUBMITTING` or `READY`; each decision is side-effect-free. | `rg -n "GetApplicationIdsInStatesAsync\|ReconcileAsync\|ReconcileAllAsync\|ReconcileStartupAsync" src\Pipeline\ApplicationPipeline.cs src\Engine\Program.cs` | Startup composition invokes `ReconcileAllAsync`; its state query is limited to `SUBMITTING`/`READY`; completed effects only commit missing local transitions. |
+| Every engine cycle reconciles before discovery, so a surviving process self-heals on its next periodic tick. | `git show f97fbc0 -- src/Engine/EngineCore.cs tests/EngineHarness/Program.cs` | Reconciliation precedes both identified and synthetic discovery; the scheduled-tick crash fixture reached `DRAFTED` with zero new Gmail calls and one recorded attempt. |
+| A new process self-heals the persisted provider-success/lost-commit shape. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | `127 passed, 0 failed`, including a fresh `demo --once` process reopening SQLite and reconciling `READY + SUCCEEDED` without another effect attempt. |
+| Unknown provider outcomes remain manual-review-only and periodic sweeps do not flood the audit log. | `dotnet run --project tests\LifecycleHarness\LifecycleHarness.csproj -c Release --no-build` | `45 passed, 0 failed`; repeated sweep kept the application unresolved and the matching manual-review event count at one. |
+| Count/docs/verifier moved together to 373. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` | `Offline total: 373 passed, 0 failed`. |
+| Frozen Android/relay paths are absent from the milestone diff. | `git diff --name-only b5b4a98749d5bff814d067d37c310512c7e8b70b...codex/beta-M2-crash-recovery \| rg '^(relay/|docs/Sync-Protocol\.md$|docs/sync-vectors/|.*Android|.*android)'` | Expected: no output, exit 1 from `rg`. |
+
+### Scope exclusions
+
+No Gmail draft, provider call, email, public ATS request, upload, deployment,
+scheduled-task registration, Cloudflare action, Google/Play console change,
+Android/relay/sync-vector change, off-repo site edit, dependency change, or
+secret print was performed.
+
 ## B1 - Engine actually runs
 
 Branch: `codex/beta-M1-engine-runs`

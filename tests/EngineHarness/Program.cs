@@ -372,6 +372,100 @@ Console.WriteLine("\n[ scheduler ]");
     Check("scheduler reports Stopped after dispose", sched.State == SchedulerState.Stopped, sched.State.ToString());
 }
 
+// A provider can durably report success and the process can die before the following local state
+// commit. This is the exact persisted shape a kill -9 leaves behind: READY + SUCCEEDED draft attempt.
+// The engine's scheduled tick must repair it before discovery and must never call the provider again.
+Console.WriteLine("\n[ periodic crash recovery ]");
+{
+    var store = await SeededStoreAsync();
+    var companyId = await store.UpsertCompanyAsync(new CompanyUpsert("fixture", "recovery", "Recovery Test"));
+    var job = await store.UpsertJobAsync(companyId, new JobUpsert(
+        Source: "fixture",
+        ExternalId: "crash-recovery",
+        Url: "https://jobs.example/crash-recovery",
+        Title: "Platform Engineer",
+        TitleCanon: "platform engineer",
+        DedupKey: "recovery|platform engineer",
+        Remote: "Remote",
+        SimHash: 84,
+        FirstSeen: DateTimeOffset.UtcNow.ToString("O")));
+    var appId = await store.CreateApplicationAsync(job.JobId, "L1");
+    await store.TransitionApplicationAsync(appId, "READY", "engine");
+    var attemptId = await store.BeginEffectAttemptAsync(appId, "draft");
+    await store.ResolveEffectAttemptAsync(attemptId, "SUCCEEDED", "draft-before-crash");
+
+    var gmail = new FakeGmail();
+    var recoveryCounters = new EngineCounters();
+    var pipeline = new ApplicationPipeline(
+        store,
+        tailor,
+        MakeDispatcher(gmail),
+        new GatewaySemanticMatcher(gateway),
+        new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+    var cycle = new EngineCycle(
+        store,
+        new FakeIdentifiedFeed(Array.Empty<IdentifiedPosting>()),
+        new FakeSemantic(),
+        pipeline,
+        opt,
+        recoveryCounters);
+
+    await cycle.TickAsync();
+    Check("scheduled tick reconciles provider success lost before local commit",
+        (await store.GetApplicationAsync(appId))?.State == "DRAFTED" &&
+        recoveryCounters.Cycles == 1,
+        $"state={(await store.GetApplicationAsync(appId))?.State} cycles={recoveryCounters.Cycles}");
+    Check("scheduled reconciliation never repeats the external draft effect",
+        gmail.Drafts == 0 &&
+        (await store.GetEffectAttemptsAsync(appId, "draft")).Count == 1,
+        $"gmail={gmail.Drafts} attempts={(await store.GetEffectAttemptsAsync(appId, "draft")).Count}");
+
+    var restartRoot = Path.Combine(Path.GetTempPath(), "careerseeker-restart-recovery-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(restartRoot);
+        var dbPath = Path.Combine(restartRoot, "alpha.db");
+        long restartedAppId;
+        await using (var sqlite = SqliteSeekerStore.ForFile(dbPath))
+        {
+            await sqlite.InitializeAsync();
+            var restartedCompanyId = await sqlite.UpsertCompanyAsync(
+                new CompanyUpsert("fixture", "restart-recovery", "Restart Recovery Test"));
+            var restartedJob = await sqlite.UpsertJobAsync(restartedCompanyId, new JobUpsert(
+                Source: "fixture",
+                ExternalId: "restart-crash-recovery",
+                Url: "https://jobs.example/restart-crash-recovery",
+                Title: "Reliability Engineer",
+                TitleCanon: "reliability engineer",
+                DedupKey: "restart-recovery|reliability engineer",
+                Remote: "Remote",
+                SimHash: 85,
+                FirstSeen: DateTimeOffset.UtcNow.ToString("O")));
+            restartedAppId = await sqlite.CreateApplicationAsync(restartedJob.JobId, "L1");
+            await sqlite.TransitionApplicationAsync(restartedAppId, "READY", "engine");
+            var restartedAttemptId = await sqlite.BeginEffectAttemptAsync(restartedAppId, "draft");
+            await sqlite.ResolveEffectAttemptAsync(restartedAttemptId, "SUCCEEDED", "draft-before-process-death");
+        }
+
+        var restarted = await RunEngineCommandAsync(
+            "demo",
+            "--once",
+            "--db", dbPath,
+            "--artifacts", Path.Combine(restartRoot, "artifacts"));
+        await using var reopened = SqliteSeekerStore.ForFile(dbPath);
+        await reopened.InitializeAsync();
+        Check("new engine process self-heals the persisted crash shape on startup",
+            restarted.ExitCode == 0 &&
+            (await reopened.GetApplicationAsync(restartedAppId))?.State == "DRAFTED" &&
+            (await reopened.GetEffectAttemptsAsync(restartedAppId, "draft")).Count == 1,
+            restarted.Output);
+    }
+    finally
+    {
+        try { if (Directory.Exists(restartRoot)) Directory.Delete(restartRoot, recursive: true); } catch (IOException) { }
+    }
+}
+
 // ── 2b) the dashboard never claims to be running when nothing is ───────────────────────────────────
 // This is the regression that made the alpha look dead: setup launched a viewer with no engine, and the
 // page reported "running" over permanently-zero counters. Status must be derived, never asserted.
