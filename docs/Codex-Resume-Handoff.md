@@ -87,6 +87,12 @@ then correctly refused to bless a manifest from the dirty milestone worktree.
 No package result is claimed from that attempt; publish/package is rerun only
 from the clean committed tip.
 
+The next clean publish/package run reached the packaged self-check and found
+two stale launcher-copy assertions: the launchers now truthfully say
+`Engine task ... cancelled`, while the test still expected `Dashboard task ...
+cancelled`. The assertions were updated to the shipped copy. No passing package
+result is claimed from that failed attempt.
+
 Verification boundary: no native Windows Service/SCM or tray UI was built.
 The Windows at-logon task definition was validated but never registered, so no
 real reboot result is claimed. The fallback is wired and process-verified;

@@ -411,7 +411,7 @@ try {
         "set `"CAREERSEEKER_DASHBOARD_TASK_MODE=`"",
         "CAREERSEEKER_DASHBOARD_TASK_MODE",
         '$env:CAREERSEEKER_DASHBOARD_TASK_MODE -ieq ''INSTALL''',
-        "Dashboard task install cancelled"
+        "Engine task install cancelled"
     )) {
         if (-not $dashboardTaskInstallLauncher.Contains($snippet)) {
             throw "Install-CareerSeeker-DashboardTask.cmd missing '$snippet'."
@@ -424,7 +424,7 @@ try {
         "set `"CAREERSEEKER_DASHBOARD_TASK_MODE=`"",
         "CAREERSEEKER_DASHBOARD_TASK_MODE",
         '$env:CAREERSEEKER_DASHBOARD_TASK_MODE -ieq ''UNINSTALL''',
-        "Dashboard task uninstall cancelled"
+        "Engine task uninstall cancelled"
     )) {
         if (-not $dashboardTaskUninstallLauncher.Contains($snippet)) {
             throw "Uninstall-CareerSeeker-DashboardTask.cmd missing '$snippet'."
