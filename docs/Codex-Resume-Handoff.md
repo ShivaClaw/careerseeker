@@ -2,6 +2,68 @@
 
 Updated: 2026-07-30
 
+## 2026-07-30 (Terra B2) - Startup and periodic crash recovery
+
+Branch: `codex/beta-M2-crash-recovery`
+
+Integration base: `origin/main` at
+`b5b4a98749d5bff814d067d37c310512c7e8b70b`, the confirmed PR #10 merge.
+GitHub reported PR #10 `MERGED` at `2026-07-31T03:02:20Z`; `git fetch --all`
+and `git rev-parse origin/main` returned the same merge SHA. No document/repo
+divergence was found for the B2 scope: startup reconciliation already existed,
+while the periodic engine tick was the missing path described by the roadmap.
+
+Implementation commit:
+`f97fbc0e512e2b5cd6560cd1ad4fb22334fcf5b8`.
+
+`EngineCycle.TickAsync` now runs the actual pipeline's side-effect-free
+`ReconcileAllAsync` before discovery on every cycle. Persistent executable
+modes already run the same sweep before composing work, so recovery now occurs
+both on process restart and while a long-running process stays alive. A
+store-level sweep failure aborts that tick; one bad row is isolated by the
+existing per-row handler and counted. Reconciliation never calls Gmail or a
+submission provider.
+
+An unresolved `PENDING` effect still fails closed for manual review. Because
+the sweep is periodic now, the durable `reconcile_manual_review` audit fact is
+idempotent by application and effect kind instead of being appended every
+interval.
+
+The new EngineHarness cases create the exact persisted post-crash shape:
+`READY` plus a `SUCCEEDED` draft attempt with an external reference but no
+local `DRAFTED` commit. They prove both a scheduled tick and a new engine
+process complete the local transition while provider-call count remains zero
+and the attempt count remains one. LifecycleHarness proves repeated sweeps do
+not duplicate the manual-review audit fact.
+
+Count-bearing docs, verifier assertions, and `$ExpectedOfflineTotal` moved
+together: EngineHarness 124→127, LifecycleHarness 44→45, offline total
+369→373.
+
+Verification executed in this session:
+
+```text
+> dotnet build CareerSeeker.sln -c Release -warnaserror
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+> dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build
+=== 127 passed, 0 failed ===
+
+> dotnet run --project tests\LifecycleHarness\LifecycleHarness.csproj -c Release --no-build
+=== 45 passed, 0 failed ===
+
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+=== Offline total: 373 passed, 0 failed ===
+CareerSeeker alpha verification complete.
+```
+
+No Gmail draft, provider call, email, public ATS request, upload, deployment,
+scheduled-task registration, Cloudflare action, Google/Play console change,
+Android/relay/sync-vector change, off-repo site edit, dependency change, or
+secret print occurred in B2.
+
 ## 2026-07-30 (Terra B1) - Real engine landed after adversarial no-redraft fix
 
 Branch: `codex/beta-M1-engine-runs`
