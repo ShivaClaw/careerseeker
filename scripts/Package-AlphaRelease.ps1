@@ -185,7 +185,7 @@ Manual / advanced flow:
   Double-click Advanced Tools/Export-CareerSeeker-Audit.cmd to export hash-only audit JSON for review.
   Double-click Advanced Tools/Export-CareerSeeker-Evidence.cmd to package local evidence for review.
   Double-click Advanced Tools/Import-CareerSeeker-Package.cmd to restore a local evidence package into .appdata\imported.
-  Double-click Advanced Tools/Start-CareerSeeker-Alpha.cmd to open the local dashboard.
+  Double-click Advanced Tools/Start-CareerSeeker-Alpha.cmd to start the engine and open the local dashboard.
   Double-click Advanced Tools/Install-CareerSeeker-DashboardTask.cmd and type INSTALL to start the dashboard when you sign in.
   Double-click Advanced Tools/Status-CareerSeeker-DashboardTask.cmd to check the dashboard logon task.
 

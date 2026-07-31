@@ -30,10 +30,20 @@ Most testers should start here:
    resume claims are imported as `stated` with `sourceDoc: "resume-ai"`, not as `verified`.
 6. Sign in with Gmail when the browser opens. The package should include CareerSeeker's OAuth client metadata;
    testers should not create or download Google OAuth JSON.
-7. Let setup run readiness checks and open the local dashboard.
+7. Let setup run readiness checks and start CareerSeeker. The engine's first board sweep runs immediately,
+   but discovery takes a minute or so, so the dashboard can legitimately show zeros at first. The status
+   pill tells you which case you are in: `starting` means the first cycle has not finished yet, `running`
+   means at least one has, and `viewer only - no engine attached` means the window is a read-only view of
+   stored results with nothing driving it.
 
 Setup creates no Gmail draft. Live draft helpers still require typing `LIVE` before creating one Gmail draft for
 review.
+
+To start CareerSeeker again later, double-click `Advanced Tools/Start-CareerSeeker-Alpha.cmd`. If Gmail or a
+verified AI provider is not connected, the engine still discovers, scores, and stores jobs in discovery-only
+mode; it does not create or simulate drafts. One cycle drafts at most 10 applications by default, so a large
+first sweep is spread over several cycles rather than filling Gmail in one go. A posting that already entered
+the application lifecycle is not admitted again on later sweeps.
 
 Provider setup retests saved keys before resume extraction. Definite authentication and permission failures are
 not retained; quota-authenticated keys are retained, while timeout and provider-server failures may be saved only
@@ -60,7 +70,7 @@ Advanced launchers may preselect/configure onboarding with `--ai-provider gemini
    metadata and preflights draft access without
    creating a draft.
 9. Double-click `Advanced Tools/Check-CareerSeeker-LiveReadiness.cmd` to confirm Gmail/BYOK readiness for live draft paths.
-10. Double-click `Advanced Tools/Start-CareerSeeker-Alpha.cmd` to open the localhost dashboard.
+10. Double-click `Advanced Tools/Start-CareerSeeker-Alpha.cmd` to start the engine and open the localhost dashboard.
 
 To disconnect later, double-click `Advanced Tools/Disconnect-CareerSeeker-Gmail.cmd` and type `DISCONNECT` to revoke Gmail and
 delete the local token vault. Double-click `Advanced Tools/Clear-CareerSeeker-Providers.cmd` and type `CLEAR` to delete the

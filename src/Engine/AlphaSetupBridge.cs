@@ -70,8 +70,8 @@ public static class AlphaSetupBridge
         var ready = await RunDoctorAsync(googleClientPath, requireGmail: gmailConnected, requireByok: false, ct)
             .ConfigureAwait(false);
 
-        if (ready && AskYesNo("Open the CareerSeeker dashboard now?", defaultYes: true))
-            StartDashboard(googleClientPath, options.IntArg("--port", 7777));
+        if (ready && AskYesNo("Start CareerSeeker now?", defaultYes: true))
+            StartEngine(googleClientPath, options.IntArg("--port", 7777), gmailConnected);
 
         Console.WriteLine();
         Console.WriteLine(ready
@@ -639,24 +639,41 @@ public static class AlphaSetupBridge
         }
     }
 
-    private static void StartDashboard(string? googleClientPath, int port)
+    /// <summary>
+    /// Starts the engine, not just a window onto it. Setup used to launch <c>dashboard</c> mode here, which
+    /// attaches no cycle at all: every tester who finished setup got a page reading "running" with permanent
+    /// zeros, and no amount of waiting would ever change it. Setup's job is to leave something turning.
+    /// </summary>
+    private static void StartEngine(string? googleClientPath, int port, bool gmailConnected)
     {
         var exe = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(exe) || !File.Exists(exe))
         {
-            Console.WriteLine("Could not find the current executable to start the dashboard.");
+            Console.WriteLine("Could not find the current executable to start the engine.");
             return;
         }
 
         var args = new List<string>
         {
-            "dashboard",
+            "run",
             "--port", port.ToString(),
             "--db", DbPath,
             "--artifacts", ArtifactsPath,
-            "--gmail-control",
+            "--jd-dir", JobDescriptionDirectory,
             "--vault", GmailVaultPath,
+            "--key-vault", ByokVaultPath,
+            // No provider key means no tailoring model. The loop still discovers, scores, and stores;
+            // it just cannot draft, which is a better first run than refusing to start.
+            "--llm", File.Exists(ByokVaultPath) ? "byok" : "fake",
         };
+
+        // A live draft needs both Gmail and a real BYOK provider. If either is absent, keep the engine
+        // useful but discovery-only: never pair the demo/fake model with real Gmail, and never record a
+        // simulated Gmail operation as DRAFTED.
+        var draftingReady = gmailConnected && File.Exists(ByokVaultPath);
+        if (!draftingReady) args.Add("--dry-run");
+        else args.Add("--gmail-control");
+
         if (!string.IsNullOrWhiteSpace(googleClientPath))
             args.AddRange(new[] { "--client", googleClientPath });
 
@@ -666,7 +683,10 @@ public static class AlphaSetupBridge
             Arguments = string.Join(" ", args.Select(QuoteArg)),
         });
         Process.Start(new ProcessStartInfo($"http://localhost:{port}/") { UseShellExecute = true });
-        Console.WriteLine($"Dashboard opening at http://localhost:{port}/");
+        Console.WriteLine($"Engine starting; dashboard at http://localhost:{port}/");
+        Console.WriteLine("The first sweep runs immediately. Discovery can take a minute before jobs appear.");
+        if (!draftingReady)
+            Console.WriteLine("Gmail and a verified AI provider are both required for drafts; this run is discovery-only.");
     }
 
     private static string ReadSecretLikeLine()

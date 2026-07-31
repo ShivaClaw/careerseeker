@@ -41,10 +41,20 @@ The engine shell adds:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
 - Connect Gmail without creating a draft:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- connect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
-- Standalone dashboard over the real local alpha DB:
+- The engine proper: a real Scout sweep of real boards on a timer, scored, gated, and drafted.
+  This is the only mode that discovers live jobs on a schedule; `demo` uses invented postings and
+  `dashboard` attaches no engine at all.
+  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- run --db .appdata/careerseeker-alpha.db --llm byok`
+  Add `--dry-run` for discovery-only operation (store and score, but never create or simulate a draft),
+  `--once` for a single sweep, and `--board greenhouse:<handle>`
+  (repeatable) to choose boards. `--max-drafts-per-cycle` (default 10) bounds how many postings one
+  tick may draft; the rest are stored and picked up on the next tick.
+- Standalone dashboard over the real local alpha DB. Read-only: it renders what earlier runs stored and
+  reports "viewer only - no engine attached" rather than implying a cycle is running.
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --db .appdata/careerseeker-alpha.db --gmail-control`
-- Windows-friendly dashboard launcher, from source or published executable:
-  `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1`
+- Windows-friendly launcher, from source or published executable. Add `-Engine` to start the engine
+  instead of the read-only viewer:
+  `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1 -Engine`
 - Double-click local workspace setup helper included in the release ZIP:
   `Setup-CareerSeeker-Alpha.cmd`
 - Double-click source-of-truth profile import helper included in the release ZIP:
@@ -132,7 +142,10 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 
 ## Injected Ports
 
-- `IJobFeed`: candidate postings. Production is Scout over ATS feeds; sandbox is a fixed batch.
+- `IJobFeed`: candidate postings. `ScoutJobFeed` is the production implementation (real ATS feeds, via
+  `IIdentifiedJobFeed` so postings keep their true company and external id); sandbox is a fixed batch.
+  Postings Scout flags for prompt injection are stored as evidence and then dropped before any model
+  call, counted separately as `quarantined`.
 - `ISemanticScorer`: CV-match and growth sub-scores. Production is the LLM Gateway; sandbox is deterministic.
 - `IDocumentRenderer`: production alpha is the deterministic ATS-clean PDF renderer. Future product polish
   can add an HTML/Chromium renderer.
@@ -140,7 +153,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 341 passed, 0 failed.
+- Latest offline harness total: 369 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.

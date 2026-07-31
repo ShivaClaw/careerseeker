@@ -4,9 +4,16 @@ param(
     [switch] $Once,
     [switch] $NoOpen,
     [switch] $NoGmailControl,
+    # Start the engine (discovery -> scoring -> gate -> draft on a timer) instead of the read-only
+    # viewer. Without this the dashboard shows only what earlier runs already stored.
+    [switch] $Engine,
     [int] $Port = 7777,
+    [int] $IntervalSeconds = 900,
     [string] $Configuration = "Release",
     [string] $DbPath = ".appdata/careerseeker-alpha.db",
+    [string] $JobDescriptionDirectory = ".appdata/job-descriptions",
+    [string] $ArtifactsPath = ".appdata/artifacts",
+    [string] $ByokVaultPath = ".appdata/secrets/byok-keys.dpapi",
     [string] $AuditOutPath = "output/careerseeker-audit.json",
     [string] $GmailClientPath = "resources/google-client.json",
     [string] $GmailVaultPath = ".appdata/oauth/gmail-token.dpapi"
@@ -81,18 +88,44 @@ try {
         )
     }
 
-    $engineArgs = @(
-        "dashboard",
-        "--db", $DbPath,
-        "--audit-out", $AuditOutPath,
-        "--port", $Port.ToString()
-    )
+    if ($Engine) {
+        $byokReady = Test-Path -LiteralPath $ByokVaultPath
+        $engineArgs = @(
+            "run",
+            "--db", $DbPath,
+            "--artifacts", $ArtifactsPath,
+            "--jd-dir", $JobDescriptionDirectory,
+            "--audit-out", $AuditOutPath,
+            "--port", $Port.ToString(),
+            "--interval-seconds", $IntervalSeconds.ToString(),
+            "--key-vault", $ByokVaultPath,
+            # No provider key means no tailoring model; the discovery-only loop still stores and scores.
+            "--llm", $(if ($byokReady) { "byok" } else { "fake" })
+        )
+
+        # Drafting needs both Gmail files and a real BYOK provider. With any piece missing, keep the
+        # engine useful but discovery-only: never pair the demo/fake model with a real Gmail account,
+        # and never record a simulated Gmail operation as DRAFTED.
+        $gmailReady = (Test-Path -LiteralPath $GmailVaultPath) -and (Test-Path -LiteralPath $GmailClientPath)
+        $draftingReady = $gmailReady -and $byokReady
+        if (-not $draftingReady) {
+            $engineArgs += "--dry-run"
+        }
+    }
+    else {
+        $engineArgs = @(
+            "dashboard",
+            "--db", $DbPath,
+            "--audit-out", $AuditOutPath,
+            "--port", $Port.ToString()
+        )
+    }
 
     if ($Once) {
         $engineArgs += "--once"
     }
 
-    if (-not $NoGmailControl) {
+    if (-not $NoGmailControl -and -not ($Engine -and $engineArgs -contains "--dry-run")) {
         $engineArgs += @(
             "--gmail-control",
             "--client", $GmailClientPath,
@@ -106,7 +139,13 @@ try {
     }
 
     $url = "http://localhost:$Port/"
-    Write-Host "Starting CareerSeeker alpha dashboard..."
+    if ($Engine) {
+        Write-Host "Starting CareerSeeker engine..."
+        Write-Host "The first sweep runs immediately; discovery can take a minute before jobs appear."
+    }
+    else {
+        Write-Host "Starting CareerSeeker alpha dashboard (read-only view; no engine attached)..."
+    }
     Write-Host "Dashboard: $url"
     Write-Host "SQLite db: $DbPath"
     Write-Host "Press Enter or Ctrl+C to stop."

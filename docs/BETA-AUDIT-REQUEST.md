@@ -6,6 +6,36 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## B1 - Engine actually runs
+
+Branch: `codex/beta-M1-engine-runs`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-07-30 |
+|---|---|---|
+| The reviewed honesty-fix branch was exactly `40bc9a7166afb7d9742d75ef1b93b2ce0c8f5c1b`. | `git fetch --all; git rev-parse origin/fix/engine-actually-runs` | Exact SHA matched. |
+| Frozen Android/relay paths are absent from the milestone diff. | `git diff --name-only origin/main...codex/beta-M1-engine-runs \| rg '^(relay/|docs/Sync-Protocol\.md$|docs/sync-vectors/|.*Android|.*android)'` | Expected: no output, exit 1 from `rg`. |
+| Quarantine is evaluated before the action cap and never reaches the model path. | `git diff origin/main...codex/beta-M1-engine-runs -- src/Engine/EngineCore.cs tests/EngineHarness/Program.cs` | Inspect `LikelyInjected` branch before cap/semantic calls; harness pins quarantine after cap fills. |
+| Dashboard status comes from `PeriodicScheduler.State`, including `Faulted`; viewer-only never claims running. | `git diff origin/main...codex/beta-M1-engine-runs -- src/Engine/Host.cs tests/EngineHarness/Program.cs` | EngineHarness status-honesty assertions passed. |
+| Real Scout jobs retain company/board identity and external IDs. | `git diff origin/main...codex/beta-M1-engine-runs -- src/Engine/ScoutJobFeed.cs src/Store/Ingest.cs tests/EngineHarness/Program.cs` | Identified-feed identity and persisted dedupe assertions passed. |
+| Periodic cycles do not create a second application/draft for an already-admitted job, and capped work advances. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release` | `124 passed, 0 failed`, including no-repeat application, next-cycle advancement, and never-redraft assertions. |
+| Per-job application existence reads agree in memory and SQLite. | `dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release` | `23 passed, 0 failed`. |
+| Discovery-only creates no simulated draft or application, while live fake-LLM pairing fails closed. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release; dotnet src\Engine\bin\Release\net8.0\SeekerSvc.Engine.dll run --once --llm fake` | Harness `124/0`; command refused fake LLM on live Gmail path with exit 2. |
+| Count/docs/verifier moved together to 369. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` | `Offline total: 369 passed, 0 failed`. |
+| Publish/package path is green from a clean commit. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | Offline `369/0`; publish demo `errors: 0`; manifest/OAuth/checksum/dashboard/setup checks passed. |
+| The bounded public-ATS run is draft-free and audit-clean. | `dotnet src\Engine\bin\Release\net8.0\SeekerSvc.Engine.dll run --once --dry-run --llm fake --board greenhouse:remotecom --discovery-timeout-seconds 90 --http-timeout-seconds 30 --max-drafts-per-cycle 2 --db tmp\beta-b1-live\careerseeker.db --artifacts tmp\beta-b1-live\artifacts --jd-dir tmp\beta-b1-live\job-descriptions` | Observed 61 discovered, 41 rejected, 14 quarantined, 0 acted, 0 drafted, 0 errors, audit ok. Public board counts are volatile; safety outcomes must remain. |
+
+### Adversarial findings fixed
+
+The original branch was offline-green at 364 but was not safe to merge unchanged:
+it re-admitted the same job every periodic tick and represented fake-client
+dry-runs as `DRAFTED`. Both were fixed and regression-tested before the B1 PR.
+
+No Gmail draft, provider call, email, upload, deployment, scheduled-task
+registration, Cloudflare action, Google/Play console change, Android change, or
+secret print was performed.
+
 ## B0 - Preflight baseline
 
 Branch: `codex/beta-M0-preflight`

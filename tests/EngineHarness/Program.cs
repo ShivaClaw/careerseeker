@@ -15,6 +15,16 @@ using SeekerSvc.Tailor;
 using SeekerSvc.Verifier;
 
 int passed = 0, failed = 0;
+
+static int FreeTcpPort()
+{
+    var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+    listener.Start();
+    var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+    listener.Stop();
+    return port;
+}
+
 void Check(string n, bool c, string? d = null)
 { if (c) { passed++; Console.WriteLine($"  PASS  {n}"); } else { failed++; Console.WriteLine($"  FAIL  {n}{(d is null ? "" : $"  -- {d}")}"); } }
 
@@ -179,6 +189,40 @@ JobPosting Scam() => new()
     RecruiterIdentifiable = false, CompanyDomainVerified = false,
 };
 
+DiscoveredJob FixtureDiscovered(string externalId, string title, bool injected) => new()
+{
+    Source = AtsKind.Greenhouse,
+    BoardHandle = "fixture",
+    CompanyName = "Fixture Co",
+    JobId = externalId,
+    Title = title,
+    TitleCanon = title.ToLowerInvariant(),
+    Location = "Remote",
+    Remote = RemoteMode.Remote,
+    Compensation = new Compensation(170000m, 210000m, "USD", CompInterval.Year, CompSource.Structured),
+    DescriptionText = new string('x', 40) + " Build distributed systems in Go, own services, mentor peers, improve reliability. Clear team and mission.",
+    DescriptionSimHash = SimHash.Compute(externalId + title),
+    Url = "https://fixture.test/jobs/" + externalId,
+    ApplyUrl = "https://fixture.test/jobs/" + externalId + "/apply",
+    FirstPublished = DateTimeOffset.UtcNow.AddDays(-3),
+    DedupKey = "fixture|" + externalId,
+    DescriptionLikelyInjected = injected,
+    InjectionSignals = injected ? new[] { "ignore-previous-instructions" } : Array.Empty<string>(),
+};
+
+IdentifiedPosting ActionableIdentified(string externalId, bool injected = false)
+{
+    var discovered = FixtureDiscovered(externalId, "Senior Software Engineer", injected);
+    var (company, job) = Ingest.From(discovered);
+    var posting = JobPosting.FromDiscovered(discovered) with
+    {
+        DescriptionText = new string('x', 700) + " Build distributed systems in Go with a specific team and mission.",
+        RecruiterIdentifiable = true,
+        CompanyDomainVerified = true,
+    };
+    return new IdentifiedPosting(posting, company, job, "mailto:jobs@fixture.test", injected);
+}
+
 var prefs = new UserPreferences { Comp = new CompTarget(150000m, 180000m, 220000m), Remote = RemoteStance.Any, Seniority = SeniorityBand.Senior };
 var opt = new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email);
 
@@ -315,14 +359,199 @@ Console.WriteLine("\n[ scheduler ]");
 {
     var ticks = 0;
     var sched = new PeriodicScheduler(_ => { Interlocked.Increment(ref ticks); return Task.CompletedTask; }, TimeSpan.FromMilliseconds(20));
+    Check("scheduler reports NotStarted before Start", sched.State == SchedulerState.NotStarted, sched.State.ToString());
     sched.Start();
     await Task.Delay(150);
     var seen = ticks;
     Check("scheduler fired repeatedly (immediate + interval)", seen >= 3, seen.ToString());
+    Check("scheduler reports Running while looping", sched.State == SchedulerState.Running, sched.State.ToString());
     await sched.DisposeAsync();
     var afterDispose = ticks;
     await Task.Delay(60);
     Check("scheduler stopped after dispose", ticks == afterDispose, $"{afterDispose}->{ticks}");
+    Check("scheduler reports Stopped after dispose", sched.State == SchedulerState.Stopped, sched.State.ToString());
+}
+
+// ── 2b) the dashboard never claims to be running when nothing is ───────────────────────────────────
+// This is the regression that made the alpha look dead: setup launched a viewer with no engine, and the
+// page reported "running" over permanently-zero counters. Status must be derived, never asserted.
+Console.WriteLine("\n[ dashboard status honesty ]");
+{
+    var viewerCounters = new EngineCounters();
+    var viewer = new LocalDashboard(viewerCounters, 7999);
+    var viewerJson = viewer.StatusJson();
+    Check("viewer with no engine does not report running",
+        !viewerJson.Contains("\"status\":\"running\""), viewerJson);
+    Check("viewer states that no engine is attached",
+        viewerJson.Contains("\"engineAttached\":false"), viewerJson);
+
+    var state = SchedulerState.NotStarted;
+    var attachedCounters = new EngineCounters();
+    var attached = new LocalDashboard(attachedCounters, 7998, engineState: () => state);
+    Check("attached engine reports engineAttached true",
+        attached.StatusJson().Contains("\"engineAttached\":true"), attached.StatusJson());
+    Check("attached but not started reports not started",
+        attached.StatusJson().Contains("\"status\":\"not started\""), attached.StatusJson());
+
+    state = SchedulerState.Running;
+    Check("started with no completed cycle reports starting, not running",
+        attached.StatusJson().Contains("\"status\":\"starting\""), attached.StatusJson());
+
+    state = SchedulerState.Faulted;
+    Check("faulted loop is reported as faulted",
+        attached.StatusJson().Contains("\"status\":\"faulted\""), attached.StatusJson());
+
+    // `counters` completed a real cycle in section 1, so this is the only combination that earns "running".
+    var cycled = new LocalDashboard(counters, 7997, engineState: () => SchedulerState.Running);
+    Check("running only after a cycle actually completed",
+        cycled.StatusJson().Contains("\"status\":\"running\""), cycled.StatusJson());
+
+    await viewer.DisposeAsync();
+    await attached.DisposeAsync();
+    await cycled.DisposeAsync();
+}
+
+// ── 2c) a real board-backed feed: true identity, and injected postings never reach a model ─────────
+Console.WriteLine("\n[ Scout-backed identified feed ]");
+{
+    var cleanJob = FixtureDiscovered("fixture-clean", "Senior Software Engineer", injected: false);
+    var poisonedJob = FixtureDiscovered("fixture-poisoned", "Staff Engineer", injected: true);
+
+    var scout = new SeekerSvc.Scout.Scout(
+        new FixtureBoardFetcher(new Dictionary<string, string> { ["https://fixture.test/board"] = "[]" }),
+        ScoutOptions.Default,
+        new[] { new FixtureAtsProvider(new[] { cleanJob, poisonedJob }) });
+
+    var jdDir = Path.Combine(Path.GetTempPath(), "careerseeker-feed-jd-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(jdDir);
+    try
+    {
+        var feed = new ScoutJobFeed(
+            scout,
+            new ScoutFeedOptions(
+                new[] { new CompanyBoard(AtsKind.Greenhouse, "fixture") },
+                ScoutOptions.Default,
+                jdDir,
+                TimeSpan.FromSeconds(30)),
+            (_, _) => null);
+
+        var identified = await feed.DiscoverIdentifiedAsync();
+        Check("identified feed returns both postings", identified.Count == 2, identified.Count.ToString());
+        Check("identified feed carries the real external id",
+            identified.Any(i => i.Job.ExternalId == "fixture-clean"),
+            string.Join(",", identified.Select(i => i.Job.ExternalId)));
+        Check("identified feed carries the real board handle as company",
+            identified.All(i => i.Company.Handle == "fixture"),
+            string.Join(",", identified.Select(i => i.Company.Handle)));
+        Check("identified feed propagates Scout's injection flag",
+            identified.Single(i => i.Job.ExternalId == "fixture-poisoned").LikelyInjected);
+
+        var store = await SeededStoreAsync();
+        var feedCounters = new EngineCounters();
+        var pipeline = new ApplicationPipeline(store, tailor, MakeDispatcher(new FakeGmail()), new GatewaySemanticMatcher(gateway),
+            new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+        var cycle = new EngineCycle(store, feed, new FakeSemantic(), pipeline, opt, feedCounters);
+
+        await cycle.TickAsync();
+        Check("identified cycle discovered both postings", feedCounters.Discovered == 2, feedCounters.Discovered.ToString());
+        Check("injected posting is quarantined, not processed", feedCounters.Quarantined == 1, feedCounters.Quarantined.ToString());
+        // The clean posting reaches the real decision path. It does not necessarily draft: postings that
+        // arrive straight from a board carry no researched recruiter/domain signals, so they score lower
+        // than the demo fixtures, which set both. Asserting "acted or rejected" tests the wiring; asserting
+        // "drafted" would be testing the scoring thresholds, which belong to the Scorer's own harness.
+        Check("clean posting reached the scorer and pipeline",
+            feedCounters.Acted + feedCounters.Rejected == 1,
+            $"acted={feedCounters.Acted} rejected={feedCounters.Rejected} drafted={feedCounters.Drafted}");
+        Check("identified cycle recorded no errors", feedCounters.Errors == 0, feedCounters.Errors.ToString());
+
+        // The quarantined posting is still stored: refusing to reason about it is not the same as
+        // pretending it was never seen. Evidence survives; only the model call is withheld.
+        var storedJobs = await store.GetRecentJobsAsync(50);
+        Check("quarantined posting is still persisted as evidence",
+            storedJobs.Any(j => j.ExternalId == "fixture-poisoned"),
+            string.Join(",", storedJobs.Select(j => j.ExternalId)));
+
+        var second = new EngineCounters();
+        var repeatCycle = new EngineCycle(store, feed, new FakeSemantic(), pipeline, opt, second);
+        await repeatCycle.TickAsync();
+        var afterSecond = await store.GetRecentJobsAsync(50);
+        Check("re-discovering the same board does not duplicate jobs",
+            afterSecond.Count(j => j.ExternalId == "fixture-clean") == 1,
+            afterSecond.Count(j => j.ExternalId == "fixture-clean").ToString());
+        var applicationsAfterRepeat = await store.GetRecentApplicationsAsync(50);
+        Check("re-discovering an admitted job does not create another application",
+            applicationsAfterRepeat.Count == 1,
+            applicationsAfterRepeat.Count.ToString());
+    }
+    finally
+    {
+        try { Directory.Delete(jdDir, recursive: true); } catch (IOException) { }
+    }
+}
+
+// A real sweep can return hundreds of matches at once; an unattended loop must not turn all of them into
+// Gmail drafts in one tick. Everything is still stored, so the cap defers work rather than dropping it.
+Console.WriteLine("\n[ per-cycle action cap ]");
+{
+    // The injected posting is placed last on purpose: it is only reached after the action cap has
+    // filled, which is where an earlier ordering bug stopped counting quarantines entirely.
+    var many = Enumerable.Range(0, 5)
+        .Select(i => ActionableIdentified("capped-" + i))
+        .Append(ActionableIdentified("capped-poisoned", injected: true))
+        .ToArray();
+
+    var feed = new FakeIdentifiedFeed(many);
+    var store = await SeededStoreAsync();
+    var capCounters = new EngineCounters();
+    var gmail = new FakeGmail();
+    var pipeline = new ApplicationPipeline(store, tailor, MakeDispatcher(gmail), new GatewaySemanticMatcher(gateway),
+        new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+    var cycle = new EngineCycle(store, feed, new FakeSemantic(), pipeline, opt with { MaxActionsPerCycle = 2 }, capCounters);
+
+    await cycle.TickAsync();
+    Check("cycle drafts exactly the configured cap", capCounters.Drafted == 2 && gmail.Drafts == 2,
+        $"counter={capCounters.Drafted} gmail={gmail.Drafts}");
+    Check("postings over the cap are still stored for the next cycle",
+        (await store.GetRecentJobsAsync(50)).Count(j => j.ExternalId.StartsWith("capped-")) == 6,
+        (await store.GetRecentJobsAsync(50)).Count(j => j.ExternalId.StartsWith("capped-")).ToString());
+    Check("injection quarantine is still counted after the action cap fills",
+        capCounters.Quarantined == 1, capCounters.Quarantined.ToString());
+
+    await cycle.TickAsync();
+    Check("next cycle advances to never-admitted jobs instead of redrafting the first cap",
+        capCounters.Drafted == 4 && gmail.Drafts == 4 &&
+        (await store.GetRecentApplicationsAsync(50)).Count == 4,
+        $"drafted={capCounters.Drafted} gmail={gmail.Drafts} apps={(await store.GetRecentApplicationsAsync(50)).Count}");
+
+    await cycle.TickAsync();
+    await cycle.TickAsync();
+    Check("settled jobs are never redrafted on later periodic cycles",
+        capCounters.Drafted == 5 && gmail.Drafts == 5 &&
+        (await store.GetRecentApplicationsAsync(50)).Count == 5,
+        $"drafted={capCounters.Drafted} gmail={gmail.Drafts} apps={(await store.GetRecentApplicationsAsync(50)).Count}");
+}
+
+Console.WriteLine("\n[ discovery-only run ]");
+{
+    var store = await SeededStoreAsync();
+    var gmail = new FakeGmail();
+    var countersOnly = new EngineCounters();
+    var pipeline = new ApplicationPipeline(store, tailor, MakeDispatcher(gmail), new GatewaySemanticMatcher(gateway),
+        new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+    var cycle = new EngineCycle(
+        store,
+        new FakeIdentifiedFeed(new[] { ActionableIdentified("discovery-only") }),
+        new FakeSemantic(),
+        pipeline,
+        opt with { DraftsEnabled = false },
+        countersOnly);
+
+    await cycle.TickAsync();
+    Check("discovery-only run stores the job without a simulated draft or application",
+        (await store.GetRecentJobsAsync(50)).Any(j => j.ExternalId == "discovery-only") &&
+        (await store.GetRecentApplicationsAsync(50)).Count == 0 &&
+        countersOnly.Drafted == 0 && countersOnly.Acted == 0 && gmail.Drafts == 0,
+        $"apps={(await store.GetRecentApplicationsAsync(50)).Count} drafted={countersOnly.Drafted} gmail={gmail.Drafts}");
 }
 
 // ── 3) live localhost dashboard over HTTP ──────────────────────────────────────────────────────────
@@ -365,14 +594,22 @@ Console.WriteLine("\n[ localhost dashboard ]");
             Interlocked.Increment(ref packageExports);
             return Task.FromResult(new DashboardControlResult(true, "Alpha package exported."));
         });
-    var dash = new LocalDashboard(counters, 7777, actions, LocalDashboardEvidence.FromStore(evidenceStore), new[] { artifactDir });
+    // Bind a free port rather than the product's default 7777. HTTP.sys keeps that port reserved after a
+    // real dashboard has run, so a hard-coded 7777 made this whole section silently skip on any machine
+    // where the developer had actually used the app - 19 assertions quietly not running.
+    var dashPort = FreeTcpPort();
+    var dashBase = $"http://localhost:{dashPort}";
+    // Attached, like EngineHost wires it: this section exercises the full engine dashboard, counters
+    // included. The viewer-only rendering is covered separately in [ dashboard status honesty ].
+    var dash = new LocalDashboard(counters, dashPort, actions, LocalDashboardEvidence.FromStore(evidenceStore), new[] { artifactDir },
+        engineState: () => SchedulerState.Running);
     var listenerOk = true;
     try { dash.Start(); } catch (Exception e) { listenerOk = false; Console.WriteLine("    (HttpListener unavailable in sandbox: " + e.GetType().Name + ")"); }
 
     if (listenerOk)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
-        var json = await http.GetStringAsync("http://localhost:7777/status");
+        var json = await http.GetStringAsync($"{dashBase}/status");
         using var doc = JsonDocument.Parse(json);
         Check("/status serves JSON with live counters", doc.RootElement.GetProperty("drafted").GetInt64() == 1, json);
         Check("/status reports Gmail control availability", doc.RootElement.GetProperty("gmailDisconnectAvailable").GetBoolean(), json);
@@ -381,11 +618,11 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/status reports alpha package export availability", doc.RootElement.GetProperty("alphaPackageExportAvailable").GetBoolean(), json);
         Check("/status reports evidence availability", doc.RootElement.GetProperty("evidenceAvailable").GetBoolean(), json);
         Check("/status reports job evidence availability", doc.RootElement.GetProperty("jobsAvailable").GetBoolean(), json);
-        var homeResponse = await http.GetAsync("http://localhost:7777/");
+        var homeResponse = await http.GetAsync($"{dashBase}/");
         var html = await homeResponse.Content.ReadAsStringAsync();
         Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
         Check("/ sends dashboard safety headers", HasDashboardSafetyHeaders(homeResponse), homeResponse.Headers.ToString());
-        using (var wrongReadHost = new HttpRequestMessage(HttpMethod.Get, "http://localhost:7777/status"))
+        using (var wrongReadHost = new HttpRequestMessage(HttpMethod.Get, $"{dashBase}/status"))
         {
             wrongReadHost.Headers.Host = "evil.test";
             var wrongReadHostResp = await http.SendAsync(wrongReadHost);
@@ -401,7 +638,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/ links to recent jobs", html.Contains("/jobs"));
         var token = DashboardToken(html);
 
-        var applicationsHtml = await http.GetStringAsync("http://localhost:7777/applications");
+        var applicationsHtml = await http.GetStringAsync($"{dashBase}/applications");
         Check("/applications serves recent job/state drill-down",
             applicationsHtml.Contains("Senior Software Engineer") &&
             applicationsHtml.Contains("DRAFTED") &&
@@ -413,11 +650,11 @@ Console.WriteLine("\n[ localhost dashboard ]");
             applicationsHtml.Contains("token=") &&
             !applicationsHtml.Contains("file://", StringComparison.OrdinalIgnoreCase),
             applicationsHtml);
-        var badDocument = await http.GetAsync($"http://localhost:7777/documents/{applicationId}/resume?token=wrong");
+        var badDocument = await http.GetAsync($"{dashBase}/documents/{applicationId}/resume?token=wrong");
         Check("/documents rejects a bad token",
             badDocument.StatusCode == HttpStatusCode.Forbidden,
             badDocument.StatusCode.ToString());
-        var resumeResponse = await http.GetAsync($"http://localhost:7777/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}");
+        var resumeResponse = await http.GetAsync($"{dashBase}/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}");
         var resumePdf = await resumeResponse.Content.ReadAsByteArrayAsync();
         Check("/documents serves generated resume PDF bytes",
             resumePdf.Length >= 4 &&
@@ -427,7 +664,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
             resumePdf[3] == 0x46,
             Convert.ToHexString(resumePdf));
         Check("/documents sends dashboard safety headers", HasDashboardSafetyHeaders(resumeResponse), resumeResponse.Headers.ToString());
-        using (var wrongDocumentHost = new HttpRequestMessage(HttpMethod.Get, $"http://localhost:7777/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}"))
+        using (var wrongDocumentHost = new HttpRequestMessage(HttpMethod.Get, $"{dashBase}/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}"))
         {
             wrongDocumentHost.Headers.Host = "evil.test";
             var wrongDocumentHostResp = await http.SendAsync(wrongDocumentHost);
@@ -441,11 +678,11 @@ Console.WriteLine("\n[ localhost dashboard ]");
         var outsideResume = Path.Combine(outsideDocDir, "outside-resume.pdf");
         await File.WriteAllTextAsync(outsideResume, "%PDF outside");
         await evidenceStore.SaveApplicationArtifactsAsync(applicationId, outsideResume, null, null);
-        var unsafeApplicationsHtml = await http.GetStringAsync("http://localhost:7777/applications");
+        var unsafeApplicationsHtml = await http.GetStringAsync($"{dashBase}/applications");
         Check("/applications suppresses out-of-artifact document links",
             !unsafeApplicationsHtml.Contains($@"/documents/{applicationId}/resume", StringComparison.Ordinal),
             unsafeApplicationsHtml);
-        var unsafeDocument = await http.GetAsync($"http://localhost:7777/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}");
+        var unsafeDocument = await http.GetAsync($"{dashBase}/documents/{applicationId}/resume?token={Uri.EscapeDataString(token)}");
         Check("/documents refuses out-of-artifact stored paths",
             unsafeDocument.StatusCode == HttpStatusCode.NotFound,
             unsafeDocument.StatusCode.ToString());
@@ -457,14 +694,14 @@ Console.WriteLine("\n[ localhost dashboard ]");
             applicationsHtml.Contains("value=\"kill\""),
             applicationsHtml);
 
-        var jobsHtml = await http.GetStringAsync("http://localhost:7777/jobs");
+        var jobsHtml = await http.GetStringAsync($"{dashBase}/jobs");
         Check("/jobs serves recent job drill-down",
             jobsHtml.Contains("Senior Software Engineer") &&
             jobsHtml.Contains("Remote") &&
             jobsHtml.Contains("feed:"),
             jobsHtml);
 
-        var evidenceHtml = await http.GetStringAsync("http://localhost:7777/evidence.html");
+        var evidenceHtml = await http.GetStringAsync($"{dashBase}/evidence.html");
         Check("/evidence.html serves human audit evidence",
             evidenceHtml.Contains("Audit evidence") &&
             evidenceHtml.Contains("Hash chain verified") &&
@@ -472,7 +709,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
             evidenceHtml.Contains("/evidence"),
             evidenceHtml);
 
-        var evidenceJson = await http.GetStringAsync("http://localhost:7777/evidence");
+        var evidenceJson = await http.GetStringAsync($"{dashBase}/evidence");
         using var evidenceDoc = JsonDocument.Parse(evidenceJson);
         Check("/evidence reports intact audit chain",
             evidenceDoc.RootElement.GetProperty("auditOk").GetBoolean(), evidenceJson);
@@ -494,13 +731,13 @@ Console.WriteLine("\n[ localhost dashboard ]");
         using var noRedirect = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
             { Timeout = TimeSpan.FromSeconds(3) };
         var forged = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/gmail/disconnect",
+            $"{dashBase}/controls/gmail/disconnect",
             new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = "wrong" }));
         Check("Gmail disconnect control rejects a bad token",
             forged.StatusCode == HttpStatusCode.Forbidden && disconnects == 0,
             $"{forged.StatusCode}, calls={disconnects}");
 
-        using var wrongHost = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/gmail/disconnect")
+        using var wrongHost = new HttpRequestMessage(HttpMethod.Post, $"{dashBase}/controls/gmail/disconnect")
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }),
         };
@@ -511,34 +748,34 @@ Console.WriteLine("\n[ localhost dashboard ]");
             $"{wrongHostResp.StatusCode}, calls={disconnects}");
 
         var wrongContentType = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/gmail/disconnect",
+            $"{dashBase}/controls/gmail/disconnect",
             new StringContent($"token={Uri.EscapeDataString(token)}", Encoding.UTF8, "text/plain"));
         Check("Gmail disconnect control rejects non-form content",
             wrongContentType.StatusCode == HttpStatusCode.Forbidden && disconnects == 0,
             $"{wrongContentType.StatusCode}, calls={disconnects}");
 
         var post = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/gmail/disconnect",
+            $"{dashBase}/controls/gmail/disconnect",
             new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }));
         Check("Gmail disconnect control invokes the configured action",
             post.StatusCode == HttpStatusCode.SeeOther && disconnects == 1,
             $"{post.StatusCode}, calls={disconnects}");
 
         var forgedAuditExport = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/audit/export",
+            $"{dashBase}/controls/audit/export",
             new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = "wrong" }));
         Check("audit export control rejects a bad token",
             forgedAuditExport.StatusCode == HttpStatusCode.Forbidden && auditExports == 0,
             $"{forgedAuditExport.StatusCode}, calls={auditExports}");
 
         var wrongAuditExportContentType = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/audit/export",
+            $"{dashBase}/controls/audit/export",
             new StringContent($"token={Uri.EscapeDataString(token)}", Encoding.UTF8, "text/plain"));
         Check("audit export control rejects non-form content",
             wrongAuditExportContentType.StatusCode == HttpStatusCode.Forbidden && auditExports == 0,
             $"{wrongAuditExportContentType.StatusCode}, calls={auditExports}");
 
-        using var wrongAuditExportOrigin = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/audit/export")
+        using var wrongAuditExportOrigin = new HttpRequestMessage(HttpMethod.Post, $"{dashBase}/controls/audit/export")
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }),
         };
@@ -549,20 +786,20 @@ Console.WriteLine("\n[ localhost dashboard ]");
             $"{wrongAuditExportOriginResp.StatusCode}, calls={auditExports}");
 
         var auditExportPost = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/audit/export",
+            $"{dashBase}/controls/audit/export",
             new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }));
         Check("audit export control invokes the configured action",
             auditExportPost.StatusCode == HttpStatusCode.SeeOther && auditExports == 1,
             $"{auditExportPost.StatusCode}, calls={auditExports}");
 
         var forgedExport = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/package/export",
+            $"{dashBase}/controls/package/export",
             new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = "wrong" }));
         Check("alpha package export control rejects a bad token",
             forgedExport.StatusCode == HttpStatusCode.Forbidden && packageExports == 0,
             $"{forgedExport.StatusCode}, calls={packageExports}");
 
-        using var wrongPackageExportReferer = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/package/export")
+        using var wrongPackageExportReferer = new HttpRequestMessage(HttpMethod.Post, $"{dashBase}/controls/package/export")
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }),
         };
@@ -573,14 +810,14 @@ Console.WriteLine("\n[ localhost dashboard ]");
             $"{wrongPackageExportRefererResp.StatusCode}, calls={packageExports}");
 
         var exportPost = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/package/export",
+            $"{dashBase}/controls/package/export",
             new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }));
         Check("alpha package export control invokes the configured action",
             exportPost.StatusCode == HttpStatusCode.SeeOther && packageExports == 1,
             $"{exportPost.StatusCode}, calls={packageExports}");
 
         var forgedApp = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/application",
+            $"{dashBase}/controls/application",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["token"] = "wrong",
@@ -592,7 +829,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
             $"{forgedApp.StatusCode}, calls={appControls}");
 
         var wrongAppContentType = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/application",
+            $"{dashBase}/controls/application",
             new StringContent(
                 $"token={Uri.EscapeDataString(token)}&applicationId={applicationId}&action=pause",
                 Encoding.UTF8,
@@ -601,7 +838,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
             wrongAppContentType.StatusCode == HttpStatusCode.Forbidden && appControls == 0,
             $"{wrongAppContentType.StatusCode}, calls={appControls}");
 
-        using var wrongAppHost = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/application")
+        using var wrongAppHost = new HttpRequestMessage(HttpMethod.Post, $"{dashBase}/controls/application")
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -617,7 +854,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
             $"{wrongAppHostResp.StatusCode}, calls={appControls}");
 
         var appPost = await noRedirect.PostAsync(
-            "http://localhost:7777/controls/application",
+            $"{dashBase}/controls/application",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["token"] = token,
@@ -1284,6 +1521,25 @@ sealed class FakeFeed : IJobFeed
     private readonly IReadOnlyList<JobPosting> _b;
     public FakeFeed(IReadOnlyList<JobPosting> b) => _b = b;
     public Task<IReadOnlyList<JobPosting>> DiscoverAsync(CancellationToken ct = default) => Task.FromResult(_b);
+}
+
+/// <summary>Returns a fixed set of postings for any board, so the Scout-backed feed is testable offline.</summary>
+sealed class FixtureAtsProvider : IAtsProvider
+{
+    private readonly IReadOnlyList<DiscoveredJob> _jobs;
+    public FixtureAtsProvider(IReadOnlyList<DiscoveredJob> jobs) => _jobs = jobs;
+    public AtsKind Kind => AtsKind.Greenhouse;
+    public string BuildListUrl(CompanyBoard board) => "https://fixture.test/board";
+    public IReadOnlyList<DiscoveredJob> Parse(CompanyBoard board, string json) => _jobs;
+}
+sealed class FakeIdentifiedFeed : IIdentifiedJobFeed
+{
+    private readonly IReadOnlyList<IdentifiedPosting> _items;
+    public FakeIdentifiedFeed(IReadOnlyList<IdentifiedPosting> items) => _items = items;
+    public Task<IReadOnlyList<IdentifiedPosting>> DiscoverIdentifiedAsync(CancellationToken ct = default) =>
+        Task.FromResult(_items);
+    public Task<IReadOnlyList<JobPosting>> DiscoverAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<JobPosting>>(_items.Select(i => i.Posting).ToArray());
 }
 sealed class FakeSemantic : ISemanticScorer
 {

@@ -309,6 +309,15 @@ WHERE id=$id AND state=$expected;";
                 r.IsDBNull(10) ? null : r.GetString(10));
         }, ct);
 
+    public Task<bool> HasApplicationForJobAsync(long jobId, CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            using var cmd = Conn.CreateCommand();
+            cmd.CommandText = "SELECT EXISTS(SELECT 1 FROM applications WHERE job_id=$job LIMIT 1);";
+            P(cmd, "$job", jobId);
+            return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false)) != 0;
+        }, ct);
+
     public Task<IReadOnlyList<long>> GetApplicationIdsInStatesAsync(
         IReadOnlyList<string> states, CancellationToken ct = default)
         => Locked(async () =>
