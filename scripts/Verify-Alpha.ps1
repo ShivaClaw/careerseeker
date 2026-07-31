@@ -123,7 +123,9 @@ $offlineProjects = @(
 # persistence, and dashboard explanation. One store-parity assertion positively pins score detail reads.
 # Four engine assertions pin persisted cycle counters/reasons across the engine, dashboard, and audit
 # export; one store-parity assertion pins the new telemetry table in memory and SQLite.
-$ExpectedOfflineTotal = 385
+# Twelve engine assertions pin adaptive backoff and its board-failure input, clean pause/resume,
+# single-instance locking, local control files, honest runtime status, and service-host doctor checks.
+$ExpectedOfflineTotal = 397
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -259,19 +261,52 @@ Invoke-Step "Trust wording smoke" {
     }
 }
 
+Invoke-Step "Service-grade scheduled task source smoke" {
+    $manager = Get-Content -LiteralPath "scripts/Manage-AlphaDashboardTask.ps1" -Raw
+    Assert-Contains $manager @(
+        '"Pause", "Resume"',
+        '-MultipleInstances IgnoreNew',
+        '-RestartCount 12',
+        '-RunLevel Limited',
+        'Request-CleanStop',
+        'It was not force-terminated',
+        'Local database, vaults, logs, and artifacts were preserved'
+    ) "scripts/Manage-AlphaDashboardTask.ps1"
+
+    $supervisor = Get-Content -LiteralPath "scripts/Start-BetaEngineHost.ps1" -Raw
+    Assert-Contains $supervisor @(
+        '"--service-host"',
+        'SupervisorSelfTest',
+        '"--max-backoff-seconds"',
+        '"--control-dir"',
+        'Tee-Object -FilePath $logPath -Append',
+        'engine stopped cleanly; supervisor exiting',
+        'restart $restart in $delay seconds'
+    ) "scripts/Start-BetaEngineHost.ps1"
+
+    $hostSource = Get-Content -LiteralPath "src/Engine/ServiceGradeHost.cs" -Raw
+    Assert-Contains $hostSource @(
+        'FileShare.None',
+        'SingleInstanceLease',
+        'pause.request',
+        'stop.request'
+    ) "src/Engine/ServiceGradeHost.cs"
+}
+
 Invoke-Step "Public README and harness count smoke" {
     $readme = Get-Content -LiteralPath "README.md" -Raw
     Assert-Contains $readme @(
         'free local Windows alpha executable',
-        'Windows service/tray packaging and the paid Android dashboard still future',
+        'native Windows service/tray',
+        'the paid Android dashboard remain future',
         'no open-source license',
         'all rights are reserved',
-        'EngineHarness` (137)',
+        'EngineHarness` (149)',
         'ResearcherHarness` (57)',
         'HookHarness` (16)',
         'GatewayGateHarness` (36)',
         'admitted hooks stay prompt',
-        'Latest offline total: 385 assertions'
+        'Latest offline total: 397 assertions'
     ) "README.md"
     Assert-DoesNotContain $readme @(
         'free Windows service (.exe)'
@@ -282,7 +317,7 @@ Invoke-Step "Public README and harness count smoke" {
     # re-pads them); collapse runs of spaces so the row assertions tolerate that padding.
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
-        'Total: 385 passed, 0 failed.',
+        'Total: 397 passed, 0 failed.',
         'offline `lexical-v1`',
         'imports require the CareerSeeker alpha profile',
         'document responses carry no-store, nosniff, no-referrer',
@@ -292,7 +327,7 @@ Invoke-Step "Public README and harness count smoke" {
         'admitted company hooks stay prompt'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| `EngineHarness` | 137 passed, 0 failed |',
+        '| `EngineHarness` | 149 passed, 0 failed |',
         '| `ResearcherHarness` | 57 passed, 0 failed |',
         '| `HookHarness` | 16 passed, 0 failed |',
         '| `StoreParityHarness` | 25 passed, 0 failed |',
@@ -302,7 +337,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 385 passed, 0 failed.',
+        'Latest offline harness total: 397 passed, 0 failed.',
         'offline `lexical-v1`',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
@@ -315,7 +350,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `385 passed, 0 failed`.',
+        'Latest local offline verifier: `397 passed, 0 failed`.',
         'deterministic, explainable local-profile ranking',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'Fresh live Scout harness, 2026-07-20',
@@ -650,6 +685,7 @@ if ($IncludePackage) {
                 "scripts/Run-AlphaLiveCycle.ps1",
                 "scripts/Initialize-AlphaWorkspace.ps1",
                 "scripts/Start-AlphaDashboard.ps1",
+                "scripts/Start-BetaEngineHost.ps1",
                 "scripts/Manage-AlphaDashboardTask.ps1",
                 "scripts/Test-AlphaReleasePackage.ps1"
             )) {
@@ -738,6 +774,9 @@ if ($IncludePackage) {
             }
             if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
                 throw "Alpha release manifest missing dashboard launcher script."
+            }
+            if ($manifest.includes.scripts -notcontains "scripts/Start-BetaEngineHost.ps1") {
+                throw "Alpha release manifest missing service-grade engine host script."
             }
             if ($manifest.includes.scripts -notcontains "scripts/Check-AlphaLiveReadiness.ps1") {
                 throw "Alpha release manifest missing live readiness helper script."

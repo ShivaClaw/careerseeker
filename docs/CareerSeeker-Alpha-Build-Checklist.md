@@ -113,8 +113,9 @@ Purpose: turn the current repo into a small-tester Windows alpha without pretend
   with posting-body loading from `jd_path` and a `--dry-run` path for package/artifact/audit verification without Gmail.
 - A real Brave Search web-research adapter and `research-company` alpha command are implemented and live-verified
   with Brave Search plus BYOK dossier modeling.
-- `scripts/Manage-AlphaDashboardTask.ps1` can optionally register a per-user Windows logon task for keeping
-  the alpha dashboard available without claiming the full Windows Service/tray/installer work is done.
+- `scripts/Manage-AlphaDashboardTask.ps1` can register the real engine as a least-privilege per-user Windows
+  logon task with clean pause/resume/stop, restart backoff, single-instance protection, and local logs.
+  This is the hardened B5 fallback; it does not claim a native Windows Service/tray/installer exists.
 
 ## Alpha target
 
