@@ -79,6 +79,20 @@ CREATE INDEX IF NOT EXISTS ix_jobs_company ON jobs(company_id);
 CREATE INDEX IF NOT EXISTS ix_jobs_dedup   ON jobs(dedup_key);
 CREATE INDEX IF NOT EXISTS ix_jobs_simhash ON jobs(simhash);
 
+CREATE TABLE IF NOT EXISTS cycle_telemetry (
+  id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at              TEXT    NOT NULL,
+  completed_at            TEXT    NOT NULL,
+  discovered              INTEGER NOT NULL CHECK (discovered >= 0),
+  quarantined             INTEGER NOT NULL CHECK (quarantined >= 0),
+  rejected                INTEGER NOT NULL CHECK (rejected >= 0),
+  drafted                 INTEGER NOT NULL CHECK (drafted >= 0),
+  errors                  INTEGER NOT NULL CHECK (errors >= 0),
+  boards_json             TEXT    NOT NULL DEFAULT '[]',
+  quarantine_reasons_json TEXT    NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS ix_cycle_telemetry_completed ON cycle_telemetry(completed_at);
+
 CREATE TABLE IF NOT EXISTS scores (
   job_id         INTEGER PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE,
   fit            REAL    NOT NULL,

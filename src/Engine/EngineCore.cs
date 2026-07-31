@@ -83,6 +83,15 @@ public interface IIdentifiedJobFeed : IJobFeed
 }
 
 /// <summary>
+/// Trusted board identities configured for a feed. Kept separate from discovery results so an empty
+/// or timed-out board is still named honestly in persisted telemetry.
+/// </summary>
+public interface IJobFeedTelemetrySource
+{
+    IReadOnlyList<string> BoardIdentifiers { get; }
+}
+
+/// <summary>
 /// Supplies the CV-match and growth sub-scores the Scorer needs. Beta defaults to the deterministic
 /// offline lexical implementation; the interface remains injectable for fixtures and future optional
 /// rankers. The Scorer computes everything else deterministically.
@@ -139,6 +148,10 @@ public sealed class EngineCycle
 
     public async Task TickAsync(CancellationToken ct = default)
     {
+        var telemetry = new CycleTelemetry(DateTimeOffset.UtcNow);
+        if (_feed is IJobFeedTelemetrySource source)
+            foreach (var board in source.BoardIdentifiers)
+                telemetry.Boards.Add(board);
         try
         {
             // Reconcile recorded external effects before discovering or acting on more work. Startup
@@ -147,32 +160,50 @@ public sealed class EngineCycle
             // sweep never calls a provider. An enumeration-level store failure aborts this tick
             // (fail closed); individual stranded-row failures are isolated and counted.
             await _pipeline.ReconcileAllAsync(
-                onError: (_, _) => _counters.IncErrors(),
+                onError: (_, _) => RecordError(telemetry),
                 ct).ConfigureAwait(false);
 
             if (_feed is IIdentifiedJobFeed identified)
-                await TickIdentifiedAsync(identified, ct).ConfigureAwait(false);
+                await TickIdentifiedAsync(identified, telemetry, ct).ConfigureAwait(false);
             else
-                await TickSyntheticAsync(ct).ConfigureAwait(false);
-
-            _counters.IncCycles();
+                await TickSyntheticAsync(telemetry, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception)
         {
-            _counters.IncErrors();
-            _counters.IncCycles();
+            RecordError(telemetry);
         }
+
+        try
+        {
+            await _store.SaveCycleTelemetryAsync(telemetry.ToInput(DateTimeOffset.UtcNow), ct)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception)
+        {
+            // A telemetry write failure must be visible, but it must not make us claim telemetry was
+            // persisted. The next cycle gets another independent write attempt.
+            _counters.IncErrors();
+        }
+
+        _counters.IncCycles();
     }
 
     /// <summary>
     /// The real path: postings that arrived from actual boards, stored under their own company and
     /// external id, dispatched to whatever the posting itself specified.
     /// </summary>
-    private async Task TickIdentifiedAsync(IIdentifiedJobFeed feed, CancellationToken ct)
+    private async Task TickIdentifiedAsync(
+        IIdentifiedJobFeed feed,
+        CycleTelemetry telemetry,
+        CancellationToken ct)
     {
         var batch = await feed.DiscoverIdentifiedAsync(ct).ConfigureAwait(false);
         _counters.AddDiscovered(batch.Count);
+        telemetry.Discovered += batch.Count;
+        foreach (var board in batch.Select(i => $"{i.Company.AtsKind}:{i.Company.Handle}"))
+            telemetry.Boards.Add(board);
 
         var actionsTaken = 0;
         var cap = _opt.MaxActionsPerCycle;
@@ -196,6 +227,11 @@ public sealed class EngineCycle
                 if (item.LikelyInjected)
                 {
                     _counters.IncQuarantined();
+                    telemetry.Quarantined++;
+                    foreach (var reason in (item.Job.InjectionSignals ?? "")
+                                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        telemetry.QuarantineReasons[reason] =
+                            telemetry.QuarantineReasons.GetValueOrDefault(reason) + 1;
                     continue;
                 }
 
@@ -232,21 +268,23 @@ public sealed class EngineCycle
                     actionsTaken++;
 
                 var result = await _pipeline.AdmitAsync(job, _opt.Level, score.Dispatch, ct).ConfigureAwait(false);
-                Tally(result.FinalState);
+                Tally(result.FinalState, telemetry);
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception)
             {
-                _counters.IncErrors(); // one bad posting never takes the cycle down
+                RecordError(telemetry); // one bad posting never takes the cycle down
             }
         }
     }
 
     /// <summary>The synthetic path, unchanged: fixed batches with no identity, used by demo and offline tests.</summary>
-    private async Task TickSyntheticAsync(CancellationToken ct)
+    private async Task TickSyntheticAsync(CycleTelemetry telemetry, CancellationToken ct)
     {
         var batch = await _feed.DiscoverAsync(ct).ConfigureAwait(false);
         _counters.AddDiscovered(batch.Count);
+        telemetry.Discovered += batch.Count;
+        telemetry.Boards.Add($"feed:{_opt.CompanyHandle}");
 
         var companyId = await _store.UpsertCompanyAsync(
             new CompanyUpsert("feed", _opt.CompanyHandle, _opt.CompanyName), ct).ConfigureAwait(false);
@@ -265,27 +303,40 @@ public sealed class EngineCycle
                     score.Dispatch == Dispatch.Act ? "mailto:jobs@" + _opt.CompanyHandle + ".com" : null);
 
                 var result = await _pipeline.AdmitAsync(job, _opt.Level, score.Dispatch, ct).ConfigureAwait(false);
-                Tally(result.FinalState);
+                Tally(result.FinalState, telemetry);
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception)
             {
-                _counters.IncErrors(); // one bad posting never takes the cycle down
+                RecordError(telemetry); // one bad posting never takes the cycle down
             }
         }
     }
 
-    private void Tally(AppState state)
+    private void Tally(AppState state, CycleTelemetry telemetry)
     {
         switch (state)
         {
-            case AppState.DRAFTED: _counters.IncActed(); _counters.IncDrafted(); break;
+            case AppState.DRAFTED:
+                _counters.IncActed();
+                _counters.IncDrafted();
+                telemetry.Drafted++;
+                break;
             case AppState.AWAITING_RESPONSE:
             case AppState.GATE_PENDING: _counters.IncActed(); break;
             case AppState.BLOCKED_FABRICATION: _counters.IncBlocked(); break;
-            case AppState.GATE_UNAVAILABLE: _counters.IncErrors(); break;
-            case AppState.REJECTED_BY_ENGINE: _counters.IncRejected(); break;
+            case AppState.GATE_UNAVAILABLE: RecordError(telemetry); break;
+            case AppState.REJECTED_BY_ENGINE:
+                _counters.IncRejected();
+                telemetry.Rejected++;
+                break;
         }
+    }
+
+    private void RecordError(CycleTelemetry telemetry)
+    {
+        _counters.IncErrors();
+        telemetry.Errors++;
     }
 
     private Task SaveScoreAsync(long jobId, ScoreResult score, SemanticScores semantic, CancellationToken ct)
@@ -317,5 +368,32 @@ public sealed class EngineCycle
             Remote: p.Remote.ToString(), SimHash: 0L, FirstSeen: DateTimeOffset.UtcNow.ToString("o"),
             Location: p.Location, CompMin: p.Compensation?.Min, CompMax: p.Compensation?.Max), ct).ConfigureAwait(false);
         return r.JobId;
+    }
+
+    private sealed class CycleTelemetry
+    {
+        public CycleTelemetry(DateTimeOffset startedAt) => StartedAt = startedAt;
+
+        public DateTimeOffset StartedAt { get; }
+        public int Discovered { get; set; }
+        public int Quarantined { get; set; }
+        public int Rejected { get; set; }
+        public int Drafted { get; set; }
+        public int Errors { get; set; }
+        public HashSet<string> Boards { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> QuarantineReasons { get; } = new(StringComparer.Ordinal);
+
+        public CycleTelemetryInput ToInput(DateTimeOffset completedAt) =>
+            new(
+                StartedAt.ToString("O"),
+                completedAt.ToString("O"),
+                Discovered,
+                Quarantined,
+                Rejected,
+                Drafted,
+                Errors,
+                JsonSerializer.Serialize(Boards.OrderBy(x => x, StringComparer.OrdinalIgnoreCase)),
+                JsonSerializer.Serialize(QuarantineReasons.OrderBy(x => x.Key, StringComparer.Ordinal)
+                    .ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal)));
     }
 }

@@ -2,6 +2,71 @@
 
 Updated: 2026-07-30
 
+## 2026-07-30 (Terra B4) - Quarantine telemetry and measured signal rate
+
+Branch: `codex/beta-M4-quarantine-telemetry`
+
+Integration base: `origin/main` at
+`b9728737b20124f016bffe26f83e0479d150941d`, the confirmed PR #12 merge.
+
+B4 adds an idempotent `cycle_telemetry` table and matching in-memory store
+behavior. Every completed engine tick persists discovered, quarantined,
+rejected, drafted, and error counts; configured board identities; and trusted
+classifier reason-code counts. Posting bodies never enter this record.
+Configured identities come from the feed independently of results, so a
+zero-result or timed-out cycle remains attributable to its board.
+
+`/evidence`, `/evidence.html`, and hash-only-by-default audit exports now expose
+the aggregate rows. Engine and store harnesses cover cycle construction,
+empty-sensitive board identity, reason codes, body exclusion, dashboard
+rendering, export inclusion, and memory/SQLite parity.
+
+The count/doc/verifier lockstep moved EngineHarness 133→137 and
+StoreParityHarness 24→25, for 380→385 total assertions.
+
+Verification executed:
+
+```text
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+=== Offline total: 385 passed, 0 failed ===
+CareerSeeker alpha verification complete.
+
+> dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj --no-build
+=== 25 passed, 0 failed ===
+
+> dotnet run --project tests\EngineHarness\EngineHarness.csproj --no-build
+=== 137 passed, 0 failed ===
+```
+
+Five bounded public-ATS discovery-only cycles were executed across Greenhouse,
+Lever, and Ashby. Remote.com returned 61 postings: 14 quarantined, 47 rejected,
+0 drafted, 0 errors. Both Mistral Lever attempts and both Deel Ashby attempts
+returned zero postings and zero errors. The two re-runs verified the board-
+identity correction for empty results. Canonical hash-only exports for all
+three boards reported intact audit chains.
+
+Manual limited-context review of all 14 flags found ordinary job-duty uses of
+“act as”; every flag carried only `role_reassign`. The observed signal rate was
+14/61 (22.95%), while the manually assessed false-positive rate among flags was
+14/14 in this limited sample. `docs/Injection-Rate-Report-2026-08.md` contains
+five anonymized pattern snippets, limitations, exact commands, and a proposed
+threshold change. No classifier tuning was applied.
+
+The first focused EngineHarness attempt after B4 implementation had two failed
+expectations because the fixture's default synthetic identity is `feed:feed`,
+not `feed:engine-harness`; the actual persisted value was correct. The
+expectations were corrected and the rerun passed 137/0. The first zero-result
+Lever/Ashby measurements also exposed missing configured identity in telemetry;
+the feed identity seam was added and one bounded re-run per board verified it.
+
+No Gmail draft, BYOK/provider call, email, upload, deployment, scheduled-task
+registration, Cloudflare action, Google/Play console change, Android/relay/
+sync-vector change, off-repo site edit, dependency change, classifier tuning,
+or secret print occurred in B4.
+
 ## 2026-07-30 (Terra B3) - Deterministic lexical ranking
 
 Branch: `codex/beta-M3-lexical-ranking`

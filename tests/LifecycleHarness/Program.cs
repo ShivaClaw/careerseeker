@@ -400,6 +400,8 @@ sealed class FaultingStore : ISeekerStore
     public Task<JobRow?> GetJobAsync(long jobId, CancellationToken ct = default) => _inner.GetJobAsync(jobId, ct);
     public Task<JobSummaryRow?> GetJobSummaryAsync(long jobId, CancellationToken ct = default) => _inner.GetJobSummaryAsync(jobId, ct);
     public Task<IReadOnlyList<JobSummaryRow>> GetRecentJobsAsync(int limit = 25, CancellationToken ct = default) => _inner.GetRecentJobsAsync(limit, ct);
+    public Task<long> SaveCycleTelemetryAsync(CycleTelemetryInput cycle, CancellationToken ct = default) => _inner.SaveCycleTelemetryAsync(cycle, ct);
+    public Task<IReadOnlyList<CycleTelemetryRow>> GetRecentCycleTelemetryAsync(int limit = 25, CancellationToken ct = default) => _inner.GetRecentCycleTelemetryAsync(limit, ct);
     public Task SaveScoreAsync(ScoreRow score, CancellationToken ct = default) => _inner.SaveScoreAsync(score, ct);
     public Task<long> CreateApplicationAsync(long jobId, string autonomyLevel, CancellationToken ct = default) => _inner.CreateApplicationAsync(jobId, autonomyLevel, ct);
     public Task TransitionApplicationAsync(long applicationId, string newState, string actor, string? payloadJson = null, CancellationToken ct = default)

@@ -23,7 +23,7 @@ public sealed record ScoutFeedOptions(
 /// carried on the posting for the Scorer to pattern-match as DATA; postings Scout flagged as
 /// injection-bearing are marked here and dropped by the cycle before any model sees them.
 /// </summary>
-public sealed class ScoutJobFeed : IIdentifiedJobFeed
+public sealed class ScoutJobFeed : IIdentifiedJobFeed, IJobFeedTelemetrySource
 {
     private readonly SeekerSvc.Scout.Scout _scout;
     private readonly ScoutFeedOptions _options;
@@ -38,6 +38,9 @@ public sealed class ScoutJobFeed : IIdentifiedJobFeed
         _options = options;
         _writeJobDescription = writeJobDescription;
     }
+
+    public IReadOnlyList<string> BoardIdentifiers =>
+        _options.Boards.Select(board => $"{board.Ats}:{board.Handle}").ToArray();
 
     /// <summary>
     /// Present so a <see cref="ScoutJobFeed"/> still satisfies <see cref="IJobFeed"/>, but it discards the

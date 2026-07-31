@@ -161,6 +161,62 @@ LIMIT $limit;";
             return (IReadOnlyList<JobSummaryRow>)rows;
         }, ct);
 
+    public Task<long> SaveCycleTelemetryAsync(CycleTelemetryInput cycle, CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            using var cmd = Conn.CreateCommand();
+            cmd.CommandText = @"
+INSERT INTO cycle_telemetry (
+  started_at, completed_at, discovered, quarantined, rejected, drafted, errors,
+  boards_json, quarantine_reasons_json)
+VALUES (
+  $started, $completed, $discovered, $quarantined, $rejected, $drafted, $errors,
+  $boards, $reasons)
+RETURNING id;";
+            P(cmd, "$started", cycle.StartedAt);
+            P(cmd, "$completed", cycle.CompletedAt);
+            P(cmd, "$discovered", cycle.Discovered);
+            P(cmd, "$quarantined", cycle.Quarantined);
+            P(cmd, "$rejected", cycle.Rejected);
+            P(cmd, "$drafted", cycle.Drafted);
+            P(cmd, "$errors", cycle.Errors);
+            P(cmd, "$boards", cycle.BoardsJson);
+            P(cmd, "$reasons", cycle.QuarantineReasonsJson);
+            return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
+        }, ct);
+
+    public Task<IReadOnlyList<CycleTelemetryRow>> GetRecentCycleTelemetryAsync(
+        int limit = 25,
+        CancellationToken ct = default)
+        => Locked(async () =>
+        {
+            var safeLimit = Math.Clamp(limit, 1, 100);
+            using var cmd = Conn.CreateCommand();
+            cmd.CommandText = @"
+SELECT id, started_at, completed_at, discovered, quarantined, rejected, drafted, errors,
+       boards_json, quarantine_reasons_json
+FROM cycle_telemetry
+ORDER BY completed_at DESC, id DESC
+LIMIT $limit;";
+            P(cmd, "$limit", safeLimit);
+
+            var rows = new List<CycleTelemetryRow>();
+            using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await r.ReadAsync(ct).ConfigureAwait(false))
+                rows.Add(new CycleTelemetryRow(
+                    r.GetInt64(0),
+                    r.GetString(1),
+                    r.GetString(2),
+                    r.GetInt32(3),
+                    r.GetInt32(4),
+                    r.GetInt32(5),
+                    r.GetInt32(6),
+                    r.GetInt32(7),
+                    r.GetString(8),
+                    r.GetString(9)));
+            return (IReadOnlyList<CycleTelemetryRow>)rows;
+        }, ct);
+
     public Task SaveScoreAsync(ScoreRow s, CancellationToken ct = default)
         => Locked(async () =>
         {

@@ -22,6 +22,7 @@ public static class AuditExport
         options ??= new AuditExportOptions();
         var verification = await store.VerifyAuditAsync(ct).ConfigureAwait(false);
         var events = await store.GetEventsAsync(ct).ConfigureAwait(false);
+        var cycleTelemetry = await store.GetRecentCycleTelemetryAsync(100, ct).ConfigureAwait(false);
 
         return JsonSerializer.Serialize(new
         {
@@ -34,6 +35,7 @@ public static class AuditExport
                 eventCount = events.Count,
             },
             payloadsIncluded = options.IncludePayloads,
+            cycleTelemetry,
             events = events
                 .OrderBy(e => e.Seq)
                 .Select(e => EventForExport(e, options.IncludePayloads))
