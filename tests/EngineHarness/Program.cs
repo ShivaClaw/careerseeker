@@ -1005,7 +1005,16 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/status reports job evidence availability", doc.RootElement.GetProperty("jobsAvailable").GetBoolean(), json);
         var homeResponse = await http.GetAsync($"{dashBase}/");
         var html = await homeResponse.Content.ReadAsStringAsync();
-        Check("/ serves the HTML status page", html.Contains("CareerSeeker") && html.Contains("Drafted"));
+        Check("/ serves the HTML status page",
+            html.Contains("CareerSeeker") &&
+            html.Contains("Drafted") &&
+            html.Contains("<html lang=\"en\">", StringComparison.Ordinal) &&
+            html.Contains("Skip to main content", StringComparison.Ordinal) &&
+            html.Contains("aria-current=\"page\"", StringComparison.Ordinal) &&
+            html.Contains("Refresh status", StringComparison.Ordinal) &&
+            html.Contains(":focus-visible", StringComparison.Ordinal) &&
+            !html.Contains("http-equiv=\"refresh\"", StringComparison.OrdinalIgnoreCase),
+            html);
         Check("/ sends dashboard safety headers", HasDashboardSafetyHeaders(homeResponse), homeResponse.Headers.ToString());
         using (var wrongReadHost = new HttpRequestMessage(HttpMethod.Get, $"{dashBase}/status"))
         {
@@ -1028,7 +1037,10 @@ Console.WriteLine("\n[ localhost dashboard ]");
             applicationsHtml.Contains("Senior Software Engineer") &&
             applicationsHtml.Contains("DRAFTED") &&
             applicationsHtml.Contains("SUCCEEDED") &&
-            applicationsHtml.Contains(">resume</a>"),
+            applicationsHtml.Contains(">resume</a>") &&
+            applicationsHtml.Contains("Recent applications and local controls", StringComparison.Ordinal) &&
+            applicationsHtml.Contains("scope=\"col\"", StringComparison.Ordinal) &&
+            applicationsHtml.Contains("aria-label=\"Pause application ", StringComparison.Ordinal),
             applicationsHtml);
         Check("/applications links documents through localhost dashboard",
             applicationsHtml.Contains($@"/documents/{applicationId}/resume") &&
@@ -1083,7 +1095,9 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/jobs serves recent job drill-down",
             jobsHtml.Contains("Senior Software Engineer") &&
             jobsHtml.Contains("Remote") &&
-            jobsHtml.Contains("feed:"),
+            jobsHtml.Contains("feed:") &&
+            jobsHtml.Contains("Recent jobs and ranking evidence", StringComparison.Ordinal) &&
+            jobsHtml.Contains("aria-label=\"Recent jobs table\"", StringComparison.Ordinal),
             jobsHtml);
 
         var evidenceHtml = await http.GetStringAsync($"{dashBase}/evidence.html");
@@ -1093,7 +1107,9 @@ Console.WriteLine("\n[ localhost dashboard ]");
             evidenceHtml.Contains("Recent persisted cycles") &&
             evidenceHtml.Contains("feed:feed") &&
             evidenceHtml.Contains("dashboard-test") &&
-            evidenceHtml.Contains("/evidence"),
+            evidenceHtml.Contains("/evidence") &&
+            evidenceHtml.Contains("Recent audit events table", StringComparison.Ordinal) &&
+            evidenceHtml.Contains("scope=\"col\"", StringComparison.Ordinal),
             evidenceHtml);
 
         var evidenceJson = await http.GetStringAsync($"{dashBase}/evidence");
@@ -1450,30 +1466,108 @@ Console.WriteLine("\n[ alpha package export ]");
         }
         Check("alpha package import preserves existing files by default", overwriteRefused);
 
-        var unsafePackage = Path.Combine(root, "unsafe.zip");
-        using (var stream = File.Create(unsafePackage))
-        using (var unsafeZip = new ZipArchive(stream, ZipArchiveMode.Create))
+        var entryNameCases = new (string Name, bool Accept)[]
         {
-            var escape = unsafeZip.CreateEntry("../escape.txt");
-            using var writer = new StreamWriter(escape.Open());
-            writer.Write("bad");
-        }
+            ("artifacts/evidence.txt", true),
+            ("artifacts/%2e%2e-is-literal.txt", true),
+            ("artifacts/résumé.pdf", true),
+            ("artifacts/three...dots/evidence.txt", true),
+            ("artifacts/", true),
+            ("job-descriptions/posting.txt", true),
+            ("database/alpha.db", true),
+            ("audit.json", true),
+            ("../escape.txt", false),
+            (@"..\escape.txt", false),
+            ("/artifacts/rooted.txt", false),
+            (@"\artifacts\rooted.txt", false),
+            (@"C:\artifacts\drive.txt", false),
+            ("C:/artifacts/drive.txt", false),
+            ("//server/share/evidence.txt", false),
+            (@"\\server\share\evidence.txt", false),
+            ("artifacts/../escape.txt", false),
+            (@"artifacts\..\escape.txt", false),
+            ("artifacts/./evidence.txt", false),
+            ("artifacts//evidence.txt", false),
+            ("artifacts/evidence.txt.", false),
+            ("artifacts/evidence.txt ", false),
+            ("artifacts/CON", false),
+            ("artifacts/con.txt", false),
+            ("artifacts/COM1.log", false),
+            ("artifacts/LPT9", false),
+            ("artifacts/NUL.pdf", false),
+            ("artifacts/line\nbreak.txt", false),
+            ("artifacts/tab\tfile.txt", false),
+            ("artifacts/file:stream.txt", false),
+            ("secrets/value.txt", false),
+            ("oauth/value.txt", false),
+            ("artifacts/token.txt", false),
+            ("artifacts/provider-key.txt", false),
+            ("artifacts/" + new string('a', 1100) + ".txt", false),
+        };
 
-        var unsafeRejected = false;
-        try
+        var entryNameFuzzPassed = true;
+        var entryNameFailures = new List<int>();
+        for (var index = 0; index < entryNameCases.Length; index++)
         {
-            await AlphaPackageImport.ImportAsync(
-                unsafePackage,
-                new AlphaPackageImportOptions(
-                    Path.Combine(root, "unsafe.db"),
-                    Path.Combine(root, "unsafe-artifacts"),
-                    Path.Combine(root, "unsafe-jds")));
+            var item = entryNameCases[index];
+            var fuzzPackage = Path.Combine(root, $"entry-name-fuzz-{index}.zip");
+            using (var stream = File.Create(fuzzPackage))
+            using (var fuzzZip = new ZipArchive(stream, ZipArchiveMode.Create))
+            {
+                var manifest = fuzzZip.CreateEntry("manifest.json");
+                await using (var writer = new StreamWriter(manifest.Open()))
+                    await writer.WriteAsync("""{"format":"careerseeker-alpha-package-v1"}""");
+
+                var candidate = fuzzZip.CreateEntry(item.Name);
+                await using var candidateWriter = new StreamWriter(candidate.Open());
+                await candidateWriter.WriteAsync("fuzz payload");
+            }
+
+            var targetRoot = Path.Combine(root, $"entry-name-fuzz-target-{index}");
+            var artifactRoot = Path.Combine(targetRoot, "artifacts");
+            var jdRoot = Path.Combine(targetRoot, "job-descriptions");
+            var rejectedAsUnsafe = false;
+            try
+            {
+                await AlphaPackageImport.ImportAsync(
+                    fuzzPackage,
+                    new AlphaPackageImportOptions(
+                        Path.Combine(targetRoot, "database", "alpha.db"),
+                        artifactRoot,
+                        jdRoot,
+                        IncludeDatabase: false));
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message.Contains("Refusing unsafe alpha package entry", StringComparison.Ordinal))
+            {
+                rejectedAsUnsafe = true;
+            }
+            catch
+            {
+                entryNameFuzzPassed = false;
+                entryNameFailures.Add(index);
+                continue;
+            }
+
+            var escaped = Directory.Exists(targetRoot) &&
+                Directory.EnumerateFiles(targetRoot, "*", SearchOption.AllDirectories).Any(path =>
+                    !Path.GetFullPath(path).StartsWith(
+                        Path.GetFullPath(artifactRoot) + Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    !Path.GetFullPath(path).StartsWith(
+                        Path.GetFullPath(jdRoot) + Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (rejectedAsUnsafe == item.Accept || escaped)
+            {
+                entryNameFuzzPassed = false;
+                entryNameFailures.Add(index);
+            }
         }
-        catch (InvalidOperationException)
-        {
-            unsafeRejected = true;
-        }
-        Check("alpha package import rejects unsafe zip entries", unsafeRejected);
+        Check(
+            "alpha package import rejects unsafe zip entries",
+            entryNameFuzzPassed,
+            entryNameFailures.Count == 0 ? null : "case indexes: " + string.Join(",", entryNameFailures));
 
         var secretPackage = Path.Combine(root, "secret-entry.zip");
         using (var stream = File.Create(secretPackage))
@@ -1842,9 +1936,39 @@ Console.WriteLine("\n[ startup doctor ]");
             HostControlDirectory: Path.Combine(root, "host-control"),
             HostLogDirectory: Path.Combine(root, "host-logs")));
         Check("startup doctor verifies service-host control and log paths",
-            serviceHost.Checks.Any(c => c.Name == "service_host_paths" && c.Ok));
+            serviceHost.Checks.Any(c => c.Name == "service_host_paths" && c.Ok) &&
+            !(await StartupDoctor.RunAsync(new StartupDoctorOptions(
+                DbPath: Path.Combine(root, "doctor-host-missing-paths.db"),
+                ArtifactDirectory: Path.Combine(root, "host-missing-paths-artifacts"),
+                OAuthClientPath: clientPath,
+                GmailTokenVaultPath: Path.Combine(root, "missing-token.dpapi"),
+                EnvFilePath: envPath,
+                KeyVaultPath: Path.Combine(root, "missing-keys.dpapi"),
+                RequireServiceHost: true,
+                HostControlDirectory: null,
+                HostLogDirectory: null))).Checks
+                .First(c => c.Name == "service_host_paths").Ok);
+
+        var lockedDoctorDb = Path.Combine(root, "doctor-host-locked.db");
+        var lockedLeaseAcquired = SingleInstanceLease.TryAcquire(lockedDoctorDb, out var lockedLease);
+        StartupDoctorReport lockedServiceHost;
+        using (lockedLease)
+        {
+            lockedServiceHost = await StartupDoctor.RunAsync(new StartupDoctorOptions(
+                DbPath: lockedDoctorDb,
+                ArtifactDirectory: Path.Combine(root, "host-locked-artifacts"),
+                OAuthClientPath: clientPath,
+                GmailTokenVaultPath: Path.Combine(root, "missing-token.dpapi"),
+                EnvFilePath: envPath,
+                KeyVaultPath: Path.Combine(root, "missing-keys.dpapi"),
+                RequireServiceHost: true,
+                HostControlDirectory: Path.Combine(root, "host-locked-control"),
+                HostLogDirectory: Path.Combine(root, "host-locked-logs")));
+        }
         Check("startup doctor verifies the service-host single-instance rail",
-            serviceHost.Checks.Any(c => c.Name == "service_single_instance" && c.Ok));
+            serviceHost.Checks.Any(c => c.Name == "service_single_instance" && c.Ok) &&
+            lockedLeaseAcquired &&
+            lockedServiceHost.Checks.Any(c => c.Name == "service_single_instance" && !c.Ok));
 
         var strict = await StartupDoctor.RunAsync(new StartupDoctorOptions(
             DbPath: Path.Combine(root, "doctor-strict.db"),

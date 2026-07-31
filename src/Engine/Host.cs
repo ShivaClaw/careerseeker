@@ -218,16 +218,19 @@ public sealed class LocalDashboard : IAsyncDisposable
 :root{color-scheme:light;--bg:#f7f7f4;--panel:#fff;--ink:#1c211f;--muted:#65706b;--line:#d9ddd8;--accent:#0f766e;--accent-ink:#064e3b;--danger:#b42318;--warn:#9a3412}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 a{color:#075985;text-decoration:none}a:hover{text-decoration:underline}
+a:focus-visible,button:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
+.skip{position:fixed;left:.75rem;top:.5rem;z-index:10;transform:translateY(-200%);padding:.5rem .7rem;background:#fff;border:2px solid var(--accent);border-radius:.35rem}.skip:focus{transform:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .top{position:sticky;top:0;z-index:1;background:rgba(247,247,244,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
 .top-inner{max-width:80rem;margin:0 auto;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 .brand{font-weight:700;letter-spacing:0}.sub{color:var(--muted);font-size:.86rem}.nav{display:flex;gap:.35rem;flex-wrap:wrap}
 .nav a{color:var(--ink);padding:.4rem .55rem;border-radius:.35rem}.nav a.active{background:#e7f4f1;color:var(--accent-ink);font-weight:650}
-.shell{max-width:80rem;margin:0 auto;padding:1.25rem}.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin:.4rem 0 1rem}
+.shell{max-width:80rem;margin:0 auto;padding:1.25rem}.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin:.4rem 0 1rem}.hero-actions{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap}
 h1{font-size:1.35rem;line-height:1.2;margin:0}h2{font-size:1rem;margin:1.2rem 0 .55rem}.muted{color:var(--muted)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.75rem}.card{background:var(--panel);border:1px solid var(--line);border-radius:.45rem;padding:.85rem}.label{color:var(--muted);font-size:.78rem;text-transform:uppercase}.n{font-variant-numeric:tabular-nums}.big{font-size:1.45rem;font-weight:720}
 .notice{padding:.65rem .75rem;background:#eef7ee;border-left:3px solid #22863a;margin:.75rem 0}.actions{display:flex;gap:.5rem;flex-wrap:wrap}form{display:inline}
 button{font:inherit;font-weight:650;padding:.45rem .65rem;border:1px solid var(--line);border-radius:.35rem;background:#fff;color:var(--ink);cursor:pointer}button:hover{border-color:#8fa19a}.danger button{color:var(--danger)}
-.links{display:flex;gap:.55rem;flex-wrap:wrap}.table-wrap{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:.45rem}
+.links{display:flex;gap:.55rem;flex-wrap:wrap}.table-wrap{overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:.45rem}.table-wrap:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
 table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;border-bottom:1px solid var(--line);padding:.5rem .6rem;vertical-align:top}th{font-size:.78rem;text-transform:uppercase;color:var(--muted);background:#fbfbf9}tr:last-child td{border-bottom:0}
 .state{font-weight:700}.ok{color:#166534;font-weight:700}.bad{color:var(--danger);font-weight:700}.warn{font-weight:700;color:var(--warn)}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.15rem .45rem;background:#fff}
 @media (max-width:720px){.hero{display:block}.top-inner{align-items:flex-start}.shell{padding:1rem}table{min-width:46rem}}
@@ -340,7 +343,7 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
 attached to it, so there are no live counters to show here. Anything below reflects work done by earlier
 runs. To discover and draft on a schedule, start the engine with the <code>run</code> mode.</p>";
 
-        var body = $@"<section class=""hero""><div><h1>CareerSeeker engine status</h1><div class=""muted"">Last cycle: {WebUtility.HtmlEncode(lastCycle)}</div></div><span class=""pill"">{WebUtility.HtmlEncode(status)}</span></section>
+        var body = $@"<section class=""hero""><div><h1>CareerSeeker engine status</h1><div class=""muted"">Last cycle: {WebUtility.HtmlEncode(lastCycle)}</div></div><div class=""hero-actions""><span class=""pill"" role=""status"" aria-live=""polite"">{WebUtility.HtmlEncode(status)}</span><a href=""/"">Refresh status</a></div></section>
 {notice}{counterSection}{evidence}{controls}";
         return PageHtml("CareerSeeker", "status", body);
     }
@@ -350,14 +353,14 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
 
     private static string PageHtml(string title, string active, string body)
     {
-        return $@"<!doctype html><html><head><meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width, initial-scale=1""><title>{WebUtility.HtmlEncode(title)}</title>
-<meta http-equiv=""refresh"" content=""5""><style>{DashboardCss}</style></head><body>
-<header class=""top""><div class=""top-inner""><div><div class=""brand"">CareerSeeker</div><div class=""sub"">Local alpha dashboard</div></div><nav class=""nav"">{NavLink("/", "Status", active == "status")}{NavLink("/jobs", "Jobs", active == "jobs")}{NavLink("/applications", "Applications", active == "applications")}{NavLink("/evidence.html", "Evidence", active == "evidence")}</nav></div></header>
-<main class=""shell"">{body}</main></body></html>";
+        return $@"<!doctype html><html lang=""en""><head><meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width, initial-scale=1""><title>{WebUtility.HtmlEncode(title)}</title>
+<style>{DashboardCss}</style></head><body><a class=""skip"" href=""#main-content"">Skip to main content</a>
+<header class=""top""><div class=""top-inner""><div><div class=""brand"">CareerSeeker</div><div class=""sub"">Local beta dashboard</div></div><nav class=""nav"" aria-label=""Primary"">{NavLink("/", "Status", active == "status")}{NavLink("/jobs", "Jobs", active == "jobs")}{NavLink("/applications", "Applications", active == "applications")}{NavLink("/evidence.html", "Evidence", active == "evidence")}</nav></div></header>
+<main class=""shell"" id=""main-content"" tabindex=""-1"">{body}</main></body></html>";
     }
 
     private static string NavLink(string href, string label, bool active) =>
-        $@"<a class=""{(active ? "active" : "")}"" href=""{href}"">{WebUtility.HtmlEncode(label)}</a>";
+        $@"<a class=""{(active ? "active" : "")}"" href=""{href}""{(active ? @" aria-current=""page""" : "")}>{WebUtility.HtmlEncode(label)}</a>";
 
     private string ControlsHtml()
     {
@@ -539,7 +542,7 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
     public async Task<string> EvidenceHtmlAsync(CancellationToken ct = default)
     {
         if (_evidence is null)
-            return "<!doctype html><html><body><p>No dashboard evidence source is configured.</p></body></html>";
+            return "<!doctype html><html lang=\"en\"><body><main><p>No dashboard evidence source is configured.</p></main></body></html>";
 
         var evidence = await _evidence.LoadAsync(ct).ConfigureAwait(false);
         var auditText = evidence.AuditOk
@@ -565,10 +568,10 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
 {MetricCard("Cycles", evidence.RecentCycles.Count)}
 </section>
 <h2>Recent persisted cycles</h2>
-<div class=""table-wrap""><table><thead><tr><th>Completed</th><th>Boards</th><th>Discovered</th><th>Quarantined</th><th>Rejected</th><th>Drafted</th><th>Errors</th><th>Reason codes</th><th>Cycle id</th></tr></thead>
+<div class=""table-wrap"" tabindex=""0"" role=""region"" aria-label=""Recent persisted cycles table""><table><caption class=""sr-only"">Recent persisted engine cycles</caption><thead><tr><th scope=""col"">Completed</th><th scope=""col"">Boards</th><th scope=""col"">Discovered</th><th scope=""col"">Quarantined</th><th scope=""col"">Rejected</th><th scope=""col"">Drafted</th><th scope=""col"">Errors</th><th scope=""col"">Reason codes</th><th scope=""col"">Cycle id</th></tr></thead>
 <tbody>{cycleRows}</tbody></table></div>
 <h2>Recent audit events</h2>
-<div class=""table-wrap""><table><thead><tr><th>Seq</th><th>Time</th><th>Actor</th><th>Kind</th><th>Entity</th><th>Id</th></tr></thead>
+<div class=""table-wrap"" tabindex=""0"" role=""region"" aria-label=""Recent audit events table""><table><caption class=""sr-only"">Recent audit events</caption><thead><tr><th scope=""col"">Seq</th><th scope=""col"">Time</th><th scope=""col"">Actor</th><th scope=""col"">Kind</th><th scope=""col"">Entity</th><th scope=""col"">Id</th></tr></thead>
 <tbody>{eventRows}</tbody></table></div>
 <h2>Evidence views</h2><div class=""links""><a href=""/applications"">Recent applications</a><a href=""/jobs"">Recent jobs</a><a href=""/evidence"">audit JSON</a></div>";
         return PageHtml("CareerSeeker Evidence", "evidence", body);
@@ -597,7 +600,7 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
     public async Task<string> ApplicationsHtmlAsync(CancellationToken ct = default)
     {
         if (_evidence is null)
-            return "<!doctype html><html><body><p>No application evidence source is configured.</p></body></html>";
+            return "<!doctype html><html lang=\"en\"><body><main><p>No application evidence source is configured.</p></main></body></html>";
 
         var evidence = await _evidence.LoadAsync(ct).ConfigureAwait(false);
         var rows = evidence.RecentApplications.Count == 0
@@ -609,7 +612,7 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
                 IsServableDocumentPath)));
 
         var body = $@"<section class=""hero""><div><h1>Recent applications</h1><div class=""muted"">{evidence.RecentApplications.Count} applications shown</div></div><a href=""/"">Back to status</a></section>
-<div class=""table-wrap""><table><thead><tr><th>State</th><th>Job</th><th>Company</th><th>Score</th><th>Draft</th><th>Updated</th><th>Links</th><th>Controls</th></tr></thead>
+<div class=""table-wrap"" tabindex=""0"" role=""region"" aria-label=""Recent applications table""><table><caption class=""sr-only"">Recent applications and local controls</caption><thead><tr><th scope=""col"">State</th><th scope=""col"">Job</th><th scope=""col"">Company</th><th scope=""col"">Score</th><th scope=""col"">Draft</th><th scope=""col"">Updated</th><th scope=""col"">Links</th><th scope=""col"">Controls</th></tr></thead>
 <tbody>{rows}</tbody></table></div>";
         return PageHtml("CareerSeeker Applications", "applications", body);
     }
@@ -656,7 +659,7 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
     }
 
     private static string ControlButton(long applicationId, string action, string token, string label, bool danger = false) =>
-        $@"<form class=""{(danger ? "danger" : "")}"" method=""post"" action=""/controls/application""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><input type=""hidden"" name=""applicationId"" value=""{applicationId}""><input type=""hidden"" name=""action"" value=""{WebUtility.HtmlEncode(action)}""><button type=""submit"">{WebUtility.HtmlEncode(label)}</button></form>";
+        $@"<form class=""{(danger ? "danger" : "")}"" method=""post"" action=""/controls/application""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><input type=""hidden"" name=""applicationId"" value=""{applicationId}""><input type=""hidden"" name=""action"" value=""{WebUtility.HtmlEncode(action)}""><button type=""submit"" aria-label=""{WebUtility.HtmlEncode(label)} application {applicationId}"">{WebUtility.HtmlEncode(label)}</button></form>";
 
     private static string LinksHtml(ApplicationSummaryRow row, string token, Func<string?, bool> canServeDocument)
     {
@@ -715,7 +718,7 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
     public async Task<string> JobsHtmlAsync(CancellationToken ct = default)
     {
         if (_evidence is null)
-            return "<!doctype html><html><body><p>No job evidence source is configured.</p></body></html>";
+            return "<!doctype html><html lang=\"en\"><body><main><p>No job evidence source is configured.</p></main></body></html>";
 
         var evidence = await _evidence.LoadAsync(ct).ConfigureAwait(false);
         var rows = evidence.RecentJobs.Count == 0
@@ -723,7 +726,7 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
             : string.Concat(evidence.RecentJobs.Select(JobRowHtml));
 
         var body = $@"<section class=""hero""><div><h1>Recent jobs</h1><div class=""muted"">{evidence.RecentJobs.Count} jobs shown</div></div><a href=""/"">Back to status</a></section>
-<div class=""table-wrap""><table><thead><tr><th>ID</th><th>Job</th><th>Company</th><th>Score</th><th>Source</th><th>Remote</th><th>Comp</th><th>Updated</th><th>Flags</th><th>Links</th></tr></thead>
+<div class=""table-wrap"" tabindex=""0"" role=""region"" aria-label=""Recent jobs table""><table><caption class=""sr-only"">Recent jobs and ranking evidence</caption><thead><tr><th scope=""col"">ID</th><th scope=""col"">Job</th><th scope=""col"">Company</th><th scope=""col"">Score</th><th scope=""col"">Source</th><th scope=""col"">Remote</th><th scope=""col"">Comp</th><th scope=""col"">Updated</th><th scope=""col"">Flags</th><th scope=""col"">Links</th></tr></thead>
 <tbody>{rows}</tbody></table></div>";
         return PageHtml("CareerSeeker Jobs", "jobs", body);
     }

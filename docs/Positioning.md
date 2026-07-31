@@ -37,7 +37,7 @@ Line references are for the B8 source snapshot and should be refreshed whenever 
 | S05 | “Prompt-injection signals quarantine a posting before model/action work.” | PROVEN | Quarantine branch precedes scorer/cap work; identified-feed harness. | `src/Engine/EngineCore.cs:236`, `tests/EngineHarness/Program.cs:734` |
 | S06 | “Job postings, resumes, and web pages are treated as data, not instructions.” | PROVEN | Prompt quarantine encoding across Tailor, onboarding, Researcher, and verifier; adversarial fixtures. | `src/Tailor/GatewayTailorModel.cs:83`, `src/Engine/BetaSetupWebFlow.cs:1009` |
 | S07 | “A successful draft is not repeated after a crash-window lost commit.” | PROVEN | Fresh-process and scheduled-tick recovery assertions. | `src/Pipeline/ApplicationPipeline.cs:288`, `tests/EngineHarness/Program.cs:546`, `tests/EngineHarness/Program.cs:589` |
-| S08 | “Dashboard status does not claim a viewer is a running engine.” | PROVEN | Viewer-only string and state-transition assertions. | `src/Engine/Host.cs:271`, `tests/EngineHarness/Program.cs:616` |
+| S08 | “Dashboard status does not claim a viewer is a running engine.” | PROVEN | Viewer-only string and state-transition assertions. | `src/Engine/Host.cs:274`, `tests/EngineHarness/Program.cs:616` |
 
 ## Privacy and control claims
 
