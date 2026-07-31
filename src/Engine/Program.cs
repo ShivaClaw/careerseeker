@@ -25,6 +25,8 @@ if (mode.Equals("setup", StringComparison.OrdinalIgnoreCase))
     return await AlphaSetupBridge.RunAsync(args).ConfigureAwait(false);
 if (mode.Equals("alpha", StringComparison.OrdinalIgnoreCase))
     return await RunAlphaAsync().ConfigureAwait(false);
+if (mode.Equals("run", StringComparison.OrdinalIgnoreCase))
+    return await RunEngineAsync().ConfigureAwait(false);
 if (mode.Equals("dashboard", StringComparison.OrdinalIgnoreCase))
     return await RunDashboardAsync().ConfigureAwait(false);
 if (mode.Equals("draft-job", StringComparison.OrdinalIgnoreCase))
@@ -254,6 +256,182 @@ async Task<int> RunAlphaAsync()
     var audit = await store.VerifyAuditAsync().ConfigureAwait(false);
     Console.WriteLine($"  audit chain: {(audit.Ok ? "ok" : "FAILED")}");
     return counters.Errors == 0 && counters.Drafted == 1 && audit.Ok ? 0 : 1;
+}
+
+/// <summary>
+/// The engine as a user is meant to experience it: a real Scout sweep of real boards on a timer, scored,
+/// gated, and drafted, with the dashboard reporting the loop's actual state. Every other long-running mode
+/// in this file either fabricates its postings (<c>demo</c>) or attaches no engine at all (<c>dashboard</c>).
+/// </summary>
+async Task<int> RunEngineAsync()
+{
+    var port = IntArg("--port", 7777);
+    var intervalSeconds = IntArg("--interval-seconds", 900);
+    var once = HasFlag("--once");
+    var dryRun = HasFlag("--dry-run");
+    var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
+    var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
+    var jdDirectory = StringArg("--jd-dir")
+                      ?? Path.Combine(Path.GetDirectoryName(dbPath) ?? ".appdata", "job-descriptions");
+    var auditOutPath = StringArg("--audit-out") ?? Path.Combine("output", "careerseeker-audit.json");
+    var packageOutPath = StringArg("--package-out") ?? Path.Combine("output", "careerseeker-alpha-package.zip");
+    var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
+    var keyVaultPath = StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi");
+    var vaultPath = StringArg("--vault") ?? Path.Combine(".appdata", "oauth", "gmail-token.dpapi");
+    var clientPath = StringArg("--client") ?? DefaultGoogleOAuthClientPath();
+    var llmMode = StringArg("--llm") ?? "byok";
+    var email = StringArg("--email");
+    var gateSemanticCandidates = IntArg("--gate-semantic-candidates",
+        llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase) ? 3 : 0);
+    var maxDraftsPerCycle = IntArg("--max-drafts-per-cycle", 10);
+
+    var boardInputs = BoardArgValues().ToList();
+    if (boardInputs.Count == 0)
+        boardInputs.AddRange(DefaultLiveBoardInputs());
+
+    var boards = new List<CompanyBoard>();
+    foreach (var input in boardInputs)
+    {
+        if (!BoardRegistry.TryParse(input, out var board))
+            return Fail($"run could not parse board '{input}'. Use --board greenhouse:remotecom, --board lever:mistral, or a public board URL.");
+        boards.Add(board);
+    }
+
+    var dbDir = Path.GetDirectoryName(dbPath);
+    if (!string.IsNullOrWhiteSpace(dbDir)) Directory.CreateDirectory(dbDir);
+    Directory.CreateDirectory(artifactsPath);
+    Directory.CreateDirectory(jdDirectory);
+
+    await using var store = SqliteSeekerStore.ForFile(dbPath);
+    await store.InitializeAsync().ConfigureAwait(false);
+    await ReconcileStartupAsync(store).ConfigureAwait(false);
+    var profileId = await SeedProfileOnceAsync(store, "alpha.profileId").ConfigureAwait(false);
+
+    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(IntArg("--http-timeout-seconds", 60)) };
+
+    IGmailDraftClient gmail;
+    if (dryRun)
+    {
+        gmail = new DemoGmailDraftClient();
+        email ??= "dry-run@careerseeker.app";
+    }
+    else
+    {
+        if (string.IsNullOrWhiteSpace(clientPath) || !File.Exists(clientPath))
+            return Fail($"run cannot find OAuth client JSON at '{clientPath ?? "<none>"}'. Pass --dry-run to loop without Gmail.");
+
+        var oauthClient = GoogleOAuthClient.Load(clientPath);
+        var tokens = new GoogleOAuthTokenSource(http, oauthClient, new DpapiTokenVault(vaultPath), allowInteractive: true,
+            authorizationUrlSink: url =>
+            {
+                Console.WriteLine("Open this URL if the browser did not appear:");
+                Console.WriteLine(url);
+            });
+
+        await tokens.GetTokenAsync().ConfigureAwait(false);
+        var live = new GmailDraftClient(http, tokens);
+        await live.PreflightDraftAccessAsync().ConfigureAwait(false);
+        email ??= await live.GetProfileEmailAsync().ConfigureAwait(false);
+        gmail = live;
+    }
+
+    var gateway = BuildGateway(llmMode, envFilePath, keyVaultPath, http, out var keySourceName, out var byokProviders);
+
+    var scoutOptions = ScoutOptions.Default with
+    {
+        MaxConcurrency = IntArg("--max-concurrency", 4),
+        PerHostConcurrency = IntArg("--per-host-concurrency", 1),
+        MinDelayPerHost = TimeSpan.FromMilliseconds(IntArg("--min-delay-ms", 300)),
+        RequestTimeout = TimeSpan.FromSeconds(IntArg("--http-timeout-seconds", 30)),
+    };
+
+    using var fetcher = new HttpBoardFetcher(scoutOptions);
+    var feed = new ScoutJobFeed(
+        new SeekerSvc.Scout.Scout(fetcher, scoutOptions),
+        new ScoutFeedOptions(
+            boards,
+            scoutOptions,
+            jdDirectory,
+            TimeSpan.FromSeconds(IntArg("--discovery-timeout-seconds", 240))),
+        WriteJobDescriptionArtifact);
+
+    var counters = new EngineCounters();
+    var cycle = BuildDemoCycleCore(
+        store,
+        counters,
+        gmail,
+        new StorePostingSource(store, (path, _) => ReadJobDescriptionArtifactAsync(path)),
+        "CareerSeeker Alpha",
+        email!,
+        feed,
+        "run",
+        "Discovered",
+        profileId,
+        gateway,
+        tailorOverride: null,
+        GateOptionsFrom(gateSemanticCandidates),
+        artifactsPath,
+        maxDraftsPerCycle);
+
+    Console.WriteLine("CareerSeeker engine");
+    Console.WriteLine($"  db: {dbPath}");
+    Console.WriteLine($"  artifacts: {artifactsPath}");
+    Console.WriteLine($"  job descriptions: {jdDirectory}");
+    Console.WriteLine("  boards: " + string.Join(", ", boards.Select(b => $"{b.Ats}:{b.Handle}")));
+    Console.WriteLine($"  llm mode: {llmMode}");
+    if (llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase))
+        Console.WriteLine($"  BYOK providers ({keySourceName}): " + string.Join(", ", byokProviders));
+    Console.WriteLine($"  gmail: {(dryRun ? "dry run (no drafts created)" : email)}");
+    Console.WriteLine($"  interval: {intervalSeconds}s");
+    Console.WriteLine($"  max drafts per cycle: {(maxDraftsPerCycle > 0 ? maxDraftsPerCycle.ToString() : "unlimited")}");
+    Console.WriteLine("  NOTE: CV-match and growth sub-scores are still placeholder constants; ranking between");
+    Console.WriteLine("        real postings is not yet meaningful. The Fabrication Gate is unaffected.");
+
+    if (once)
+    {
+        await cycle.TickAsync().ConfigureAwait(false);
+        PrintCounters(counters);
+        var single = await store.VerifyAuditAsync().ConfigureAwait(false);
+        Console.WriteLine($"  audit chain: {(single.Ok ? "ok" : "FAILED")}");
+        return single.Ok ? 0 : 1;
+    }
+
+    var dashboardActions = BuildDashboardActions(
+        store, clientPath, vaultPath, gmailControlRequested: !dryRun,
+        dbPath, artifactsPath, jdDirectory, auditOutPath, packageOutPath);
+
+    await using var host = new EngineHost(
+        cycle,
+        counters,
+        TimeSpan.FromSeconds(intervalSeconds),
+        port,
+        dashboardActions,
+        LocalDashboardEvidence.FromStore(store),
+        new[] { artifactsPath });
+
+    using var stop = new CancellationTokenSource();
+    var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    Console.CancelKeyPress += OnCancel;
+    try
+    {
+        host.Start();
+        Console.WriteLine($"Dashboard: http://localhost:{port}/");
+        Console.WriteLine("Press Enter or Ctrl+C to stop.");
+        var readLine = Task.Run(Console.ReadLine, stop.Token);
+        await Task.WhenAny(readLine, stopped.Task).ConfigureAwait(false);
+        return 0;
+    }
+    finally
+    {
+        Console.CancelKeyPress -= OnCancel;
+        stop.Cancel();
+    }
+
+    void OnCancel(object? sender, ConsoleCancelEventArgs e)
+    {
+        e.Cancel = true;
+        stopped.TrySetResult();
+    }
 }
 
 async Task<int> RunResearchCompanyAsync()
@@ -1210,7 +1388,8 @@ EngineCycle BuildDemoCycleCore(
     LlmGateway? gateway = null,
     ITailor? tailorOverride = null,
     GateVerificationOptions? gateOptions = null,
-    string? artifactDirectory = null)
+    string? artifactDirectory = null,
+    int maxActionsPerCycle = 0)
 {
     gateway ??= BuildFakeGateway();
 
@@ -1248,7 +1427,8 @@ EngineCycle BuildDemoCycleCore(
         feed,
         new DemoSemanticScorer(),
         pipeline,
-        new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email, profileId, companyHandle, companyName),
+        new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email, profileId, companyHandle, companyName,
+            maxActionsPerCycle),
         counters);
 }
 
@@ -1422,6 +1602,7 @@ void PrintCounters(EngineCounters counters)
     Console.WriteLine($"  drafted: {counters.Drafted}");
     Console.WriteLine($"  blocked: {counters.Blocked}");
     Console.WriteLine($"  rejected: {counters.Rejected}");
+    Console.WriteLine($"  quarantined (injection): {counters.Quarantined}");
     Console.WriteLine($"  errors: {counters.Errors}");
 }
 
@@ -1519,6 +1700,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe setup [--smoke] [--skip-gmail] [--skip-ai] [--ai-provider gemini|anthropic|manual] [--gemini-model gemini-3.1-flash-lite] [--anthropic-model claude-haiku-4-5] [--client resources/google-client.json] [--port 7777]");
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
+    Console.WriteLine("  SeekerSvc.Engine.exe run [--once] [--dry-run] [--board greenhouse:remotecom] [--board lever:mistral] [--port 7777] [--interval-seconds 900] [--max-drafts-per-cycle 10] [--llm byok|fake] [--discovery-timeout-seconds 240] [--gate-semantic-candidates 3] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe dashboard [--once] [--port 7777] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe draft-job --job-id 123 [--dry-run] [--llm fake|byok] [--gate-semantic-candidates 3] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe scout-boards [--board greenhouse:remotecom] [--board lever:mistral] [--db .appdata/careerseeker-alpha.db] [--jd-dir .appdata/job-descriptions] [--timeout-seconds 240]");

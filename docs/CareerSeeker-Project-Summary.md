@@ -380,12 +380,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 341 passed, 0 failed.
+Total: 364 passed, 0 failed.
 
 | Harness                   | Result              |
 | ------------------------- | ------------------- |
 | `Slice`                   | 28 passed, 0 failed |
-| `EngineHarness`           | 97 passed, 0 failed |
+| `EngineHarness`           | 120 passed, 0 failed |
 | `ResearcherHarness`       | 57 passed, 0 failed |
 | `HookHarness`             | 16 passed, 0 failed |
 | `StoreParityHarness`      | 22 passed, 0 failed |
@@ -661,6 +661,15 @@ Status: substantially complete.
 - Current PDF renderer is ATS-clean text; not yet a polished HTML/Chromium resume template.
 - No Windows service/tray composition root yet.
 - Live ATS feeds are volatile; some configured boards can be empty while still reachable.
+- `ISemanticScorer` is still a placeholder constant in every mode, including `run`. `Stage.QuickScore`
+  exists in Gateway routing but has no adapter, so CV-match and growth sub-scores are identical for every
+  posting and ranking between real jobs is not yet meaningful. The Fabrication Gate is unaffected — it
+  verifies claims, not scores — but "which jobs got drafted" is currently close to feed order among
+  everything above the scam floor. This is the largest remaining gap between the alpha and its premise.
+- Scout's prompt-injection heuristic fired on roughly one in six live postings in a 252-job sweep
+  (2026-07-28). Those are quarantined, so the failure mode is silently skipping legitimate jobs rather
+  than processing hostile ones. The false-positive rate needs measuring before the heuristic is trusted
+  as a silent filter.
 
 ## Recommendations For Next Agents
 
