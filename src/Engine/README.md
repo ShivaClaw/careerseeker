@@ -280,5 +280,5 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Not Yet Built
 
 - Windows Service host, tray controls, and broader dashboard polish around `EngineHost`.
-- Full onboarding UI, WinUI tray, OAuth/CASA, installer, and code signing.
+- Native WinUI onboarding/tray shell, OAuth/CASA production verification, installer, and code signing.
 

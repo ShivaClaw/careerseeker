@@ -6,6 +6,40 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## B6 - Onboarding v2 local web flow
+
+Branch: `codex/beta-M6-onboarding-v2`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-07-30 |
+|---|---|---|
+| `setup` defaults to a loopback browser flow and the previous wizard remains an explicit console fallback. | `rg -n "HasFlag\\(\"--console\"\\)|BetaSetupWebFlow.RunAsync|setup --console" src\Engine\Program.cs src\Engine\BetaSetupWebFlow.cs` | Normal setup routes to `BetaSetupWebFlow`; `setup --console` routes to the prior bridge. |
+| The local flow covers welcome/safety, package verification, resume, provider, extraction consent, per-claim review, Gmail, doctor, and first run. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | `159 passed, 0 failed`; the offline smoke traversed all ten HTTP steps, including a synthetic TXT upload and local extraction, with zero provider/Gmail calls. |
+| AI-extracted facts cannot be promoted above `stated`; every accepted claim is individually editable/droppable and retains resume provenance/evidence. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | A fixture claiming `verified` normalized to `stated`; every fixture claim normalized to `sourceDoc=resume-ai`/`origin=ai-extracted-resume`; instruction-like resume text remained inert data. |
+| Package and OAuth checks fail closed, and the web surface is bounded to loopback forms. | `rg -n "VerifyPackageAsync|IsInstalledDesktopOAuthClient|FixedTimeEquals|PromptQuarantine.Encode|Content-Security-Policy|MaxRequestBytes" src\Engine\BetaSetupWebFlow.cs` | SHA-256 mismatch blocks continuation; non-installed OAuth clients are refused; CSRF, loopback/Host checks, CSP/no-store, 21 MiB request cap, and prompt encoding are present. The HTTP smoke rejected a foreign Host and asserted safety headers. |
+| Provider failure semantics preserve existing vaults: quota-authenticated credentials are retained; timeout/5xx storage requires a separate unverified action. | `rg -n "CredentialAuthenticated|CanSaveWithoutSuccessfulTest|preserved unchanged|saveUnverified" src\Engine\BetaSetupWebFlow.cs` | No failed provider test deletes or overwrites the previous vault. No provider test was executed in B6 verification. |
+| Count/docs/verifier moved together to 407. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` | `Offline total: 407 passed, 0 failed`. |
+| The packaged setup executable traverses the web flow from a clean commit. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | At `0ecd79eba3b8f9b5e9596c4757f9472c4d3f0cf8`: 407/0; package self-check verified 51 checksums and traversed welcome through first-run; provider calls 0, Gmail calls/drafts 0. ZIP SHA-256 `76AC122C106D9D9C732A292E71FECC8564AE94B27AE820F8B73270CECD44DEEB`, 65,057,904 bytes. |
+| Frozen Android/relay paths are absent from the milestone diff. | `git diff --name-only origin/main...codex/beta-M6-onboarding-v2 \| rg '^(relay/|docs/Sync-Protocol\.md$|docs/sync-vectors/|.*Android|.*android)'` | Expected: no output, exit 1 from `rg`. |
+
+### Verification boundary
+
+The in-app browser completed the ten screens against an isolated ignored
+workspace, imported one manual test claim, skipped Gmail, ran doctor, and
+finished without starting an engine. The packaged smoke used a synthetic
+resume and manual provider/Gmail skips. No real provider credential, resume,
+Gmail account, OAuth callback, or live first-run draft path was exercised.
+
+The first clean package attempt stopped on a stale walkthrough heading before
+the setup executable ran; no pass is claimed for that attempt. The assertion
+was corrected in commit `0ecd79e`, and the full clean gate then passed.
+
+No Gmail draft, BYOK/provider call, email, public ATS call, deployment,
+scheduled-task registration, Cloudflare action, Google/Play console change,
+Android/relay/sync-vector change, off-repo site edit, dependency addition, or
+secret print was performed.
+
 ## B5 - Service-grade scheduled-task host
 
 Branch: `codex/beta-M5-service-grade`
