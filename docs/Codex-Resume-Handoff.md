@@ -93,6 +93,19 @@ two stale launcher-copy assertions: the launchers now truthfully say
 cancelled`. The assertions were updated to the shipped copy. No passing package
 result is claimed from that failed attempt.
 
+Clean package verification then passed at
+`f36a4ac80e800127d61a408635767c43581321a9`:
+
+```text
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+=== Offline total: 397 passed, 0 failed ===
+Published executable demo: errors: 0
+Package trusted-tester alpha ZIP: created
+Packaged release self-check, dashboard/task dry-runs, audit/evidence export,
+and evidence import completed.
+CareerSeeker alpha verification complete.
+```
+
 Verification boundary: no native Windows Service/SCM or tray UI was built.
 The Windows at-logon task definition was validated but never registered, so no
 real reboot result is claimed. The fallback is wired and process-verified;
