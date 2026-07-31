@@ -667,8 +667,11 @@ public static class AlphaSetupBridge
             "--llm", File.Exists(ByokVaultPath) ? "byok" : "fake",
         };
 
-        // Without a Gmail token the loop must not try to open an OAuth window from a background process.
-        if (!gmailConnected) args.Add("--dry-run");
+        // A live draft needs both Gmail and a real BYOK provider. If either is absent, keep the engine
+        // useful but discovery-only: never pair the demo/fake model with real Gmail, and never record a
+        // simulated Gmail operation as DRAFTED.
+        var draftingReady = gmailConnected && File.Exists(ByokVaultPath);
+        if (!draftingReady) args.Add("--dry-run");
         else args.Add("--gmail-control");
 
         if (!string.IsNullOrWhiteSpace(googleClientPath))
@@ -682,8 +685,8 @@ public static class AlphaSetupBridge
         Process.Start(new ProcessStartInfo($"http://localhost:{port}/") { UseShellExecute = true });
         Console.WriteLine($"Engine starting; dashboard at http://localhost:{port}/");
         Console.WriteLine("The first sweep runs immediately. Discovery can take a minute before jobs appear.");
-        if (!gmailConnected)
-            Console.WriteLine("Gmail is not connected, so this run will not create drafts.");
+        if (!draftingReady)
+            Console.WriteLine("Gmail and a verified AI provider are both required for drafts; this run is discovery-only.");
     }
 
     private static string ReadSecretLikeLine()

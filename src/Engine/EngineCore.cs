@@ -105,7 +105,13 @@ public sealed record EngineOptions(
     /// Gmail drafts in a single tick would be indistinguishable from a runaway. Postings over the cap are
     /// already stored, so the next tick picks them up. 0 means no ceiling (the offline fixtures).
     /// </summary>
-    int MaxActionsPerCycle = 0);
+    int MaxActionsPerCycle = 0,
+    /// <summary>
+    /// Whether an <see cref="Dispatch.Act"/> decision may enter Tailor/Gate/Dispatcher. False is the
+    /// honest discovery-only path: jobs are stored and scored, but no simulated or real draft is
+    /// recorded. This is what <c>run --dry-run</c> uses.
+    /// </summary>
+    bool DraftsEnabled = true);
 
 /// <summary>
 /// One discovery→decision→action cycle, the loop body the engine runs on a schedule. It does for a batch
@@ -183,6 +189,13 @@ public sealed class EngineCycle
                     continue;
                 }
 
+                // A board sweep is periodic and upsert returns the same job id on every sighting.
+                // Once that job has entered the application lifecycle, never admit it again: doing so
+                // would create a fresh application and potentially another Gmail draft every interval.
+                // Skipping before the cap also lets later, never-processed jobs advance on the next tick.
+                if (await _store.HasApplicationForJobAsync(write.JobId, ct).ConfigureAwait(false))
+                    continue;
+
                 // Store everything, act on a bounded slice. Persisting past the cap keeps discovery
                 // complete (and dedupe correct) while the action budget stays predictable.
                 if (cap > 0 && actionsTaken >= cap)
@@ -190,6 +203,12 @@ public sealed class EngineCycle
 
                 var sem = await _semantic.ScoreAsync(item.Posting, ct).ConfigureAwait(false);
                 var score = SeekerSvc.Scorer.Scorer.Score(item.Posting, _opt.Preferences, sem);
+
+                // Dry-run/discovery-only means exactly that. In particular, do not route an Act
+                // decision through a fake Gmail client and then label the result DRAFTED: no Gmail
+                // draft exists, and the dashboard must never say otherwise.
+                if (score.Dispatch == Dispatch.Act && !_opt.DraftsEnabled)
+                    continue;
 
                 var job = new PipelineJob(
                     write.JobId,

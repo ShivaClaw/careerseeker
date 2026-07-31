@@ -42,6 +42,13 @@ public interface ISeekerStore
     Task<IReadOnlyList<ApplicationSummaryRow>> GetRecentApplicationsAsync(int limit = 25, CancellationToken ct = default);
 
     /// <summary>
+    /// Whether this job has already entered the application lifecycle. The unattended engine uses this
+    /// to make periodic discovery idempotent: seeing the same board posting again must never create a
+    /// second Gmail draft or consume the per-cycle action budget twice.
+    /// </summary>
+    Task<bool> HasApplicationForJobAsync(long jobId, CancellationToken ct = default);
+
+    /// <summary>
     /// Application ids currently sitting in one of <paramref name="states"/>. Used by the crash-recovery
     /// reconcile sweep to find applications potentially stranded mid-side-effect (e.g. SUBMITTING/READY)
     /// without loading every application row.

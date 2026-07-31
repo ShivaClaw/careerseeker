@@ -39,10 +39,11 @@ Most testers should start here:
 Setup creates no Gmail draft. Live draft helpers still require typing `LIVE` before creating one Gmail draft for
 review.
 
-To start CareerSeeker again later, double-click `Advanced Tools/Start-CareerSeeker-Alpha.cmd`. If Gmail is not
-connected, the engine still discovers, scores, and stores jobs; it just does not create drafts. One cycle drafts
-at most 10 applications by default, so a large first sweep is spread over several cycles rather than filling
-Gmail in one go.
+To start CareerSeeker again later, double-click `Advanced Tools/Start-CareerSeeker-Alpha.cmd`. If Gmail or a
+verified AI provider is not connected, the engine still discovers, scores, and stores jobs in discovery-only
+mode; it does not create or simulate drafts. One cycle drafts at most 10 applications by default, so a large
+first sweep is spread over several cycles rather than filling Gmail in one go. A posting that already entered
+the application lifecycle is not admitted again on later sweeps.
 
 Provider setup retests saved keys before resume extraction. Definite authentication and permission failures are
 not retained; quota-authenticated keys are retained, while timeout and provider-server failures may be saved only

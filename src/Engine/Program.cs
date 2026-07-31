@@ -285,6 +285,9 @@ async Task<int> RunEngineAsync()
         llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase) ? 3 : 0);
     var maxDraftsPerCycle = IntArg("--max-drafts-per-cycle", 10);
 
+    if (!dryRun && !llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase))
+        return Fail("run refuses a fake LLM on the live Gmail path. Configure BYOK, or pass --dry-run for discovery-only operation.");
+
     var boardInputs = BoardArgValues().ToList();
     if (boardInputs.Count == 0)
         boardInputs.AddRange(DefaultLiveBoardInputs());
@@ -371,7 +374,8 @@ async Task<int> RunEngineAsync()
         tailorOverride: null,
         GateOptionsFrom(gateSemanticCandidates),
         artifactsPath,
-        maxDraftsPerCycle);
+        maxDraftsPerCycle,
+        draftsEnabled: !dryRun);
 
     Console.WriteLine("CareerSeeker engine");
     Console.WriteLine($"  db: {dbPath}");
@@ -1389,7 +1393,8 @@ EngineCycle BuildDemoCycleCore(
     ITailor? tailorOverride = null,
     GateVerificationOptions? gateOptions = null,
     string? artifactDirectory = null,
-    int maxActionsPerCycle = 0)
+    int maxActionsPerCycle = 0,
+    bool draftsEnabled = true)
 {
     gateway ??= BuildFakeGateway();
 
@@ -1428,7 +1433,7 @@ EngineCycle BuildDemoCycleCore(
         new DemoSemanticScorer(),
         pipeline,
         new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email, profileId, companyHandle, companyName,
-            maxActionsPerCycle),
+            maxActionsPerCycle, draftsEnabled),
         counters);
 }
 

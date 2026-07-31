@@ -89,6 +89,7 @@ try {
     }
 
     if ($Engine) {
+        $byokReady = Test-Path -LiteralPath $ByokVaultPath
         $engineArgs = @(
             "run",
             "--db", $DbPath,
@@ -98,16 +99,16 @@ try {
             "--port", $Port.ToString(),
             "--interval-seconds", $IntervalSeconds.ToString(),
             "--key-vault", $ByokVaultPath,
-            # No provider key means no tailoring model; the loop still discovers, scores, and stores.
-            "--llm", $(if (Test-Path -LiteralPath $ByokVaultPath) { "byok" } else { "fake" })
+            # No provider key means no tailoring model; the discovery-only loop still stores and scores.
+            "--llm", $(if ($byokReady) { "byok" } else { "fake" })
         )
 
-        # Drafting needs both halves of the Gmail setup: a stored token AND the OAuth client to refresh it
-        # against. With either missing the loop must not pop an OAuth window from a double-click launcher,
-        # so it runs draft-free. Checking only the token vault would let `run` fail closed on a missing
-        # client and leave the tester with no engine at all.
+        # Drafting needs both Gmail files and a real BYOK provider. With any piece missing, keep the
+        # engine useful but discovery-only: never pair the demo/fake model with a real Gmail account,
+        # and never record a simulated Gmail operation as DRAFTED.
         $gmailReady = (Test-Path -LiteralPath $GmailVaultPath) -and (Test-Path -LiteralPath $GmailClientPath)
-        if (-not $gmailReady) {
+        $draftingReady = $gmailReady -and $byokReady
+        if (-not $draftingReady) {
             $engineArgs += "--dry-run"
         }
     }

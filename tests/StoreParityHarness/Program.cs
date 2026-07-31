@@ -55,6 +55,9 @@ Check("job summary lookup returns the selected job",
 Check("application artifact metadata persists into app and summary rows",
     sqlite.App is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", AnswersJson: "{\"q\":\"a\"}" } &&
     sqlite.Summaries[0] is { ResumePath: "resume.pdf", CoverPath: "cover.pdf", HasAnswers: true });
+Check("per-job application lookup is false before creation and true after in both stores",
+    !sqlite.HasApplicationBefore && sqlite.HasApplicationAfter &&
+    !memory.HasApplicationBefore && memory.HasApplicationAfter);
 Check("state-set id lookup returns the matching application in both stores",
     sqlite.IdsMatching.Count == 1 && sqlite.IdsMatching[0] == sqlite.App?.Id &&
     sqlite.IdsMatching.SequenceEqual(memory.IdsMatching),
@@ -226,7 +229,9 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
         await store.AddClaimAsync(new ClaimRow("c0", profileId, "Title", "Senior Software Engineer", "Verified"));
         await store.AddClaimAsync(new ClaimRow("c1", profileId, "Skill", "Go", "Weak", "resume.pdf"));
 
+        var hasApplicationBefore = await store.HasApplicationForJobAsync(first.JobId);
         var appId = await store.CreateApplicationAsync(first.JobId, "L1");
+        var hasApplicationAfter = await store.HasApplicationForJobAsync(first.JobId);
         await store.TransitionApplicationAsync(appId, "SCREENED", "engine", "{\"to\":\"SCREENED\"}");
         await store.AppendEventAsync(new EventInput("engine", "store_parity", "job", first.JobId.ToString(), "{\"ok\":true}"));
         await store.SetConfigAsync("autonomy.level", "L1");
@@ -263,6 +268,8 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
             PendingAfterDelete: pendingAfterDelete,
             Attempts: attempts,
             PausedFromSeen: pausedFromSeen,
+            HasApplicationBefore: hasApplicationBefore,
+            HasApplicationAfter: hasApplicationAfter,
             IdsMatching: idsMatching,
             IdsNoneMatching: idsNoneMatching,
             IdsEmptyInput: idsEmptyInput,
@@ -324,6 +331,8 @@ sealed record StoreSnapshot(
     string? PendingAfterDelete,
     IReadOnlyList<EffectAttemptRow> Attempts,
     string? PausedFromSeen,
+    bool HasApplicationBefore,
+    bool HasApplicationAfter,
     IReadOnlyList<long> IdsMatching,
     IReadOnlyList<long> IdsNoneMatching,
     IReadOnlyList<long> IdsEmptyInput,
@@ -361,6 +370,8 @@ sealed record StoreSnapshot(
             if (Attempts[i] != other.Attempts[i])
                 return $"attempt[{i}]: {Attempts[i]} != {other.Attempts[i]}";
         if (PausedFromSeen != other.PausedFromSeen) return "paused_from round-trip differs";
+        if (HasApplicationBefore != other.HasApplicationBefore) return "pre-create job application lookup differs";
+        if (HasApplicationAfter != other.HasApplicationAfter) return "post-create job application lookup differs";
         if (!IdsMatching.SequenceEqual(other.IdsMatching)) return "state-set id lookup (matching) differs";
         if (!IdsNoneMatching.SequenceEqual(other.IdsNoneMatching)) return "state-set id lookup (no match) differs";
         if (!IdsEmptyInput.SequenceEqual(other.IdsEmptyInput)) return "state-set id lookup (empty input) differs";

@@ -45,7 +45,8 @@ The engine shell adds:
   This is the only mode that discovers live jobs on a schedule; `demo` uses invented postings and
   `dashboard` attaches no engine at all.
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- run --db .appdata/careerseeker-alpha.db --llm byok`
-  Add `--dry-run` to loop without Gmail, `--once` for a single sweep, and `--board greenhouse:<handle>`
+  Add `--dry-run` for discovery-only operation (store and score, but never create or simulate a draft),
+  `--once` for a single sweep, and `--board greenhouse:<handle>`
   (repeatable) to choose boards. `--max-drafts-per-cycle` (default 10) bounds how many postings one
   tick may draft; the rest are stored and picked up on the next tick.
 - Standalone dashboard over the real local alpha DB. Read-only: it renders what earlier runs stored and
@@ -152,7 +153,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 364 passed, 0 failed.
+- Latest offline harness total: 369 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.

@@ -286,6 +286,13 @@ public sealed class InMemorySeekerStore : ISeekerStore
         finally { _mutex.Release(); }
     }
 
+    public async Task<bool> HasApplicationForJobAsync(long jobId, CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try { return _apps.Values.Any(a => a.JobId == jobId); }
+        finally { _mutex.Release(); }
+    }
+
     public async Task<IReadOnlyList<long>> GetApplicationIdsInStatesAsync(
         IReadOnlyList<string> states, CancellationToken ct = default)
     {

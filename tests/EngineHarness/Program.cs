@@ -210,6 +210,19 @@ DiscoveredJob FixtureDiscovered(string externalId, string title, bool injected) 
     InjectionSignals = injected ? new[] { "ignore-previous-instructions" } : Array.Empty<string>(),
 };
 
+IdentifiedPosting ActionableIdentified(string externalId, bool injected = false)
+{
+    var discovered = FixtureDiscovered(externalId, "Senior Software Engineer", injected);
+    var (company, job) = Ingest.From(discovered);
+    var posting = JobPosting.FromDiscovered(discovered) with
+    {
+        DescriptionText = new string('x', 700) + " Build distributed systems in Go with a specific team and mission.",
+        RecruiterIdentifiable = true,
+        CompanyDomainVerified = true,
+    };
+    return new IdentifiedPosting(posting, company, job, "mailto:jobs@fixture.test", injected);
+}
+
 var prefs = new UserPreferences { Comp = new CompTarget(150000m, 180000m, 220000m), Remote = RemoteStance.Any, Seniority = SeniorityBand.Senior };
 var opt = new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email);
 
@@ -465,6 +478,10 @@ Console.WriteLine("\n[ Scout-backed identified feed ]");
         Check("re-discovering the same board does not duplicate jobs",
             afterSecond.Count(j => j.ExternalId == "fixture-clean") == 1,
             afterSecond.Count(j => j.ExternalId == "fixture-clean").ToString());
+        var applicationsAfterRepeat = await store.GetRecentApplicationsAsync(50);
+        Check("re-discovering an admitted job does not create another application",
+            applicationsAfterRepeat.Count == 1,
+            applicationsAfterRepeat.Count.ToString());
     }
     finally
     {
@@ -479,44 +496,62 @@ Console.WriteLine("\n[ per-cycle action cap ]");
     // The injected posting is placed last on purpose: it is only reached after the action cap has
     // filled, which is where an earlier ordering bug stopped counting quarantines entirely.
     var many = Enumerable.Range(0, 5)
-        .Select(i => FixtureDiscovered("capped-" + i, "Senior Software Engineer", injected: false))
-        .Append(FixtureDiscovered("capped-poisoned", "Staff Engineer", injected: true))
+        .Select(i => ActionableIdentified("capped-" + i))
+        .Append(ActionableIdentified("capped-poisoned", injected: true))
         .ToArray();
 
-    var scout = new SeekerSvc.Scout.Scout(
-        new FixtureBoardFetcher(new Dictionary<string, string> { ["https://fixture.test/board"] = "[]" }),
-        ScoutOptions.Default,
-        new[] { new FixtureAtsProvider(many) });
+    var feed = new FakeIdentifiedFeed(many);
+    var store = await SeededStoreAsync();
+    var capCounters = new EngineCounters();
+    var gmail = new FakeGmail();
+    var pipeline = new ApplicationPipeline(store, tailor, MakeDispatcher(gmail), new GatewaySemanticMatcher(gateway),
+        new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+    var cycle = new EngineCycle(store, feed, new FakeSemantic(), pipeline, opt with { MaxActionsPerCycle = 2 }, capCounters);
 
-    var jdDir = Path.Combine(Path.GetTempPath(), "careerseeker-cap-jd-" + Guid.NewGuid().ToString("N"));
-    Directory.CreateDirectory(jdDir);
-    try
-    {
-        var feed = new ScoutJobFeed(
-            scout,
-            new ScoutFeedOptions(
-                new[] { new CompanyBoard(AtsKind.Greenhouse, "fixture") },
-                ScoutOptions.Default, jdDir, TimeSpan.FromSeconds(30)),
-            (_, _) => null);
+    await cycle.TickAsync();
+    Check("cycle drafts exactly the configured cap", capCounters.Drafted == 2 && gmail.Drafts == 2,
+        $"counter={capCounters.Drafted} gmail={gmail.Drafts}");
+    Check("postings over the cap are still stored for the next cycle",
+        (await store.GetRecentJobsAsync(50)).Count(j => j.ExternalId.StartsWith("capped-")) == 6,
+        (await store.GetRecentJobsAsync(50)).Count(j => j.ExternalId.StartsWith("capped-")).ToString());
+    Check("injection quarantine is still counted after the action cap fills",
+        capCounters.Quarantined == 1, capCounters.Quarantined.ToString());
 
-        var store = await SeededStoreAsync();
-        var capCounters = new EngineCounters();
-        var pipeline = new ApplicationPipeline(store, tailor, MakeDispatcher(new FakeGmail()), new GatewaySemanticMatcher(gateway),
-            new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
-        var cycle = new EngineCycle(store, feed, new FakeSemantic(), pipeline, opt with { MaxActionsPerCycle = 2 }, capCounters);
+    await cycle.TickAsync();
+    Check("next cycle advances to never-admitted jobs instead of redrafting the first cap",
+        capCounters.Drafted == 4 && gmail.Drafts == 4 &&
+        (await store.GetRecentApplicationsAsync(50)).Count == 4,
+        $"drafted={capCounters.Drafted} gmail={gmail.Drafts} apps={(await store.GetRecentApplicationsAsync(50)).Count}");
 
-        await cycle.TickAsync();
-        Check("cycle acts on at most the configured cap", capCounters.Acted <= 2, capCounters.Acted.ToString());
-        Check("postings over the cap are still stored for the next cycle",
-            (await store.GetRecentJobsAsync(50)).Count(j => j.ExternalId.StartsWith("capped-")) == 6,
-            (await store.GetRecentJobsAsync(50)).Count(j => j.ExternalId.StartsWith("capped-")).ToString());
-        Check("injection quarantine is still counted after the action cap fills",
-            capCounters.Quarantined == 1, capCounters.Quarantined.ToString());
-    }
-    finally
-    {
-        try { Directory.Delete(jdDir, recursive: true); } catch (IOException) { }
-    }
+    await cycle.TickAsync();
+    await cycle.TickAsync();
+    Check("settled jobs are never redrafted on later periodic cycles",
+        capCounters.Drafted == 5 && gmail.Drafts == 5 &&
+        (await store.GetRecentApplicationsAsync(50)).Count == 5,
+        $"drafted={capCounters.Drafted} gmail={gmail.Drafts} apps={(await store.GetRecentApplicationsAsync(50)).Count}");
+}
+
+Console.WriteLine("\n[ discovery-only run ]");
+{
+    var store = await SeededStoreAsync();
+    var gmail = new FakeGmail();
+    var countersOnly = new EngineCounters();
+    var pipeline = new ApplicationPipeline(store, tailor, MakeDispatcher(gmail), new GatewaySemanticMatcher(gateway),
+        new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+    var cycle = new EngineCycle(
+        store,
+        new FakeIdentifiedFeed(new[] { ActionableIdentified("discovery-only") }),
+        new FakeSemantic(),
+        pipeline,
+        opt with { DraftsEnabled = false },
+        countersOnly);
+
+    await cycle.TickAsync();
+    Check("discovery-only run stores the job without a simulated draft or application",
+        (await store.GetRecentJobsAsync(50)).Any(j => j.ExternalId == "discovery-only") &&
+        (await store.GetRecentApplicationsAsync(50)).Count == 0 &&
+        countersOnly.Drafted == 0 && countersOnly.Acted == 0 && gmail.Drafts == 0,
+        $"apps={(await store.GetRecentApplicationsAsync(50)).Count} drafted={countersOnly.Drafted} gmail={gmail.Drafts}");
 }
 
 // ── 3) live localhost dashboard over HTTP ──────────────────────────────────────────────────────────
@@ -1496,6 +1531,15 @@ sealed class FixtureAtsProvider : IAtsProvider
     public AtsKind Kind => AtsKind.Greenhouse;
     public string BuildListUrl(CompanyBoard board) => "https://fixture.test/board";
     public IReadOnlyList<DiscoveredJob> Parse(CompanyBoard board, string json) => _jobs;
+}
+sealed class FakeIdentifiedFeed : IIdentifiedJobFeed
+{
+    private readonly IReadOnlyList<IdentifiedPosting> _items;
+    public FakeIdentifiedFeed(IReadOnlyList<IdentifiedPosting> items) => _items = items;
+    public Task<IReadOnlyList<IdentifiedPosting>> DiscoverIdentifiedAsync(CancellationToken ct = default) =>
+        Task.FromResult(_items);
+    public Task<IReadOnlyList<JobPosting>> DiscoverAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<JobPosting>>(_items.Select(i => i.Posting).ToArray());
 }
 sealed class FakeSemantic : ISemanticScorer
 {
