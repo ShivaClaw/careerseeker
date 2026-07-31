@@ -15,10 +15,10 @@
 </head>
 <body>
 <h1>CareerSeeker Autonomy Contract</h1>
-<p><strong>Version:</strong> L1 Drafts alpha (v0.1)<br>
-<strong>Last updated:</strong> 2026-07-20</p>
+<p><strong>Version:</strong> L1 Drafts beta (v0.7)<br>
+<strong>Last updated:</strong> 2026-07-30</p>
 
-<p>This contract defines what CareerSeeker can and cannot do on your behalf in the current L1 Drafts alpha. Every material action is intended to be logged in a local audit trail and reviewable by the user.</p>
+<p>This contract defines what CareerSeeker can and cannot do on your behalf in the current L1 Drafts beta. Every material action is intended to be logged in a local audit trail and reviewable by the user.</p>
 
 <h2>L1 Drafts Mode</h2>
 <p>In L1 Drafts mode, CareerSeeker may:</p>
@@ -66,18 +66,18 @@
 
 <h2>Current Controls</h2>
 <table>
-<tr><th>Control</th><th>Current L1 alpha path</th></tr>
-<tr><td>Pause or stop</td><td>Stop the local engine process or host. Product tray controls are planned.</td></tr>
-<tr><td>Disconnect Gmail</td><td>Use <code>disconnect-gmail</code> or the packaged disconnect helper, then optionally confirm removal from Google Account permissions.</td></tr>
+<tr><th>Control</th><th>Current L1 beta path</th></tr>
+<tr><td>Pause or stop</td><td>Use the local dashboard/control files or stop the local engine process/host. A native tray is not built.</td></tr>
+<tr><td>Disconnect Gmail</td><td>Use the token-protected local dashboard control, or run <code>CareerSeeker.exe disconnect-gmail</code> from source/an unpacked test tree, then optionally confirm removal from Google Account permissions.</td></tr>
 <tr><td>Edit claims</td><td>Edit the local source profile/claims and rerun affected work through the Gate.</td></tr>
 <tr><td>Blocklist employers</td><td>Configure local preferences/rails when the product shell is wired.</td></tr>
 <tr><td>Set daily cap</td><td>Planned product control; current harnesses exercise bounded local runs.</td></tr>
-<tr><td>Export audit log or local evidence bundle</td><td>Available through <code>Export-CareerSeeker-Audit.cmd</code>, <code>Export-CareerSeeker-Evidence.cmd</code>, <code>Import-CareerSeeker-Package.cmd</code>, and the local <code>export-audit</code>, <code>export-alpha-package</code>, and <code>import-alpha-package</code> commands; audit-chain verification is implemented in the store and harnesses.</td></tr>
-<tr><td>Delete all data</td><td>Delete local databases, generated artifacts, and <code>.appdata</code> test vaults.</td></tr>
+<tr><td>Export audit log or local evidence bundle</td><td>Run the local <code>export-audit</code>, <code>export-alpha-package</code>, or <code>import-alpha-package</code> command from source/an unpacked test tree; audit-chain verification is implemented in the store and harnesses. Historical Alpha <code>.cmd</code> helpers are not part of the current MSIX.</td></tr>
+<tr><td>Delete all data</td><td>App uninstall preserves data. After separate explicit confirmation, delete <code>%LOCALAPPDATA%\CareerSeeker</code> or the configured source/test workspace.</td></tr>
 </table>
 
 <h2>Future Autonomy Levels</h2>
-<p>L2 and L3 modes are not available in v0.1. Before any higher autonomy level is activated, it must be explicitly designed, scoped, documented, and tested. Higher autonomy may require new Gmail, inbox, calendar, relay, or browser-automation permissions.</p>
+<p>L2 and L3 modes are not available in the current Beta. Before any higher autonomy level is activated, it must be explicitly designed, scoped, documented, and tested. Higher autonomy may require new Gmail, inbox, calendar, relay, or browser-automation permissions.</p>
 <p>No higher autonomy level is activated by default.</p>
 
 <h2>The Promise</h2>

@@ -1,112 +1,144 @@
 # CareerSeeker
 
-Autonomous job-search engine: a free local Windows alpha executable that discovers, verifies, tailors, and
-drafts job applications. A hardened per-user Scheduled Task host is available; native Windows service/tray
-packaging and the paid Android dashboard remain future product-shell work. Spec:
-`docs/CareerSeeker-Spec.md` (authoritative, v0.9). Sequencing:
-`docs/CareerSeeker-Integration-Windows-Roadmap.md`. Current handoff: `docs/CareerSeeker-Project-Summary.md`.
-Trusted-tester walkthrough: `docs/Alpha-Tester-Walkthrough.md`. External audit quickstart:
-`docs/External-Audit-Handoff.md`.
+CareerSeeker is a local-first Windows L1 Drafts beta. It discovers jobs from public ATS boards, ranks
+them against a local source-of-truth profile, researches employers, tailors materials, verifies generated
+claims, and can create reviewable Gmail drafts. The L1 application contains no email-send or ATS-submit
+implementation.
 
-License notice: this repository currently has no open-source license; all rights are reserved unless a
-future `LICENSE` file says otherwise.
+The Windows engine is implemented and packaged for closed-beta testing. Public distribution is not ready:
+the MSIX is unsigned, OAuth production verification/CASA are pending, and the native tray/Windows Service
+shell is not built. The shipped service-grade fallback is a hardened per-user Scheduled Task host.
 
-Trust/OAuth docs:
-- `docs/Privacy-Policy.md`
-- `docs/Support.md`
-- `docs/Autonomy-Contract.md`
+Authoritative product constraints live in [docs/CareerSeeker-Spec.md](docs/CareerSeeker-Spec.md). Current
+implementation evidence lives in
+[docs/CareerSeeker-Project-Summary.md](docs/CareerSeeker-Project-Summary.md),
+[docs/External-Audit-Handoff.md](docs/External-Audit-Handoff.md), and
+[docs/BETA-AUDIT-REQUEST.md](docs/BETA-AUDIT-REQUEST.md).
 
-## Layout
-- `src/`: 11 net8.0 projects. Leaves are Verifier, Scout, and Gateway; Store/Scorer build on Scout;
-  Pipeline depends on Store, Scorer, and Verifier; Tailor and Dispatcher sit above Pipeline; Engine
-  references Pipeline, Tailor, Dispatcher, and Researcher for alpha composition commands. `TailorHookBridge`
-  joins Tailor<->Researcher so neither core project references the other.
-- `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
-  `EngineHarness` (159), `ResearcherHarness` (57), `HookHarness` (16), `StoreParityHarness` (25),
-  `GatewayGateHarness` (36), `DispatcherNoSendHarness` (35), `LifecycleHarness` (45), and
-  `RendererHarness` (6). Latest offline total: 407 assertions. Run each with
-  `dotnet run -c Release`.
-- `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. It builds, runs the initializer dry run,
-  source-mode SQLite demo smoke, and offline harness suite. Add `-IncludeLive` for local BYOK/Gmail checks,
-  `-IncludePublish` for the win-x64 single-file publish smoke, `-IncludePackage` for the trusted-tester release
-  ZIP, and `-IncludeResearch` for the live Brave/BYOK company-research smoke.
-- `scripts/Package-AlphaRelease.ps1`: builds a self-contained trusted-tester ZIP with the alpha executable,
-  native runtime dependencies, workspace initializer, dashboard/helper self-check scripts, quickstart, audit
-  snapshot, tester walkthrough, release manifest, checksums, and selected docs; it does not package local
-  databases, vaults, or generated artifacts.
-- `setup` now opens a loopback-only ten-step onboarding UI in the browser: package verification, local resume
-  extraction, provider consent, per-claim accept/edit/drop review with a visible `stated` cap, Gmail consent,
-  doctor, and a discovery-only first run. `setup --console` preserves the prior console fallback.
-- `scripts/Initialize-AlphaWorkspace.ps1`: creates ignored local alpha directories, a starter profile
-  template, and a blank env-secrets placeholder, with an optional startup doctor run.
-- `scripts/Start-AlphaDashboard.ps1`: Windows-friendly alpha dashboard launcher. Use `-Once` for a
-  one-shot smoke check or `-Published -PublishIfMissing` to run the self-contained executable.
-- `Setup-CareerSeeker-Alpha.cmd`: double-click local workspace setup helper copied into the trusted-tester
-  release ZIP.
-- `Import-CareerSeeker-Profile.cmd`: double-click local source-of-truth profile import helper copied into the
-  trusted-tester release ZIP.
-- `Connect-CareerSeeker-Providers.cmd`: double-click BYOK provider-key import and doctor helper copied into
-  the trusted-tester release ZIP.
-- `Connect-CareerSeeker-Gmail.cmd`: double-click Gmail OAuth helper copied into the trusted-tester release ZIP.
-- `Check-CareerSeeker-LiveReadiness.cmd`: double-click live Gmail/BYOK readiness doctor copied into the
-  trusted-tester release ZIP.
-- `Clear-CareerSeeker-Providers.cmd`: double-click local provider-key vault clear helper copied into the
-  trusted-tester release ZIP. It requires typing `CLEAR`.
-- `Disconnect-CareerSeeker-Gmail.cmd`: double-click Gmail revoke/local token-vault clear helper copied into the
-  trusted-tester release ZIP. It requires typing `DISCONNECT`.
-- `Run-CareerSeeker-Demo.cmd`: double-click safe local demo cycle helper copied into the trusted-tester
-  release ZIP.
-- `Run-CareerSeeker-Scout.cmd`: double-click public ATS board ingest helper copied into the trusted-tester
-  release ZIP.
-- `Research-CareerSeeker-Company.cmd`: double-click Brave/BYOK company research helper copied into the
-  trusted-tester release ZIP. It creates no Gmail draft.
-- `Draft-CareerSeeker-Job.cmd`: double-click selected-job draft helper copied into the trusted-tester release
-  ZIP. It defaults to a no-Gmail dry-run package and requires typing `LIVE` before creating a draft.
-- `Run-CareerSeeker-Live.cmd`: double-click live L1 helper copied into the trusted-tester release ZIP. It
-  defaults to a no-Gmail dry-run preview and requires typing `LIVE` before creating a draft.
-- `Export-CareerSeeker-Audit.cmd`: double-click hash-only audit JSON export helper copied into the
-  trusted-tester release ZIP.
-- `Export-CareerSeeker-Evidence.cmd`: double-click local evidence package helper copied into the trusted-tester
-  release ZIP.
-- `Import-CareerSeeker-Package.cmd`: double-click local evidence package restore helper copied into the
-  trusted-tester release ZIP.
-- `Verify-CareerSeeker-Alpha.cmd`: double-click release package self-check copied into the trusted-tester
-  release ZIP.
-- `Start-CareerSeeker-Alpha.cmd`: double-click dashboard launcher copied into the trusted-tester release ZIP.
-- `Install-CareerSeeker-DashboardTask.cmd`: double-click per-user dashboard logon-task install helper copied
-  into the trusted-tester release ZIP. It requires typing `INSTALL`.
-- `Status-CareerSeeker-DashboardTask.cmd`: double-click dashboard logon-task status helper copied into the
-  trusted-tester release ZIP.
-- `Uninstall-CareerSeeker-DashboardTask.cmd`: double-click dashboard logon-task removal helper copied into the
-  trusted-tester release ZIP. It requires typing `UNINSTALL`.
-- `connect-gmail`: first-class alpha command that opens Gmail OAuth, stores the local DPAPI token, and
-  preflights draft access without creating a draft.
-- `scripts/Manage-AlphaDashboardTask.ps1`: service-grade per-user Windows startup task helper for the real
-  engine, with clean pause/resume/stop, restart backoff, single-instance protection, and local logs. Use
-  `-Action Install -DryRun` to preview it before registering anything.
-- `.github/workflows/ci.yml`: GitHub CI runs the Release warnings-as-errors build plus the same offline
-  alpha verification script used locally.
+This repository has no open-source license; all rights are reserved unless a future `LICENSE` says otherwise.
 
-## Build
-`dotnet build CareerSeeker.sln -c Release`
+## Current tester path
 
-Note: `src/Store/SeekerSvc.Store.csproj` includes `Microsoft.Data.Sqlite`, the only external
-dependency in the tree. `nuget.config` restores it from nuget.org, so first-time builds require network
-access or a warmed NuGet cache.
+The Beta package command produces one unsigned `win-x64` MSIX containing exactly one executable:
 
-For local BYOK/live research checks, keep provider keys in ignored `secrets/env.secrets`. The alpha commands
-accept `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` or `GOOGLE_API_KEY`, and Brave Search via
-`BRAVE_SEARCH_API_KEY`, `BRAVE_SEARCH_API`, or `CAREERSEEKER_BRAVE_SEARCH_API_KEY`.
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+```
 
-## Safety Invariants
-- Fabrication Gate: no application state is reachable except through VERIFIED; unsupported claims block.
-- Gateway pinned-Gate: `Stage.VerifierEntailment` is never throttled, never downgraded, fails closed.
-- Dispatcher L1: the Gmail draft port exposes only `CreateDraftAsync`; label management is a separate
-  capability and no send method exists in the L1 application, even though `gmail.compose` can authorize sends.
-- Researcher: dossier facts are grounded-or-dropped; signals are positive-only and deterministic.
-- HookGuard: a company hook carrying any candidate-claim pattern is omitted; admitted hooks stay prompt
-  context only, not applicant-facing evidence.
-- Scorer: `total = min(fit, legitimacy) * red_flags`; a scam can never outrank its worst axis.
-- Ranking: deterministic offline `lexical-v1` weights local profile Skill/Title overlap, emphasizes
-  posting titles over body boilerplate, and persists its explainable components for the dashboard.
-- Store: hash-chained audit log.
+Artifact: `output\release\CareerSeeker-beta-win-x64.msix`.
+
+The MSIX manifest provides the Start-menu application and an optional startup task that is disabled by default.
+A package-identity launch uses `%LOCALAPPDATA%\CareerSeeker` for mutable state, so normal app
+removal does not delete the database, generated materials, or DPAPI vaults. The first launch opens the
+ten-step loopback browser onboarding flow. After onboarding, implicit package activation is discovery-only;
+drafting still requires an explicit configured run.
+
+The previous console onboarding remains available as `setup --console`. Alpha `.cmd` helpers and the old
+`Package-AlphaRelease.ps1` ZIP builder remain as source-level historical/advanced utilities, but they are not
+the artifact produced by `-IncludePackage`.
+
+See [docs/Beta-Windows-Package-Runbook.md](docs/Beta-Windows-Package-Runbook.md) for unsigned testing,
+signing, and uninstall boundaries.
+
+## Repository layout
+
+- `src/`: 11 .NET 8 production projects.
+- `tests/`: plain console assertion harnesses; no xUnit dependency.
+- `scripts/Verify-Alpha.ps1`: the pinned verification entrypoint. The historical filename remains for
+  compatibility; it verifies the current Beta tree.
+- `scripts/Package-BetaRelease.ps1`: locked Microsoft-SDK MSIX builder.
+- `scripts/Test-BetaReleasePackage.ps1`: non-installing manifest, payload, onboarding, and data-preservation
+  self-check.
+- `scripts/Start-BetaEngineHost.ps1` and `scripts/Manage-AlphaDashboardTask.ps1`: supervised per-user
+  Scheduled Task fallback with restart backoff, local controls/logs, and a database-scoped single-instance
+  rail.
+- `docs-site/`: canonical repository copy for public privacy, support, and autonomy text. Deployment is a
+  separate human action.
+
+## Build and verify
+
+```powershell
+dotnet build CareerSeeker.sln -c Release
+powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+```
+
+The current pinned breakdown is:
+
+| Harness | Assertions |
+|---|---:|
+| Slice | 28 |
+| EngineHarness | 159 |
+| ResearcherHarness | 57 |
+| HookHarness | 16 |
+| StoreParityHarness | 25 |
+| GatewayGateHarness | 36 |
+| DispatcherNoSendHarness | 35 |
+| LifecycleHarness | 45 |
+| RendererHarness | 6 |
+| **Total** | **407** |
+
+CI runs the warnings-as-errors Release build and the same offline verifier. Optional live switches use
+already-configured local credentials and are not part of the default gate:
+
+- `-IncludeLive`: bounded BYOK/Gmail draft smoke.
+- `-IncludeResearch`: bounded Brave/BYOK company research.
+- `-IncludePublish`: self-contained `win-x64` executable smoke.
+- `-IncludePackage`: the Beta MSIX build and non-installing self-check.
+
+Never put keys, OAuth client files, resumes, `.appdata`, or `output` in source control. Current package
+dependencies are locked; audit them with:
+
+```powershell
+dotnet list CareerSeeker.sln package --vulnerable --include-transitive
+dotnet list tools\WindowsSdkTools\WindowsSdkTools.csproj package --vulnerable --include-transitive
+```
+
+## Engine behavior
+
+The production engine command is `run`. It performs real public-board discovery on a timer, stores and
+ranks jobs, quarantines injection-signaled postings before model work, reconciles crash-window state, and
+can draft only when Gmail and BYOK are explicitly configured.
+
+Useful safe commands:
+
+```powershell
+# One discovery-only sweep: no provider or Gmail draft.
+dotnet run -c Release --project src\Engine\SeekerSvc.Engine.csproj -- run --once --dry-run --llm fake
+
+# Read-only dashboard over an existing local database.
+dotnet run -c Release --project src\Engine\SeekerSvc.Engine.csproj -- dashboard --db .appdata\careerseeker-alpha.db
+
+# Local doctor. Add --require-gmail / --require-byok only when those resources are intentionally configured.
+dotnet run -c Release --project src\Engine\SeekerSvc.Engine.csproj -- doctor
+```
+
+The persistent engine reconciles recorded external-effect outcomes at startup and before every discovery
+cycle. A recorded provider success completes the missing local transition without repeating the external
+effect. An unknown pending outcome is left for manual review.
+
+Ranking defaults to deterministic local `lexical-v1`. It weights title and Skill/Title overlap, persists
+the components and matched-term rationale, and orders `/jobs` by the composed score. It does not require
+an inference provider.
+
+## Safety invariants
+
+- **Fabrication Gate:** unsupported generated claims block before draft creation.
+- **Pinned Gate:** `Stage.VerifierEntailment` stays StrongCloud, is never budget-throttled or downgraded, and
+  fails closed when unavailable.
+- **No send:** Dispatcher exposes draft creation only; `SubmitAsync` throws. `gmail.compose` itself is
+  send-capable, so this is an application-code guarantee, not a token limitation.
+- **Local first:** databases, generated documents, OAuth tokens, and provider keys are local. External
+  provider data transfer occurs only for explicitly connected services and disclosed prompts.
+- **Untrusted-data quarantine:** job postings, resumes, and retrieved web content are data, never commands.
+- **Grounded research:** ungrounded dossier facts are dropped.
+- **Idempotent recovery:** persisted effect attempts prevent a successful Gmail draft from being repeated
+  after a crash-window lost commit.
+- **Honest status:** a viewer never claims the engine is running; starting, running, paused, faulted, and
+  stopped states come from the attached scheduler.
+- **No implicit draft consent:** packaged automatic activation is discovery-only.
+
+Trust and control documents:
+
+- [Privacy Policy](docs/Privacy-Policy.md)
+- [Support](docs/Support.md)
+- [Autonomy Contract](docs/Autonomy-Contract.md)

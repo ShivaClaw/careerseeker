@@ -214,10 +214,6 @@ Invoke-Step "Engine SQLite demo smoke" {
 
 Invoke-Step "Docs-site trust copy smoke" {
     $trustSnippets = @(
-        "Google user data to train generalized AI or ML models",
-        "Export-CareerSeeker-Audit.cmd",
-        "Export-CareerSeeker-Evidence.cmd",
-        "Import-CareerSeeker-Package.cmd",
         "export-audit",
         "export-alpha-package",
         "import-alpha-package"
@@ -233,13 +229,29 @@ Invoke-Step "Docs-site trust copy smoke" {
     )) {
         $content = Get-Content -LiteralPath $relative -Raw
         $snippets = $trustSnippets
+        Assert-Contains $content $snippets $relative
+        if ($relative -like "*privacy*") {
+            Assert-Contains $content @(
+                "Google user data to train generalized AI or ML models",
+                "L1 Drafts beta",
+                "%LOCALAPPDATA%\CareerSeeker",
+                "current Beta MSIX is unsigned"
+            ) $relative
+        }
         if ($relative -like "*support*") {
-            $snippets = $trustSnippets | Where-Object { $_ -ne "Google user data to train generalized AI or ML models" }
+            Assert-Contains $content @(
+                "Current Beta Actions",
+                "%LOCALAPPDATA%\CareerSeeker",
+                "Do not combine app uninstall and user-data deletion"
+            ) $relative
         }
         if ($relative -like "*autonomy*") {
-            $snippets = $trustSnippets | Where-Object { $_ -ne "Google user data to train generalized AI or ML models" }
+            Assert-Contains $content @(
+                "L1 Drafts beta",
+                "Current L1 beta path",
+                "%LOCALAPPDATA%\CareerSeeker"
+            ) $relative
         }
-        Assert-Contains $content $snippets $relative
     }
 
     $index = Get-Content -LiteralPath "docs-site/index.html" -Raw
@@ -296,20 +308,23 @@ Invoke-Step "Service-grade scheduled task source smoke" {
 Invoke-Step "Public README and harness count smoke" {
     $readme = Get-Content -LiteralPath "README.md" -Raw
     Assert-Contains $readme @(
-        'free local Windows alpha executable',
-        'native Windows service/tray',
-        'the paid Android dashboard remain future',
+        'local-first Windows L1 Drafts beta',
+        'one unsigned `win-x64` MSIX',
+        'optional startup task that is disabled by default',
+        'implicit package activation is discovery-only',
+        'Alpha `.cmd` helpers',
         'no open-source license',
         'all rights are reserved',
-        'EngineHarness` (159)',
-        'ResearcherHarness` (57)',
-        'HookHarness` (16)',
-        'GatewayGateHarness` (36)',
-        'admitted hooks stay prompt',
-        'Latest offline total: 407 assertions'
+        '| EngineHarness | 159 |',
+        '| ResearcherHarness | 57 |',
+        '| HookHarness | 16 |',
+        '| GatewayGateHarness | 36 |',
+        '| **Total** | **407** |',
+        'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
-        'free Windows service (.exe)'
+        'trusted-tester release ZIP, and',
+        'native Windows service/tray packaging'
     ) "README.md"
 
     $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
@@ -317,71 +332,45 @@ Invoke-Step "Public README and harness count smoke" {
     # re-pads them); collapse runs of spaces so the row assertions tolerate that padding.
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
-        'Total: 407 passed, 0 failed.',
-        'offline `lexical-v1`',
-        'imports require the CareerSeeker alpha profile',
-        'document responses carry no-store, nosniff, no-referrer',
-        '`/evidence.html`',
-        'typed confirmations for `LIVE`, `CLEAR`, `DISCONNECT`, `INSTALL`, and `UNINSTALL`',
-        'typed confirmation for live/dangerous/persistent actions',
-        'admitted company hooks stay prompt'
+        'B0-B8 Windows ladder is implemented',
+        '| **Total** | **407** |',
+        'deterministic local `lexical-v1`',
+        'one unsigned MSIX',
+        '`%LOCALAPPDATA%\CareerSeeker`',
+        'No detector threshold was changed',
+        '## Human-only work remaining'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| `EngineHarness` | 159 passed, 0 failed |',
-        '| `ResearcherHarness` | 57 passed, 0 failed |',
-        '| `HookHarness` | 16 passed, 0 failed |',
-        '| `StoreParityHarness` | 25 passed, 0 failed |',
-        '| `GatewayGateHarness` | 36 passed, 0 failed |',
-        '| `LifecycleHarness` | 45 passed, 0 failed |'
+        '| EngineHarness | 159 |',
+        '| ResearcherHarness | 57 |',
+        '| HookHarness | 16 |',
+        '| StoreParityHarness | 25 |',
+        '| GatewayGateHarness | 36 |',
+        '| LifecycleHarness | 45 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 407 passed, 0 failed.',
-        'offline `lexical-v1`',
-        '`/evidence.html` exposes a human audit-chain page',
-        'visible job ids for selected-job drafting',
-        '`INSTALL`',
-        '`UNINSTALL`',
-        '`CLEAR`',
-        '`DISCONNECT`',
-        '`LIVE` before creating a Gmail draft'
+        '| **Total** | **407** |',
+        'default `lexical-v1` ranker is deterministic and local',
+        'Implicit activation from the installed MSIX is stricter',
+        'one `CareerSeeker.exe`',
+        '`%LOCALAPPDATA%\CareerSeeker`',
+        'Native SCM Windows Service and tray UI are not built'
     ) "src/Engine/README.md"
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `407 passed, 0 failed`.',
-        'deterministic, explainable local-profile ranking',
-        'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
-        'Fresh live Scout harness, 2026-07-20',
-        'BYOK live provider smoke',
-        'live Brave/BYOK company research',
-        'Cloudflare Email Routing MX records',
-        'does not prove the final',
-        '## Evidence Map',
-        'ATS-clean resume PDF is rendered and attached to Gmail drafts',
-        'Selected-job drafting refuses prompt-injection-flagged jobs unless explicitly overridden',
-        'Untrusted job/profile/question/web text is encoded before entering structured LLM prompt boundaries',
-        'Source-of-truth profile import replaces the claim oracle and refuses non-alpha profile artifacts, duplicate claim ids, or unknown claim kinds',
-        'Real BYOK Tailor and Gate providers are wired through the Gateway',
-        'Live ATS board ingest discovers and stores real jobs',
-        'Brave Search company research is grounded and fails closed on missing keys',
-        'source-control hygiene smoke',
-        'Trusted-tester ZIP carries source provenance, payload checksums, and provider-key quickstart guidance',
-        'README-alpha provider-key checks',
-        'Dashboard controls are loopback, token-protected, evidence-oriented, and served',
-        'no-store/nosniff/no-referrer/CSP headers',
-        'read routes reject foreign Host headers',
-        'mutating controls reject foreign Host, Origin, and Referer headers',
-        'controls are hidden for terminal rows',
-        '`/evidence.html`',
-        'audit payload export requires `PAYLOADS`',
-        'selected-job prompt-injection override requires `REVIEWED`',
-        'Confirmation variables are cleared before prompting and evaluated through',
-        'environment-backed PowerShell checks',
-        'Free-form tester inputs in selected-job draft, company research, and package import launchers are forwarded',
-        'through environment-backed PowerShell argument arrays instead of interpolated directly into batch command lines',
-        'Historical audit context, with a supersession note at the top'
+        'Pinned offline verifier: **407 passed, 0 failed**',
+        'B0-B8 work did not repeat Gmail/provider live calls',
+        '## Invariant map',
+        'Injection signals quarantine before action/model work',
+        'Crash-window recovery does not repeat a successful effect',
+        'MSIX has one exe and external user data',
+        '## Safety surfaces to inspect adversarially',
+        'The MSIX is unsigned',
+        'Historical Alpha `.cmd` launchers',
+        'Local evidence export/import still uses ZIP'
     ) "docs/External-Audit-Handoff.md"
 
     $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw
@@ -392,8 +381,30 @@ Invoke-Step "Public README and harness count smoke" {
     ) "docs/repo-audit-2026-07-13.md"
 
     Assert-Contains $summary @(
-        'Live BYOK harness, 2026-07-20:'
+        'historical live provider evidence exists'
     ) "docs/CareerSeeker-Project-Summary.md"
+
+    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw
+    Assert-Contains $positioning @(
+        'Public Claims Register',
+        '`**UNPROVEN**`',
+        'The installer is signed and trusted by Windows.',
+        'CareerSeeker survives reboot unattended.',
+        'CareerSeeker is production-ready.',
+        'Updating this register never authorizes a deploy.'
+    ) "docs/Positioning.md"
+
+    $betaRunbook = Get-Content -LiteralPath "docs/Beta-Runbook.md" -Raw
+    Assert-Contains $betaRunbook @(
+        'single ordered Sunday list',
+        'Deploy the truth copy',
+        'Protect `/api/signup`',
+        'Process the current OAuth test-user queue',
+        'Submit OAuth production verification',
+        'Configure production MSIX signing',
+        'Disposable Windows installer matrix',
+        'Anything not executed remains `PENDING`'
+    ) "docs/Beta-Runbook.md"
 
     $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
     Assert-Contains $engineProgram @(

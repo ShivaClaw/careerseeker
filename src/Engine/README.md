@@ -1,284 +1,175 @@
 # CareerSeeker Engine Host
 
-This project is the runnable alpha entrypoint for the local-first CareerSeeker engine. It hosts the
-scheduled engine shell, the localhost dashboard, and the one-shot alpha smoke path that can create a
-reviewable Gmail draft while the L1 application contains no Gmail send implementation.
+`src/Engine` is the runnable composition root for the local-first CareerSeeker Windows Beta. It hosts the
+real scheduled engine, loopback dashboard, browser onboarding, one-shot diagnostic modes, and the bounded
+legacy Alpha Gmail smoke. The L1 Dispatcher can create Gmail drafts but has no send implementation.
 
-## What Got Proven
+## Production path
 
-The engine composes the same core modules used by the vertical slice:
+`run` is the only mode that continuously discovers real jobs:
 
-- Store
-- Scorer
-- Pipeline
-- Fabrication Gate
-- Tailor through the LLM Gateway bridge
-- Dispatcher
+```powershell
+dotnet run -c Release --project src\Engine\SeekerSvc.Engine.csproj -- `
+  run --db .appdata\careerseeker-alpha.db --llm byok
+```
 
-The load-bearing safety paths are covered by harnesses:
+Important switches:
 
-| Path | Result |
-| --- | --- |
-| Clean, profile-supported application | `READY -> DRAFTED`, Gmail draft created, audit chain intact |
-| Unsupported claim | `BLOCKED_FABRICATION`, zero drafts |
-| Low-legitimacy posting | `REJECTED_BY_ENGINE`, never tailored, never drafted |
+- `--dry-run`: discovery, persistence, telemetry, and ranking only; no application or simulated draft.
+- `--once`: one bounded sweep.
+- `--board greenhouse:<handle>`, `lever:<handle>`, or `ashby:<handle>`: choose public ATS boards.
+- `--max-drafts-per-cycle <n>`: cap acted postings; the default is 10.
+- `--service-host`: stay alive without console input and honor local control files.
 
-The engine shell adds:
+Implicit activation from the installed MSIX is stricter. Before onboarding it opens `setup`; afterward it
+starts `run` in both discovery-only and service-host modes. Installation or startup enablement never counts
+as consent to create a Gmail draft.
 
-- `EngineCycle`: one crash-recovery, discovery, decision, and action pass over a batch.
-- `PeriodicScheduler`: immediate tick, then repeated ticks by interval.
-- `LocalDashboard`: loopback-only responsive HTML dashboard and JSON status on `localhost`, with optional
-  token-protected controls.
-- `EngineHost`: composition root for counters, scheduler, and dashboard.
-- `LexicalSemanticScorer`: deterministic local profile/posting overlap with title and Skill/Title
-  weighting; no provider or network dependency.
+The default `lexical-v1` ranker is deterministic and local. It compares the active source profile with
+untrusted posting text, emphasizes title and Skill/Title overlap, persists CV match and other score
+components, and records a matched-term rationale. `/jobs` orders scored rows by total and shows those
+components.
 
-## Alpha Executable Modes
+## Browser onboarding
 
-- Demo, offline and repeatable:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once`
-- Demo with persistent SQLite state and audit evidence:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- demo --once --db .appdata/careerseeker-demo.db --artifacts .appdata/artifacts`
-- Alpha Gmail smoke, live but one-shot:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
-- Connect Gmail without creating a draft:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- connect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`
-- The engine proper: a real Scout sweep of real boards on a timer, scored, gated, and drafted.
-  This is the only mode that discovers live jobs on a schedule; `demo` uses invented postings and
-  `dashboard` attaches no engine at all.
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- run --db .appdata/careerseeker-alpha.db --llm byok`
-  Add `--dry-run` for discovery-only operation (store and score, but never create or simulate a draft),
-  `--once` for a single sweep, and `--board greenhouse:<handle>`
-  (repeatable) to choose boards. `--max-drafts-per-cycle` (default 10) bounds how many postings one
-  tick may draft; the rest are stored and picked up on the next tick.
-  The default `lexical-v1` ranker loads the active local profile, treats posting text only as
-  untrusted data, and persists CV match, compensation, growth, preference, legitimacy, ranker, and
-  matched-term rationale. `/jobs` orders scored rows by total and renders those components.
+`setup` opens a loopback-only ten-step local browser flow:
 
-### Crash recovery
+1. welcome and the local draft-only/no-send boundary;
+2. package identity/checksum verification;
+3. bounded PDF/DOCX/TXT/Markdown resume selection and local extraction;
+4. provider selection and key test;
+5. explicit consent before resume text reaches that provider;
+6. claim-by-claim accept/edit/drop review with source/evidence and visible `stated` cap;
+7. Gmail consent and installed/Desktop OAuth-client validation;
+8. final doctor;
+9. discovery-only first-run choice;
+10. completion.
 
-Persistent engine modes sweep applications in `SUBMITTING` or `READY` at startup, before normal work,
-and the scheduled `run` loop repeats that sweep before every discovery tick. Reconciliation only reads
-the local effect-attempt journal and commits missing local transitions; it never calls Gmail or another
-provider. A recorded `SUCCEEDED` draft moves `READY -> DRAFTED`, and a recorded `SUCCEEDED` submission
-moves `SUBMITTING -> APPLIED -> AWAITING_RESPONSE`, without repeating the external effect. A `PENDING`
-attempt has an unknown provider outcome, so it is left in place and one durable manual-review audit
-event is recorded. A store-level sweep failure aborts that cycle rather than acting around uncertain
-state; one malformed stranded row is isolated and counted so other recovery rows can still be checked.
-- Standalone dashboard over the real local alpha DB. Read-only: it renders what earlier runs stored and
-  reports "viewer only - no engine attached" rather than implying a cycle is running.
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --db .appdata/careerseeker-alpha.db --gmail-control`
-- Windows-friendly launcher, from source or published executable. Add `-Engine` to start the engine
-  instead of the read-only viewer:
-  `powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1 -Engine`
-- Double-click local workspace setup helper included in the release ZIP:
-  `Setup-CareerSeeker-Alpha.cmd`
-- Double-click source-of-truth profile import helper included in the release ZIP:
-  `Import-CareerSeeker-Profile.cmd`
-- Double-click BYOK provider-key import and doctor helper included in the release ZIP:
-  `Connect-CareerSeeker-Providers.cmd`
-- Double-click Gmail connect helper included in the release ZIP:
-  `Connect-CareerSeeker-Gmail.cmd`
-- Double-click live Gmail/BYOK readiness doctor included in the release ZIP:
-  `Check-CareerSeeker-LiveReadiness.cmd`
-- Double-click local BYOK vault clear helper included in the release ZIP:
-  `Clear-CareerSeeker-Providers.cmd`
-- Double-click Gmail revoke/local token-vault clear helper included in the release ZIP:
-  `Disconnect-CareerSeeker-Gmail.cmd`
-- Double-click safe local demo cycle helper included in the release ZIP:
-  `Run-CareerSeeker-Demo.cmd`
-- Double-click public ATS board ingest helper included in the release ZIP:
-  `Run-CareerSeeker-Scout.cmd`
-- Double-click selected-job draft helper included in the release ZIP:
-  `Draft-CareerSeeker-Job.cmd`
-- Double-click live L1 Gmail draft helper included in the release ZIP:
-  `Run-CareerSeeker-Live.cmd`
-- Double-click local evidence package helper included in the release ZIP:
-  `Export-CareerSeeker-Evidence.cmd`
-- Double-click release package self-check helper included in the release ZIP:
-  `Verify-CareerSeeker-Alpha.cmd`
-- Double-click dashboard launcher included in the release ZIP:
-  `Start-CareerSeeker-Alpha.cmd`
-- Service-grade per-user Windows logon task helper for the real engine:
-  `powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -Action Install -DryRun`
-- One-shot dashboard/evidence smoke:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --once --db .appdata/careerseeker-alpha.db --gmail-control`
-- Live ATS board ingest into the local SQLite store:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- scout-boards --board greenhouse:remotecom --board lever:mistral --db .appdata/careerseeker-alpha.db --jd-dir .appdata/job-descriptions`
-- Draft a selected stored job row, with `--dry-run` available for local package/audit verification without Gmail:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- draft-job --job-id 123 --dry-run --db .appdata/careerseeker-alpha.db`
-- Import real BYOK provider keys into the local DPAPI vault:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
-- Live BYOK provider smoke for Anthropic, Gemini, Tailor, Gate, and accounting:
-  `dotnet run -c Release --project tests/ByokLiveHarness/ByokLiveHarness.csproj -- --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
-- Live Brave/BYOK company research smoke:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- research-company --company GitLab --domain gitlab.com --llm byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi`
-- Create and import a local source-of-truth profile for Tailor/Gate:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- profile-template --out .appdata/profile.template.json`
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-profile --profile .appdata/profile.template.json --db .appdata/careerseeker-alpha.db`
-- Alpha Gmail smoke with real BYOK Tailor and Gate calls:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --gate-semantic-candidates 3 --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
-- Bounded BYOK alpha smoke for routine validation:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- alpha --llm byok --fast-smoke --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db`
-- Startup doctor for local DB, artifact folder, Gmail config, and BYOK readiness:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- doctor --require-gmail --require-byok --secrets secrets/env.secrets --key-vault .appdata/secrets/byok-keys.dpapi --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi --db .appdata/careerseeker-alpha.db --artifacts .appdata/artifacts`
-- Local application control:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- control-app --db .appdata/careerseeker-alpha.db --application-id 123 --action pause|resume|kill`
-- Disconnect Gmail, revoking OAuth and deleting the local vault:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`
-- Clear imported BYOK provider keys from the local vault:
-  `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- clear-byok --key-vault .appdata/secrets/byok-keys.dpapi`
+Provider keys are stored in the per-user DPAPI vault and never printed. A failed test preserves an existing
+vault. Resume and posting content are encoded as untrusted data. Setup creates no Gmail draft.
 
-The alpha mode uses SQLite for engine state, the DPAPI token vault for Gmail OAuth, and the real
-`GmailDraftClient`. Demo mode is in-memory by default, but `demo --db <path>` runs the same local
-dashboard/cycle shell against `SqliteSeekerStore` so testers can inspect persistent status and audit
-evidence without touching Gmail. Demo and alpha draft paths persist generated PDFs under
-`.appdata/artifacts` by default, overridable with `--artifacts`. Alpha preflights Gmail draft access before
-creating anything, renders an ATS-clean PDF resume attachment, then intentionally runs one cycle and creates
-one self-addressed L1 draft so early testing cannot accidentally produce drafts on a timer.
+The previous console flow remains available as:
 
-`connect-gmail` uses the same OAuth client JSON, DPAPI vault, fixed `gmail.compose` scope, and Gmail drafts
-preflight as alpha mode, but it stops before drafting. It is the trusted-tester setup path for creating or
-refreshing the local token vault.
+```powershell
+dotnet run -c Release --project src\Engine\SeekerSvc.Engine.csproj -- setup --console
+```
 
-`setup` is the default Beta onboarding surface: a loopback-only local browser flow reusing the dashboard's
-visual shell. It verifies packaged checksums, extracts resume text through a bounded temporary local file,
-tests and DPAPI-stores provider credentials, requires explicit resume-provider consent, and imports only claims
-the user accepts in the claim-by-claim UI. Every AI-extracted claim is visibly capped at `stated` and retains
-`resume-ai` provenance. Gmail requires an installed/Desktop OAuth client and a separate honest consent screen;
-setup performs preflight only and creates no draft. The previous wizard remains available as `setup --console`.
+## Package runtime
 
-`profile-template` writes a starter JSON profile. `import-profile` replaces the local profile claim oracle in
-SQLite and records the active `alpha.profileId`, so Tailor and Gate use imported source facts instead of
-accumulating demo claims.
+`PackagedRuntime` detects real Windows package identity through `GetCurrentPackageFullName`; an unpacked
+executable cannot claim package identity through a flag. Package activation changes the working directory
+to `%LOCALAPPDATA%\CareerSeeker`, where the existing relative paths create:
 
-By default it uses fake inference. Pass `--llm byok` to use local Anthropic/Gemini keys from the DPAPI
-provider-key vault, environment variables, or `secrets/env.secrets`. `--email` is optional when Gmail
-profile lookup is available. For quick routine validation, use `--llm byok --fast-smoke`; it performs one
-bounded live Gate entailment check, one bounded live Tailor call, then runs the normal Gmail/PDF draft path.
-In BYOK alpha mode, the Gate defaults to the top 3 semantically relevant source candidates per claim to
-keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exhaustive comparison.
+- `.appdata\careerseeker-alpha.db`
+- `.appdata\artifacts`
+- `.appdata\job-descriptions`
+- `.appdata\oauth\gmail-token.dpapi`
+- `.appdata\secrets\byok-keys.dpapi`
+- `.appdata\onboarding.completed`
+- `output`
 
-`research-company` reads Brave Search keys from `--brave-key`, the process environment, or
-`secrets/env.secrets`. Accepted names are `BRAVE_SEARCH_API_KEY`, `BRAVE_SEARCH_API`, and
-`CAREERSEEKER_BRAVE_SEARCH_API_KEY`.
+The public installed/Desktop OAuth client metadata is copied once from immutable package resources and never
+overwrites an existing user copy. Normal MSIX removal does not delete this external workspace.
 
-## Injected Ports
+Build and non-installing package verification:
 
-- `IJobFeed`: candidate postings. `ScoutJobFeed` is the production implementation (real ATS feeds, via
-  `IIdentifiedJobFeed` so postings keep their true company and external id); sandbox is a fixed batch.
-  Postings Scout flags for prompt injection are stored as evidence and then dropped before any model
-  call, counted separately as `quarantined`.
-- `ISemanticScorer`: injectable CV-match and growth sub-scores. Beta defaults to deterministic
-  offline `lexical-v1`; fixtures can inject fixed scores.
-- `IDocumentRenderer`: production alpha is the deterministic ATS-clean PDF renderer. Future product polish
-  can add an HTML/Chromium renderer.
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+```
 
-## Verified Status
+This produces `output\release\CareerSeeker-beta-win-x64.msix`, unpacks it with the locked Microsoft SDK
+tool, asserts exactly one `CareerSeeker.exe`, and runs the no-console onboarding smoke with zero provider
+and Gmail calls. Signing and real installation are separate human actions documented in
+`docs/Beta-Windows-Package-Runbook.md`.
 
-- `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 407 passed, 0 failed.
-- `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
-  offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
-  trusted-tester release ZIP, and live Brave/BYOK company research.
-- `scripts/Package-AlphaRelease.ps1` creates a self-contained alpha ZIP with the executable, native runtime
-  dependencies, quickstart, tester walkthrough, audit snapshot, release manifest, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/audit-export/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers,
-  workspace initializer, dashboard/helper self-check scripts, checksums, and selected docs without bundling local
-  databases, vaults, provider keys, or generated artifacts.
-- `scripts/Initialize-AlphaWorkspace.ps1` creates ignored local alpha directories, a starter profile template,
-  and a blank env-secrets placeholder, and can run the startup doctor after setup.
-- `scripts/Start-AlphaDashboard.ps1` wraps the standalone dashboard mode for trusted testers; it can smoke-check
-  the local dashboard with `-Once`, run from source, run the published single-file executable with
-  `-Published -PublishIfMissing`, or run from the packaged release root with `-Published`.
-- `Start-CareerSeeker-Alpha.cmd` wraps that published dashboard path for double-click tester startup from the
-  extracted release ZIP.
-- `Install-CareerSeeker-DashboardTask.cmd` wraps the service-grade scheduled-task helper for double-click
-  per-user engine startup at Windows sign-in and requires typing `INSTALL`.
-- `Status-CareerSeeker-DashboardTask.cmd` reports whether that per-user engine startup task is installed.
-- `Uninstall-CareerSeeker-DashboardTask.cmd` cleanly stops and removes that per-user task and requires typing
-  `UNINSTALL`.
-- `Setup-CareerSeeker-Alpha.cmd` wraps the workspace initializer for double-click tester setup from the
-  extracted release ZIP, then opens the generated profile template.
-- `Import-CareerSeeker-Profile.cmd` wraps `import-profile` for double-click tester profile setup from the
-  extracted release ZIP after the profile template is edited.
-- `Connect-CareerSeeker-Providers.cmd` wraps provider-key import and `doctor --require-byok` for double-click
-  tester BYOK setup from the extracted release ZIP without printing secret values.
-- `Connect-CareerSeeker-Gmail.cmd` wraps `connect-gmail` for double-click tester OAuth setup from the
-  extracted release ZIP; it preflights Gmail draft access without creating a draft.
-- `Check-CareerSeeker-LiveReadiness.cmd` wraps `doctor --require-gmail --require-byok` for double-click live
-  Gmail/BYOK readiness checks without printing secret values.
-- `Clear-CareerSeeker-Providers.cmd` wraps `clear-byok` for double-click local BYOK vault clearing and requires
-  typing `CLEAR`.
-- `Disconnect-CareerSeeker-Gmail.cmd` wraps `disconnect-gmail` for double-click Gmail revoke/local token-vault
-  clearing and requires typing `DISCONNECT`.
-- `Run-CareerSeeker-Demo.cmd` wraps a one-shot SQLite demo cycle for double-click tester evidence generation
-  from the extracted release ZIP without creating a Gmail draft.
-- `Run-CareerSeeker-Scout.cmd` wraps public ATS board ingestion for double-click tester job discovery from the
-  extracted release ZIP without creating a Gmail draft.
-- `Research-CareerSeeker-Company.cmd` wraps live Brave/BYOK company research for double-click tester review
-  from the extracted release ZIP without creating a Gmail draft.
-- `Draft-CareerSeeker-Job.cmd` wraps selected stored-job drafting; it defaults to a no-Gmail dry-run package and
-  requires typing `LIVE` before creating a Gmail draft.
-- `Run-CareerSeeker-Live.cmd` wraps `alpha --llm byok --fast-smoke`; it defaults to a no-Gmail dry-run preview
-  and requires typing `LIVE` before creating a Gmail draft.
-- `Export-CareerSeeker-Audit.cmd` wraps `export-audit` for double-click hash-only audit JSON handoff from the
-  extracted release ZIP; raw payloads require explicitly typing `PAYLOADS`.
-- `Export-CareerSeeker-Evidence.cmd` wraps `export-alpha-package` for double-click tester audit handoff from
-  the extracted release ZIP after a demo or live alpha cycle.
-- `Import-CareerSeeker-Package.cmd` wraps `import-alpha-package` for double-click tester/auditor restore into
-  a separate import workspace.
-- `Verify-CareerSeeker-Alpha.cmd` wraps the package self-check and dashboard smoke for double-click tester
-  verification from the extracted release ZIP.
-- `scripts/Manage-AlphaDashboardTask.ps1` can register, remove, start, cleanly pause/resume/stop, and inspect
-  a per-user Windows logon task for the real engine. `Start-BetaEngineHost.ps1` supervises crashes with
-  capped backoff and local file logging; the engine adds a database-scoped process lock and backs off
-  erroring cycles. Native service/tray and installer shells remain future work.
-- `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
-  in-memory/SQLite behavior parity plus the recent-application and recent-job read models, and
-  `EngineHarness` covering a SQLite-backed engine cycle.
-- Live connector status: Scout ingestion, Gmail draft creation, BYOK provider calls, full alpha BYOK
-  Gmail/PDF draft creation, alpha Gmail/PDF smoke, and dashboard Gmail disconnect wiring are verified.
-- `scout-boards` gives the alpha executable a live ATS ingest path for Greenhouse, Lever, and Ashby boards;
-  it writes postings into SQLite, stores full posting bodies as ignored local JD artifacts, records a hash-chained
-  ingest event, and treats repeat sightings as reposts.
-- `draft-job` lets testers create an L1 draft package for a selected stored job id; the dry-run path verifies
-  package/artifact/audit behavior without touching Gmail, and the normal path uses the same Gmail draft port.
-  When a selected job has a `jd_path`, Tailor and dispatch packaging receive the posting body as untrusted data.
-- Bounded BYOK alpha smoke is verified for live Gate, live Tailor, Gmail draft creation, PDF attachment
-  packaging, and SQLite audit.
-- Brave web-research adapter source and the `research-company` alpha command are implemented, offline
-  verified, live-verified with Brave Search plus BYOK dossier modeling, and exposed through a double-click
-  trusted-tester helper.
-- Dashboard `/applications` exposes recent job/application state, scores, draft refs, generated resume/cover
-  document links, safe job/apply links, and token-protected pause/resume/kill controls in the shared alpha
-  dashboard shell. Controls are shown for active/paused rows and hidden for terminal application states.
-  `/evidence.html` exposes a human audit-chain page and `/evidence` exposes recent audit event metadata JSON
-  without payload bodies.
-- Dashboard home exposes token-protected hash-only audit JSON and alpha package export controls when running
-  against a SQLite DB, and dashboard/document responses carry no-store, nosniff, no-referrer, and form-scoped
-  CSP headers.
-- Dashboard `/jobs` exposes visible job ids for selected-job drafting, recently discovered jobs,
-  compensation metadata, source, safe job/apply links, repost count, and prompt-injection flags without raw
-  job descriptions.
-- `dashboard` serves the same `/jobs`, `/applications`, `/evidence.html`, `/evidence`, Gmail disconnect, and
-  application controls against an existing SQLite alpha DB without starting a demo cycle.
-- `export-audit` writes a local audit JSON package; payloads are hash-only by default and opt-in with
-  `--include-payloads`.
-- `export-alpha-package` writes a local ZIP package with a manifest, audit export, SQLite snapshot, draft
-  artifacts, and saved job-description artifacts while filtering secret/token/key-looking paths.
-- `import-alpha-package` restores a local ZIP package into a safe default `.appdata/imported` workspace,
-  requires a CareerSeeker alpha manifest, rejects unsupported, unsafe, or duplicate entries, preserves existing
-  files unless `--overwrite` is passed, and verifies the restored SQLite audit chain. The package helper exposes
-  the same restore path without hand-typed commands.
-- `doctor` checks local SQLite/audit health, artifact writability, Gmail OAuth/vault presence when required,
-  and BYOK provider availability without printing secret values.
-- `control-app` gives testers a local audited pause, resume, and kill switch for a specific application row.
-- `profile-template` and `import-profile` let testers replace the local Tailor/Gate source-of-truth profile
-  with their own verified/stated/weak claims; imports require the CareerSeeker alpha profile format and unique
-  claim ids, and refuse unknown claim kinds.
+## Crash recovery and continuous host
 
-## Not Yet Built
+Before startup work and before every scheduled discovery tick, the engine reconciles applications stranded
+in `READY` or `SUBMITTING`:
 
-- Windows Service host, tray controls, and broader dashboard polish around `EngineHost`.
-- Native WinUI onboarding/tray shell, OAuth/CASA production verification, installer, and code signing.
+- recorded `SUCCEEDED` draft: commit `READY -> DRAFTED` without another Gmail call;
+- recorded `SUCCEEDED` submission: commit the local settled states without another external effect;
+- recorded `FAILED`: leave retry available;
+- `PENDING`/unknown outcome: preserve state and record one durable manual-review event.
 
+A store-level reconciliation failure aborts the cycle. A malformed individual row is isolated and counted
+so other recoverable rows can still be inspected.
+
+The shipped service-grade fallback is a per-user Scheduled Task supervised by
+`scripts/Start-BetaEngineHost.ps1`. It supplies:
+
+- capped crash-restart and cycle-error backoff;
+- database-scoped single-instance lock;
+- per-user local logs;
+- control-file pause, resume, stop, and status;
+- honest scheduler state on the loopback dashboard.
+
+Task registration is always an explicit human action. Native SCM Windows Service and tray UI are not built.
+
+## Modes
+
+| Mode | Purpose | External-effect boundary |
+|---|---|---|
+| `setup` | Browser onboarding | Provider/Gmail only after separate consent; no draft |
+| `setup --console` | Advanced fallback wizard | Same safety boundaries |
+| `run` | Real scheduled discovery and drafting engine | Drafts only when explicitly configured; no send |
+| `run --dry-run` | Real discovery/ranking/telemetry | No draft |
+| `dashboard` | Viewer/controls over stored state | No engine attached unless another host is running |
+| `demo` | Invented deterministic postings | Local fake draft artifact only |
+| `scout-boards` | One public ATS ingest | No Gmail |
+| `draft-job` | Selected stored-job package/draft | `--dry-run` avoids Gmail |
+| `research-company` | Brave/BYOK grounded dossier | No Gmail |
+| `doctor` | Local readiness checks | No draft/provider completion |
+| `connect-gmail` | OAuth plus draft-access preflight | No draft |
+| `disconnect-gmail` | Revoke token and delete local vault | Explicit local/account action |
+| `import-byok` / `clear-byok` | Manage local DPAPI provider vault | Never prints key values |
+| `export-audit` | Hash-only audit export by default | Payloads require opt-in |
+| `export-alpha-package` / `import-alpha-package` | Local evidence ZIP | Separate from the app installer |
+| `alpha` | Historical bounded live smoke | One explicit self-addressed draft |
+
+## Injected ports
+
+- `IJobFeed`: `ScoutJobFeed` is the real identified public-board implementation. Injection-signaled postings
+  are stored as evidence and quarantined before scorer/model/action work.
+- `ISemanticScorer`: Beta uses local `LexicalSemanticScorer`; fixtures may inject fixed values.
+- `IDocumentRenderer`: deterministic ATS-clean PDF renderer.
+- `IGmailDraftClient`: draft-only port. Label management is a separate capability.
+
+## Verified evidence
+
+Current pinned offline results:
+
+| Harness | Assertions |
+|---|---:|
+| Slice | 28 |
+| EngineHarness | 159 |
+| ResearcherHarness | 57 |
+| HookHarness | 16 |
+| StoreParityHarness | 25 |
+| GatewayGateHarness | 36 |
+| DispatcherNoSendHarness | 35 |
+| LifecycleHarness | 45 |
+| RendererHarness | 6 |
+| **Total** | **407** |
+
+The engine-specific assertions cover browser onboarding, crash reconciliation, SQLite composition,
+single-instance protection, scheduler pause/resume/backoff, honest dashboard state, identified Scout feeds,
+quarantine-before-action, action-cap advancement, no-redraft idempotency, discovery-only behavior,
+deterministic ranking, loopback/CSRF/security headers, audit/evidence exports, safe evidence ZIP
+import/export, profile import, doctor, pinned Gate, and Dispatcher no-send.
+
+Run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+```
+
+## Deliberate gaps
+
+- MSIX production signature / SmartScreen reputation.
+- Real installer registration, uninstall UI, Startup Apps UI, and reboot verification on a disposable tester
+  machine.
+- OAuth production verification and the Google-directed CASA assessment.
+- Native Windows Service, tray, and in-app startup toggle.
+- Public-site deployment of the repository truth-copy changes.
+- Any higher autonomy, Gmail send/modify/read scope, calendar access, or ATS submission.
