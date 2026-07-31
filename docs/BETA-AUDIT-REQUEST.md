@@ -6,6 +6,35 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## B4 - Quarantine telemetry and measurement
+
+Branch: `codex/beta-M4-quarantine-telemetry`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-07-30 |
+|---|---|---|
+| Per-cycle counters, board identities, and reason-code counts persist with memory/SQLite parity. | `dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release --no-build` | `25 passed, 0 failed`; the exact telemetry row round-tripped in both stores. |
+| Engine cycles populate durable telemetry without putting posting bodies in it. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | `137 passed, 0 failed`; identified-cycle counter/board/reason assertions passed and posting text was absent. |
+| Dashboard evidence and hash-only audit exports expose the aggregate telemetry. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | The renderer and JSON assertions found recent cycles; the audit-export assertion found reason codes while default event payloads remained hash-only. |
+| Count/docs/verifier moved together to 385. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` | `Offline total: 385 passed, 0 failed`. |
+| Bounded public-ATS measurement was draft-free and audit-clean. | See the three exact `run` commands and export command in `docs\Injection-Rate-Report-2026-08.md`. | Five total cycles across the three ATS kinds: 61 discovered, 14 quarantined, 47 rejected, 0 drafted, 0 errors; all three canonical exports reported intact audit chains. |
+| The observed flags were assessed without changing the classifier. | `git diff origin/main...codex/beta-M4-quarantine-telemetry -- src\Scout` | Expected: no detector-expression or threshold diff; only `ScoutJobFeed` exposes configured board identity for empty-cycle telemetry. |
+| Frozen Android/relay paths are absent from the milestone diff. | `git diff --name-only origin/main...codex/beta-M4-quarantine-telemetry \| rg '^(relay/|docs/Sync-Protocol\.md$|docs/sync-vectors/|.*Android|.*android)'` | Expected: no output, exit 1 from `rg`. |
+
+### Measurement interpretation
+
+The observed signal rate was 14/61 (22.95%), all `role_reassign`. Manual
+context review assessed all 14 as benign job-duty language, so the report
+proposes narrowing the bare `act as` trigger. The proposal was not applied.
+Lever and Ashby returned zero postings in both attempts, so cross-board
+classifier comparison remains unproven and is stated as such.
+
+No Gmail draft, BYOK/provider call, email, upload, deployment, scheduled-task
+registration, Cloudflare action, Google/Play console change, Android/relay/
+sync-vector change, off-repo site edit, dependency change, classifier tuning,
+or secret print was performed.
+
 ## B3 - Deterministic lexical ranking
 
 Branch: `codex/beta-M3-lexical-ranking`

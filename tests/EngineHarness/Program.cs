@@ -578,6 +578,15 @@ Console.WriteLine("\n[ Scout-backed identified feed ]");
             feedCounters.Acted + feedCounters.Rejected == 1,
             $"acted={feedCounters.Acted} rejected={feedCounters.Rejected} drafted={feedCounters.Drafted}");
         Check("identified cycle recorded no errors", feedCounters.Errors == 0, feedCounters.Errors.ToString());
+        var persistedCycle = (await store.GetRecentCycleTelemetryAsync()).Single();
+        Check("identified cycle persists per-cycle counters and board identity",
+            persistedCycle is { Discovered: 2, Quarantined: 1, Errors: 0 } &&
+            persistedCycle.BoardsJson == "[\"Greenhouse:fixture\"]",
+            JsonSerializer.Serialize(persistedCycle));
+        Check("identified cycle persists classifier reason codes without posting text",
+            persistedCycle.QuarantineReasonsJson.Contains("ignore-previous-instructions", StringComparison.Ordinal) &&
+            !persistedCycle.QuarantineReasonsJson.Contains(poisonedJob.DescriptionText, StringComparison.Ordinal),
+            persistedCycle.QuarantineReasonsJson);
 
         // The quarantined posting is still stored: refusing to reason about it is not the same as
         // pretending it was never seen. Evidence survives; only the model call is withheld.
@@ -899,6 +908,8 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/evidence.html serves human audit evidence",
             evidenceHtml.Contains("Audit evidence") &&
             evidenceHtml.Contains("Hash chain verified") &&
+            evidenceHtml.Contains("Recent persisted cycles") &&
+            evidenceHtml.Contains("feed:feed") &&
             evidenceHtml.Contains("dashboard-test") &&
             evidenceHtml.Contains("/evidence"),
             evidenceHtml);
@@ -919,6 +930,11 @@ Console.WriteLine("\n[ localhost dashboard ]");
         Check("/evidence includes recent job metadata without descriptions",
             evidenceDoc.RootElement.GetProperty("recentJobs").GetArrayLength() > 0 &&
             evidenceJson.Contains("Senior Software Engineer") &&
+            !evidenceJson.Contains("DescriptionText", StringComparison.OrdinalIgnoreCase),
+            evidenceJson);
+        Check("/evidence includes persisted per-cycle telemetry",
+            evidenceDoc.RootElement.GetProperty("recentCycles").GetArrayLength() == 1 &&
+            evidenceJson.Contains("feed:feed", StringComparison.Ordinal) &&
             !evidenceJson.Contains("DescriptionText", StringComparison.OrdinalIgnoreCase),
             evidenceJson);
 
@@ -1106,7 +1122,8 @@ Console.WriteLine("\n[ localhost dashboard ]");
             new[]
             {
                 new JobSummaryRow(303, "greenhouse", "draftable-303", "Draftable sample", "Example", null, "Remote", "Remote", "https://jobs.example/303", "https://apply.example/303", null, null, null, null, null, false, null, now, 0),
-            }))));
+            },
+            Array.Empty<CycleTelemetryRow>()))));
     var renderedApplications = await rendererOnlyDashboard.ApplicationsHtmlAsync();
     var rejectedApplicationRow = HtmlRowContaining(renderedApplications, "REJECTED_BY_ENGINE");
     var draftedApplicationRow = HtmlRowContaining(renderedApplications, "DRAFTED");
@@ -1128,6 +1145,16 @@ Console.WriteLine("\n[ audit export ]");
 {
     var store = await SeededStoreAsync();
     await store.AppendEventAsync(new EventInput("engine", "export-test", "application", "1", "{\"secret\":\"local payload\"}"));
+    await store.SaveCycleTelemetryAsync(new CycleTelemetryInput(
+        "2026-07-30T12:00:00Z",
+        "2026-07-30T12:00:05Z",
+        5,
+        1,
+        2,
+        0,
+        0,
+        "[\"greenhouse:fixture\"]",
+        "{\"ignore_previous\":1}"));
 
     var safe = await AuditExport.BuildJsonAsync(store);
     using var safeDoc = JsonDocument.Parse(safe);
@@ -1136,6 +1163,11 @@ Console.WriteLine("\n[ audit export ]");
         !safeDoc.RootElement.GetProperty("payloadsIncluded").GetBoolean() &&
         !safe.Contains("local payload") &&
         safe.Contains("PayloadSha256"),
+        safe);
+    Check("audit export includes aggregate cycle telemetry and reason codes",
+        safeDoc.RootElement.GetProperty("cycleTelemetry").GetArrayLength() == 1 &&
+        safe.Contains("ignore_previous", StringComparison.Ordinal) &&
+        !safe.Contains("posting body", StringComparison.Ordinal),
         safe);
 
     var full = await AuditExport.BuildJsonAsync(store, new AuditExportOptions(IncludePayloads: true));

@@ -96,7 +96,8 @@ public sealed record DashboardEvidence(
     int EventCount,
     IReadOnlyList<DashboardEvidenceEvent> RecentEvents,
     IReadOnlyList<ApplicationSummaryRow> RecentApplications,
-    IReadOnlyList<JobSummaryRow> RecentJobs);
+    IReadOnlyList<JobSummaryRow> RecentJobs,
+    IReadOnlyList<CycleTelemetryRow> RecentCycles);
 
 public sealed record DashboardEvidenceEvent(
     long Seq,
@@ -113,13 +114,15 @@ public sealed record LocalDashboardEvidence(
         ISeekerStore store,
         int recentEventLimit = 12,
         int recentApplicationLimit = 25,
-        int recentJobLimit = 25) =>
+        int recentJobLimit = 25,
+        int recentCycleLimit = 25) =>
         new(async ct =>
         {
             var verification = await store.VerifyAuditAsync(ct).ConfigureAwait(false);
             var events = await store.GetEventsAsync(ct).ConfigureAwait(false);
             var applications = await store.GetRecentApplicationsAsync(recentApplicationLimit, ct).ConfigureAwait(false);
             var jobs = await store.GetRecentJobsAsync(recentJobLimit, ct).ConfigureAwait(false);
+            var cycles = await store.GetRecentCycleTelemetryAsync(recentCycleLimit, ct).ConfigureAwait(false);
             var recent = events
                 .OrderByDescending(e => e.Seq)
                 .Take(Math.Max(1, recentEventLimit))
@@ -134,7 +137,8 @@ public sealed record LocalDashboardEvidence(
                 events.Count,
                 recent,
                 applications,
-                jobs);
+                jobs,
+                cycles);
         });
 }
 
@@ -454,6 +458,7 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
             recentEvents = evidence.RecentEvents,
             recentApplications = evidence.RecentApplications,
             recentJobs = evidence.RecentJobs,
+            recentCycles = evidence.RecentCycles,
         });
     }
 
@@ -487,6 +492,9 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
         var eventRows = evidence.RecentEvents.Count == 0
             ? @"<tr><td colspan=""6"">No audit events yet.</td></tr>"
             : string.Concat(evidence.RecentEvents.Select(EvidenceEventRowHtml));
+        var cycleRows = evidence.RecentCycles.Count == 0
+            ? @"<tr><td colspan=""9"">No persisted engine cycles yet.</td></tr>"
+            : string.Concat(evidence.RecentCycles.Select(CycleTelemetryRowHtml));
 
         var body = $@"<section class=""hero""><div><h1>Audit evidence</h1><div class=""muted"">Local metadata only; raw event payloads stay out of this page.</div></div><a href=""/"">Back to status</a></section>
 <section class=""cards"">
@@ -494,7 +502,11 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
 {MetricCard("Events", evidence.EventCount)}
 {MetricCard("Applications", evidence.RecentApplications.Count)}
 {MetricCard("Jobs", evidence.RecentJobs.Count)}
+{MetricCard("Cycles", evidence.RecentCycles.Count)}
 </section>
+<h2>Recent persisted cycles</h2>
+<div class=""table-wrap""><table><thead><tr><th>Completed</th><th>Boards</th><th>Discovered</th><th>Quarantined</th><th>Rejected</th><th>Drafted</th><th>Errors</th><th>Reason codes</th><th>Cycle id</th></tr></thead>
+<tbody>{cycleRows}</tbody></table></div>
 <h2>Recent audit events</h2>
 <div class=""table-wrap""><table><thead><tr><th>Seq</th><th>Time</th><th>Actor</th><th>Kind</th><th>Entity</th><th>Id</th></tr></thead>
 <tbody>{eventRows}</tbody></table></div>
@@ -504,6 +516,9 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
 
     private static string EvidenceEventRowHtml(DashboardEvidenceEvent row) =>
         $@"<tr><td class=""n"">{row.Seq}</td><td class=""n"">{WebUtility.HtmlEncode(row.Ts)}</td><td>{WebUtility.HtmlEncode(row.Actor)}</td><td>{WebUtility.HtmlEncode(row.Kind)}</td><td>{WebUtility.HtmlEncode(row.Entity)}</td><td>{WebUtility.HtmlEncode(row.EntityId)}</td></tr>";
+
+    private static string CycleTelemetryRowHtml(CycleTelemetryRow row) =>
+        $@"<tr><td class=""n"">{WebUtility.HtmlEncode(row.CompletedAt)}</td><td>{WebUtility.HtmlEncode(row.BoardsJson)}</td><td class=""n"">{row.Discovered}</td><td class=""n"">{row.Quarantined}</td><td class=""n"">{row.Rejected}</td><td class=""n"">{row.Drafted}</td><td class=""n"">{row.Errors}</td><td>{WebUtility.HtmlEncode(row.QuarantineReasonsJson)}</td><td class=""n"">{row.Id}</td></tr>";
 
     private async Task HandleEvidencePageAsync(HttpListenerContext ctx, CancellationToken ct)
     {

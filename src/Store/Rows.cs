@@ -145,6 +145,34 @@ public sealed record JobSummaryRow(
     string? ModelUsed = null);
 
 /// <summary>
+/// Trusted, aggregate evidence for one engine cycle. Board identifiers and quarantine reason codes
+/// are classifier metadata; posting bodies never enter this row.
+/// </summary>
+public sealed record CycleTelemetryInput(
+    string StartedAt,
+    string CompletedAt,
+    int Discovered,
+    int Quarantined,
+    int Rejected,
+    int Drafted,
+    int Errors,
+    string BoardsJson,
+    string QuarantineReasonsJson);
+
+/// <summary>A persisted cycle telemetry row, newest-first when read through the store.</summary>
+public sealed record CycleTelemetryRow(
+    long Id,
+    string StartedAt,
+    string CompletedAt,
+    int Discovered,
+    int Quarantined,
+    int Rejected,
+    int Drafted,
+    int Errors,
+    string BoardsJson,
+    string QuarantineReasonsJson);
+
+/// <summary>
 /// A durable side-effect attempt record bracketing an external call (Gmail draft, ATS submit).
 /// PENDING is written before the call, SUCCEEDED/FAILED after — so after a crash, PENDING means
 /// "outcome unknown at the provider", FAILED means "known not to have happened" (safe to retry),

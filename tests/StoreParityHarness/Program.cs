@@ -74,6 +74,11 @@ Check("state-set id lookup returns the matching application in both stores",
 Check("state-set id lookup returns empty for a non-matching state and for empty input",
     sqlite.IdsNoneMatching.Count == 0 && sqlite.IdsEmptyInput.Count == 0 &&
     memory.IdsNoneMatching.Count == 0 && memory.IdsEmptyInput.Count == 0);
+Check("cycle telemetry round-trips trusted aggregate metadata",
+    sqlite.Cycles.Count == 1 &&
+    sqlite.Cycles[0] is { Discovered: 12, Quarantined: 2, Rejected: 3, Drafted: 1, Errors: 0 } &&
+    sqlite.Cycles[0].BoardsJson == "[\"greenhouse:acme\"]" &&
+    sqlite.Cycles[0].QuarantineReasonsJson == "{\"ignore_previous_instructions\":2}");
 
 // Migration (L1): a DB created by an older schema — missing paused_from / resume_path / cover_path /
 // answers_json — must be brought current on open, without dropping the pre-existing row, and the new
@@ -269,6 +274,16 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
         var idsMatching = (await store.GetApplicationIdsInStatesAsync(new[] { "EVALUATED", "SUBMITTING" })).ToList();
         var idsNoneMatching = (await store.GetApplicationIdsInStatesAsync(new[] { "DRAFTED" })).ToList();
         var idsEmptyInput = (await store.GetApplicationIdsInStatesAsync(Array.Empty<string>())).ToList();
+        await store.SaveCycleTelemetryAsync(new CycleTelemetryInput(
+            "2026-07-08T13:00:00.0000000+00:00",
+            "2026-07-08T13:00:05.0000000+00:00",
+            12,
+            2,
+            3,
+            1,
+            0,
+            "[\"greenhouse:acme\"]",
+            "{\"ignore_previous_instructions\":2}"));
 
         return new StoreSnapshot(
             CasWrong: casWrong,
@@ -291,6 +306,7 @@ static async Task<StoreSnapshot> ExerciseAsync(Func<Func<DateTimeOffset>, ISeeke
             JobSummary: await store.GetJobSummaryAsync(first.JobId),
             Summaries: (await store.GetRecentApplicationsAsync()).ToList(),
             JobSummaries: (await store.GetRecentJobsAsync()).ToList(),
+            Cycles: (await store.GetRecentCycleTelemetryAsync()).ToList(),
             Events: (await store.GetEventsAsync()).ToList(),
             Audit: await store.VerifyAuditAsync(),
             ConfigValue: await store.GetConfigAsync("autonomy.level"));
@@ -354,6 +370,7 @@ sealed record StoreSnapshot(
     JobSummaryRow? JobSummary,
     IReadOnlyList<ApplicationSummaryRow> Summaries,
     IReadOnlyList<JobSummaryRow> JobSummaries,
+    IReadOnlyList<CycleTelemetryRow> Cycles,
     IReadOnlyList<EventRow> Events,
     AuditVerification Audit,
     string? ConfigValue)
@@ -393,6 +410,7 @@ sealed record StoreSnapshot(
         if (JobSummary != other.JobSummary) return $"job summary lookup: {JobSummary} != {other.JobSummary}";
         if (!Summaries.SequenceEqual(other.Summaries)) return "application summaries differ";
         if (!JobSummaries.SequenceEqual(other.JobSummaries)) return "job summaries differ";
+        if (!Cycles.SequenceEqual(other.Cycles)) return "cycle telemetry differs";
         if (!Events.SequenceEqual(other.Events)) return "event rows differ";
         if (Audit != other.Audit) return $"audit result: {Audit} != {other.Audit}";
         if (ConfigValue != other.ConfigValue) return $"config value: {ConfigValue} != {other.ConfigValue}";

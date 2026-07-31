@@ -23,6 +23,8 @@ public sealed class InMemorySeekerStore : ISeekerStore
     private readonly Dictionary<long, string> _pendingDispatch = new();
     private readonly Dictionary<long, EffectAttemptRow> _attempts = new();
     private long _attemptSeq;
+    private readonly List<CycleTelemetryRow> _cycleTelemetry = new();
+    private long _cycleTelemetrySeq;
 
     private long _companySeq, _jobSeq, _appSeq;
     private long _profileId;
@@ -129,6 +131,45 @@ public sealed class InMemorySeekerStore : ISeekerStore
                 .ThenByDescending(j => j.Id)
                 .Take(safeLimit)
                 .Select(JobSummaryLocked)
+                .ToList();
+        }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task<long> SaveCycleTelemetryAsync(CycleTelemetryInput cycle, CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var id = ++_cycleTelemetrySeq;
+            _cycleTelemetry.Add(new CycleTelemetryRow(
+                id,
+                cycle.StartedAt,
+                cycle.CompletedAt,
+                cycle.Discovered,
+                cycle.Quarantined,
+                cycle.Rejected,
+                cycle.Drafted,
+                cycle.Errors,
+                cycle.BoardsJson,
+                cycle.QuarantineReasonsJson));
+            return id;
+        }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task<IReadOnlyList<CycleTelemetryRow>> GetRecentCycleTelemetryAsync(
+        int limit = 25,
+        CancellationToken ct = default)
+    {
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var safeLimit = Math.Clamp(limit, 1, 100);
+            return _cycleTelemetry
+                .OrderByDescending(c => c.CompletedAt)
+                .ThenByDescending(c => c.Id)
+                .Take(safeLimit)
                 .ToList();
         }
         finally { _mutex.Release(); }

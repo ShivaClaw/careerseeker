@@ -20,6 +20,12 @@ public interface ISeekerStore
     Task<JobSummaryRow?> GetJobSummaryAsync(long jobId, CancellationToken ct = default);
     Task<IReadOnlyList<JobSummaryRow>> GetRecentJobsAsync(int limit = 25, CancellationToken ct = default);
 
+    // ---- durable per-cycle telemetry (aggregate metadata only; never posting bodies) ----
+    Task<long> SaveCycleTelemetryAsync(CycleTelemetryInput cycle, CancellationToken ct = default);
+    Task<IReadOnlyList<CycleTelemetryRow>> GetRecentCycleTelemetryAsync(
+        int limit = 25,
+        CancellationToken ct = default);
+
     // ---- scoring ----
     Task SaveScoreAsync(ScoreRow score, CancellationToken ct = default);
 
