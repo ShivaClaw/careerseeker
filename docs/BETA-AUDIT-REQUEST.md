@@ -6,6 +6,36 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## B8 - Evidence, positioning, and human runbook
+
+Branch: `codex/beta-M8-evidence`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-07-30 |
+|---|---|---|
+| Current public/repository copy describes the unsigned one-exe MSIX and does not present the historical Alpha ZIP/helpers as the current app artifact. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` | At `5d3d86122c0ccad3b6ab10f918c553e9aee76ba5`: docs assertions and all offline harnesses passed, 407/0. |
+| Trust-copy Markdown pairs are byte-identical. | `$pairs=@(@('docs-site/privacy.md','docs/Privacy-Policy.md'),@('docs-site/support.md','docs/Support.md'),@('docs-site/autonomy-contract.md','docs/Autonomy-Contract.md')); $pairs \| ForEach-Object { (Get-FileHash $_[0]).Hash -eq (Get-FileHash $_[1]).Hash }` | `True`, `True`, `True`. |
+| The claims register maps public sentences to invariants, harnesses, and source lines while highlighting unsupported operational/marketing claims. | `rg -n "UNPROVEN|signed and trusted|survives reboot|production-ready|whole-product|server-retention|support" docs\Positioning.md` | `UNPROVEN` rows exist for analytics/tracker inventory, broad retention wording, signing, reboot, production readiness, and support SLA evidence. |
+| Brandon has one ordered human-only list for deployment, rate limiting, OAuth queue/verification/CASA, signing, installer testing, and publication. | `rg -n "single ordered Sunday list|Deploy the truth copy|Protect .api.signup|OAuth test-user queue|OAuth production verification|CASA|MSIX signing|installer matrix|Publish the signed Beta|PENDING" docs\Beta-Runbook.md` | All sections are present and the runbook says Terra executed none; unexecuted work remains `PENDING`. |
+| The repository trust pages render locally with the expected Beta headings and controls. | `python -m http.server 8765 --bind 127.0.0.1 --directory docs-site` then open `http://127.0.0.1:8765/index.html`, `privacy.html`, `support.html`, and `autonomy-contract.html` in a browser. | The in-app Browser loaded all four pages; expected headings appeared; privacy visibly included Beta, unsigned-MSIX, and `%LOCALAPPDATA%\CareerSeeker` wording. The temporary server/tab were then stopped/closed. |
+| The clean current artifact remains one unsigned MSIX/one exe with no provider/Gmail calls and external user data preserved. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | At `5d3d86122c0ccad3b6ab10f918c553e9aee76ba5`: 407/0; one `CareerSeeker.exe`; provider calls 0; Gmail calls/drafts 0; workspace sentinel preserved; 33,677,048 bytes; SHA-256 `1EDC46E3731A449C4DCCA02FA7464CBCF5D2EDC7FADF3EFA3EEF8F0B8C7B7B39`. |
+| Frozen Android/relay paths are absent from the milestone diff. | `git diff --name-only 1308345e10e93ee10fe40a3e6aa494ace17f936f...HEAD \| rg '^(relay/|docs/Sync-Protocol\.md$|docs/sync-vectors/|.*Android|.*android)'` | Expected: no output, exit 1 from `rg`. |
+
+### Verification boundary
+
+The verifier initially exposed an encoding-sensitive PowerShell assertion and
+two exact-copy mismatches; those runs stopped and are not claimed as passes.
+The clean offline and full publish/package commands above passed afterward.
+
+The MSIX was created and unpacked, not signed, installed, registered,
+Windows-uninstalled, or reboot-tested. The docs site was served only from
+loopback; no production deploy occurred. No Gmail draft, provider call, send,
+public ATS request, Cloudflare mutation, Google/Play console change, OAuth
+queue read/write, scheduled-task registration, Android/relay/sync-vector
+change, off-repo site edit, purchase, new scope, account/config change, or
+secret print was performed.
+
 ## B7 - Single-executable MSIX
 
 Branch: `codex/beta-M7-installer`

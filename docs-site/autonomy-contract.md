@@ -1,9 +1,9 @@
 # CareerSeeker Autonomy Contract
 
-**Version:** L1 Drafts alpha (v0.1)
-**Last updated:** 2026-07-20
+**Version:** L1 Drafts beta (v0.7)
+**Last updated:** 2026-07-30
 
-This contract defines what CareerSeeker can and cannot do on your behalf in the current L1 Drafts alpha. Every material action is intended to be logged in a local audit trail and reviewable by the user.
+This contract defines what CareerSeeker can and cannot do on your behalf in the current L1 Drafts beta. Every material action is intended to be logged in a local audit trail and reviewable by the user.
 
 ## L1 Drafts Mode
 
@@ -63,19 +63,19 @@ State transitions, gate decisions, scoring events, and engine actions are record
 
 ## Current Controls
 
-| Control | Current L1 alpha path |
+| Control | Current L1 beta path |
 | --- | --- |
-| Pause or stop | Stop the local engine process or host. Product tray controls are planned. |
-| Disconnect Gmail | Use `disconnect-gmail` or the packaged disconnect helper, then optionally confirm removal from Google Account permissions. |
+| Pause or stop | Use the local dashboard/control files or stop the local engine process/host. A native tray is not built. |
+| Disconnect Gmail | Use the token-protected local dashboard control, or run `CareerSeeker.exe disconnect-gmail` from source/an unpacked test tree, then optionally confirm removal from Google Account permissions. |
 | Edit claims | Edit the local source profile/claims and rerun affected work through the Gate. |
 | Blocklist employers | Configure local preferences/rails when the product shell is wired. |
 | Set daily cap | Planned product control; current harnesses exercise bounded local runs. |
-| Export audit log or local evidence bundle | Available through `Export-CareerSeeker-Audit.cmd`, `Export-CareerSeeker-Evidence.cmd`, `Import-CareerSeeker-Package.cmd`, and the local `export-audit`, `export-alpha-package`, and `import-alpha-package` commands; audit-chain verification is implemented in the store and harnesses. |
-| Delete all data | Delete local databases, generated artifacts, and `.appdata` test vaults. |
+| Export audit log or local evidence bundle | Run the local `export-audit`, `export-alpha-package`, or `import-alpha-package` command from source/an unpacked test tree; audit-chain verification is implemented in the store and harnesses. Historical Alpha `.cmd` helpers are not part of the current MSIX. |
+| Delete all data | App uninstall preserves data. After separate explicit confirmation, delete `%LOCALAPPDATA%\CareerSeeker` or the configured source/test workspace. |
 
 ## Future Autonomy Levels
 
-L2 and L3 modes are not available in v0.1. Before any higher autonomy level is activated, it must be explicitly designed, scoped, documented, and tested. Higher autonomy may require new Gmail, inbox, calendar, relay, or browser-automation permissions.
+L2 and L3 modes are not available in the current Beta. Before any higher autonomy level is activated, it must be explicitly designed, scoped, documented, and tested. Higher autonomy may require new Gmail, inbox, calendar, relay, or browser-automation permissions.
 
 No higher autonomy level is activated by default.
 

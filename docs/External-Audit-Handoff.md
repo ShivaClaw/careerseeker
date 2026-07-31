@@ -1,269 +1,157 @@
 # CareerSeeker External Audit Handoff
 
-Updated: 2026-07-23
-Branch: `main`
-Pull request: `#1`
+Updated: 2026-07-30
+Audit target: Windows L1 Drafts Beta on `main`
 
-## Audit Target
+## Audit question
 
-CareerSeeker is a local-first Windows L1 Drafts alpha. The alpha should discover jobs, score and filter them,
-tailor draft materials with source-backed claims only, render an ATS-clean resume PDF, and create reviewable
-Gmail drafts without any application send path.
+Does the current source discover and rank real jobs, recover safely after crashes, prepare only
+source-supported application materials, create reviewable Gmail drafts without a send path, preserve local
+user control, and describe its actual installer/onboarding/host limits honestly?
 
-The highest-value audit question is whether the current source preserves these invariants while using real
-local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gmail draft creation.
+The strongest review order is:
 
-## Current Evidence
+1. `CLAUDE.md` for repository constraints.
+2. `docs/BETA-AUDIT-REQUEST.md` for milestone claims and exact re-verification commands.
+3. `scripts/Verify-Alpha.ps1` for the pinned offline gate.
+4. the invariant surfaces below.
+5. `docs/Beta-Runbook.md` for human-only launch work that has not been executed.
 
-- GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
-  `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `407 passed, 0 failed`.
-- Beta B6 onboarding verification, 2026-07-30: `setup` now defaults to a loopback-only ten-step browser flow
-  with packaged checksum verification, bounded local resume extraction, explicit provider/Gmail consent,
-  per-claim accept/edit/drop review, visible `stated` cap and resume provenance, installed/Desktop OAuth
-  assertion, doctor, and discovery-only first run; `setup --console` keeps the old fallback. The clean
-  publish/package gate at `0ecd79e` passed 407/0, verified 51 packaged checksums, and traversed the web setup
-  with a synthetic resume and zero provider/Gmail calls.
-- Alpha 2.0.1 onboarding verification, 2026-07-23: the default verifier passed with seven new provider
-  diagnostics/local PDF-DOCX extraction assertions. A dirty-worktree package built successfully, and its
-  extracted self-check verified 50 checksums plus dashboard and setup smokes. The aggregate package gate
-  correctly refused to certify the dirty manifest; rerun it from the eventual clean commit before distribution.
-- Fresh optional verifier, 2026-07-20: `scripts/Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch`
-  passed locally on this branch. It covered the offline harness suite, win-x64 single-file publish smoke,
-  BYOK key import, BYOK live provider smoke, required Gmail/BYOK startup doctor, dashboard one-shot smoke,
-  and live Brave/BYOK company research.
-- Fresh live Scout harness, 2026-07-20: all configured Greenhouse/Lever/Ashby boards responded, all three ATS
-  kinds produced jobs, Store ingest round-tripped, and the run found 942 raw jobs, 635 deduped jobs, 389
-  compensation-bearing jobs, and 81 prompt-injection signals.
-- `scripts/Verify-Alpha.ps1 -IncludePackage` passed locally and produced a trusted-tester ZIP with the alpha
-  executable, native runtime dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/audit-export/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper
-  self-check scripts, quickstart, tester walkthrough, package-local audit snapshot, release manifest, checksums,
-  and selected docs. The extracted-package verifier also smokes the packaged live readiness helper, dry-runs
-  packaged dashboard logon-task install/uninstall, smokes dashboard task status, previews company research, exports packaged audit JSON, restores a packaged evidence ZIP, provider-key clear, and Gmail disconnect command paths
-  against isolated temp vault paths, and checks the
-  bundled Privacy, Support, and Autonomy docs for the real alpha off-ramp and evidence-package commands.
-  The package self-check also asserts typed confirmation prompts for live Gmail draft creation, destructive
-  local vault off-ramps, and persistent dashboard logon-task changes.
-- Latest GitLab research smoke retrieved 10 docs; the live model proposed 0 facts, so deterministic source
-  fallback produced 4 grounded facts with 0 dropped ungrounded facts, verified the domain, identified recruiter
-  signals, and produced the grounded hook `GitLab has a public jobs page.`
-- DNS mail-routing check, 2026-07-20: `careerseeker.app` publishes Cloudflare Email Routing MX records
-  (`route1.mx.cloudflare.net`, `route2.mx.cloudflare.net`, `route3.mx.cloudflare.net`) and SPF includes
-  `_spf.mx.cloudflare.net`. This confirms domain-level routing is present; it does not prove the final
-  `support@` / `privacy@` forwarding destinations receive mail.
-- Live trust-site deployment, 2026-07-20: `https://careerseeker.app/privacy/` now includes Google API
-  Limited Use language and the no-training statement; `https://careerseeker.app/autonomy-contract/` is live;
-  and the homepage links to the Autonomy Contract.
-- The PR is open against `main` and GitHub reports checks passing.
+## Current evidence
 
-## Evidence Map
+- Pinned offline verifier: **407 passed, 0 failed**.
+- GitHub CI runs the warnings-as-errors Release build and the same verifier on `main`, `agent/**`,
+  `codex/**`, and pull requests into `main`.
+- Real engine path: `run` performs identified Greenhouse/Lever/Ashby discovery, local deterministic ranking,
+  quarantine, crash reconciliation, bounded action, and honest scheduler status.
+- Recovery harnesses simulate provider success followed by a lost local commit and prove restart/periodic
+  reconciliation completes state without a second external effect.
+- Ranking harnesses prove deterministic strong > adjacent > unrelated ordering and persisted dashboard
+  components.
+- B4 executed five bounded discovery-only public ATS cycles: 61 discovered, 14 quarantined, 47 rejected,
+  0 drafted, 0 cycle errors. Manual review classified all 14 quarantine flags as benign `act as`
+  responsibility prose; tuning is proposed but deliberately not applied.
+- The shipped continuous-host fallback is a hardened per-user Scheduled Task supervisor with restart/cycle
+  backoff, local logs and controls, and a database-scoped single-instance lock. A native Windows Service/tray
+  is not implemented.
+- Browser onboarding traverses ten loopback-only steps, performs local resume extraction, requires separate
+  provider/Gmail consent, caps AI-extracted claims at `stated`, imports only accepted claims, and defaults
+  first run to discovery-only.
+- B7 clean package gate at `830f7c1f9deb4d54da2282405e9fbc7ab57d5522`: one unsigned MSIX, one
+  `CareerSeeker.exe`, 33,677,037 bytes, SHA-256
+  `B831041B7EC0323A4B7EA17F67B1E2889E6C6C5CAD70F9588C900FE2537B65FD`; unpacked onboarding
+  smoke reached first-run with zero provider/Gmail calls and preserved an external vault sentinel.
+- Historical live connector evidence exists for Gmail draft creation, BYOK Anthropic/Gemini calls, Brave
+  research, and public ATS reads. B0-B8 work did not repeat Gmail/provider live calls unless explicitly
+  recorded in its milestone entry.
 
-| Invariant or capability | Primary surfaces | Repeatable evidence |
-| --- | --- | --- |
-| L1 cannot send or submit applications | `src/Dispatcher/Dispatch.cs`, `src/Dispatcher/Dispatcher.cs`, `src/Pipeline/ApplicationPipeline.cs` | `DispatcherNoSendHarness`; offline `Verify-Alpha.ps1` |
-| Gmail is draft-only in the application even though `gmail.compose` can authorize sends | `src/Dispatcher/GoogleOAuth.cs`, `src/Dispatcher/Providers.cs`, trust docs | `DispatcherNoSendHarness`; trust wording smoke |
-| Tailor output is checked against local profile evidence before drafting | `src/Tailor`, `src/Verifier`, `src/Pipeline` | `HookHarness`, `GatewayGateHarness`, `Slice`; live BYOK Gate smoke |
-| Source-of-truth profile import replaces the claim oracle and refuses non-alpha profile artifacts, duplicate claim ids, or unknown claim kinds | `src/Engine/AlphaProfileImport.cs`, `src/Engine/Program.cs`, `scripts/Import-AlphaProfile.ps1` | `EngineHarness`; package profile-import launcher checks |
-| Live ATS board ingest discovers and stores real jobs | `src/Scout`, `src/Engine/Program.cs`, `src/Store` | `ScoutLiveHarness`; `Run-CareerSeeker-Scout.cmd` package preview |
-| Real jobs receive deterministic, explainable local-profile ranking and the dashboard exposes persisted components | `src/Engine/LexicalSemanticScorer.cs`, `src/Engine/EngineCore.cs`, `src/Engine/Host.cs`, store job-summary reads | `EngineHarness` lexical ordering, persistence, and dashboard assertions |
-| Selected-job drafting refuses prompt-injection-flagged jobs unless explicitly overridden after manual review | `src/Engine/Program.cs`, `scripts/Draft-AlphaJob.ps1`, `Draft-CareerSeeker-Job.cmd` | `EngineHarness`; package selected-job preview and launcher checks |
-| Untrusted job/profile/question/web text is encoded before entering structured LLM prompt boundaries | `src/Gateway/PromptQuarantine.cs`, `src/Tailor/GatewayTailorModel.cs`, `src/Researcher/GatewayDossierModel.cs` | `HookHarness`; `ResearcherHarness` |
-| ATS-clean resume PDF is rendered and attached to Gmail drafts | `src/Dispatcher/AtsPdfDocumentRenderer.cs`, `src/Dispatcher/Packaging.cs`, `src/Dispatcher/Mime.cs` | `RendererHarness`, `DispatcherNoSendHarness`; package selected-job dry-run smoke |
-| Real BYOK Tailor and Gate providers are wired through the Gateway | `src/Gateway/ProvidersHttp.cs`, `src/Gateway/Routing.cs`, `src/Engine/Program.cs` | `Verify-Alpha.ps1 -IncludeLive`; BYOK live provider smoke |
-| Brave Search company research is grounded and fails closed on missing keys | `src/Researcher/BraveSearchWebResearch.cs`, `src/Researcher/Researcher.cs`, `src/Engine/StartupDoctor.cs` | `Verify-Alpha.ps1 -IncludeResearch`; startup doctor Brave check |
-| Local state, OAuth tokens, provider keys, and generated artifacts stay out of source control | `.gitignore`, `scripts/Initialize-AlphaWorkspace.ps1`, `src/Engine/StartupDoctor.cs` | source-control hygiene smoke; initializer dry run; package manifest/checksum smoke; secret path filters |
-| Trusted-tester ZIP carries source provenance, payload checksums, and provider-key quickstart guidance, plus typed confirmations for live/dangerous actions | `scripts/Package-AlphaRelease.ps1`, `scripts/Test-AlphaReleasePackage.ps1`, `Run-CareerSeeker-Live.cmd`, `Clear-CareerSeeker-Providers.cmd`, `Disconnect-CareerSeeker-Gmail.cmd`, `Install-CareerSeeker-DashboardTask.cmd`, `Uninstall-CareerSeeker-DashboardTask.cmd` | release manifest source commit checks; audit snapshot provenance checks; README-alpha provider-key checks; live draft confirmation checks; off-ramp confirmation checks; dashboard task confirmation checks; SHA-256 checksum smoke |
-| Dashboard controls are loopback, token-protected, evidence-oriented, and served with no-store/nosniff/no-referrer/CSP headers | `src/Engine/Host.cs`, `src/Engine/Program.cs`, package helper scripts | dashboard one-shot smoke; packaged dashboard-task and evidence export/import smokes; `EngineHarness` header assertions |
-| Public trust copy matches the L1 alpha privacy/scope posture | `docs-site`, `docs/Privacy-Policy.md`, `docs/Autonomy-Contract.md`, `ShivaClaw/ShivaClaw.github.io` | deployed `careerseeker.app/privacy/` and `/autonomy-contract/` checks, 2026-07-20 |
+## Invariant map
 
-## Repeatable Commands
+| Invariant/capability | Primary implementation | Repeatable evidence |
+|---|---|---|
+| Unsupported claims cannot draft | `src/Verifier/FabricationGate.cs`, `src/Pipeline/ApplicationPipeline.cs` | `Slice`, `LifecycleHarness` |
+| Gate tier is pinned and fail-closed | `src/Gateway/Routing.cs`, `src/Gateway/Stages.cs` | `GatewayGateHarness`, `Slice` |
+| L1 has no Gmail send operation | `src/Dispatcher/Dispatch.cs`, `src/Dispatcher/Dispatcher.cs` | `DispatcherNoSendHarness` |
+| `gmail.compose` capability is described honestly | `src/Dispatcher/GoogleOAuth.cs`, `docs-site/privacy.md`, `docs-site/autonomy-contract.md` | verifier trust wording smoke |
+| Real public-board engine path | `src/Engine/Program.cs`, `src/Engine/ScoutJobFeed.cs` | `EngineHarness`, bounded B1/B4 ATS evidence |
+| Injection signals quarantine before action/model work | `src/Engine/EngineCore.cs`, `src/Scout/Injection.cs` | `EngineHarness`; B4 rate report |
+| Crash-window recovery does not repeat a successful effect | `src/Engine/EngineCore.cs`, `src/Pipeline/ApplicationPipeline.cs` | `EngineHarness`, `LifecycleHarness` |
+| Ranking is local, deterministic, explainable | `src/Engine/LexicalSemanticScorer.cs` | `EngineHarness` |
+| Status distinguishes viewer/starting/running/paused/faulted/stopped | `src/Engine/Host.cs`, `src/Engine/EngineCore.cs` | `EngineHarness` |
+| Engine is single-instance per DB and supervised | `src/Engine/SingleInstanceLease.cs`, `scripts/Start-BetaEngineHost.ps1` | `EngineHarness`; supervisor self-test |
+| Onboarding is loopback, consent-bound, and claim-reviewing | `src/Engine/BetaSetupWebFlow.cs` | `EngineHarness`; packaged setup smoke |
+| MSIX has one exe and external user data | `scripts/Package-BetaRelease.ps1`, `src/Engine/PackagedRuntime.cs` | `scripts/Test-BetaReleasePackage.ps1` |
+| ATS-clean PDFs are deterministic | `src/Dispatcher/AtsPdfDocumentRenderer.cs` | `RendererHarness`, `DispatcherNoSendHarness` |
+| Company research is grounded-or-dropped | `src/Researcher/Researcher.cs`, `src/Researcher/Grounding.cs` | `ResearcherHarness` |
+| Dashboard/control surface is loopback/token bounded | `src/Engine/Host.cs`, `src/Engine/BetaSetupWebFlow.cs` | `EngineHarness` |
+| Audit is hash-chained; default export is hash-only | `src/Store/Audit.cs`, `src/Engine/AlphaAuditExport.cs` | `EngineHarness`, `StoreParityHarness` |
+| Secrets and mutable state are excluded from installer/source | `.gitignore`, package/self-check scripts | verifier hygiene and B7 package self-check |
 
-Trusted-tester walkthrough:
+## Repeatable commands
+
+Default offline gate:
 
 ```powershell
-docs/Alpha-Tester-Walkthrough.md
+powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
 ```
 
-Default offline verifier:
+Clean publish and package gate:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1
+powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
 ```
 
-Local workspace initialization:
+Non-installing MSIX audit:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Initialize-AlphaWorkspace.ps1
+powershell -ExecutionPolicy Bypass -File scripts\Test-BetaReleasePackage.ps1
 ```
 
-Local source-of-truth profile setup:
+Safe real-board discovery:
 
 ```powershell
-dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- profile-template --out .appdata/profile.template.json
-powershell -ExecutionPolicy Bypass -File scripts/Import-AlphaProfile.ps1
-dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-profile --profile .appdata/profile.template.json --db .appdata/careerseeker-alpha.db
+dotnet src\Engine\bin\Release\net8.0\SeekerSvc.Engine.dll run `
+  --once --dry-run --llm fake --board greenhouse:remotecom `
+  --db tmp\audit\cycle.db --artifacts tmp\audit\artifacts `
+  --jd-dir tmp\audit\job-descriptions --max-drafts-per-cycle 0
 ```
 
-Live BYOK/Gmail checks, using ignored local secrets and vault files:
+Service-host structure without registration:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1 -IncludeLive
+powershell -ExecutionPolicy Bypass -File scripts\Manage-AlphaDashboardTask.ps1 `
+  -Action Install -DryRun -Published
+powershell -ExecutionPolicy Bypass -File scripts\Start-BetaEngineHost.ps1 `
+  -SupervisorSelfTest -ControlDirectory tmp\host-audit\control `
+  -LogDirectory tmp\host-audit\logs -MaximumRestartDelaySeconds 5
 ```
 
-Live Brave/BYOK research smoke:
+Dependency advisories:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1 -IncludeResearch
+dotnet list CareerSeeker.sln package --vulnerable --include-transitive
+dotnet list tools\WindowsSdkTools\WindowsSdkTools.csproj package --vulnerable --include-transitive
 ```
 
-Win-x64 publish smoke:
+Optional `-IncludeLive` and `-IncludeResearch` checks require existing ignored local credentials and can
+create provider cost or a Gmail draft. They are not needed to reproduce the offline Beta evidence.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1 -IncludePublish
-```
+## Safety surfaces to inspect adversarially
 
-Trusted-tester release ZIP:
+- Verify quarantine precedes action-cap consumption and model calls.
+- Verify `SubmitAsync` remains unsupported and no public Dispatcher send method exists.
+- Verify the package default after onboarding is `dryRun` plus `serviceHost`.
+- Verify package identity cannot be asserted by an argument.
+- Verify package removal instructions separate app removal from user-data deletion.
+- Verify provider failures never delete/replace a previously usable key vault without explicit replacement.
+- Verify AI resume extraction never promotes a claim above `stated` and preserves source/evidence.
+- Verify crash recovery reads the effect-attempt journal and never retries a `SUCCEEDED` effect.
+- Verify dashboard viewer-only state never claims an engine is running.
+- Verify evidence imports reject unsafe, duplicate, excessive, secret-looking, and unsupported ZIP entries.
+- Verify every external string entering prompts is encoded as untrusted data.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Verify-Alpha.ps1 -IncludePackage
-```
+## Known gaps and non-claims
 
-Extracted release package self-check:
+- The MSIX is unsigned. It was created/unpacked, not installed, signed, removed through Windows, or
+  reboot-tested.
+- Start-menu registration, Startup Apps behavior, and Windows uninstall UI are structurally declared but not
+  claimed as executed.
+- Native Windows Service, tray, and WinUI shell are not built.
+- OAuth production verification and Google-directed CASA assessment are pending.
+- The repository `docs-site` truth-copy updates require a separate human deployment; no B8 deployment occurred.
+- The `role_reassign` detector has a measured high false-positive rate for ordinary “act as” job prose.
+  Proposed tuning is not applied.
+- Historical Alpha `.cmd` launchers and `Package-AlphaRelease.ps1` remain in source, but the current
+  `-IncludePackage` product artifact is the MSIX.
+- Local evidence export/import still uses ZIP; that is user evidence, not the application installer.
+- No Android/relay scope is part of this Windows audit.
+- No L2/L3 send, inbox, calendar, or ATS-submit capability exists.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Test-AlphaReleasePackage.ps1 -RunDashboardSmoke
-```
+## Useful entry points
 
-Trusted-tester dashboard launcher:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Start-AlphaDashboard.ps1
-```
-
-Safe local demo cycle:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Run-AlphaDemoCycle.ps1
-```
-
-Live ATS board ingest:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Run-AlphaScoutBoards.ps1
-```
-
-Selected stored-job draft package:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Draft-AlphaJob.ps1 -JobId 1
-```
-
-Live L1 Gmail draft cycle:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Run-AlphaLiveCycle.ps1
-```
-
-Local alpha evidence package:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Export-AlphaEvidencePackage.ps1
-dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- export-alpha-package --db .appdata/careerseeker-alpha.db --out output/careerseeker-alpha-package.zip
-```
-
-Safe local alpha package restore:
-
-```powershell
-dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- import-alpha-package --package output/careerseeker-alpha-package.zip
-```
-
-Service-grade per-user Windows engine task preview (dry-run; no registration):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -Action Install -DryRun
-```
-
-## Safety Surfaces To Audit
-
-- L1 no-send boundary: `src/Dispatcher` exposes draft creation only; `SubmitAsync` throws.
-- Gmail scope discipline: L1 uses `gmail.compose`; label management is split behind a separate capability and is
-  off by default.
-- Fabrication Gate: only verified applications can draft; unsupported claims block or defer, and live BYOK Gate
-  calls fail closed.
-- Prompt quarantine: job descriptions and retrieved web documents are untrusted data blocks, not instructions.
-- Tailor minimization: generation receives only posting-relevant profile claims; Gate verification still checks
-  against the local source profile.
-- Profile import: `import-profile` requires the CareerSeeker alpha profile format and replaces the local profile
-  claim oracle instead of mixing imported claims with seeded demo facts; duplicate claim ids and unknown claim
-  kinds are refused before replacement.
-- Local dashboard controls: loopback dashboard has token-protected Gmail disconnect, application controls,
-  hash-only audit JSON export, alpha package export, and token-protected document downloads. Application
-  controls are hidden for terminal rows. Dashboard/document responses carry no-store, nosniff, no-referrer,
-  and form-scoped CSP headers; read routes reject foreign Host headers, and mutating controls reject foreign Host, Origin, and Referer headers.
-- Store audit chain: local SQLite and in-memory stores share hash-chain verification and parity coverage.
-- Secret handling: `secrets/`, `.appdata/`, generated artifacts, OAuth tokens, and provider keys are ignored and
-  should not be printed.
-- Tester launchers: live Gmail drafts require typing `LIVE`; audit payload export requires `PAYLOADS`;
-  provider-key clear requires `CLEAR`; Gmail disconnect requires `DISCONNECT`; dashboard task install/remove
-  requires `INSTALL` or `UNINSTALL`; selected-job prompt-injection override requires `REVIEWED`.
-  Confirmation variables are cleared before prompting and evaluated through environment-backed PowerShell checks.
-- Free-form tester inputs in selected-job draft, company research, and package import launchers are forwarded
-  through environment-backed PowerShell argument arrays instead of interpolated directly into batch command lines.
-
-## Current Alpha Capabilities
-
-- Runnable `src/Engine` executable with `demo`, `alpha`, `dashboard`, `scout-boards`, `draft-job`,
-  `research-company`, `profile-template`, `import-profile`, `doctor`, `export-audit`, `export-alpha-package`,
-  `import-alpha-package`, `control-app`, Gmail OAuth connect/disconnect, and BYOK import/clear modes.
-- Live Greenhouse/Lever/Ashby board ingestion into SQLite with local posting-body artifacts.
-- Selected stored job drafting with posting-body context and dry-run verification.
-- Real ATS-clean resume PDF renderer and Gmail draft attachment packaging.
-- Standalone localhost dashboard over an existing SQLite alpha DB.
-- Dashboard `/applications`, `/jobs`, `/evidence.html`, `/evidence`, application controls, Gmail disconnect,
-  token-protected alpha package export, local resume/cover document routes, visible job ids for selected-job
-  drafting, and a responsive shared alpha shell for status and recent-item views.
-- BYOK Anthropic/Gemini Tailor and Gate wiring through the Gateway.
-- Brave Search + BYOK company dossier command with deterministic grounding and fallback source snippets.
-- Local source-of-truth profile template/import commands for Tailor/Gate facts, with format validation on import.
-- Local alpha ZIP package export/import with manifest, audit export, SQLite snapshot, draft artifacts, and saved
-  job-description artifacts; secret/token/key-looking paths are filtered, import requires the CareerSeeker alpha
-  manifest, unsupported entries, unsafe ZIP paths, and duplicate entries are rejected, and import verifies the
-  restored SQLite audit chain.
-- Trusted-tester release ZIP packaging for the published executable, native runtime dependencies, workspace
-  initializer, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/audit-export/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers, quickstart, tester walkthrough, package-local audit snapshot, release manifest, dashboard/helper
-  self-check scripts, SHA-256 checksums, and selected trust/audit docs without local databases, vaults, provider
-  keys, or generated artifacts. Live draft, destructive local off-ramp, and persistent dashboard task launchers
-  require typed confirmation.
-- GitHub CI mirrors the offline alpha verifier for `main`, `agent/**`, `codex/**`, and PRs into `main`.
-
-## Known Gaps
-
-These are not hidden pass conditions for the current L1 technical alpha:
-
-- No Windows Service host, WinUI tray, polished installer, or code signing yet.
-- No OAuth production verification or CASA assessment yet.
-- No Android relay/dashboard yet.
-- Current PDF renderer is ATS-clean text, not a polished HTML/Chromium template.
-- Gmail label tree remains deferred to preserve compose-only L1 scope.
-- Public launch still needs legal/privacy review, signing, OAuth verification, and broader product-shell work.
-
-Accepted residuals from the 2026-07-20 audit (documented, not fixed, because the alpha is loopback-only
-Windows-local):
-
-- **M2** — the document route's control token travels in the query string (`?token=`), so it can land in
-  browser history or a local proxy/access log. Accepted: loopback-bound listener, `RequestCameFromThisDashboard`
-  (loopback + Host + Origin/Referer) already gates the route, the token is per-process, and responses carry
-  `Referrer-Policy: no-referrer` + `Cache-Control: no-store`. Upgrade path (HttpOnly cookie / POST-fetched blob)
-  is noted in a comment at `src/Engine/Host.cs` `HandleDocumentAsync`. Revisit before any non-loopback exposure.
-- **M3 / L2 / L3** — absent `Origin`/`Referer` treated as valid (non-browser clients), `OrdinalIgnoreCase`
-  path-prefix comparison (NTFS-correct), and the package-import directory-entry edge (defense-in-depth holds)
-  all remain deliberate and documented; correct for the Windows-local alpha, revisit for cross-platform.
-
-## Useful Entry Points
-
-- Product/spec handoff: `docs/CareerSeeker-Project-Summary.md`
-- Alpha checklist: `docs/CareerSeeker-Alpha-Build-Checklist.md`
-- Historical audit context, with a supersession note at the top: `docs/repo-audit-2026-07-13.md`
-- Trust docs: `docs/Privacy-Policy.md`, `docs/Support.md`, `docs/Autonomy-Contract.md`
-- Verification script: `scripts/Verify-Alpha.ps1`
-
+- Current implementation summary: `docs/CareerSeeker-Project-Summary.md`
+- Claims register: `docs/Positioning.md`
+- Human launch list: `docs/Beta-Runbook.md`
+- Milestone re-verification: `docs/BETA-AUDIT-REQUEST.md`
+- B4 measurement: `docs/Injection-Rate-Report-2026-08.md`
+- Windows package runbook: `docs/Beta-Windows-Package-Runbook.md`

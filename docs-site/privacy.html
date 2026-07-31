@@ -17,14 +17,14 @@
 <body>
 <h1>CareerSeeker Privacy Policy</h1>
 <p><strong>Effective date:</strong> 2026-07-18<br>
-<strong>Last updated:</strong> 2026-07-20<br>
-<strong>Product version:</strong> L1 Drafts alpha (v0.1)</p>
+<strong>Last updated:</strong> 2026-07-30<br>
+<strong>Product version:</strong> L1 Drafts beta (v0.7)</p>
 
-<p>CareerSeeker is a local-first Windows application that helps job seekers discover, evaluate, and prepare job applications. This policy describes what data the current L1 Drafts alpha processes, where it lives, and what controls you have.</p>
+<p>CareerSeeker is a local-first Windows application that helps job seekers discover, evaluate, and prepare job applications. This policy describes what data the current L1 Drafts beta processes, where it lives, and what controls you have.</p>
 
 <h2>1. Architecture Summary</h2>
 <p>CareerSeeker runs on your Windows machine. The application pipeline, SQLite database, generated documents, OAuth tokens, and API keys are local, except when you choose to connect external services such as Gmail or LLM providers.</p>
-<p>There is no CareerSeeker account and no CareerSeeker-operated cloud service that processes your resume, job data, or application materials in the current L1 alpha. A future Android relay is planned as an optional end-to-end encrypted component; it is not active in L1.</p>
+<p>There is no CareerSeeker product account and no CareerSeeker-operated cloud service that processes your resume, job data, or application materials in the current Windows L1 beta. The public tester-signup service stores signup/release metadata, not Windows-engine profile or application content. A future Android relay is planned as an optional end-to-end encrypted component; it is not active in L1.</p>
 
 <h2>2. Data We Process</h2>
 <table>
@@ -48,7 +48,7 @@
 <li>Does not access contacts.</li>
 <li>Does not create Gmail labels by default; label management is a separate capability because it requires broader Gmail permissions.</li>
 </ul>
-<p>You can revoke Gmail access at any time from your <a href="https://myaccount.google.com/permissions">Google Account permissions page</a>. The current alpha also stores token material in a local DPAPI vault path that can be deleted when disconnecting the authorized Gmail account.</p>
+<p>You can revoke Gmail access at any time from your <a href="https://myaccount.google.com/permissions">Google Account permissions page</a>. The current beta also stores token material in a local DPAPI vault path that can be deleted when disconnecting the authorized Gmail account.</p>
 
 <h2>4. Third-Party LLM Inference</h2>
 <p>CareerSeeker uses large language models for scoring support, tailoring, research, and verification. In BYOK mode, you supply your own API key for your chosen provider. Inference requests travel from your machine to that provider. CareerSeeker does not currently proxy, log, or retain your API key beyond the local DPAPI-encrypted vault.</p>
@@ -68,31 +68,31 @@
 <ul>
 <li>Create user accounts on any CareerSeeker-operated server in L1.</li>
 <li>Transmit your resume, profile, job data, or application materials to CareerSeeker-operated infrastructure in L1.</li>
-<li>Use analytics, telemetry, advertising, or tracking services.</li>
+<li>Intentionally include analytics, advertising, or tracking in the Windows engine. A whole-product/deployed-site inventory is still pending and no broader audited claim is made.</li>
 <li>Share, sell, or license your data to third parties.</li>
-<li>Retain data on a CareerSeeker server after you delete it locally.</li>
+<li>Retain Windows-engine profile, job, application, or generated-material data on a CareerSeeker server. The separate tester-signup service retains its own signup/release metadata.</li>
 </ul>
 
 <h2>8. Your Controls</h2>
 <table>
-<tr><th>Action</th><th>Current L1 alpha path</th></tr>
-<tr><td><strong>Pause or stop the engine</strong></td><td>Stop the local process or service host you started. Tray and installer controls are planned.</td></tr>
-<tr><td><strong>Revoke Gmail access</strong></td><td>Use <code>disconnect-gmail</code> or <code>Disconnect-CareerSeeker-Gmail.cmd</code>, then optionally confirm removal from Google Account permissions.</td></tr>
-<tr><td><strong>Revoke LLM provider keys</strong></td><td>Use <code>clear-byok</code> or <code>Clear-CareerSeeker-Providers.cmd</code>, then delete any environment or <code>secrets/env.secrets</code> copies you supplied.</td></tr>
-<tr><td><strong>Delete all local data</strong></td><td>Delete the configured local database, generated artifact directory, and <code>.appdata</code> test vaults.</td></tr>
-<tr><td><strong>Export audit log or local evidence bundle</strong></td><td>Use <code>Export-CareerSeeker-Audit.cmd</code>, <code>Export-CareerSeeker-Evidence.cmd</code>, <code>Import-CareerSeeker-Package.cmd</code>, or the local <code>export-audit</code>, <code>export-alpha-package</code>, and <code>import-alpha-package</code> commands; raw event payloads are opt-in.</td></tr>
+<tr><th>Action</th><th>Current L1 beta path</th></tr>
+<tr><td><strong>Pause or stop the engine</strong></td><td>Use the local dashboard/control files or stop the local process/service host. A native tray is not built.</td></tr>
+<tr><td><strong>Revoke Gmail access</strong></td><td>Use the token-protected local dashboard control, or run <code>CareerSeeker.exe disconnect-gmail</code> from source/an unpacked test tree, then optionally confirm removal from Google Account permissions.</td></tr>
+<tr><td><strong>Revoke LLM provider keys</strong></td><td>Run <code>CareerSeeker.exe clear-byok</code> from source/an unpacked test tree, then delete any environment or <code>secrets/env.secrets</code> copies you supplied.</td></tr>
+<tr><td><strong>Delete all local data</strong></td><td>Uninstalling preserves user data. After a separate explicit confirmation, delete the exact <code>%LOCALAPPDATA%\CareerSeeker</code> workspace (or the configured source/test workspace).</td></tr>
+<tr><td><strong>Export audit log or local evidence bundle</strong></td><td>Run the local <code>export-audit</code>, <code>export-alpha-package</code>, or <code>import-alpha-package</code> command from source/an unpacked test tree; raw event payloads are opt-in. Historical Alpha <code>.cmd</code> helpers are not part of the current MSIX.</td></tr>
 <tr><td><strong>Remove verified claims</strong></td><td>Edit the local profile/claims source and rerun affected applications through the Gate.</td></tr>
 </table>
 
 <h2>9. Data Retention</h2>
-<p>All L1 alpha data is stored locally with no server-side retention by CareerSeeker. You control retention by deleting local databases, generated artifacts, and vault files.</p>
-<p>Nightly encrypted local backups and in-app deletion controls are planned product features, not completed L1 alpha features.</p>
+<p>Windows-engine L1 profile, job, application, credential, and generated-material data is stored locally with no CareerSeeker server-side retention. The separate public tester-signup service has its own operational signup/release metadata. You control Windows-engine retention by deleting local databases, generated artifacts, and vault files.</p>
+<p>Nightly encrypted local backups and in-app deletion controls are planned product features, not completed L1 beta features.</p>
 
 <h2>10. Security</h2>
 <ul>
 <li>OAuth tokens and API keys are stored in a Windows DPAPI-protected local vault when using the provided OAuth/token helpers.</li>
 <li>The audit log is hash-chained; each entry's integrity depends on the previous entry.</li>
-<li>Public release builds are expected to be signed, but signing is not complete in the current alpha repository.</li>
+<li>The current Beta MSIX is unsigned. Public release builds are expected to be signed; the signing hook is implemented but no production signature is claimed.</li>
 <li>No secrets, tokens, resumes, or user profile data should be committed to source control or transmitted in diagnostic output.</li>
 </ul>
 
@@ -108,6 +108,6 @@
 <li><strong>General support:</strong> support@careerseeker.app</li>
 <li><strong>Product website:</strong> https://careerseeker.app</li>
 </ul>
-<p><em>CareerSeeker is built on the principle that your career data belongs on your machine, not on ours.</em></p>
+<p><em>CareerSeeker is built on the principle that Windows-engine career data belongs on your machine, not on ours.</em></p>
 </body>
 </html>

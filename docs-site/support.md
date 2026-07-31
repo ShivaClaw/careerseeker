@@ -1,6 +1,6 @@
 # CareerSeeker Support
 
-**Last updated:** 2026-07-20
+**Last updated:** 2026-07-30
 
 ## Contact
 
@@ -11,23 +11,23 @@
 | **Security reports** | security@careerseeker.app | 24 hours |
 | **Product website** | https://careerseeker.app | Public product site |
 
-During closed alpha and beta, support is provided by the development team directly. Response times may be faster than stated targets.
+During closed beta, support is provided by the development team directly. These are response targets, not a guaranteed service-level agreement.
 
-## Current Alpha Actions
+## Current Beta Actions
 
 ### Disconnect Gmail
 
-CareerSeeker L1 creates Gmail drafts through a local OAuth token vault. To disconnect the current alpha:
+CareerSeeker L1 creates Gmail drafts through a local OAuth token vault. To disconnect the current beta:
 
-1. In the release package, double-click `Disconnect-CareerSeeker-Gmail.cmd`.
-2. From source or a terminal, run `SeekerSvc.Engine.exe disconnect-gmail --client secrets/google-oauth-client.json --vault .appdata/oauth/gmail-token.dpapi`.
-3. Optionally confirm removal on your [Google Account permissions page](https://myaccount.google.com/permissions).
+1. Use the token-protected **Disconnect Gmail** control on the local dashboard when it is available.
+2. From source or an advanced terminal, run `CareerSeeker.exe disconnect-gmail --vault .appdata/oauth/gmail-token.dpapi`.
+3. Confirm removal on your [Google Account permissions page](https://myaccount.google.com/permissions) if you want to revoke the account grant as well.
 
 After disconnection, CareerSeeker cannot create Gmail drafts until you reconnect and authorize again.
 
 ### Revoke LLM Provider Keys
 
-In the release package, double-click `Clear-CareerSeeker-Providers.cmd` to delete the local DPAPI provider-key vault. From source or a terminal, run `SeekerSvc.Engine.exe clear-byok --key-vault .appdata/secrets/byok-keys.dpapi`.
+From source or an advanced terminal, run `CareerSeeker.exe clear-byok --key-vault .appdata/secrets/byok-keys.dpapi` to delete the local DPAPI provider-key vault.
 
 Also delete any provider keys from environment variables or `secrets/env.secrets` if you supplied them there. CareerSeeker does not retain copies of provider keys outside the local configuration you control.
 
@@ -35,25 +35,20 @@ An in-app provider-key manager is planned for the product shell.
 
 ### Delete Local Data
 
-Current alpha data is local. Depending on how you launched the app or harness, remove:
+Current Windows-engine Beta data is local. Uninstalling the MSIX intentionally preserves user data. After a separate explicit data-deletion confirmation, remove:
 
-- The configured SQLite database, commonly `.appdata/careerseeker-alpha.db`.
-- Generated artifacts or exported documents you created during testing.
-- Local token vaults under `.appdata/`.
+- The exact `%LOCALAPPDATA%\CareerSeeker` workspace for an installed Beta.
+- The configured source/test workspace when you ran from the repository.
+- Exported documents you intentionally saved elsewhere.
 - Any warmed local build caches you intentionally created for testing.
 
-Future installer builds will use a documented product data directory and uninstall flow.
+Resolve and inspect the exact target before recursive deletion. Do not combine app uninstall and user-data deletion.
 
 ### Verify the Audit Log
 
-The Store implements hash-chain verification and the offline harnesses exercise it. In the release package:
-
-- Double-click `Export-CareerSeeker-Audit.cmd` for hash-only audit JSON.
-- Double-click `Export-CareerSeeker-Evidence.cmd` for a local ZIP evidence bundle.
-- Double-click `Import-CareerSeeker-Package.cmd` for safe local restore into an import workspace.
-
-From source or a terminal, the same paths are available through `export-audit`, `export-alpha-package`, and
-`import-alpha-package`.
+The Store implements hash-chain verification and the offline harnesses exercise it. From source or an
+advanced terminal, use `export-audit` for hash-only JSON, `export-alpha-package` for a local evidence ZIP,
+and `import-alpha-package` for safe restore into an isolated import workspace. Raw audit payloads are opt-in.
 
 ### Report a Fabrication Gate Issue
 
@@ -73,7 +68,7 @@ If a generated cover letter, tailored resume, or prepared answer contains errors
 2. Record the posting ID, generated text, and a short description of the issue.
 3. Email support@careerseeker.app.
 
-CareerSeeker L1 never sends automatically; you are always the final reviewer.
+CareerSeeker L1 contains no email-send implementation; you are always the final reviewer.
 
 ## Closed Beta
 
@@ -88,4 +83,5 @@ During closed beta:
 
 At public launch, support channels and response commitments will be updated to reflect the production support model. This document will be revised accordingly.
 
-*CareerSeeker is local-first. Your data stays on your machine. Support exists to help you control it, not to access it.*
+*CareerSeeker is local-first. Windows-engine career data stays on your machine. Support exists to help you
+control it, not to access it.*
