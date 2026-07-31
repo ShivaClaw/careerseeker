@@ -12,7 +12,13 @@ using SeekerSvc.Store;
 using SeekerSvc.Tailor;
 using SeekerSvc.Verifier;
 
-var mode = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal)) ?? DefaultModeFromExecutableName();
+PackagedRuntime.Prepare();
+var firstArgument = args.FirstOrDefault();
+var explicitMode = firstArgument is not null &&
+                   !firstArgument.StartsWith("--", StringComparison.Ordinal)
+    ? firstArgument
+    : null;
+var mode = explicitMode ?? DefaultModeFromExecutableName();
 if (HasFlag("--help") || HasFlag("-h"))
 {
     PrintUsage();
@@ -270,8 +276,12 @@ async Task<int> RunEngineAsync()
     var port = IntArg("--port", 7777);
     var intervalSeconds = IntArg("--interval-seconds", 900);
     var once = HasFlag("--once");
-    var dryRun = HasFlag("--dry-run");
-    var serviceHost = HasFlag("--service-host");
+    var packagedDefault = PackagedRuntime.IsPackaged && explicitMode is null &&
+                          File.Exists(PackagedRuntime.OnboardingMarkerPath);
+    // Start-menu and optional startup-task activation stay discovery-only. A drafting run must remain an
+    // explicit command with configured Gmail/BYOK; installing or enabling startup never grants consent.
+    var dryRun = HasFlag("--dry-run") || packagedDefault;
+    var serviceHost = HasFlag("--service-host") || packagedDefault;
     var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
     var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
     var jdDirectory = StringArg("--jd-dir")
@@ -1720,7 +1730,10 @@ string? EnvFileValue(string path, string name)
 static string DefaultModeFromExecutableName()
 {
     var exeName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? Environment.GetCommandLineArgs().FirstOrDefault() ?? "");
-    return exeName.Contains("setup", StringComparison.OrdinalIgnoreCase) ? "setup" : "demo";
+    return PackagedRuntime.DefaultMode(
+        exeName,
+        File.Exists(PackagedRuntime.OnboardingMarkerPath),
+        PackagedRuntime.IsPackaged);
 }
 
 static string? DefaultGoogleOAuthClientPath() => DefaultExisting(

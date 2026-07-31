@@ -2,6 +2,92 @@
 
 Updated: 2026-07-30
 
+## 2026-07-30 (Terra B7) - Single-executable Windows MSIX
+
+Branch: `codex/beta-M7-installer`
+
+Integration base: `origin/main` at
+`efd31671f7edd8c02900bc8f702e7b9893d4d1fd`, the confirmed PR #15 merge.
+Implementation commit:
+`830f7c1` (`feat(beta): ship single-executable MSIX packaging`).
+
+B7 selects MSIX over Inno Setup. The choice uses Microsoft-owned packaging
+tools, does not require a machine-wide compiler install or a purchase, lets
+Windows own the Start-menu registration and optional startup declaration, and
+has package removal semantics that do not run a custom data-deletion action.
+`Microsoft.Windows.SDK.BuildTools` `10.0.26100.7705` is locked in the new
+build-only tools project. The supply-chain query found no known vulnerable
+packages in that project or the solution.
+
+`scripts/Package-BetaRelease.ps1` now produces one
+`CareerSeeker-beta-win-x64.msix` with exactly one executable,
+`CareerSeeker.exe`; the Alpha Bridge duplicate setup executable is absent.
+The manifest declares a full-trust desktop entry, Windows Start-menu tile,
+content-integrity enforcement, and a user-configurable startup task that is
+disabled by default. Package-identity launches create/use
+`%LOCALAPPDATA%\CareerSeeker`, copy the public installed/Desktop OAuth client
+metadata only when the user copy is absent, and keep databases, artifacts,
+job descriptions, onboarding state, and DPAPI vaults outside the immutable
+package. Automatic Start-menu/startup activation after onboarding is forced
+to discovery-only service-host mode; it cannot imply consent to draft.
+
+The package self-check unpacks rather than installs. It asserts the manifest,
+exactly one executable, no `.appdata`/output/vault/token/secret payload, and
+disabled startup. It then invokes `CareerSeeker.exe` with no explicit mode and
+traverses all ten local onboarding steps using a synthetic TXT resume, manual
+provider, and Gmail skip. Finally it removes the unpacked application tree
+and proves a synthetic external DPAPI-vault sentinel remains.
+
+The first full `-IncludePublish -IncludePackage` attempt passed all 407
+offline assertions and created the MSIX, then stopped during the unpacked
+smoke because the no-mode launcher incorrectly treated the
+`--workspace-root` value as a mode. No package pass is claimed for that
+attempt. Mode detection was corrected to examine only the first argument.
+
+The clean full gate passed at
+`830f7c1f9deb4d54da2282405e9fbc7ab57d5522`:
+
+```text
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+=== Offline total: 407 passed, 0 failed ===
+Package creation succeeded.
+Setup smoke completed through the local web flow.
+  route sequence: welcome -> package-verify -> resume-select ->
+  local-resume-extraction -> provider-manual -> extraction -> claim-review ->
+  gmail-skip -> doctor -> first-run
+  AI provider calls: 0
+  Gmail calls/drafts: 0
+Beta package self-check passed.
+  identity: CareerSeeker.LocalBeta
+  executable payload: 1 (CareerSeeker.exe)
+  startup task: optional, disabled by default
+  external user workspace preserved: yes
+  bytes: 33677037
+  SHA-256: B831041B7EC0323A4B7EA17F67B1E2889E6C6C5CAD70F9588C900FE2537B65FD
+CareerSeeker alpha verification complete.
+```
+
+The B6 ZIP was 65,057,904 bytes. The clean B7 MSIX is 33,677,037
+bytes: 31,380,867 bytes (48.24%) smaller.
+
+Signing is wired but not executed. `scripts/Sign-BetaRelease.ps1` accepts a
+human-owned PFX, reads its password only from the process environment, uses
+SHA-256 plus timestamping, and never prints the password.
+`docs/Beta-Windows-Package-Runbook.md` records the unsigned Windows 11 tester
+path, production Publisher/certificate-subject requirement, Azure Artifact
+Signing handoff, and separate explicit-confirm data deletion.
+
+Verification boundary: no MSIX was installed, registered, removed, or signed;
+therefore real Start-menu appearance, Startup Apps behavior, reboot survival,
+and Windows uninstall UI were not claimed. Their manifest/removal structure
+was verified by MakeAppx unpack and the external-workspace sentinel. No Gmail
+draft, provider call, send, public ATS request, deployment, scheduled-task
+registration, Cloudflare action, Google/Play console change, Android/relay/
+sync-vector change, off-repo site edit, purchase, or secret print occurred.
+
 ## 2026-07-30 (Terra B6) - Local browser onboarding and claim review
 
 Branch: `codex/beta-M6-onboarding-v2`

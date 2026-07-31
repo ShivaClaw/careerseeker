@@ -125,6 +125,15 @@ public static class BetaSetupWebFlow
         string root,
         CancellationToken ct = default)
     {
+        if (PackagedRuntime.IsPackaged)
+        {
+            return new PackageVerification(
+                true,
+                true,
+                0,
+                "Windows registered this MSIX package identity. The package declares content-integrity enforcement; production signature trust is verified at the installer boundary.");
+        }
+
         var checksumPath = Path.Combine(root, "SHA256SUMS.txt");
         var manifestPath = Path.Combine(root, "RELEASE-MANIFEST.json");
         if (!File.Exists(checksumPath) && !File.Exists(manifestPath))
@@ -918,6 +927,12 @@ internal sealed class LocalSetupWizard : IAsyncDisposable
     {
         var launch = Value(form, "launch");
         var launched = false;
+        if (!_smoke)
+        {
+            var marker = P(".appdata/onboarding.completed");
+            Directory.CreateDirectory(Path.GetDirectoryName(marker)!);
+            File.WriteAllText(marker, DateTimeOffset.UtcNow.ToString("O") + Environment.NewLine);
+        }
         if (!_smoke && launch.Equals("discovery", StringComparison.OrdinalIgnoreCase))
             launched = LaunchDiscoveryOnlyEngine();
         _session.ResumeText = null;

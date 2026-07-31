@@ -6,6 +6,39 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## B7 - Single-executable MSIX
+
+Branch: `codex/beta-M7-installer`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-07-30 |
+|---|---|---|
+| `-IncludePackage` now produces one MSIX artifact with exactly one executable and no duplicate setup launcher. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | At `830f7c1f9deb4d54da2282405e9fbc7ab57d5522`: 407/0; MakeAppx created and unpacked the MSIX; self-check found one `CareerSeeker.exe`; 33,677,037 bytes; SHA-256 `B831041B7EC0323A4B7EA17F67B1E2889E6C6C5CAD70F9588C900FE2537B65FD`. |
+| The no-console executable defaults to browser setup and the unpacked package completes the ten-step smoke without provider/Gmail calls. | `powershell -ExecutionPolicy Bypass -File scripts\Test-BetaReleasePackage.ps1` | `CareerSeeker.exe` was invoked without an explicit mode; route sequence reached first-run; provider calls 0; Gmail calls/drafts 0. |
+| Windows package metadata supplies the Start-menu application, full-trust entry point, integrity declaration, and optional startup task disabled by default. | `powershell -ExecutionPolicy Bypass -File scripts\Test-BetaReleasePackage.ps1` | Manifest XPath checks passed for `CareerSeeker.LocalBeta`, `Windows.FullTrustApplication`, `runFullTrust`, `PackageIntegrity/Content Enforcement=on`, and `StartupTask Enabled=false`. |
+| Package activation uses a per-user external workspace; automatic packaged activation is discovery-only and cannot imply draft consent. | `rg -n "WorkspaceRoot|Environment.CurrentDirectory|packagedDefault|dryRun|serviceHost|File.Copy" src\Engine\PackagedRuntime.cs src\Engine\Program.cs` | Mutable defaults resolve below `%LOCALAPPDATA%\CareerSeeker`; existing local OAuth metadata is not overwritten; implicit packaged activation sets both dry-run and service-host. |
+| Package removal does not delete user data or vaults. | `powershell -ExecutionPolicy Bypass -File scripts\Test-BetaReleasePackage.ps1` | Removing the unpacked package tree preserved a synthetic external `.appdata/secrets/byok-keys.dpapi` sentinel. No real package install/uninstall was performed. |
+| The signing hook is present without performing certificate/account work or printing a password. | `rg -n "CAREERSEEKER_SIGNING_PASSWORD|signtool|/fd SHA256|/td SHA256|/tr" scripts\Sign-BetaRelease.ps1 docs\Beta-Windows-Package-Runbook.md` | Hook and human runbook are present. Signing was not executed. |
+| The new Microsoft build-tool dependency is locked and has no reported vulnerability. | `dotnet list tools\WindowsSdkTools\WindowsSdkTools.csproj package --vulnerable --include-transitive` | `WindowsSdkTools has no vulnerable packages given the current sources.` |
+| The B7 artifact is 31,380,867 bytes (48.24%) smaller than the B6 ZIP. | `$old=65057904; $new=(Get-Item output\release\CareerSeeker-beta-win-x64.msix).Length; [pscustomobject]@{Old=$old;New=$new;Reduction=$old-$new;Percent=[math]::Round((($old-$new)/$old)*100,2)}` | Old 65,057,904; new 33,677,037; reduction 31,380,867; 48.24%. |
+| Frozen Android/relay paths are absent from the milestone diff. | `git diff --name-only efd31671f7edd8c02900bc8f702e7b9893d4d1fd...HEAD \| rg '^(relay/|docs/Sync-Protocol\.md$|docs/sync-vectors/|.*Android|.*android)'` | Expected: no output, exit 1 from `rg`. |
+
+### Verification boundary
+
+The first full package attempt found and stopped on a no-mode argument parsing
+defect after the 407 offline assertions and package build passed. The defect
+was corrected before the clean evidence run above; no pass is claimed for the
+first attempt.
+
+The MSIX was created and unpacked, not installed, registered, removed through
+Windows, signed, or reboot-tested. Accordingly, the Start-menu, Startup Apps,
+real uninstall UI, signature trust, and reboot behavior are structurally
+wired but not claimed as executed. No Gmail draft, BYOK/provider call, email,
+public ATS call, deployment, scheduled-task registration, Cloudflare action,
+Google/Play console change, Android/relay/sync-vector change, off-repo site
+edit, purchase, or secret print was performed.
+
 ## B6 - Onboarding v2 local web flow
 
 Branch: `codex/beta-M6-onboarding-v2`
