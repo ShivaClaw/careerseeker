@@ -118,8 +118,9 @@ $offlineProjects = @(
 # 10 for the Scout-backed identified feed and its prompt-injection quarantine rail, 2 for the per-cycle
 # action cap, and 1 pinning quarantine accounting against that cap. Five adversarial-review assertions
 # pin per-job application lookup parity, periodic no-redraft/idempotent cap advancement, and the honest
-# discovery-only path.
-$ExpectedOfflineTotal = 369
+# discovery-only path. Four crash-recovery assertions pin startup/periodic self-healing and idempotent
+# manual-review audit evidence.
+$ExpectedOfflineTotal = 373
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -262,12 +263,12 @@ Invoke-Step "Public README and harness count smoke" {
         'Windows service/tray packaging and the paid Android dashboard still future',
         'no open-source license',
         'all rights are reserved',
-        'EngineHarness` (124)',
+        'EngineHarness` (127)',
         'ResearcherHarness` (57)',
         'HookHarness` (16)',
         'GatewayGateHarness` (36)',
         'admitted hooks stay prompt',
-        'Latest offline total: 369 assertions'
+        'Latest offline total: 373 assertions'
     ) "README.md"
     Assert-DoesNotContain $readme @(
         'free Windows service (.exe)'
@@ -278,7 +279,7 @@ Invoke-Step "Public README and harness count smoke" {
     # re-pads them); collapse runs of spaces so the row assertions tolerate that padding.
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
-        'Total: 369 passed, 0 failed.',
+        'Total: 373 passed, 0 failed.',
         'imports require the CareerSeeker alpha profile',
         'document responses carry no-store, nosniff, no-referrer',
         '`/evidence.html`',
@@ -287,16 +288,17 @@ Invoke-Step "Public README and harness count smoke" {
         'admitted company hooks stay prompt'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| `EngineHarness` | 124 passed, 0 failed |',
+        '| `EngineHarness` | 127 passed, 0 failed |',
         '| `ResearcherHarness` | 57 passed, 0 failed |',
         '| `HookHarness` | 16 passed, 0 failed |',
         '| `StoreParityHarness` | 23 passed, 0 failed |',
-        '| `GatewayGateHarness` | 36 passed, 0 failed |'
+        '| `GatewayGateHarness` | 36 passed, 0 failed |',
+        '| `LifecycleHarness` | 45 passed, 0 failed |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 369 passed, 0 failed.',
+        'Latest offline harness total: 373 passed, 0 failed.',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
         '`INSTALL`',
@@ -308,7 +310,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `369 passed, 0 failed`.',
+        'Latest local offline verifier: `373 passed, 0 failed`.',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'Fresh live Scout harness, 2026-07-20',
         'BYOK live provider smoke',

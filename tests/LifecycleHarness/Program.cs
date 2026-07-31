@@ -300,6 +300,11 @@ Console.WriteLine("=== CareerSeeker lifecycle concurrency / recovery / idempoten
         .Count(e => e.Kind == "reconcile_manual_review" && e.EntityId == appId.ToString());
     Check("manual-review outcome is recorded as a durable audit event (visible in evidence view)", reviewEvents == 1,
         $"reconcile_manual_review events={reviewEvents}");
+    await pipe.ReconcileAllAsync();
+    var repeatedReviewEvents = (await store.GetEventsAsync())
+        .Count(e => e.Kind == "reconcile_manual_review" && e.EntityId == appId.ToString());
+    Check("periodic sweep does not duplicate an existing manual-review audit fact", repeatedReviewEvents == 1,
+        $"reconcile_manual_review events={repeatedReviewEvents}");
     Check("audit chain remains intact after the manual-review record", (await store.VerifyAuditAsync()).Ok);
 }
 

@@ -140,6 +140,15 @@ public sealed class EngineCycle
     {
         try
         {
+            // Reconcile recorded external effects before discovering or acting on more work. Startup
+            // performs the same sweep, but a process can survive a transient local commit failure;
+            // running it on every scheduled tick makes that case self-heal without a restart. The
+            // sweep never calls a provider. An enumeration-level store failure aborts this tick
+            // (fail closed); individual stranded-row failures are isolated and counted.
+            await _pipeline.ReconcileAllAsync(
+                onError: (_, _) => _counters.IncErrors(),
+                ct).ConfigureAwait(false);
+
             if (_feed is IIdentifiedJobFeed identified)
                 await TickIdentifiedAsync(identified, ct).ConfigureAwait(false);
             else
