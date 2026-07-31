@@ -2,6 +2,88 @@
 
 Updated: 2026-07-30
 
+## 2026-07-30 (Terra B8) - Evidence, positioning, and human runbook
+
+Branch: `codex/beta-M8-evidence`
+
+Integration base: `origin/main` at
+`1308345e10e93ee10fe40a3e6aa494ace17f936f`, the confirmed PR #16 merge.
+Implementation commit:
+`5d3d86122c0ccad3b6ab10f918c553e9aee76ba5`
+(`docs(beta): reconcile public claims and operator runbook`).
+
+B8 found a material documentation/repository divergence: README, Engine
+README, project summary, audit handoff, and trust pages still described the
+historical trusted-tester Alpha ZIP and `.cmd` helpers as the current product
+surface. The repository's current artifact is the B7 unsigned MSIX with one
+`CareerSeeker.exe`; Alpha launch/package helpers and evidence ZIP
+export/import remain historical or advanced source tooling. The public copy
+now says so explicitly.
+
+The sweep updated README, Engine README, project summary, external-audit
+handoff, and the repository/docs-site privacy, support, and autonomy copies.
+All three Markdown trust-copy pairs are byte-identical. The wording scopes
+local/server-retention claims to Windows-engine data, acknowledges the
+separate tester-signup metadata service, labels support times as targets, and
+does not claim signing, real install/uninstall, reboot survival, or production
+readiness.
+
+`docs/Positioning.md` is the requested sentence-to-invariant/harness/source
+register. Its `UNPROVEN` rows cover whole-product analytics/tracker inventory,
+broad server-retention wording, production signature, real reboot behavior,
+production readiness, and support SLA evidence. `docs/Beta-Runbook.md` is one
+ordered Sunday human list for the merge gate, truth-copy deployment,
+`/api/signup` rate limiting, current OAuth test-user queue, OAuth verification
+then Google-directed CASA work, MSIX signing, disposable Windows
+install/reboot/uninstall testing, publication, and closeout. Every step is
+marked human-only/PENDING until executed.
+
+The in-app Browser rendered the local `docs-site` landing, privacy, support,
+and autonomy pages. Expected headings and Beta wording were present; the
+privacy page visibly disclosed the unsigned MSIX and
+`%LOCALAPPDATA%\CareerSeeker` preservation path. The temporary loopback docs
+server and tab were closed afterward. No production site was opened or
+changed.
+
+The clean full gate passed at
+`5d3d86122c0ccad3b6ab10f918c553e9aee76ba5`:
+
+```text
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+=== Offline total: 407 passed, 0 failed ===
+Package creation succeeded.
+Beta MSIX: C:\Users\bkirk\Documents\CareerSeeker\output\release\CareerSeeker-beta-win-x64.msix
+Bytes: 33677048
+SHA-256: 1EDC46E3731A449C4DCCA02FA7464CBCF5D2EDC7FADF3EFA3EEF8F0B8C7B7B39
+Executable payload: CareerSeeker.exe (one .exe)
+Setup smoke completed through the local web flow.
+  AI provider calls: 0
+  Gmail calls/drafts: 0
+Beta package self-check passed.
+  identity: CareerSeeker.LocalBeta
+  executable payload: 1 (CareerSeeker.exe)
+  startup task: optional, disabled by default
+  external user workspace preserved: yes
+CareerSeeker alpha verification complete.
+```
+
+The first B8 verifier run stopped at PowerShell parse time because an
+encoding-sensitive Unicode arrow had been added to an assertion. A later
+assertion run stopped on a wrapped README sentence, and another stopped on a
+heading-capitalization mismatch. Each was corrected before the clean 407/0
+and full-package evidence above; no successful result is attributed to those
+failed runs.
+
+Verification boundary: the MSIX was built and unpacked, not signed,
+installed, registered, removed through Windows, or reboot-tested. No Gmail
+draft, provider call, send, public ATS request, deployment, Cloudflare
+mutation, Google/Play console change, OAuth queue read/write, scheduled-task
+registration, Android/relay/sync-vector change, off-repo site edit, purchase,
+new scope, account/config change, or secret print occurred.
+
 ## 2026-07-30 (Terra B7) - Single-executable Windows MSIX
 
 Branch: `codex/beta-M7-installer`
