@@ -16,21 +16,24 @@ local state in a localhost dashboard, and export a local evidence package.
 The L1 alpha does not send applications. It creates Gmail drafts only. The application code has no Gmail send
 path.
 
-## First Run (Alpha 2.0 Bridge)
+## First Run (Beta Local Onboarding)
 
 Most testers should start here:
 
 1. Unzip the release package into a local folder.
 2. Double-click `START HERE - CareerSeeker Setup.exe`.
-3. Choose Gemini, Anthropic, or manual profile setup. Setup tests provider credentials before use and stores
+3. The setup executable opens a ten-step loopback-only browser flow. It verifies packaged checksums, creates
+   the local workspace, and refuses non-Desktop Google OAuth metadata before any connection step.
+4. Choose Gemini, Anthropic, or manual profile setup. Setup tests provider credentials before use and stores
    accepted keys in the local Windows user vault, not in `secrets\env.secrets`.
-4. Choose a recent resume only if you consent to sending its locally extracted text to the selected AI provider.
-   CareerSeeker does not upload the original PDF or DOCX during this flow.
-5. Review and edit the generated profile draft when it opens, then review each extracted claim. AI-extracted
-   resume claims are imported as `stated` with `sourceDoc: "resume-ai"`, not as `verified`.
-6. Sign in with Gmail when the browser opens. The package should include CareerSeeker's OAuth client metadata;
+5. Choose a recent resume. CareerSeeker extracts selectable text locally and deletes its temporary copy. Nothing
+   is sent until the separate provider-consent screen is accepted; the original PDF or DOCX is never uploaded.
+6. Review every extracted claim in the browser. Each claim has accept, edit, and drop controls, its evidence and
+   source document are shown, and the visible maximum confidence is `stated`. Accepted AI-extracted resume claims
+   are imported with `sourceDoc: "resume-ai"`; dropped claims never enter the truth store.
+7. Sign in with Gmail when the browser opens. The package should include CareerSeeker's installed/Desktop OAuth client metadata;
    testers should not create or download Google OAuth JSON.
-7. Let setup run readiness checks and start CareerSeeker. The engine's first board sweep runs immediately,
+8. Let setup run readiness checks and choose the default discovery-only first run. The engine's first board sweep runs immediately,
    but discovery takes a minute or so, so the dashboard can legitimately show zeros at first. The status
    pill tells you which case you are in: `starting` means the first cycle has not finished yet, `running`
    means at least one has, and `viewer only - no engine attached` means the window is a read-only view of
@@ -45,11 +48,12 @@ mode; it does not create or simulate drafts. One cycle drafts at most 10 applica
 first sweep is spread over several cycles rather than filling Gmail in one go. A posting that already entered
 the application lifecycle is not admitted again on later sweeps.
 
-Provider setup retests saved keys before resume extraction. Definite authentication and permission failures are
-not retained; quota-authenticated keys are retained, while timeout and provider-server failures may be saved only
-for a later retry. Raw provider responses are hidden unless the tester asks for advanced details.
+Provider setup retests saved keys before resume extraction. A newly entered credential with definite
+authentication or permission failure is not retained, and a failed test never deletes or overwrites an existing
+vault. Quota-authenticated keys are retained; timeout and provider-server failures offer explicit unverified
+storage for a later retry. Raw provider responses are not shown in the normal web flow.
 
-Advanced launchers may preselect/configure onboarding with `--ai-provider gemini|anthropic|manual`,
+The earlier console wizard remains available as `setup --console`. That advanced fallback may preselect/configure onboarding with `--ai-provider gemini|anthropic|manual`,
 `--gemini-model <model>`, or `--anthropic-model <model>`. The model defaults can also be overridden through
 `CAREERSEEKER_GEMINI_MODEL` and `CAREERSEEKER_ANTHROPIC_MODEL`.
 

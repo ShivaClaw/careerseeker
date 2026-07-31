@@ -141,6 +141,13 @@ one self-addressed L1 draft so early testing cannot accidentally produce drafts 
 preflight as alpha mode, but it stops before drafting. It is the trusted-tester setup path for creating or
 refreshing the local token vault.
 
+`setup` is the default Beta onboarding surface: a loopback-only local browser flow reusing the dashboard's
+visual shell. It verifies packaged checksums, extracts resume text through a bounded temporary local file,
+tests and DPAPI-stores provider credentials, requires explicit resume-provider consent, and imports only claims
+the user accepts in the claim-by-claim UI. Every AI-extracted claim is visibly capped at `stated` and retains
+`resume-ai` provenance. Gmail requires an installed/Desktop OAuth client and a separate honest consent screen;
+setup performs preflight only and creates no draft. The previous wizard remains available as `setup --console`.
+
 `profile-template` writes a starter JSON profile. `import-profile` replaces the local profile claim oracle in
 SQLite and records the active `alpha.profileId`, so Tailor and Gate use imported source facts instead of
 accumulating demo claims.
@@ -170,7 +177,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 397 passed, 0 failed.
+- Latest offline harness total: 407 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
