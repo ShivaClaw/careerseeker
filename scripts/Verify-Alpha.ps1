@@ -654,6 +654,34 @@ if ($IncludePublish) {
 }
 
 if ($IncludePackage) {
+    Invoke-Step "Package Beta win-x64 MSIX" {
+        $packageArgs = @{
+            Configuration = $Configuration
+            OutputDirectory = $PackageOutputDirectory
+        }
+        if ($IncludePublish) {
+            $packageArgs["NoPublish"] = $true
+        }
+        & (Join-Path $PSScriptRoot "Package-BetaRelease.ps1") @packageArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Beta MSIX package creation failed."
+        }
+    }
+
+    Invoke-Step "Beta MSIX structural and executable smoke" {
+        $packagePath = Join-Path $PackageOutputDirectory "CareerSeeker-beta-win-x64.msix"
+        & (Join-Path $PSScriptRoot "Test-BetaReleasePackage.ps1") `
+            -PackagePath $packagePath `
+            -Configuration $Configuration
+        if ($LASTEXITCODE -ne 0) {
+            throw "Beta MSIX package self-check failed."
+        }
+    }
+}
+
+# The Alpha ZIP verifier remains below as historical audit code but is no longer an IncludePackage path.
+# Beta 7 intentionally ships one MSIX with one executable instead of the duplicated setup/engine ZIP.
+if ($false -and $IncludePackage) {
     Invoke-Step "Package trusted-tester alpha ZIP" {
         $packageArgs = @{
             Configuration = $Configuration
