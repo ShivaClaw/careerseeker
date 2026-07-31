@@ -8,6 +8,8 @@ Branch: `codex/beta-M4-quarantine-telemetry`
 
 Integration base: `origin/main` at
 `b9728737b20124f016bffe26f83e0479d150941d`, the confirmed PR #12 merge.
+Implementation commit:
+`6017e799ac3dea01642a492f843362556d8e7140`.
 
 B4 adds an idempotent `cycle_telemetry` table and matching in-memory store
 behavior. Every completed engine tick persists discovered, quarantined,
@@ -61,6 +63,10 @@ not `feed:engine-harness`; the actual persisted value was correct. The
 expectations were corrected and the rerun passed 137/0. The first zero-result
 Lever/Ashby measurements also exposed missing configured identity in telemetry;
 the feed identity seam was added and one bounded re-run per board verified it.
+Two verifier launches were also mistakenly given a one-second process timeout
+and were terminated after beginning; no result is claimed from either partial
+run. Complete verifier runs before and at implementation commit
+`6017e799ac3dea01642a492f843362556d8e7140` both passed 385/0.
 
 No Gmail draft, BYOK/provider call, email, upload, deployment, scheduled-task
 registration, Cloudflare action, Google/Play console change, Android/relay/
