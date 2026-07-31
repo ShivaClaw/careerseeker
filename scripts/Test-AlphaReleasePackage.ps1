@@ -552,7 +552,7 @@ try {
     $walkthrough = Get-Content -LiteralPath (Resolve-RootPath "docs/Alpha-Tester-Walkthrough.md") -Raw
     foreach ($snippet in @(
         "CareerSeeker Alpha Tester Walkthrough",
-        "First Run (Alpha 2.0 Bridge)",
+        "First Run (Beta Local Onboarding)",
         "START HERE - CareerSeeker Setup.exe",
         "testers should not create or download Google OAuth JSON",
         'sourceDoc: "resume-ai"',
