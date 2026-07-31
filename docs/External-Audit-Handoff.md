@@ -17,7 +17,13 @@ local SQLite state, local DPAPI vaults, BYOK LLM providers, Brave Search, and Gm
 
 - GitHub CI is green on this branch and runs the Release warnings-as-errors build plus
   `scripts/Verify-Alpha.ps1`, including the source-mode SQLite demo smoke and offline harness suite.
-- Latest local offline verifier: `397 passed, 0 failed`.
+- Latest local offline verifier: `407 passed, 0 failed`.
+- Beta B6 onboarding verification, 2026-07-30: `setup` now defaults to a loopback-only ten-step browser flow
+  with packaged checksum verification, bounded local resume extraction, explicit provider/Gmail consent,
+  per-claim accept/edit/drop review, visible `stated` cap and resume provenance, installed/Desktop OAuth
+  assertion, doctor, and discovery-only first run; `setup --console` keeps the old fallback. The clean
+  publish/package gate at `0ecd79e` passed 407/0, verified 51 packaged checksums, and traversed the web setup
+  with a synthetic resume and zero provider/Gmail calls.
 - Alpha 2.0.1 onboarding verification, 2026-07-23: the default verifier passed with seven new provider
   diagnostics/local PDF-DOCX extraction assertions. A dirty-worktree package built successfully, and its
   extracted self-check verified 50 checksums plus dashboard and setup smokes. The aggregate package gate

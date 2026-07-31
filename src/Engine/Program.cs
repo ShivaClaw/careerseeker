@@ -22,7 +22,9 @@ if (HasFlag("--help") || HasFlag("-h"))
 if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase))
     return await RunDemoAsync().ConfigureAwait(false);
 if (mode.Equals("setup", StringComparison.OrdinalIgnoreCase))
-    return await AlphaSetupBridge.RunAsync(args).ConfigureAwait(false);
+    return HasFlag("--console")
+        ? await AlphaSetupBridge.RunAsync(args).ConfigureAwait(false)
+        : await BetaSetupWebFlow.RunAsync(args).ConfigureAwait(false);
 if (mode.Equals("alpha", StringComparison.OrdinalIgnoreCase))
     return await RunAlphaAsync().ConfigureAwait(false);
 if (mode.Equals("run", StringComparison.OrdinalIgnoreCase))
@@ -1741,7 +1743,8 @@ void PrintUsage()
     Console.WriteLine("CareerSeeker alpha executable");
     Console.WriteLine();
     Console.WriteLine("Usage:");
-    Console.WriteLine("  SeekerSvc.Engine.exe setup [--smoke] [--skip-gmail] [--skip-ai] [--ai-provider gemini|anthropic|manual] [--gemini-model gemini-3.1-flash-lite] [--anthropic-model claude-haiku-4-5] [--client resources/google-client.json] [--port 7777]");
+    Console.WriteLine("  SeekerSvc.Engine.exe setup [--smoke] [--setup-port 0] [--client resources/google-client.json] [--port 7777]");
+    Console.WriteLine("  SeekerSvc.Engine.exe setup --console [--smoke] [--skip-gmail] [--skip-ai] [--ai-provider gemini|anthropic|manual] [--gemini-model gemini-3.1-flash-lite] [--anthropic-model claude-haiku-4-5] [--client resources/google-client.json] [--port 7777]");
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
     Console.WriteLine("  SeekerSvc.Engine.exe run [--once] [--service-host] [--dry-run] [--board greenhouse:remotecom] [--board lever:mistral] [--port 7777] [--interval-seconds 900] [--max-backoff-seconds 3600] [--control-dir .appdata/engine-control] [--max-drafts-per-cycle 10] [--llm byok|fake] [--discovery-timeout-seconds 240] [--gate-semantic-candidates 3] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");

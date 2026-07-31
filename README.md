@@ -22,9 +22,9 @@ Trust/OAuth docs:
   references Pipeline, Tailor, Dispatcher, and Researcher for alpha composition commands. `TailorHookBridge`
   joins Tailor<->Researcher so neither core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
-  `EngineHarness` (149), `ResearcherHarness` (57), `HookHarness` (16), `StoreParityHarness` (25),
+  `EngineHarness` (159), `ResearcherHarness` (57), `HookHarness` (16), `StoreParityHarness` (25),
   `GatewayGateHarness` (36), `DispatcherNoSendHarness` (35), `LifecycleHarness` (45), and
-  `RendererHarness` (6). Latest offline total: 397 assertions. Run each with
+  `RendererHarness` (6). Latest offline total: 407 assertions. Run each with
   `dotnet run -c Release`.
 - `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. It builds, runs the initializer dry run,
   source-mode SQLite demo smoke, and offline harness suite. Add `-IncludeLive` for local BYOK/Gmail checks,
@@ -34,6 +34,9 @@ Trust/OAuth docs:
   native runtime dependencies, workspace initializer, dashboard/helper self-check scripts, quickstart, audit
   snapshot, tester walkthrough, release manifest, checksums, and selected docs; it does not package local
   databases, vaults, or generated artifacts.
+- `setup` now opens a loopback-only ten-step onboarding UI in the browser: package verification, local resume
+  extraction, provider consent, per-claim accept/edit/drop review with a visible `stated` cap, Gmail consent,
+  doctor, and a discovery-only first run. `setup --console` preserves the prior console fallback.
 - `scripts/Initialize-AlphaWorkspace.ps1`: creates ignored local alpha directories, a starter profile
   template, and a blank env-secrets placeholder, with an optional startup doctor run.
 - `scripts/Start-AlphaDashboard.ps1`: Windows-friendly alpha dashboard launcher. Use `-Once` for a

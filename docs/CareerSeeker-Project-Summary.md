@@ -23,6 +23,10 @@ Overall status: technical Windows alpha path implemented; SQLite source restorat
 
 Completed:
 
+- Beta onboarding now defaults to a ten-step loopback browser flow with packaged checksum verification,
+  bounded local resume extraction, explicit provider/Gmail consent, claim-by-claim accept/edit/drop review,
+  visible `stated` cap and resume evidence/provenance, installed/Desktop OAuth assertion, final doctor, and a
+  discovery-only first run. The previous wizard remains available as `setup --console`.
 - The Alpha 2.0 setup bridge now offers Gemini, Anthropic, or manual profile setup; retests saved credentials
   before use; classifies provider failures without dumping raw JSON; removes definite 401/403 failures; and
   limits unverified storage to timeout/provider-server failures.
@@ -382,12 +386,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 397 passed, 0 failed.
+Total: 407 passed, 0 failed.
 
 | Harness                   | Result              |
 | ------------------------- | ------------------- |
 | `Slice`                   | 28 passed, 0 failed |
-| `EngineHarness`           | 149 passed, 0 failed |
+| `EngineHarness`           | 159 passed, 0 failed |
 | `ResearcherHarness`       | 57 passed, 0 failed |
 | `HookHarness`             | 16 passed, 0 failed |
 | `StoreParityHarness`      | 25 passed, 0 failed |
@@ -605,13 +609,14 @@ Status: substantially complete.
 
 ### Phase 5: Onboarding And User Data
 
-- Current alpha has JSON profile template/import for the Tailor/Gate claim oracle.
-- Resume parser.
-- Profile prefill.
+- Implemented: browser-hosted Beta setup plus console fallback, PDF/DOCX/TXT/Markdown resume parser,
+  provider-assisted profile prefill, claim-by-claim review, and approved-claim import into the Tailor/Gate
+  oracle.
+- Advanced/manual JSON profile template/import remains available.
 - Interview by exception.
 - Approved Answer Bank.
 - Voice/style card.
-- Claim confidence workflow: `verified`, `stated`, `weak`.
+- Extend the implemented `verified`/`stated`/`weak` confidence workflow beyond resume onboarding.
 
 ### Phase 6: Closed Beta
 

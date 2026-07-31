@@ -2,6 +2,110 @@
 
 Updated: 2026-07-30
 
+## 2026-07-30 (Terra B6) - Local browser onboarding and claim review
+
+Branch: `codex/beta-M6-onboarding-v2`
+
+Integration base: `origin/main` at
+`f985ec080de8b4ee0da115ef2f84c392bf71c0d5`, the confirmed PR #14 merge.
+Implementation commit:
+`f54987f` (`feat(beta): add local web onboarding flow`).
+Packaged-copy correction:
+`0ecd79e` (`test(beta): align packaged onboarding copy`).
+
+B6 replaces the default interactive console wizard with a ten-step,
+loopback-only browser flow that reuses the dashboard's visual language:
+welcome/safety, package verification, resume selection, provider connection,
+resume-provider consent/extraction, claim-by-claim review, Gmail consent,
+doctor, first run, and completion. The earlier wizard remains intact behind
+`setup --console`.
+
+The flow:
+
+- validates packaged SHA-256 entries and refuses continuation after a package
+  mismatch;
+- accepts PDF/DOCX/TXT/Markdown up to 20 MiB, extracts through a temporary
+  local file, deletes that file immediately, and never sends the original;
+- tests provider credentials before DPAPI storage, preserves any existing
+  vault after failure, retains quota-authenticated credentials, and makes
+  timeout/5xx unverified storage a separate explicit action;
+- requires a separate checkbox before normalized resume text can reach the
+  selected provider, encodes that untrusted text at the prompt boundary, and
+  never treats resume instructions as commands;
+- shows every claim with accept/edit/drop controls, evidence, source document,
+  and a visible maximum confidence of `stated`; only accepted claims are
+  imported;
+- refuses Google OAuth JSON that is not an installed/Desktop client and shows
+  the Alpha2 consent truth that `gmail.compose` is permission-capable of
+  compose/send even though CareerSeeker implements drafts only;
+- uses loopback/Host checks, a per-process form token, fixed-time token
+  comparison, CSP/no-store/nosniff/no-referrer headers, and bounded request
+  bodies;
+- defaults first run to discovery-only, with no Gmail draft.
+
+EngineHarness moved 149â†’159 and the offline total moved 397â†’407 in the same
+count/doc/verifier commit.
+
+Executed verification:
+
+```text
+> dotnet build CareerSeeker.sln -c Release
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+> dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release
+=== 159 passed, 0 failed ===
+
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+=== Offline total: 407 passed, 0 failed ===
+CareerSeeker alpha verification complete.
+```
+
+The in-app Browser then exercised all ten rendered screens against
+`.appdata/b6-browser`: package development-mode notice; resume skip; manual
+provider; extraction consent; one manual `distributed systems` claim accepted
+while the other three were dropped; Gmail skip; final doctor `Ready`; finish
+without engine start. The completion page reported one approved claim and no
+Gmail draft. The loopback listener was gone afterward and stderr was blank.
+No provider or Gmail call occurred.
+
+The first clean publish/package attempt reached package generation but stopped
+on one stale copied-walkthrough assertion, which still expected
+`First Run (Alpha 2.0 Bridge)`. No package pass is claimed for that attempt.
+The expectation was aligned with the shipped `First Run (Beta Local
+Onboarding)` heading and committed.
+
+Clean package verification then passed at
+`0ecd79eba3b8f9b5e9596c4757f9472c4d3f0cf8`:
+
+```text
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+=== Offline total: 407 passed, 0 failed ===
+Package release self-check:
+  manifest: ok
+  OAuth client type: installed/Desktop
+  checksums: 51 verified
+Setup route sequence:
+  welcome -> package-verify -> resume-select -> local-resume-extraction ->
+  provider-manual -> extraction -> claim-review -> gmail-skip -> doctor ->
+  first-run
+AI provider calls: 0
+Gmail calls/drafts: 0
+CareerSeeker alpha verification complete.
+```
+
+Generated ZIP: 65,057,904 bytes; SHA-256
+`76AC122C106D9D9C732A292E71FECC8564AE94B27AE820F8B73270CECD44DEEB`.
+
+Verification boundary: no real resume or credential was entered. Provider and
+Gmail consent/network paths were structurally and offline tested but not used
+against live services; the packaged traversal used a synthetic TXT resume and
+manual skips. No Gmail draft, provider call, send, public ATS request,
+deployment, scheduled-task registration, Cloudflare action, Google/Play
+console change, Android/relay/sync-vector change, off-repo site edit,
+dependency addition, or secret print occurred in B6.
+
 ## 2026-07-30 (Terra B5) - Hardened Scheduled Task engine host
 
 Branch: `codex/beta-M5-service-grade`

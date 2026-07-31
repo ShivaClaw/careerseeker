@@ -354,7 +354,8 @@ try {
         "Gemini, Anthropic, or manual profile setup",
         "tests provider credentials before use",
         "extracts resume text locally",
-        "review/edit it before import",
+        "accept, edit, and drop controls",
+        "caps AI-extracted claims at stated confidence",
         "packaged OAuth client",
         "setup creates no Gmail draft",
         "has no send path"
@@ -551,7 +552,7 @@ try {
     $walkthrough = Get-Content -LiteralPath (Resolve-RootPath "docs/Alpha-Tester-Walkthrough.md") -Raw
     foreach ($snippet in @(
         "CareerSeeker Alpha Tester Walkthrough",
-        "First Run (Alpha 2.0 Bridge)",
+        "First Run (Beta Local Onboarding)",
         "START HERE - CareerSeeker Setup.exe",
         "testers should not create or download Google OAuth JSON",
         'sourceDoc: "resume-ai"',
@@ -682,7 +683,10 @@ try {
     $setupOutput = Invoke-CheckedOutput (Resolve-RootPath "START HERE - CareerSeeker Setup.exe") @("--smoke")
     foreach ($snippet in @(
         "CareerSeeker Alpha 2.0 Bridge Setup",
-        "Setup smoke completed"
+        "Setup smoke completed through the local web flow",
+        "welcome -> package-verify -> resume-select -> local-resume-extraction",
+        "AI provider calls: 0",
+        "Gmail calls/drafts: 0"
     )) {
         if ($setupOutput -notlike "*$snippet*") {
             throw "Alpha 2.0 setup smoke did not report '$snippet'."

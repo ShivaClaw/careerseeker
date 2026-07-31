@@ -161,7 +161,8 @@ Start here:
 
   It creates the local workspace, stores your Gemini key in the Windows user vault, can extract a profile
   from your resume after consent, asks you to review/approve the profile before import, connects Gmail
-  through CareerSeeker's packaged OAuth client, runs readiness checks, and opens the local dashboard.
+  through CareerSeeker's packaged OAuth client, runs readiness checks, and offers a discovery-only first run.
+  The normal path is a ten-step local browser flow; it does not require console input or JSON editing.
 
   Setup creates no Gmail draft. Live draft creation still requires an explicit LIVE confirmation later.
 
@@ -258,9 +259,10 @@ What setup does:
   - lets you choose Gemini, Anthropic, or manual profile setup
   - tests provider credentials before use and stores accepted keys in the Windows user vault
   - extracts resume text locally and sends it to the chosen provider only after consent
-  - opens the extracted profile so you can review/edit it before import
+  - shows every extracted claim in the local browser with accept, edit, and drop controls before import
+  - visibly caps AI-extracted claims at stated confidence and shows their resume source/evidence
   - connects Gmail through CareerSeeker's packaged OAuth client
-  - checks readiness and opens the localhost dashboard
+  - checks readiness and offers a no-Gmail discovery-only first run
 
 Safety:
 

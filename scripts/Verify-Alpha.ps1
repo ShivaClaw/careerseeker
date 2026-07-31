@@ -125,7 +125,7 @@ $offlineProjects = @(
 # export; one store-parity assertion pins the new telemetry table in memory and SQLite.
 # Twelve engine assertions pin adaptive backoff and its board-failure input, clean pause/resume,
 # single-instance locking, local control files, honest runtime status, and service-host doctor checks.
-$ExpectedOfflineTotal = 397
+$ExpectedOfflineTotal = 407
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -301,12 +301,12 @@ Invoke-Step "Public README and harness count smoke" {
         'the paid Android dashboard remain future',
         'no open-source license',
         'all rights are reserved',
-        'EngineHarness` (149)',
+        'EngineHarness` (159)',
         'ResearcherHarness` (57)',
         'HookHarness` (16)',
         'GatewayGateHarness` (36)',
         'admitted hooks stay prompt',
-        'Latest offline total: 397 assertions'
+        'Latest offline total: 407 assertions'
     ) "README.md"
     Assert-DoesNotContain $readme @(
         'free Windows service (.exe)'
@@ -317,7 +317,7 @@ Invoke-Step "Public README and harness count smoke" {
     # re-pads them); collapse runs of spaces so the row assertions tolerate that padding.
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
-        'Total: 397 passed, 0 failed.',
+        'Total: 407 passed, 0 failed.',
         'offline `lexical-v1`',
         'imports require the CareerSeeker alpha profile',
         'document responses carry no-store, nosniff, no-referrer',
@@ -327,7 +327,7 @@ Invoke-Step "Public README and harness count smoke" {
         'admitted company hooks stay prompt'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| `EngineHarness` | 149 passed, 0 failed |',
+        '| `EngineHarness` | 159 passed, 0 failed |',
         '| `ResearcherHarness` | 57 passed, 0 failed |',
         '| `HookHarness` | 16 passed, 0 failed |',
         '| `StoreParityHarness` | 25 passed, 0 failed |',
@@ -337,7 +337,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        'Latest offline harness total: 397 passed, 0 failed.',
+        'Latest offline harness total: 407 passed, 0 failed.',
         'offline `lexical-v1`',
         '`/evidence.html` exposes a human audit-chain page',
         'visible job ids for selected-job drafting',
@@ -350,7 +350,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Latest local offline verifier: `397 passed, 0 failed`.',
+        'Latest local offline verifier: `407 passed, 0 failed`.',
         'deterministic, explainable local-profile ranking',
         'Verify-Alpha.ps1 -IncludeLive -IncludePublish -IncludeResearch',
         'Fresh live Scout harness, 2026-07-20',
@@ -513,6 +513,42 @@ Invoke-Step "Alpha 2.0 provider onboarding smoke" {
         'HttpStatusCode.RequestTimeout',
         'CanSaveWithoutSuccessfulTest'
     ) "src/Engine/AlphaProviderDiagnostics.cs"
+}
+
+Invoke-Step "Beta onboarding local web flow source smoke" {
+    $program = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    Assert-Contains $program @(
+        'HasFlag("--console")',
+        'BetaSetupWebFlow.RunAsync',
+        'setup --console'
+    ) "src/Engine/Program.cs"
+
+    $webSetup = Get-Content -LiteralPath "src/Engine/BetaSetupWebFlow.cs" -Raw
+    Assert-Contains $webSetup @(
+        'CareerSeeker runs locally. It creates Gmail drafts only. It never sends applications.',
+        'Locally extracted resume text is sent to the selected AI provider only after explicit consent.',
+        "Google's gmail.compose scope can allow compose/send capability",
+        'Review every claim',
+        'Maximum confidence: stated',
+        'sourceDoc"] = "resume-ai"',
+        'IsInstalledDesktopOAuthClient',
+        'CryptographicOperations.FixedTimeEquals',
+        'default-src ''none''',
+        'PromptQuarantine.Encode(resumeText)',
+        'setup --console',
+        'ExerciseOfflineSmokeAsync'
+    ) "src/Engine/BetaSetupWebFlow.cs"
+    Assert-DoesNotContain $webSetup @(
+        'Drafts.Send',
+        '--sync'
+    ) "src/Engine/BetaSetupWebFlow.cs"
+
+    $package = Get-Content -LiteralPath "scripts/Package-AlphaRelease.ps1" -Raw
+    Assert-Contains $package @(
+        'ten-step local browser flow',
+        'accept, edit, and drop controls',
+        'caps AI-extracted claims at stated confidence'
+    ) "scripts/Package-AlphaRelease.ps1"
 }
 
 Invoke-Step "Code-signing guidance smoke" {
