@@ -41,7 +41,7 @@ public static class StartupDoctor
                 options.HostControlDirectory,
                 options.HostLogDirectory,
                 ct).ConfigureAwait(false));
-            checks.Add(CheckSingleInstanceRail());
+            checks.Add(CheckSingleInstanceRail(options.DbPath));
         }
         return new StartupDoctorReport(checks);
     }
@@ -71,16 +71,18 @@ public static class StartupDoctor
         }
     }
 
-    private static StartupCheck CheckSingleInstanceRail()
+    private static StartupCheck CheckSingleInstanceRail(string databasePath)
     {
-        var identity = Path.Combine(Path.GetTempPath(), "careerseeker-doctor-" + Guid.NewGuid().ToString("N") + ".db");
         try
         {
-            if (!SingleInstanceLease.TryAcquire(identity, out var first) || first is null)
-                return new StartupCheck("service_single_instance", false, "could not acquire local process lease");
+            if (!SingleInstanceLease.TryAcquire(databasePath, out var first) || first is null)
+                return new StartupCheck(
+                    "service_single_instance",
+                    false,
+                    "the configured database is already leased by another engine");
             using (first)
             {
-                var refusedSecond = !SingleInstanceLease.TryAcquire(identity, out var second);
+                var refusedSecond = !SingleInstanceLease.TryAcquire(databasePath, out var second);
                 second?.Dispose();
                 return new StartupCheck(
                     "service_single_instance",

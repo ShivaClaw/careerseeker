@@ -23,6 +23,7 @@ public static class AlphaPackageImport
 {
     private const int MaxManifestBytes = 64 * 1024;
     private const int MaxEntries = 2048;
+    private const int MaxEntryNameChars = 1024;
     private const long MaxEntryBytes = 128L * 1024 * 1024;
     private const long MaxPackageUncompressedBytes = 512L * 1024 * 1024;
     private const string ExpectedFormat = "careerseeker-alpha-package-v1";
@@ -84,10 +85,7 @@ public static class AlphaPackageImport
 
             uncompressedBytes += entry.Length;
 
-            if (Path.IsPathFullyQualified(name) ||
-                name.Contains("../", StringComparison.Ordinal) ||
-                name.StartsWith("..", StringComparison.Ordinal) ||
-                name.Contains(':', StringComparison.Ordinal) ||
+            if (LooksUnsafeEntryName(name) ||
                 LooksSecretPath(name))
             {
                 throw new InvalidOperationException($"Refusing unsafe alpha package entry '{entry.FullName}'.");
@@ -207,7 +205,59 @@ public static class AlphaPackageImport
     }
 
     private static string NormalizeEntryName(string name) =>
-        name.Replace('\\', '/').TrimStart('/');
+        name.Replace('\\', '/');
+
+    private static bool LooksUnsafeEntryName(string name)
+    {
+        if (name.Length == 0 ||
+            name.Length > MaxEntryNameChars ||
+            name.StartsWith("/", StringComparison.Ordinal) ||
+            Path.IsPathFullyQualified(name) ||
+            name.Contains(':', StringComparison.Ordinal) ||
+            name.Any(char.IsControl))
+        {
+            return true;
+        }
+
+        var segments = name.Split('/');
+        for (var index = 0; index < segments.Length; index++)
+        {
+            var segment = segments[index];
+            var isTrailingDirectoryMarker = index == segments.Length - 1 && segment.Length == 0;
+            if (isTrailingDirectoryMarker)
+                continue;
+
+            if (segment.Length == 0 ||
+                segment is "." or ".." ||
+                segment.EndsWith(".", StringComparison.Ordinal) ||
+                segment.EndsWith(" ", StringComparison.Ordinal) ||
+                IsWindowsDeviceName(segment))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsWindowsDeviceName(string segment)
+    {
+        var stem = segment.Split('.')[0];
+        if (stem.Equals("CON", StringComparison.OrdinalIgnoreCase) ||
+            stem.Equals("PRN", StringComparison.OrdinalIgnoreCase) ||
+            stem.Equals("AUX", StringComparison.OrdinalIgnoreCase) ||
+            stem.Equals("NUL", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (stem.Length != 4)
+            return false;
+
+        return (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase) ||
+                stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) &&
+               stem[3] is >= '1' and <= '9';
+    }
 
     private static bool IsSupportedEntry(string name) =>
         name.Equals("manifest.json", StringComparison.OrdinalIgnoreCase) ||

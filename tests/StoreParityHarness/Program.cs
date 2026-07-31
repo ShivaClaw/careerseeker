@@ -1,6 +1,10 @@
 using Microsoft.Data.Sqlite;
 using SeekerSvc.Store;
 
+var realMigrationSources = ReadOptionValues(args, "--migration-copy");
+if (realMigrationSources.Count > 0)
+    return await ExerciseRealMigrationCopiesAsync(realMigrationSources);
+
 int passed = 0, failed = 0;
 void Check(string name, bool condition, string? detail = null)
 {
@@ -165,6 +169,197 @@ VALUES (1, 'SCREENED', 'L1', '2026-07-01T00:00:00.0000000+00:00', '2026-07-01T00
         DeleteIfExists(path + "-wal");
         DeleteIfExists(path + "-shm");
     }
+}
+
+// Copies each existing database through SQLite's read-only backup API, runs current initialization twice on
+// the copy, and compares structural facts only. Source values and paths are never printed, and the source
+// file's bytes/metadata must remain unchanged.
+static async Task<int> ExerciseRealMigrationCopiesAsync(IReadOnlyList<string> sources)
+{
+    Console.WriteLine("=== CareerSeeker real Alpha DB migration-copy matrix ===\n");
+    var failed = 0;
+
+    for (var index = 0; index < sources.Count; index++)
+    {
+        var sourcePath = Path.GetFullPath(sources[index]);
+        var label = $"candidate {index + 1}";
+        var tempRoot = Path.Combine(Path.GetTempPath(), "CareerSeeker.RealMigration." + Guid.NewGuid().ToString("N"));
+        var copyPath = Path.Combine(tempRoot, "migration-copy.db");
+
+        try
+        {
+            if (!File.Exists(sourcePath))
+                throw new FileNotFoundException("Migration source does not exist.", sourcePath);
+
+            var sourceInfo = new FileInfo(sourcePath);
+            var sourceLength = sourceInfo.Length;
+            var sourceWriteUtc = sourceInfo.LastWriteTimeUtc;
+            var sourceHashBefore = await HashFileAsync(sourcePath);
+
+            Directory.CreateDirectory(tempRoot);
+            var sourceBuilder = new SqliteConnectionStringBuilder
+            {
+                DataSource = sourcePath,
+                Mode = SqliteOpenMode.ReadOnly,
+                Cache = SqliteCacheMode.Private
+            };
+            var copyBuilder = new SqliteConnectionStringBuilder
+            {
+                DataSource = copyPath,
+                Mode = SqliteOpenMode.ReadWriteCreate,
+                Cache = SqliteCacheMode.Private
+            };
+
+            await using (var source = new SqliteConnection(sourceBuilder.ToString()))
+            await using (var destination = new SqliteConnection(copyBuilder.ToString()))
+            {
+                await source.OpenAsync();
+                await destination.OpenAsync();
+                source.BackupDatabase(destination);
+            }
+
+            var before = await ReadMigrationCopySnapshotAsync(copyPath);
+            await using (var store = SqliteSeekerStore.ForFile(copyPath))
+            {
+                await store.InitializeAsync();
+                await store.InitializeAsync();
+            }
+            var after = await ReadMigrationCopySnapshotAsync(copyPath);
+
+            var wanted = new[] { "paused_from", "resume_path", "cover_path", "answers_json" };
+            var existingTablesPreserved =
+                before.RowCounts.All(pair =>
+                    after.RowCounts.TryGetValue(pair.Key, out var afterCount) && afterCount == pair.Value);
+
+            var sourceInfoAfter = new FileInfo(sourcePath);
+            var sourceHashAfter = await HashFileAsync(sourcePath);
+            var passed =
+                before.IntegrityOk &&
+                after.IntegrityOk &&
+                existingTablesPreserved &&
+                wanted.All(after.ApplicationColumns.Contains) &&
+                sourceLength == sourceInfoAfter.Length &&
+                sourceWriteUtc == sourceInfoAfter.LastWriteTimeUtc &&
+                sourceHashBefore.SequenceEqual(sourceHashAfter);
+
+            if (passed)
+            {
+                Console.WriteLine($"  PASS  {label}: copied migration is intact/idempotent and source is unchanged");
+            }
+            else
+            {
+                failed++;
+                Console.WriteLine($"  FAIL  {label}: structural migration invariant failed");
+            }
+        }
+        catch (Exception ex)
+        {
+            failed++;
+            Console.WriteLine($"  FAIL  {label}: {ex.GetType().Name}; source details suppressed");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            DeleteIfExists(copyPath);
+            DeleteIfExists(copyPath + "-wal");
+            DeleteIfExists(copyPath + "-shm");
+            if (Directory.Exists(tempRoot))
+            {
+                var systemTemp = Path.GetFullPath(Path.GetTempPath())
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+                    Path.DirectorySeparatorChar;
+                var resolvedTempRoot = Path.GetFullPath(tempRoot);
+                if (!resolvedTempRoot.StartsWith(systemTemp, StringComparison.OrdinalIgnoreCase) ||
+                    !Path.GetFileName(resolvedTempRoot).StartsWith(
+                        "CareerSeeker.RealMigration.",
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("Refusing to recursively remove an unexpected migration temp path.");
+                }
+                Directory.Delete(resolvedTempRoot, recursive: true);
+            }
+        }
+    }
+
+    Console.WriteLine($"\n=== {sources.Count - failed} passed, {failed} failed ===");
+    return failed == 0 ? 0 : 1;
+}
+
+static async Task<MigrationCopySnapshot> ReadMigrationCopySnapshotAsync(string path)
+{
+    var builder = new SqliteConnectionStringBuilder
+    {
+        DataSource = path,
+        Mode = SqliteOpenMode.ReadOnly,
+        Cache = SqliteCacheMode.Private
+    };
+    await using var connection = new SqliteConnection(builder.ToString());
+    await connection.OpenAsync();
+
+    string integrity;
+    using (var command = connection.CreateCommand())
+    {
+        command.CommandText = "PRAGMA integrity_check;";
+        integrity = Convert.ToString(await command.ExecuteScalarAsync()) ?? "";
+    }
+
+    var tables = new List<string>();
+    using (var command = connection.CreateCommand())
+    {
+        command.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;";
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            tables.Add(reader.GetString(0));
+    }
+
+    var rowCounts = new Dictionary<string, long>(StringComparer.Ordinal);
+    foreach (var table in tables)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT COUNT(*) FROM \"{table.Replace("\"", "\"\"")}\";";
+        rowCounts[table] = Convert.ToInt64(await command.ExecuteScalarAsync());
+    }
+
+    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    if (tables.Contains("applications", StringComparer.Ordinal))
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA table_info(applications);";
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            columns.Add(reader.GetString(1));
+    }
+
+    return new MigrationCopySnapshot(
+        IntegrityOk: string.Equals(integrity, "ok", StringComparison.OrdinalIgnoreCase),
+        RowCounts: rowCounts,
+        ApplicationColumns: columns);
+}
+
+static async Task<byte[]> HashFileAsync(string path)
+{
+    await using var stream = new FileStream(
+        path,
+        FileMode.Open,
+        FileAccess.Read,
+        FileShare.ReadWrite | FileShare.Delete,
+        bufferSize: 64 * 1024,
+        useAsync: true);
+    return await System.Security.Cryptography.SHA256.HashDataAsync(stream);
+}
+
+static IReadOnlyList<string> ReadOptionValues(string[] arguments, string option)
+{
+    var values = new List<string>();
+    for (var index = 0; index < arguments.Length; index++)
+    {
+        if (!string.Equals(arguments[index], option, StringComparison.OrdinalIgnoreCase))
+            continue;
+        if (index + 1 >= arguments.Length || arguments[index + 1].StartsWith("--", StringComparison.Ordinal))
+            throw new ArgumentException($"{option} requires a database path.");
+        values.Add(arguments[++index]);
+    }
+    return values;
 }
 
 static async Task<StoreSnapshot> ExerciseSqliteAsync()
@@ -336,6 +531,11 @@ sealed record MigrationResult(
     string ColumnList,
     string? PreExistingState,
     ApplicationRow? RoundTrip);
+
+sealed record MigrationCopySnapshot(
+    bool IntegrityOk,
+    IReadOnlyDictionary<string, long> RowCounts,
+    IReadOnlySet<string> ApplicationColumns);
 
 sealed class StepClock
 {

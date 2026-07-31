@@ -2,6 +2,130 @@
 
 Updated: 2026-07-30
 
+## 2026-07-30 (Terra post-B8) - Ordered Beta hardening backlog
+
+Branch: `codex/beta-hardening`
+
+Integration base: `origin/main` at
+`89ef81002410cc85ad49f529e571be3b5b4de5c1`, the confirmed B8 PR #17
+merge. Implementation commit:
+`596a770a61eee8c73ee1b891e23dee82733e94c3`
+(`Harden beta migration import dashboard and doctor`).
+
+The roadmap's six ordered post-B8 hardening items are complete:
+
+1. `StoreParityHarness --migration-copy` uses SQLite's read-only backup API
+   to copy a supplied database into a randomized system-temp directory. It
+   migrates the copy twice, verifies integrity, preserves every pre-existing
+   table row count, requires the four current application columns, and checks
+   the source file's length, timestamp, and SHA-256 before/after. It reports
+   candidate numbers and structural results, never source rows or paths.
+2. Alpha-package import now rejects rooted/fully-qualified names, traversal,
+   empty/dot segments, ADS/colon names, control characters, trailing
+   dot/space aliases, Windows device names, and names over 1,024 characters.
+   The existing secret-path quarantine remains in force. EngineHarness
+   exercises 35 deterministic accepted/rejected entry-name cases inside the
+   existing assertion, so the pinned count remains 407.
+3. The local dashboard now has a skip link, visible focus treatment,
+   language/main/navigation semantics, `aria-current`, labeled scrollable
+   table regions, captions and column scopes, contextual application-control
+   labels, and a manual Refresh status link. The five-second meta refresh was
+   removed because it reset keyboard focus.
+4. Required service-host doctor checks now acquire the lease for the actual
+   configured database, so a database already owned by another engine fails
+   closed. Tests also cover missing host directories.
+5. Ten consecutive release-mode EngineHarness runs passed 159/0; observed
+   durations were 4.570-4.800 seconds.
+6. Latest .NET analyzers passed with warnings treated as errors, and
+   `dotnet format ... analyzers --verify-no-changes` passed. The unreachable
+   422-line historical Alpha ZIP verifier was removed from
+   `Verify-Alpha.ps1`; the active Beta MSIX verifier is unchanged.
+   PSScriptAnalyzer was not installed, so no PowerShell-analyzer pass is
+   claimed and no module was installed.
+
+Executed migration-copy evidence:
+
+```text
+> dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release --no-build -- --migration-copy .appdata\careerseeker-alpha.db --migration-copy .appdata\imported-smoke\careerseeker-alpha.db
+=== CareerSeeker real Alpha DB migration-copy matrix ===
+  PASS  candidate 1: copied migration is intact/idempotent and source is unchanged
+  PASS  candidate 2: copied migration is intact/idempotent and source is unchanged
+=== 2 passed, 0 failed ===
+```
+
+The first two-source migration attempt proved candidate 1, then failed while
+removing SQLite auxiliary temp files; that run is not claimed as a matrix
+pass. Cleanup was corrected with connection-pool clearing and a validated,
+randomized system-temp prefix. The subsequent command above passed both real
+Alpha databases. Only the temporary copy was deleted; both source databases
+remain.
+
+Executed timing evidence:
+
+```text
+> $runs = @(); foreach ($i in 1..10) { $sw = [System.Diagnostics.Stopwatch]::StartNew(); $output = & dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build 2>&1; $exitCode = $LASTEXITCODE; $sw.Stop(); $summary = $output | Where-Object { $_ -match '^=== \d+ passed, \d+ failed ===$' } | Select-Object -Last 1; $runs += [pscustomobject]@{ Run = $i; Exit = $exitCode; Seconds = [math]::Round($sw.Elapsed.TotalSeconds, 3); Summary = [string]$summary }; if ($exitCode -ne 0) { $output | Select-Object -Last 40; break } }; $runs | Format-Table -AutoSize; if (($runs | Where-Object Exit -ne 0).Count -gt 0) { exit 1 }
+Runs 1-10: exit 0; each `=== 159 passed, 0 failed ===`
+Seconds: 4.800, 4.679, 4.570, 4.619, 4.631, 4.607, 4.584, 4.645, 4.602, 4.745
+```
+
+Executed analyzer evidence:
+
+```text
+> dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+> dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore
+Exit code: 0
+
+> Get-Module -ListAvailable -Name PSScriptAnalyzer
+PSScriptAnalyzer: unavailable; no installation attempted
+```
+
+The clean full gate passed at
+`596a770a61eee8c73ee1b891e23dee82733e94c3`:
+
+```text
+> powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+=== Offline total: 407 passed, 0 failed ===
+Package creation succeeded.
+Beta MSIX: C:\Users\bkirk\Documents\CareerSeeker\output\release\CareerSeeker-beta-win-x64.msix
+Bytes: 33673443
+SHA-256: 41F456F09413758E707B556CBAF79EEFC268FE9B93EB67FF0EFE09C362B0271F
+Executable payload: CareerSeeker.exe (one .exe)
+Setup smoke completed through the local web flow.
+  AI provider calls: 0
+  Gmail calls/drafts: 0
+Beta package self-check passed.
+  identity: CareerSeeker.LocalBeta
+  executable payload: 1 (CareerSeeker.exe)
+  startup task: optional, disabled by default
+  external user workspace preserved: yes
+CareerSeeker alpha verification complete.
+```
+
+Dashboard QA boundary: the in-app Browser rendered an isolated loopback host
+cleanly, exposed native links/buttons in its semantic tree, and one real Tab
+transition visibly moved focus to the Jobs link. Repeated synthetic Tab
+injection was intermittent, so a complete keystroke sequence is not claimed.
+Static accessibility assertions are repeatable in EngineHarness. Starting the
+isolated host also completed one bounded read-only public ATS cycle: 255
+discovered, 34 quarantined, 203 rejected, 0 drafted, 0 errors. No provider or
+Gmail call occurred. The host stopped through its local `stop.request`, its
+listener was confirmed absent, and all Browser tabs were finalized.
+
+Verification boundary: the package was created and unpacked, not signed,
+installed, registered, Windows-uninstalled, or reboot-tested. No Gmail draft,
+BYOK/provider call, send, deployment, scheduled-task registration, Cloudflare
+mutation, Google/Play console change, OAuth queue read/write, Android/relay/
+sync-vector change, off-repo site edit, purchase, new scope, account/config
+change, or secret print occurred. The only network activity in this
+hardening batch was the bounded public ATS read described above.
+
 ## 2026-07-30 (Terra B8) - Evidence, positioning, and human runbook
 
 Branch: `codex/beta-M8-evidence`

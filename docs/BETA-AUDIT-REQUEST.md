@@ -6,6 +6,45 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## Post-B8 - Ordered hardening backlog
+
+Branch: `codex/beta-hardening`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-07-30 |
+|---|---|---|
+| Current migrations succeed twice on copies of both available real Alpha databases without changing either source. | `dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release --no-build -- --migration-copy .appdata\careerseeker-alpha.db --migration-copy .appdata\imported-smoke\careerseeker-alpha.db` | At `596a770a61eee8c73ee1b891e23dee82733e94c3`: candidate 1 PASS, candidate 2 PASS, `2 passed, 0 failed`; integrity/row counts/current columns passed and each source's length/timestamp/SHA-256 remained unchanged. |
+| Alpha ZIP entry names fail closed against Windows traversal/alias/device-name shapes while valid Unicode and literal percent names remain usable. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | `159 passed, 0 failed`; the existing unsafe-entry assertion now evaluates 35 deterministic accepted/rejected cases and also checks that no file escaped the two permitted import roots. |
+| Dashboard markup is keyboard/accessibility-oriented and no timed refresh resets focus. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | `159 passed, 0 failed`; status/applications/jobs/evidence assertions found language, skip, focus, navigation/current-page, refresh, captions, scopes, labeled regions/controls and found no meta refresh. |
+| Required service-host doctor checks the configured database lease and fails closed when that database is already owned. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | `159 passed, 0 failed`; the service-host doctor passed on a free configured DB, failed on a held configured DB lease, and failed when control/log directories were omitted. |
+| The EngineHarness timing sweep produced no intermittent failure. | `$runs = @(); foreach ($i in 1..10) { $sw = [System.Diagnostics.Stopwatch]::StartNew(); $output = & dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build 2>&1; $exitCode = $LASTEXITCODE; $sw.Stop(); $summary = $output \| Where-Object { $_ -match '^=== \d+ passed, \d+ failed ===$' } \| Select-Object -Last 1; $runs += [pscustomobject]@{ Run = $i; Exit = $exitCode; Seconds = [math]::Round($sw.Elapsed.TotalSeconds, 3); Summary = [string]$summary }; if ($exitCode -ne 0) { $output \| Select-Object -Last 40; break } }; $runs \| Format-Table -AutoSize; if (($runs \| Where-Object Exit -ne 0).Count -gt 0) { exit 1 }` | Runs 1-10 each exited 0 at 159/0; observed range 4.570-4.800 seconds. This is a bounded sweep, not a proof that timing flakes cannot exist. |
+| Latest built-in .NET analyzers are warning-clean, analyzer formatting has no pending change, and the unreachable historical Alpha ZIP gate is gone. | `dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest; dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore; rg -n -e 'if \(\$?false\)' -e 'historical audit code' scripts\Verify-Alpha.ps1` | Build: 0 warnings/0 errors; format-analyzers exit 0; final `rg` expected no output/exit 1. PSScriptAnalyzer was unavailable and was not installed, so no PowerShell-analyzer pass is claimed. |
+| The clean committed artifact remains a one-executable unsigned MSIX with the full pinned gate and no provider/Gmail calls. | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | At `596a770a61eee8c73ee1b891e23dee82733e94c3`: 407/0; one `CareerSeeker.exe`; provider calls 0; Gmail calls/drafts 0; external workspace preserved; 33,673,443 bytes; SHA-256 `41F456F09413758E707B556CBAF79EEFC268FE9B93EB67FF0EFE09C362B0271F`. |
+| Frozen Android/relay paths are absent from the hardening diff. | `git diff --name-only 89ef81002410cc85ad49f529e571be3b5b4de5c1...HEAD \| rg '^(relay/|docs/Sync-Protocol\.md$|docs/sync-vectors/|.*Android|.*android)'` | Expected: no output, exit 1 from `rg`; executed result was no matches. |
+
+### Verification boundary
+
+The first real-DB matrix attempt stopped during temporary WAL/SHM cleanup and
+is not claimed as a pass. Cleanup was corrected before the two-source 2/0 run.
+Both source databases remain; only randomized system-temp copies were removed.
+
+The in-app Browser rendered the isolated dashboard and one real Tab transition
+visibly focused the Jobs link. Repeated synthetic Tab injection was
+intermittent, so full keyboard navigation is not claimed; repeatable markup
+coverage is in EngineHarness. The isolated host made one bounded public ATS
+read (255 discovered, 34 quarantined, 203 rejected, 0 drafted, 0 errors) and
+was then stopped with its listener absent. No Computer action was taken
+because that skill forbids using computer control on the Codex/ChatGPT UI.
+
+The package was created and unpacked, not signed, installed, registered,
+Windows-uninstalled, or reboot-tested. No Gmail draft, provider call, send,
+deployment, scheduled-task registration, Cloudflare mutation, Google/Play
+console change, OAuth queue read/write, Android/relay/sync-vector change,
+off-repo site edit, purchase, new scope, account/config change, or secret
+print occurred. The bounded public ATS read above was the only network
+activity in this hardening batch.
+
 ## B8 - Evidence, positioning, and human runbook
 
 Branch: `codex/beta-M8-evidence`
