@@ -12,7 +12,10 @@ public sealed record StartupDoctorOptions(
     string EnvFilePath,
     string KeyVaultPath,
     bool RequireGmail = false,
-    bool RequireByok = false);
+    bool RequireByok = false,
+    bool RequireServiceHost = false,
+    string? HostControlDirectory = null,
+    string? HostLogDirectory = null);
 
 public sealed record StartupCheck(string Name, bool Ok, string Detail);
 
@@ -32,7 +35,63 @@ public static class StartupDoctor
         checks.Add(CheckGmailVault(options.GmailTokenVaultPath, options.RequireGmail));
         checks.Add(CheckByok(options.EnvFilePath, options.KeyVaultPath, options.RequireByok));
         checks.Add(CheckBraveSearch(options.EnvFilePath));
+        if (options.RequireServiceHost)
+        {
+            checks.Add(await CheckHostPathsAsync(
+                options.HostControlDirectory,
+                options.HostLogDirectory,
+                ct).ConfigureAwait(false));
+            checks.Add(CheckSingleInstanceRail());
+        }
         return new StartupDoctorReport(checks);
+    }
+
+    private static async Task<StartupCheck> CheckHostPathsAsync(
+        string? controlDirectory,
+        string? logDirectory,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(controlDirectory) || string.IsNullOrWhiteSpace(logDirectory))
+            return new StartupCheck("service_host_paths", false, "control and log directories are required");
+
+        try
+        {
+            foreach (var directory in new[] { controlDirectory, logDirectory })
+            {
+                Directory.CreateDirectory(directory);
+                var probe = Path.Combine(directory, ".careerseeker-host-write-test");
+                await File.WriteAllTextAsync(probe, "ok", ct).ConfigureAwait(false);
+                File.Delete(probe);
+            }
+            return new StartupCheck("service_host_paths", true, "control and log directories are writable");
+        }
+        catch (Exception ex)
+        {
+            return new StartupCheck("service_host_paths", false, ex.GetType().Name + ": " + ex.Message);
+        }
+    }
+
+    private static StartupCheck CheckSingleInstanceRail()
+    {
+        var identity = Path.Combine(Path.GetTempPath(), "careerseeker-doctor-" + Guid.NewGuid().ToString("N") + ".db");
+        try
+        {
+            if (!SingleInstanceLease.TryAcquire(identity, out var first) || first is null)
+                return new StartupCheck("service_single_instance", false, "could not acquire local process lease");
+            using (first)
+            {
+                var refusedSecond = !SingleInstanceLease.TryAcquire(identity, out var second);
+                second?.Dispose();
+                return new StartupCheck(
+                    "service_single_instance",
+                    refusedSecond,
+                    refusedSecond ? "second local engine lease was refused" : "duplicate lease was unexpectedly acquired");
+            }
+        }
+        catch (Exception ex)
+        {
+            return new StartupCheck("service_single_instance", false, ex.GetType().Name + ": " + ex.Message);
+        }
     }
 
     private static async Task<StartupCheck> CheckDatabaseAsync(string dbPath, CancellationToken ct)

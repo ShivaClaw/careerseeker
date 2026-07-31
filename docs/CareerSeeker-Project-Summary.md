@@ -59,8 +59,10 @@ Completed:
   dependencies, double-click setup/profile/provider/Gmail/live-readiness/provider-clear/Gmail-disconnect/demo/scout/company-research/selected-job/live/audit-export/evidence-export/evidence-import/verify/dashboard and dashboard-task launchers, workspace initializer, dashboard/helper
   self-check scripts, quickstart, tester walkthrough, audit snapshot, release manifest, SHA-256 checksums, and
   selected docs while excluding local databases, vaults, provider keys, and generated artifacts.
-- `scripts/Manage-AlphaDashboardTask.ps1` can register a per-user Windows logon task for keeping the alpha
-  dashboard available until the service/tray/installer work lands.
+- `scripts/Manage-AlphaDashboardTask.ps1` registers a least-privilege per-user Windows logon task for the
+  real engine. It has clean local pause/resume/stop controls, IgnoreNew task policy, task-level restart,
+  a child supervisor with capped exponential restart backoff, database-scoped single-instance locking,
+  adaptive cycle backoff after errors, and local file logging. Native service/tray UI remains future work.
 - `Install-CareerSeeker-DashboardTask.cmd`, `Status-CareerSeeker-DashboardTask.cmd`, and
   `Uninstall-CareerSeeker-DashboardTask.cmd` wrap that task helper for trusted testers in the release ZIP;
   install/remove require typing `INSTALL` or `UNINSTALL`.
@@ -355,7 +357,7 @@ SQLite pragmas:
 | Research web         | Live verified                 | Brave Search adapter fetches public result pages and `research-company` composes Brave + BYOK dossier modeling with grounding/fallback facts.                                                                                          |
 | Document renderer    | Offline verified              | Deterministic single-column ATS-clean PDF renderer writes selectable resume text and attaches PDFs to drafts; Chromium/HTML polish remains future work.                                                                                |
 | SQLite               | Source restored               | `Microsoft.Data.Sqlite` PackageReference active; `StoreParityHarness` passed.                                                                                                                                                          |
-| Windows service/tray | Engine shell only             | Service/tray not yet implemented.                                                                                                                                                                                                      |
+| Windows service/tray | Hardened task-host fallback   | Per-user Scheduled Task host has reboot/logon start, restart backoff, lock, logs, clean controls, and honest status; native service/tray UI is not implemented.                                                                          |
 | Android relay        | Not implemented               | Intentionally deferred.                                                                                                                                                                                                                |
 
 ## Verification Log
@@ -380,12 +382,12 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 385 passed, 0 failed.
+Total: 397 passed, 0 failed.
 
 | Harness                   | Result              |
 | ------------------------- | ------------------- |
 | `Slice`                   | 28 passed, 0 failed |
-| `EngineHarness`           | 137 passed, 0 failed |
+| `EngineHarness`           | 149 passed, 0 failed |
 | `ResearcherHarness`       | 57 passed, 0 failed |
 | `HookHarness`             | 16 passed, 0 failed |
 | `StoreParityHarness`      | 25 passed, 0 failed |
@@ -656,10 +658,11 @@ Status: substantially complete.
 
 - Gmail label tree is deferred; product UX needs another way to surface CareerSeeker drafts under compose-only scope.
 - DPAPI vault now supports local deletion and Gmail token revocation; future product should add migration/export policy and perhaps optional entropy.
-- The executable demo and alpha paths are wired to SQLite; no Windows service/tray composition root exists yet.
+- The executable demo and alpha paths are wired to SQLite; the Beta engine has a hardened per-user task host,
+  while a native Windows service/tray composition root does not exist yet.
 - OAuth production verification and CASA remain long-lead launch blockers.
 - Current PDF renderer is ATS-clean text; not yet a polished HTML/Chromium resume template.
-- No Windows service/tray composition root yet.
+- No native Windows service/tray UI or SCM service yet; B5 shipped the documented hardened Scheduled Task fallback.
 - Live ATS feeds are volatile; some configured boards can be empty while still reachable.
 - `ISemanticScorer` defaults to deterministic offline `lexical-v1`. It weights active-profile
   Skill/Title terms, emphasizes posting-title matches over description boilerplate, derives an

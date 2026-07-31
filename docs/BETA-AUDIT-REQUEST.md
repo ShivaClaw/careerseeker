@@ -6,6 +6,39 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## B5 - Service-grade scheduled-task host
+
+Branch: `codex/beta-M5-service-grade`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-07-30 |
+|---|---|---|
+| The shipped fallback starts the real `run` mode, not a viewer, and does not exit on closed stdin. | `rg -n "service-host\|Start-BetaEngineHost\|Task.Delay\\(Timeout.InfiniteTimeSpan" src\Engine\Program.cs scripts\Manage-AlphaDashboardTask.ps1 scripts\Start-BetaEngineHost.ps1` | Scheduled task targets the supervisor; child arguments contain `run --service-host`; service mode waits for local stop/control instead of `Console.ReadLine`. |
+| One database cannot have two engine processes. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | `149 passed, 0 failed`; exclusive lock-file tests cover acquire, duplicate refusal, release/reacquire. A real second process also exited 2 before discovery. |
+| Cycle errors cause capped backoff and board failures feed that error signal. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | Scheduler delay changed 50→100 ms after an error; a failed fixture board persisted and counted one cycle error. |
+| Pause/resume keep the host alive, stop disposes it cleanly, and status reports pause/backoff honestly. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | Pause suppressed cycles, resume restarted them, control-file and dashboard runtime assertions passed. The real local host reported `paused` then removed its listener with blank stderr after `stop.request`. |
+| Crash supervision logs failures and uses interruptible capped restart backoff. | `powershell -ExecutionPolicy Bypass -File scripts\Start-BetaEngineHost.ps1 -SupervisorSelfTest -ControlDirectory tmp\b5-supervisor-selftest\control -LogDirectory tmp\b5-supervisor-selftest\logs -MaximumRestartDelaySeconds 5` | Simulated child exit 7 was logged; restart 1 was scheduled for 5 seconds; stop during backoff was consumed and supervisor exited 0. |
+| Windows accepts the at-logon task definition and no task is registered by verification. | `powershell -ExecutionPolicy Bypass -File scripts\Manage-AlphaDashboardTask.ps1 -Action Install -DryRun -Published` | Task Scheduler cmdlets reported restart count 12, interval `PT1M`, and `IgnoreNew`; task absent before and after. |
+| Doctor verifies service-host paths and the duplicate-process rail without provider calls. | `dotnet src\Engine\bin\Release\net8.0\SeekerSvc.Engine.dll doctor --require-service-host --db tmp\b5-doctor\doctor.db --artifacts tmp\b5-doctor\artifacts --control-dir tmp\b5-doctor\control --log-dir tmp\b5-doctor\logs --secrets tmp\b5-doctor\none.env --key-vault tmp\b5-doctor\none.dpapi` | `service_host_paths` and `service_single_instance` both `OK`; secret values were not printed. |
+| Count/docs/verifier moved together to 397. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` | `Offline total: 397 passed, 0 failed`. |
+| Published executable and packaged service-host path are green from a clean commit. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | At `f36a4ac80e800127d61a408635767c43581321a9`: offline 397/0, published demo errors 0, package/self-check/task dry-run/evidence import-export completed. |
+| Frozen Android/relay paths are absent from the milestone diff. | `git diff --name-only origin/main...codex/beta-M5-service-grade \| rg '^(relay/|docs/Sync-Protocol\.md$|docs/sync-vectors/|.*Android|.*android)'` | Expected: no output, exit 1 from `rg`. |
+
+### Verification boundary
+
+The native Windows Service/SCM and tray UI were not implemented; B5 uses the
+roadmap's hardened Scheduled Task fallback. The at-logon definition was
+validated by Windows but deliberately not registered, so no real reboot test
+is claimed. Process-level start, duplicate refusal, pause, status, and clean
+stop were executed against an isolated ignored database. Crash/restart control
+flow was executed through the supervisor self-test.
+
+No Gmail draft, BYOK/provider call, send, deployment, scheduled-task
+registration, Cloudflare action, Google/Play console change, Android/relay/
+sync-vector change, off-repo site edit, dependency change, or secret print was
+performed.
+
 ## B4 - Quarantine telemetry and measurement
 
 Branch: `codex/beta-M4-quarantine-telemetry`

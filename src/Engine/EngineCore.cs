@@ -91,6 +91,12 @@ public interface IJobFeedTelemetrySource
     IReadOnlyList<string> BoardIdentifiers { get; }
 }
 
+/// <summary>Per-discovery board failures surfaced by feeds that isolate network/provider errors.</summary>
+public interface IJobFeedHealth
+{
+    int LastDiscoveryErrorCount { get; }
+}
+
 /// <summary>
 /// Supplies the CV-match and growth sub-scores the Scorer needs. Beta defaults to the deterministic
 /// offline lexical implementation; the interface remains injectable for fixtures and future optional
@@ -202,6 +208,9 @@ public sealed class EngineCycle
         var batch = await feed.DiscoverIdentifiedAsync(ct).ConfigureAwait(false);
         _counters.AddDiscovered(batch.Count);
         telemetry.Discovered += batch.Count;
+        if (feed is IJobFeedHealth health)
+            for (var i = 0; i < health.LastDiscoveryErrorCount; i++)
+                RecordError(telemetry);
         foreach (var board in batch.Select(i => $"{i.Company.AtsKind}:{i.Company.Handle}"))
             telemetry.Boards.Add(board);
 

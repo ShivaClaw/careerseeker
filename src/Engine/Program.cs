@@ -269,6 +269,7 @@ async Task<int> RunEngineAsync()
     var intervalSeconds = IntArg("--interval-seconds", 900);
     var once = HasFlag("--once");
     var dryRun = HasFlag("--dry-run");
+    var serviceHost = HasFlag("--service-host");
     var dbPath = StringArg("--db") ?? Path.Combine(".appdata", "careerseeker-alpha.db");
     var artifactsPath = StringArg("--artifacts") ?? Path.Combine(".appdata", "artifacts");
     var jdDirectory = StringArg("--jd-dir")
@@ -284,6 +285,9 @@ async Task<int> RunEngineAsync()
     var gateSemanticCandidates = IntArg("--gate-semantic-candidates",
         llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase) ? 3 : 0);
     var maxDraftsPerCycle = IntArg("--max-drafts-per-cycle", 10);
+    var maxBackoffSeconds = Math.Max(intervalSeconds, IntArg("--max-backoff-seconds", 3600));
+    var controlDirectory = StringArg("--control-dir")
+                           ?? Path.Combine(Path.GetDirectoryName(dbPath) ?? ".appdata", "engine-control");
 
     if (!dryRun && !llmMode.Equals("byok", StringComparison.OrdinalIgnoreCase))
         return Fail("run refuses a fake LLM on the live Gmail path. Configure BYOK, or pass --dry-run for discovery-only operation.");
@@ -299,6 +303,15 @@ async Task<int> RunEngineAsync()
             return Fail($"run could not parse board '{input}'. Use --board greenhouse:remotecom, --board lever:mistral, or a public board URL.");
         boards.Add(board);
     }
+
+    SingleInstanceLease? instanceLease = null;
+    if (!once && !SingleInstanceLease.TryAcquire(dbPath, out instanceLease))
+        return Fail($"run refuses to start a second engine for database '{Path.GetFullPath(dbPath)}'.");
+    using var heldInstanceLease = instanceLease;
+
+    var controls = new EngineControlFiles(controlDirectory);
+    if (!once)
+        controls.EnsureDirectory();
 
     var dbDir = Path.GetDirectoryName(dbPath);
     if (!string.IsNullOrWhiteSpace(dbDir)) Directory.CreateDirectory(dbDir);
@@ -387,6 +400,10 @@ async Task<int> RunEngineAsync()
         Console.WriteLine($"  BYOK providers ({keySourceName}): " + string.Join(", ", byokProviders));
     Console.WriteLine($"  gmail: {(dryRun ? "dry run (no drafts created)" : email)}");
     Console.WriteLine($"  interval: {intervalSeconds}s");
+    Console.WriteLine($"  maximum error backoff: {maxBackoffSeconds}s");
+    if (!once)
+        Console.WriteLine($"  local control directory: {controls.Directory}");
+    Console.WriteLine($"  host mode: {(serviceHost ? "scheduled-task service" : "interactive")}");
     Console.WriteLine($"  max drafts per cycle: {(maxDraftsPerCycle > 0 ? maxDraftsPerCycle.ToString() : "unlimited")}");
     Console.WriteLine("  ranker: deterministic offline lexical-v1 (local profile/posting overlap)");
 
@@ -410,7 +427,9 @@ async Task<int> RunEngineAsync()
         port,
         dashboardActions,
         LocalDashboardEvidence.FromStore(store),
-        new[] { artifactsPath });
+        new[] { artifactsPath },
+        pauseRequested: () => controls.PauseRequested,
+        maximumBackoff: TimeSpan.FromSeconds(maxBackoffSeconds));
 
     using var stop = new CancellationTokenSource();
     var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -419,9 +438,27 @@ async Task<int> RunEngineAsync()
     {
         host.Start();
         Console.WriteLine($"Dashboard: http://localhost:{port}/");
-        Console.WriteLine("Press Enter or Ctrl+C to stop.");
-        var readLine = Task.Run(Console.ReadLine, stop.Token);
-        await Task.WhenAny(readLine, stopped.Task).ConfigureAwait(false);
+        Console.WriteLine(serviceHost
+            ? "Service host is running; use the local task manager script to pause, resume, or stop."
+            : "Press Enter or Ctrl+C to stop.");
+        var readLine = serviceHost
+            ? Task.Delay(Timeout.InfiniteTimeSpan, stop.Token)
+            : Task.Run(Console.ReadLine, stop.Token);
+        var controlMonitor = Task.Run(async () =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                if (controls.StopRequested)
+                {
+                    try { File.Delete(controls.StopPath); } catch { }
+                    Console.WriteLine("Local stop request received; shutting down cleanly.");
+                    stopped.TrySetResult();
+                    return;
+                }
+                await Task.Delay(TimeSpan.FromSeconds(1), stop.Token).ConfigureAwait(false);
+            }
+        }, stop.Token);
+        await Task.WhenAny(readLine, stopped.Task, controlMonitor).ConfigureAwait(false);
         return 0;
     }
     finally
@@ -1068,7 +1105,10 @@ async Task<int> RunDoctorAsync()
         EnvFilePath: envFilePath,
         KeyVaultPath: StringArg("--key-vault") ?? Path.Combine(".appdata", "secrets", "byok-keys.dpapi"),
         RequireGmail: HasFlag("--require-gmail"),
-        RequireByok: HasFlag("--require-byok"))).ConfigureAwait(false);
+        RequireByok: HasFlag("--require-byok"),
+        RequireServiceHost: HasFlag("--require-service-host"),
+        HostControlDirectory: StringArg("--control-dir") ?? Path.Combine(".appdata", "engine-control"),
+        HostLogDirectory: StringArg("--log-dir") ?? Path.Combine(".appdata", "logs"))).ConfigureAwait(false);
 
     Console.WriteLine("CareerSeeker startup doctor");
     foreach (var check in report.Checks)
@@ -1704,7 +1744,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe setup [--smoke] [--skip-gmail] [--skip-ai] [--ai-provider gemini|anthropic|manual] [--gemini-model gemini-3.1-flash-lite] [--anthropic-model claude-haiku-4-5] [--client resources/google-client.json] [--port 7777]");
     Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
-    Console.WriteLine("  SeekerSvc.Engine.exe run [--once] [--dry-run] [--board greenhouse:remotecom] [--board lever:mistral] [--port 7777] [--interval-seconds 900] [--max-drafts-per-cycle 10] [--llm byok|fake] [--discovery-timeout-seconds 240] [--gate-semantic-candidates 3] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe run [--once] [--service-host] [--dry-run] [--board greenhouse:remotecom] [--board lever:mistral] [--port 7777] [--interval-seconds 900] [--max-backoff-seconds 3600] [--control-dir .appdata/engine-control] [--max-drafts-per-cycle 10] [--llm byok|fake] [--discovery-timeout-seconds 240] [--gate-semantic-candidates 3] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe dashboard [--once] [--port 7777] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe draft-job --job-id 123 [--dry-run] [--llm fake|byok] [--gate-semantic-candidates 3] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe scout-boards [--board greenhouse:remotecom] [--board lever:mistral] [--db .appdata/careerseeker-alpha.db] [--jd-dir .appdata/job-descriptions] [--timeout-seconds 240]");
@@ -1714,7 +1754,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe import-alpha-package --package output/careerseeker-alpha-package.zip [--target .appdata/imported] [--db .appdata/imported/careerseeker-alpha.db] [--artifacts .appdata/imported/artifacts] [--jd-dir .appdata/imported/job-descriptions] [--overwrite] [--no-db] [--no-artifacts] [--no-jds]");
     Console.WriteLine("  SeekerSvc.Engine.exe profile-template [--out .appdata/profile.template.json] [--overwrite]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-profile --profile .appdata/profile.template.json [--db .appdata/careerseeker-alpha.db]");
-    Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe doctor [--require-gmail] [--require-byok] [--require-service-host] [--control-dir .appdata/engine-control] [--log-dir .appdata/logs] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe control-app --application-id 123 --action pause|resume|kill [--db .appdata/careerseeker-alpha.db]");
     Console.WriteLine("  SeekerSvc.Engine.exe import-byok [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");

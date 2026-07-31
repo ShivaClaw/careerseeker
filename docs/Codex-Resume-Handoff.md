@@ -2,6 +2,120 @@
 
 Updated: 2026-07-30
 
+## 2026-07-30 (Terra B5) - Hardened Scheduled Task engine host
+
+Branch: `codex/beta-M5-service-grade`
+
+Integration base: `origin/main` at
+`1390f3b8a2a3a7aa64491a4c12faaaabe260c86e`, the confirmed PR #13 merge.
+Implementation commit:
+`5c0c382` (`feat(beta): harden scheduled task engine host`).
+
+B5 takes the roadmap's explicit fallback: a hardened per-user Scheduled Task
+around `EngineHost`, not a native SCM Windows Service. The old alpha task
+started only a read-only dashboard and had no effective restart or clean pause
+path. The replacement:
+
+- runs the real engine with `run --service-host`, so closed task stdin cannot
+  make the process exit;
+- holds an exclusive database-adjacent lock-file handle, released on clean
+  stop or process death, to refuse duplicate engines;
+- runs at user logon, `StartWhenAvailable`, `IgnoreNew`, least privilege
+  (`Limited`), with 12 one-minute task-level restart attempts;
+- supervises nonzero child exits with capped exponential backoff and daily
+  local logs;
+- converts failed Scout boards into cycle errors and doubles the scheduler
+  delay up to the configured ceiling, while successful cycles reset it;
+- uses local `pause.request` and `stop.request` files: pause leaves dashboard
+  and controls alive, resume removes the pause, and stop performs normal async
+  host disposal without force-kill;
+- reports `Paused`, current delay, and consecutive error cycles in `/status`;
+- extends `doctor --require-service-host` with writable control/log path and
+  duplicate-lock checks.
+
+The count/doc/verifier lockstep moves EngineHarness 137→149 and the offline
+total 385→397. StoreParity remains 25.
+
+Focused verification executed:
+
+```text
+> dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build
+=== 149 passed, 0 failed ===
+
+> dotnet ... doctor --require-service-host --db tmp\b5-doctor\doctor.db ...
+OK  service_host_paths: control and log directories are writable
+OK  service_single_instance: second local engine lease was refused
+secret values were not printed.
+
+> powershell ... Manage-AlphaDashboardTask.ps1 -Action Install -DryRun -Published
+Task definition validated by Windows Task Scheduler cmdlets.
+  restart count: 12
+  restart interval: PT1M
+  multiple instances: IgnoreNew
+Dry run only; scheduled task was not registered.
+Task present before=False after=False
+
+> powershell ... Start-BetaEngineHost.ps1 -SupervisorSelfTest ...
+self-test child exited 7
+engine exited 7; restart 1 in 5 seconds
+supervisor stop request received during backoff; exiting cleanly
+Supervisor self-test exit: 0
+
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+=== Offline total: 397 passed, 0 failed ===
+CareerSeeker alpha verification complete.
+```
+
+The real local process smoke used an isolated ignored DB and public Lever board:
+initial `/status` was `running`, a second process for the same DB exited 2,
+the pause file produced `status=paused, scheduler=Paused`, and the stop file
+removed the listener cleanly with blank stderr.
+
+Two adversarial findings were fixed during verification. First, the original
+named `Mutex` was disposed on a different continuation thread and threw after
+listener shutdown; it was replaced with a crash-releasing exclusive file
+handle, and the full smoke then passed. Second, constructing the real Task
+Scheduler definition showed the inherited `LeastPrivilege` value is invalid;
+Windows accepts `Limited`, and the rerun validated the definition without
+registering it. An earlier `Stop -DryRun` also required an installed task; its
+check order was corrected.
+
+The first full verifier attempt stopped only because a new README truth sentence
+crossed a Markdown line break; the smoke was changed to assert its stable
+clauses, and the complete rerun passed 397/0. The first publish/package attempt
+then correctly refused to bless a manifest from the dirty milestone worktree.
+No package result is claimed from that attempt; publish/package is rerun only
+from the clean committed tip.
+
+The next clean publish/package run reached the packaged self-check and found
+two stale launcher-copy assertions: the launchers now truthfully say
+`Engine task ... cancelled`, while the test still expected `Dashboard task ...
+cancelled`. The assertions were updated to the shipped copy. No passing package
+result is claimed from that failed attempt.
+
+Clean package verification then passed at
+`f36a4ac80e800127d61a408635767c43581321a9`:
+
+```text
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+=== Offline total: 397 passed, 0 failed ===
+Published executable demo: errors: 0
+Package trusted-tester alpha ZIP: created
+Packaged release self-check, dashboard/task dry-runs, audit/evidence export,
+and evidence import completed.
+CareerSeeker alpha verification complete.
+```
+
+Verification boundary: no native Windows Service/SCM or tray UI was built.
+The Windows at-logon task definition was validated but never registered, so no
+real reboot result is claimed. The fallback is wired and process-verified;
+reboot persistence remains a human acceptance check after explicit install.
+
+No Gmail draft, BYOK/provider call, send, deployment, scheduled-task
+registration, Cloudflare action, Google/Play console change, Android/relay/
+sync-vector change, off-repo site edit, dependency change, or secret print
+occurred in B5.
+
 ## 2026-07-30 (Terra B4) - Quarantine telemetry and measured signal rate
 
 Branch: `codex/beta-M4-quarantine-telemetry`

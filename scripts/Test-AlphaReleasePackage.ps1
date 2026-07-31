@@ -127,6 +127,7 @@ try {
         "scripts/Run-AlphaLiveCycle.ps1",
         "scripts/Initialize-AlphaWorkspace.ps1",
         "scripts/Start-AlphaDashboard.ps1",
+        "scripts/Start-BetaEngineHost.ps1",
         "scripts/Manage-AlphaDashboardTask.ps1",
         "scripts/Test-AlphaReleasePackage.ps1"
     )) {
@@ -200,6 +201,9 @@ try {
     }
     if ($manifest.includes.scripts -notcontains "scripts/Start-AlphaDashboard.ps1") {
         throw "Release manifest does not list the dashboard launcher."
+    }
+    if ($manifest.includes.scripts -notcontains "scripts/Start-BetaEngineHost.ps1") {
+        throw "Release manifest does not list the service-grade engine host."
     }
     if ($manifest.includes.scripts -notcontains "scripts/Check-AlphaLiveReadiness.ps1") {
         throw "Release manifest does not list the live readiness helper."
@@ -403,11 +407,11 @@ try {
 
     $dashboardTaskInstallLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Install-CareerSeeker-DashboardTask.cmd") -Raw
     foreach ($snippet in @(
-        "Type INSTALL to register the per-user dashboard logon task",
+        "Type INSTALL to register the per-user engine logon task",
         "set `"CAREERSEEKER_DASHBOARD_TASK_MODE=`"",
         "CAREERSEEKER_DASHBOARD_TASK_MODE",
         '$env:CAREERSEEKER_DASHBOARD_TASK_MODE -ieq ''INSTALL''',
-        "Dashboard task install cancelled"
+        "Engine task install cancelled"
     )) {
         if (-not $dashboardTaskInstallLauncher.Contains($snippet)) {
             throw "Install-CareerSeeker-DashboardTask.cmd missing '$snippet'."
@@ -416,11 +420,11 @@ try {
 
     $dashboardTaskUninstallLauncher = Get-Content -LiteralPath (Resolve-RootPath "Advanced Tools/Uninstall-CareerSeeker-DashboardTask.cmd") -Raw
     foreach ($snippet in @(
-        "Type UNINSTALL to remove the per-user dashboard logon task",
+        "Type UNINSTALL to cleanly stop and remove the per-user engine logon task",
         "set `"CAREERSEEKER_DASHBOARD_TASK_MODE=`"",
         "CAREERSEEKER_DASHBOARD_TASK_MODE",
         '$env:CAREERSEEKER_DASHBOARD_TASK_MODE -ieq ''UNINSTALL''',
-        "Dashboard task uninstall cancelled"
+        "Engine task uninstall cancelled"
     )) {
         if (-not $dashboardTaskUninstallLauncher.Contains($snippet)) {
             throw "Uninstall-CareerSeeker-DashboardTask.cmd missing '$snippet'."

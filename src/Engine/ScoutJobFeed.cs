@@ -23,7 +23,7 @@ public sealed record ScoutFeedOptions(
 /// carried on the posting for the Scorer to pattern-match as DATA; postings Scout flagged as
 /// injection-bearing are marked here and dropped by the cycle before any model sees them.
 /// </summary>
-public sealed class ScoutJobFeed : IIdentifiedJobFeed, IJobFeedTelemetrySource
+public sealed class ScoutJobFeed : IIdentifiedJobFeed, IJobFeedTelemetrySource, IJobFeedHealth
 {
     private readonly SeekerSvc.Scout.Scout _scout;
     private readonly ScoutFeedOptions _options;
@@ -41,6 +41,7 @@ public sealed class ScoutJobFeed : IIdentifiedJobFeed, IJobFeedTelemetrySource
 
     public IReadOnlyList<string> BoardIdentifiers =>
         _options.Boards.Select(board => $"{board.Ats}:{board.Handle}").ToArray();
+    public int LastDiscoveryErrorCount { get; private set; }
 
     /// <summary>
     /// Present so a <see cref="ScoutJobFeed"/> still satisfies <see cref="IJobFeed"/>, but it discards the
@@ -61,11 +62,13 @@ public sealed class ScoutJobFeed : IIdentifiedJobFeed, IJobFeedTelemetrySource
         try
         {
             result = await _scout.DiscoverAsync(_options.Boards, timeout.Token).ConfigureAwait(false);
+            LastDiscoveryErrorCount = result.BoardsFailed;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             // The sweep outran its budget. An empty batch makes this a quiet cycle rather than a failed
             // one; the boards are still there to try again on the next tick.
+            LastDiscoveryErrorCount = Math.Max(1, _options.Boards.Count);
             return Array.Empty<IdentifiedPosting>();
         }
 

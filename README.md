@@ -1,8 +1,9 @@
 # CareerSeeker
 
 Autonomous job-search engine: a free local Windows alpha executable that discovers, verifies, tailors, and
-drafts job applications, with Windows service/tray packaging and the paid Android dashboard still future
-product-shell work. Spec: `docs/CareerSeeker-Spec.md` (authoritative, v0.9). Sequencing:
+drafts job applications. A hardened per-user Scheduled Task host is available; native Windows service/tray
+packaging and the paid Android dashboard remain future product-shell work. Spec:
+`docs/CareerSeeker-Spec.md` (authoritative, v0.9). Sequencing:
 `docs/CareerSeeker-Integration-Windows-Roadmap.md`. Current handoff: `docs/CareerSeeker-Project-Summary.md`.
 Trusted-tester walkthrough: `docs/Alpha-Tester-Walkthrough.md`. External audit quickstart:
 `docs/External-Audit-Handoff.md`.
@@ -21,9 +22,9 @@ Trust/OAuth docs:
   references Pipeline, Tailor, Dispatcher, and Researcher for alpha composition commands. `TailorHookBridge`
   joins Tailor<->Researcher so neither core project references the other.
 - `tests/`: plain-assertion harnesses (console, no xUnit): `Slice` (28 assertions),
-  `EngineHarness` (137), `ResearcherHarness` (57), `HookHarness` (16), `StoreParityHarness` (25),
+  `EngineHarness` (149), `ResearcherHarness` (57), `HookHarness` (16), `StoreParityHarness` (25),
   `GatewayGateHarness` (36), `DispatcherNoSendHarness` (35), `LifecycleHarness` (45), and
-  `RendererHarness` (6). Latest offline total: 385 assertions. Run each with
+  `RendererHarness` (6). Latest offline total: 397 assertions. Run each with
   `dotnet run -c Release`.
 - `scripts/Verify-Alpha.ps1`: repeatable alpha verification entrypoint. It builds, runs the initializer dry run,
   source-mode SQLite demo smoke, and offline harness suite. Add `-IncludeLive` for local BYOK/Gmail checks,
@@ -77,8 +78,9 @@ Trust/OAuth docs:
   trusted-tester release ZIP. It requires typing `UNINSTALL`.
 - `connect-gmail`: first-class alpha command that opens Gmail OAuth, stores the local DPAPI token, and
   preflights draft access without creating a draft.
-- `scripts/Manage-AlphaDashboardTask.ps1`: optional per-user Windows startup task helper for the alpha
-  dashboard. Use `-Action Install -DryRun` to preview it before registering anything.
+- `scripts/Manage-AlphaDashboardTask.ps1`: service-grade per-user Windows startup task helper for the real
+  engine, with clean pause/resume/stop, restart backoff, single-instance protection, and local logs. Use
+  `-Action Install -DryRun` to preview it before registering anything.
 - `.github/workflows/ci.yml`: GitHub CI runs the Release warnings-as-errors build plus the same offline
   alpha verification script used locally.
 

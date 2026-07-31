@@ -187,13 +187,13 @@ Manual / advanced flow:
   Double-click Advanced Tools/Import-CareerSeeker-Package.cmd to restore a local evidence package into .appdata\imported.
   Double-click Advanced Tools/Start-CareerSeeker-Alpha.cmd to start the engine and open the local dashboard.
   Double-click Advanced Tools/Install-CareerSeeker-DashboardTask.cmd and type INSTALL to start the dashboard when you sign in.
-  Double-click Advanced Tools/Status-CareerSeeker-DashboardTask.cmd to check the dashboard logon task.
+  Double-click Advanced Tools/Status-CareerSeeker-DashboardTask.cmd to check the engine logon task.
 
 Local off-ramps:
 
   Double-click Advanced Tools/Clear-CareerSeeker-Providers.cmd and type CLEAR to delete the local provider-key vault.
   Double-click Advanced Tools/Disconnect-CareerSeeker-Gmail.cmd and type DISCONNECT to revoke Gmail and delete the local token vault.
-  Double-click Advanced Tools/Uninstall-CareerSeeker-DashboardTask.cmd and type UNINSTALL to remove the dashboard logon task.
+  Double-click Advanced Tools/Uninstall-CareerSeeker-DashboardTask.cmd and type UNINSTALL to cleanly stop and remove the engine logon task.
 
 Command equivalents:
 
@@ -235,7 +235,7 @@ Draft-CareerSeeker-Job.cmd requires typing REVIEWED before overriding prompt-inj
 
 The Gmail and provider off-ramp double-click helpers require typed confirmation before deleting local vaults.
 
-The dashboard logon-task double-click helpers require typed confirmation before changing Windows startup.
+The engine logon-task double-click helpers require typed confirmation before changing Windows startup.
 
 For company research, add Brave Search as BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY in secrets\env.secrets.
 
@@ -320,6 +320,7 @@ Advanced tools are available in the Advanced Tools folder, but most testers shou
         "scripts/Run-AlphaLiveCycle.ps1",
         "scripts/Initialize-AlphaWorkspace.ps1",
         "scripts/Start-AlphaDashboard.ps1",
+        "scripts/Start-BetaEngineHost.ps1",
         "scripts/Manage-AlphaDashboardTask.ps1",
         "scripts/Test-AlphaReleasePackage.ps1"
     )) {

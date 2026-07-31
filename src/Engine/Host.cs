@@ -11,7 +11,12 @@ namespace SeekerSvc.Engine;
 /// What the scheduler is actually doing. Reported to the dashboard verbatim: the status a user sees is
 /// derived from this, never asserted as a constant, so "running" always means a loop is really turning.
 /// </summary>
-public enum SchedulerState { NotStarted, Running, Stopped, Faulted }
+public enum SchedulerState { NotStarted, Running, Paused, Stopped, Faulted }
+
+public sealed record SchedulerRuntimeStatus(
+    SchedulerState State,
+    TimeSpan CurrentDelay,
+    int ConsecutiveErrorCycles);
 
 /// <summary>
 /// Runs a tick immediately, then every interval, until stopped. BCL-only (<see cref="PeriodicTimer"/>),
@@ -22,13 +27,27 @@ public sealed class PeriodicScheduler : IAsyncDisposable
 {
     private readonly Func<CancellationToken, Task> _tick;
     private readonly TimeSpan _interval;
+    private readonly TimeSpan _maxBackoff;
+    private readonly Func<long>? _errorCount;
+    private readonly Func<bool>? _pauseRequested;
     private CancellationTokenSource? _cts;
     private Task? _loop;
+    private long _currentDelayTicks;
+    private int _consecutiveErrorCycles;
 
-    public PeriodicScheduler(Func<CancellationToken, Task> tick, TimeSpan interval)
+    public PeriodicScheduler(
+        Func<CancellationToken, Task> tick,
+        TimeSpan interval,
+        TimeSpan? maxBackoff = null,
+        Func<long>? errorCount = null,
+        Func<bool>? pauseRequested = null)
     {
         _tick = tick;
         _interval = interval;
+        _maxBackoff = maxBackoff is null || maxBackoff < interval ? interval : maxBackoff.Value;
+        _errorCount = errorCount;
+        _pauseRequested = pauseRequested;
+        _currentDelayTicks = interval.Ticks;
     }
 
     /// <summary>Live state of the loop task. The dashboard renders this instead of a hard-coded string.</summary>
@@ -38,6 +57,7 @@ public sealed class PeriodicScheduler : IAsyncDisposable
         {
             var loop = _loop;
             if (loop is null) return SchedulerState.NotStarted;
+            if (!loop.IsCompleted && (_pauseRequested?.Invoke() ?? false)) return SchedulerState.Paused;
             return loop.Status switch
             {
                 TaskStatus.Faulted => SchedulerState.Faulted,
@@ -46,6 +66,10 @@ public sealed class PeriodicScheduler : IAsyncDisposable
             };
         }
     }
+
+    public TimeSpan CurrentDelay => TimeSpan.FromTicks(Interlocked.Read(ref _currentDelayTicks));
+    public int ConsecutiveErrorCycles => Volatile.Read(ref _consecutiveErrorCycles);
+    public SchedulerRuntimeStatus RuntimeStatus => new(State, CurrentDelay, ConsecutiveErrorCycles);
 
     public void Start()
     {
@@ -56,22 +80,51 @@ public sealed class PeriodicScheduler : IAsyncDisposable
 
     private async Task RunAsync(CancellationToken ct)
     {
-        using var timer = new PeriodicTimer(_interval);
         try
         {
-            await SafeTick(ct).ConfigureAwait(false);
-            while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
-                await SafeTick(ct).ConfigureAwait(false);
+            while (true)
+            {
+                if (_pauseRequested?.Invoke() ?? false)
+                {
+                    await Task.Delay(Min(_interval, TimeSpan.FromSeconds(1)), ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                var failed = await SafeTick(ct).ConfigureAwait(false);
+                if (failed)
+                    Interlocked.Exchange(ref _consecutiveErrorCycles, Math.Min(30, ConsecutiveErrorCycles + 1));
+                else
+                    Interlocked.Exchange(ref _consecutiveErrorCycles, 0);
+
+                var delay = BackoffDelay(_interval, _maxBackoff, ConsecutiveErrorCycles);
+                Interlocked.Exchange(ref _currentDelayTicks, delay.Ticks);
+                await Task.Delay(delay, ct).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) { /* stopping */ }
     }
 
-    private async Task SafeTick(CancellationToken ct)
+    private async Task<bool> SafeTick(CancellationToken ct)
     {
-        try { await _tick(ct).ConfigureAwait(false); }
+        var errorsBefore = _errorCount?.Invoke() ?? 0;
+        try
+        {
+            await _tick(ct).ConfigureAwait(false);
+            return (_errorCount?.Invoke() ?? errorsBefore) > errorsBefore;
+        }
         catch (OperationCanceledException) { throw; }
-        catch { /* a cycle's own counters record the error; the loop survives */ }
+        catch { return true; /* the loop survives and backs off */ }
     }
+
+    private static TimeSpan BackoffDelay(TimeSpan baseline, TimeSpan maximum, int consecutiveErrors)
+    {
+        var ticks = baseline.Ticks;
+        for (var i = 0; i < consecutiveErrors && ticks < maximum.Ticks; i++)
+            ticks = Math.Min(maximum.Ticks, ticks > maximum.Ticks / 2 ? maximum.Ticks : ticks * 2);
+        return TimeSpan.FromTicks(ticks);
+    }
+
+    private static TimeSpan Min(TimeSpan left, TimeSpan right) => left <= right ? left : right;
 
     public async ValueTask DisposeAsync()
     {
@@ -152,6 +205,7 @@ public sealed class LocalDashboard : IAsyncDisposable
     private readonly HttpListener _listener = new();
     private readonly EngineCounters _counters;
     private readonly Func<SchedulerState>? _engineState;
+    private readonly Func<SchedulerRuntimeStatus>? _engineRuntime;
     private readonly LocalDashboardActions? _actions;
     private readonly LocalDashboardEvidence? _evidence;
     private readonly IReadOnlyList<string> _documentRoots;
@@ -190,10 +244,12 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         LocalDashboardActions? actions = null,
         LocalDashboardEvidence? evidence = null,
         IEnumerable<string>? documentRoots = null,
-        Func<SchedulerState>? engineState = null)
+        Func<SchedulerState>? engineState = null,
+        Func<SchedulerRuntimeStatus>? engineRuntime = null)
     {
         _counters = counters;
         _engineState = engineState;
+        _engineRuntime = engineRuntime;
         _actions = actions;
         _evidence = evidence;
         _documentRoots = NormalizeDocumentRoots(documentRoots);
@@ -218,6 +274,7 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
             SchedulerState.NotStarted => "not started",
             SchedulerState.Faulted => "faulted",
             SchedulerState.Stopped => "stopped",
+            SchedulerState.Paused => "paused",
             _ => _counters.Cycles == 0 ? "starting" : "running",
         };
     }
@@ -229,6 +286,9 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         {
             status = StatusLabel(),
             engineAttached = EngineAttached,
+            schedulerState = _engineRuntime?.Invoke().State.ToString() ?? _engineState?.Invoke().ToString(),
+            currentDelaySeconds = _engineRuntime?.Invoke().CurrentDelay.TotalSeconds,
+            consecutiveErrorCycles = _engineRuntime?.Invoke().ConsecutiveErrorCycles,
             cycles = c.Cycles,
             lastCycleUtc = c.LastCycleUtc,
             discovered = c.Discovered,
@@ -1117,14 +1177,22 @@ public sealed class EngineHost : IAsyncDisposable
         int dashboardPort = 7777,
         LocalDashboardActions? dashboardActions = null,
         LocalDashboardEvidence? dashboardEvidence = null,
-        IEnumerable<string>? dashboardDocumentRoots = null)
+        IEnumerable<string>? dashboardDocumentRoots = null,
+        Func<bool>? pauseRequested = null,
+        TimeSpan? maximumBackoff = null)
     {
         Counters = counters;
-        var scheduler = new PeriodicScheduler(cycle.TickAsync, interval);
+        var scheduler = new PeriodicScheduler(
+            cycle.TickAsync,
+            interval,
+            maximumBackoff,
+            errorCount: () => counters.Errors,
+            pauseRequested: pauseRequested);
         _scheduler = scheduler;
         _dashboard = new LocalDashboard(
             counters, dashboardPort, dashboardActions, dashboardEvidence, dashboardDocumentRoots,
-            engineState: () => scheduler.State);
+            engineState: () => scheduler.State,
+            engineRuntime: () => scheduler.RuntimeStatus);
     }
 
     public void Start() { _dashboard.Start(); _scheduler.Start(); }

@@ -391,6 +391,45 @@ Console.WriteLine("\n[ scheduler ]");
     await Task.Delay(60);
     Check("scheduler stopped after dispose", ticks == afterDispose, $"{afterDispose}->{ticks}");
     Check("scheduler reports Stopped after dispose", sched.State == SchedulerState.Stopped, sched.State.ToString());
+
+    var pauseRequested = true;
+    var pausedTicks = 0;
+    var pausable = new PeriodicScheduler(
+        _ => { Interlocked.Increment(ref pausedTicks); return Task.CompletedTask; },
+        TimeSpan.FromMilliseconds(20),
+        pauseRequested: () => pauseRequested);
+    pausable.Start();
+    await Task.Delay(60);
+    Check("scheduler pause keeps the process alive without running cycles",
+        pausable.State == SchedulerState.Paused && pausedTicks == 0,
+        $"state={pausable.State} ticks={pausedTicks}");
+    pauseRequested = false;
+    await Task.Delay(70);
+    Check("scheduler resume restarts cycles without reconstructing the host",
+        pausable.State == SchedulerState.Running && pausedTicks > 0,
+        $"state={pausable.State} ticks={pausedTicks}");
+    await pausable.DisposeAsync();
+
+    var errorCount = 0L;
+    var errorSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var backingOff = new PeriodicScheduler(
+        _ =>
+        {
+            Interlocked.Increment(ref errorCount);
+            errorSeen.TrySetResult();
+            return Task.CompletedTask;
+        },
+        TimeSpan.FromMilliseconds(50),
+        TimeSpan.FromMilliseconds(200),
+        errorCount: () => Interlocked.Read(ref errorCount));
+    backingOff.Start();
+    await errorSeen.Task;
+    await Task.Delay(10);
+    Check("scheduler backs off after a cycle records errors",
+        backingOff.ConsecutiveErrorCycles == 1 &&
+        backingOff.CurrentDelay == TimeSpan.FromMilliseconds(100),
+        $"errors={backingOff.ConsecutiveErrorCycles} delay={backingOff.CurrentDelay}");
+    await backingOff.DisposeAsync();
 }
 
 // A provider can durably report success and the process can die before the following local state
@@ -516,6 +555,10 @@ Console.WriteLine("\n[ dashboard status honesty ]");
     Check("faulted loop is reported as faulted",
         attached.StatusJson().Contains("\"status\":\"faulted\""), attached.StatusJson());
 
+    state = SchedulerState.Paused;
+    Check("paused engine is reported as paused, not running",
+        attached.StatusJson().Contains("\"status\":\"paused\""), attached.StatusJson());
+
     // `counters` completed a real cycle in section 1, so this is the only combination that earns "running".
     var cycled = new LocalDashboard(counters, 7997, engineState: () => SchedulerState.Running);
     Check("running only after a cycle actually completed",
@@ -524,6 +567,53 @@ Console.WriteLine("\n[ dashboard status honesty ]");
     await viewer.DisposeAsync();
     await attached.DisposeAsync();
     await cycled.DisposeAsync();
+}
+
+Console.WriteLine("\n[ service-grade local host rails ]");
+{
+    var root = Path.Combine(Path.GetTempPath(), "careerseeker-service-host-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var identity = Path.Combine(root, "engine.db");
+        Check("single-instance lease acquires for the first engine",
+            SingleInstanceLease.TryAcquire(identity, out var first) && first is not null);
+        Check("single-instance lease refuses a duplicate engine in the same process",
+            !SingleInstanceLease.TryAcquire(identity, out var duplicate) && duplicate is null);
+        first?.Dispose();
+        Check("single-instance lease is reusable after clean release",
+            SingleInstanceLease.TryAcquire(identity, out var afterRelease) && afterRelease is not null);
+        afterRelease?.Dispose();
+
+        var controls = new EngineControlFiles(Path.Combine(root, "control"));
+        controls.EnsureDirectory();
+        await File.WriteAllTextAsync(controls.PausePath, "pause");
+        await File.WriteAllTextAsync(controls.StopPath, "stop");
+        Check("local control files expose pause and stop without remote state",
+            controls.PauseRequested && controls.StopRequested &&
+            controls.Directory.StartsWith(Path.GetFullPath(root), StringComparison.OrdinalIgnoreCase));
+
+        var runtimeDashboard = new LocalDashboard(
+            new EngineCounters(),
+            7996,
+            engineState: () => SchedulerState.Paused,
+            engineRuntime: () => new SchedulerRuntimeStatus(
+                SchedulerState.Paused,
+                TimeSpan.FromMinutes(30),
+                2));
+        var runtimeJson = runtimeDashboard.StatusJson();
+        Check("dashboard status exposes pause and backoff telemetry",
+            runtimeJson.Contains("\"status\":\"paused\"", StringComparison.Ordinal) &&
+            runtimeJson.Contains("\"schedulerState\":\"Paused\"", StringComparison.Ordinal) &&
+            runtimeJson.Contains("\"currentDelaySeconds\":1800", StringComparison.Ordinal) &&
+            runtimeJson.Contains("\"consecutiveErrorCycles\":2", StringComparison.Ordinal),
+            runtimeJson);
+        await runtimeDashboard.DisposeAsync();
+    }
+    finally
+    {
+        try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch (IOException) { }
+    }
 }
 
 // ── 2c) a real board-backed feed: true identity, and injected postings never reach a model ─────────
@@ -606,6 +696,26 @@ Console.WriteLine("\n[ Scout-backed identified feed ]");
         Check("re-discovering an admitted job does not create another application",
             applicationsAfterRepeat.Count == 1,
             applicationsAfterRepeat.Count.ToString());
+
+        var failingScout = new SeekerSvc.Scout.Scout(
+            new FixtureBoardFetcher(new Dictionary<string, string>()),
+            ScoutOptions.Default,
+            new[] { new FixtureAtsProvider(Array.Empty<DiscoveredJob>()) });
+        var failingFeed = new ScoutJobFeed(
+            failingScout,
+            new ScoutFeedOptions(
+                new[] { new CompanyBoard(AtsKind.Greenhouse, "missing-fixture") },
+                ScoutOptions.Default,
+                jdDir,
+                TimeSpan.FromSeconds(5)),
+            (_, _) => null);
+        var failingCounters = new EngineCounters();
+        var failingCycle = new EngineCycle(store, failingFeed, new FakeSemantic(), pipeline, opt, failingCounters);
+        await failingCycle.TickAsync();
+        Check("board failures become cycle errors so the scheduler can back off",
+            failingCounters.Errors == 1 &&
+            (await store.GetRecentCycleTelemetryAsync()).First().Errors == 1,
+            $"counter={failingCounters.Errors}");
     }
     finally
     {
@@ -1648,6 +1758,21 @@ Console.WriteLine("\n[ startup doctor ]");
             report.Ok && report.Checks.Any(c => c.Name == "byok_providers" && c.Detail.Contains("anthropic")));
         Check("startup doctor reports optional Brave Search readiness",
             report.Checks.Any(c => c.Name == "brave_search" && c.Detail.Contains("BRAVE_SEARCH_API")));
+
+        var serviceHost = await StartupDoctor.RunAsync(new StartupDoctorOptions(
+            DbPath: Path.Combine(root, "doctor-host.db"),
+            ArtifactDirectory: Path.Combine(root, "host-artifacts"),
+            OAuthClientPath: clientPath,
+            GmailTokenVaultPath: Path.Combine(root, "missing-token.dpapi"),
+            EnvFilePath: envPath,
+            KeyVaultPath: Path.Combine(root, "missing-keys.dpapi"),
+            RequireServiceHost: true,
+            HostControlDirectory: Path.Combine(root, "host-control"),
+            HostLogDirectory: Path.Combine(root, "host-logs")));
+        Check("startup doctor verifies service-host control and log paths",
+            serviceHost.Checks.Any(c => c.Name == "service_host_paths" && c.Ok));
+        Check("startup doctor verifies the service-host single-instance rail",
+            serviceHost.Checks.Any(c => c.Name == "service_single_instance" && c.Ok));
 
         var strict = await StartupDoctor.RunAsync(new StartupDoctorOptions(
             DbPath: Path.Combine(root, "doctor-strict.db"),

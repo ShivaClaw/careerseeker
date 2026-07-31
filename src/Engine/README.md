@@ -99,7 +99,7 @@ state; one malformed stranded row is isolated and counted so other recovery rows
   `Verify-CareerSeeker-Alpha.cmd`
 - Double-click dashboard launcher included in the release ZIP:
   `Start-CareerSeeker-Alpha.cmd`
-- Optional per-user Windows logon task helper for the alpha dashboard:
+- Service-grade per-user Windows logon task helper for the real engine:
   `powershell -ExecutionPolicy Bypass -File scripts/Manage-AlphaDashboardTask.ps1 -Action Install -DryRun`
 - One-shot dashboard/evidence smoke:
   `dotnet run -c Release --project src/Engine/SeekerSvc.Engine.csproj -- dashboard --once --db .appdata/careerseeker-alpha.db --gmail-control`
@@ -170,7 +170,7 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
 ## Verified Status
 
 - `dotnet build CareerSeeker.sln -c Release`: 0 warnings, 0 errors.
-- Latest offline harness total: 385 passed, 0 failed.
+- Latest offline harness total: 397 passed, 0 failed.
 - `scripts/Verify-Alpha.ps1` runs the repeatable build, initializer dry run, source-mode SQLite demo smoke, and
   offline harness suite; optional switches add live BYOK/Gmail checks, the win-x64 publish smoke, the
   trusted-tester release ZIP, and live Brave/BYOK company research.
@@ -185,10 +185,10 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   `-Published -PublishIfMissing`, or run from the packaged release root with `-Published`.
 - `Start-CareerSeeker-Alpha.cmd` wraps that published dashboard path for double-click tester startup from the
   extracted release ZIP.
-- `Install-CareerSeeker-DashboardTask.cmd` wraps the scheduled-task helper for double-click per-user dashboard
-  startup at Windows sign-in and requires typing `INSTALL`.
-- `Status-CareerSeeker-DashboardTask.cmd` reports whether that per-user dashboard startup task is installed.
-- `Uninstall-CareerSeeker-DashboardTask.cmd` removes that per-user dashboard startup task and requires typing
+- `Install-CareerSeeker-DashboardTask.cmd` wraps the service-grade scheduled-task helper for double-click
+  per-user engine startup at Windows sign-in and requires typing `INSTALL`.
+- `Status-CareerSeeker-DashboardTask.cmd` reports whether that per-user engine startup task is installed.
+- `Uninstall-CareerSeeker-DashboardTask.cmd` cleanly stops and removes that per-user task and requires typing
   `UNINSTALL`.
 - `Setup-CareerSeeker-Alpha.cmd` wraps the workspace initializer for double-click tester setup from the
   extracted release ZIP, then opens the generated profile template.
@@ -222,8 +222,10 @@ keep live entailment calls bounded; pass `--gate-semantic-candidates 0` for exha
   a separate import workspace.
 - `Verify-CareerSeeker-Alpha.cmd` wraps the package self-check and dashboard smoke for double-click tester
   verification from the extracted release ZIP.
-- `scripts/Manage-AlphaDashboardTask.ps1` can register, remove, start, stop, and inspect a per-user Windows
-  logon task for the alpha dashboard while the full service/tray/installer stack remains future work.
+- `scripts/Manage-AlphaDashboardTask.ps1` can register, remove, start, cleanly pause/resume/stop, and inspect
+  a per-user Windows logon task for the real engine. `Start-BetaEngineHost.ps1` supervises crashes with
+  capped backoff and local file logging; the engine adds a database-scoped process lock and backs off
+  erroring cycles. Native service/tray and installer shells remain future work.
 - `SqliteSeekerStore` is included through `Microsoft.Data.Sqlite`, with `StoreParityHarness` covering
   in-memory/SQLite behavior parity plus the recent-application and recent-job read models, and
   `EngineHarness` covering a SQLite-backed engine cycle.
