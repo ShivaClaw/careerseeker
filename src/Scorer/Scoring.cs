@@ -94,10 +94,14 @@ public sealed record JobPosting
 }
 
 /// <summary>
-/// The semantic sub-scores (0..5) that require a model's judgment, supplied by the LLM quick/deep
-/// score stage. The Scorer computes everything else deterministically and never invents these.
+/// Fit sub-scores (0..5) supplied by an injected ranker. Beta's default ranker is deterministic and
+/// offline; optional model-backed rankers must fail closed to that lexical implementation.
 /// </summary>
-public sealed record SemanticScores(double CvMatch, double GrowthSignal);
+public sealed record SemanticScores(
+    double CvMatch,
+    double GrowthSignal,
+    string ModelUsed = "unspecified",
+    string? Rationale = null);
 
 /// <summary>Tunable weights and thresholds. Defaults are the spec's (section 5.4 and 4.4).</summary>
 public sealed record ScorerOptions

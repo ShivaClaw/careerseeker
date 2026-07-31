@@ -150,7 +150,7 @@ RETURNING id, repost_count;";
             var safeLimit = Math.Clamp(limit, 1, 100);
             using var cmd = Conn.CreateCommand();
             cmd.CommandText = JobSummarySelectSql + @"
-ORDER BY j.last_verified DESC, j.id DESC
+ORDER BY CASE WHEN s.total IS NULL THEN 1 ELSE 0 END, s.total DESC, j.last_verified DESC, j.id DESC
 LIMIT $limit;";
             P(cmd, "$limit", safeLimit);
 
@@ -736,9 +736,11 @@ VALUES ($seq, $ts, $actor, $kind, $entity, $eid, $payload, $prev, $hash);";
 SELECT
   j.id, j.source, j.external_id, j.title, c.name, c.domain, j.remote, j.location,
   j.url, j.apply_url, j.comp_min, j.comp_max, j.comp_currency, j.comp_interval,
-  j.comp_source, j.injected, j.injection_signals, j.last_verified, j.repost_count
+  j.comp_source, j.injected, j.injection_signals, j.last_verified, j.repost_count,
+  s.fit, s.legitimacy, s.total, s.subscores_json, s.model_used
 FROM jobs j
-LEFT JOIN companies c ON c.id = j.company_id";
+LEFT JOIN companies c ON c.id = j.company_id
+LEFT JOIN scores s ON s.job_id = j.id";
 
     private static JobSummaryRow MapJobSummary(SqliteDataReader r)
     {
@@ -763,7 +765,12 @@ LEFT JOIN companies c ON c.id = j.company_id";
             r.GetInt64(15) != 0,
             S(16),
             r.GetString(17),
-            r.GetInt32(18));
+            r.GetInt32(18),
+            r.IsDBNull(19) ? null : r.GetDouble(19),
+            r.IsDBNull(20) ? null : r.GetDouble(20),
+            r.IsDBNull(21) ? null : r.GetDouble(21),
+            S(22),
+            S(23));
     }
 
     private static void P(SqliteCommand cmd, string name, object? value)

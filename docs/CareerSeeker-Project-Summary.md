@@ -380,15 +380,15 @@ Latest build:
 
 Latest offline harnesses:
 
-Total: 373 passed, 0 failed.
+Total: 380 passed, 0 failed.
 
 | Harness                   | Result              |
 | ------------------------- | ------------------- |
 | `Slice`                   | 28 passed, 0 failed |
-| `EngineHarness`           | 127 passed, 0 failed |
+| `EngineHarness`           | 133 passed, 0 failed |
 | `ResearcherHarness`       | 57 passed, 0 failed |
 | `HookHarness`             | 16 passed, 0 failed |
-| `StoreParityHarness`      | 23 passed, 0 failed |
+| `StoreParityHarness`      | 24 passed, 0 failed |
 | `GatewayGateHarness`      | 36 passed, 0 failed |
 | `DispatcherNoSendHarness` | 35 passed, 0 failed |
 | `LifecycleHarness`        | 45 passed, 0 failed |
@@ -661,11 +661,11 @@ Status: substantially complete.
 - Current PDF renderer is ATS-clean text; not yet a polished HTML/Chromium resume template.
 - No Windows service/tray composition root yet.
 - Live ATS feeds are volatile; some configured boards can be empty while still reachable.
-- `ISemanticScorer` is still a placeholder constant in every mode, including `run`. `Stage.QuickScore`
-  exists in Gateway routing but has no adapter, so CV-match and growth sub-scores are identical for every
-  posting and ranking between real jobs is not yet meaningful. The Fabrication Gate is unaffected — it
-  verifies claims, not scores — but "which jobs got drafted" is currently close to feed order among
-  everything above the scam floor. This is the largest remaining gap between the alpha and its premise.
+- `ISemanticScorer` defaults to deterministic offline `lexical-v1`. It weights active-profile
+  Skill/Title terms, emphasizes posting-title matches over description boilerplate, derives an
+  explainable growth signal, and persists the complete score breakdown and matched-term rationale.
+  Scored jobs are ordered by total in the dashboard; unscored/quarantined rows remain visible below
+  them. The optional BYOK embedding ranker is not implemented.
 - Scout's prompt-injection heuristic fired on roughly one in six live postings in a 252-job sweep
   (2026-07-28). Those are quarantined, so the failure mode is silently skipping legitimate jobs rather
   than processing hostile ones. The false-positive rate needs measuring before the heuristic is trusted

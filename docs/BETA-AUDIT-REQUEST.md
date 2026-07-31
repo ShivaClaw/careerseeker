@@ -6,6 +6,35 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## B3 - Deterministic lexical ranking
+
+Branch: `codex/beta-M3-lexical-ranking`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-07-30 |
+|---|---|---|
+| B3 starts from the confirmed B2 merge. | `git fetch --all; git rev-parse origin/main` | `1dc1f817e0712b0ea2556d3d2aab46ff9ffd6100`. |
+| The placeholder constant is gone from production composition. | `rg -n "DemoSemanticScorer|new LexicalSemanticScorer" src\Engine` | No `DemoSemanticScorer`; `BuildDemoCycleCore` composes `LexicalSemanticScorer` with the active store/profile id. |
+| Ranking is local, deterministic, title/Skill weighted, and explainable. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | `133 passed, 0 failed`; identical inputs matched exactly, and strong > adjacent > unrelated fixtures. |
+| The engine persists components and both stores expose them. | `dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release --no-build` | `24 passed, 0 failed`; SQLite positively returned fit, legitimacy, total, subscores, and ranker identity with memory parity. |
+| Scored job reads order by meaningful total and `/jobs` renders encoded components/rationale. | `git show 8f65906 -- src/Store/InMemorySeekerStore.cs src/Store/SqliteSeekerStore.cs src/Engine/Host.cs tests/EngineHarness/Program.cs` | EngineHarness pins strong/adjacent/unrelated total order and encoded dashboard fields without full posting text. |
+| The safety composition is unchanged. | `git diff 1dc1f817e0712b0ea2556d3d2aab46ff9ffd6100...codex/beta-M3-lexical-ranking -- src/Scorer/Scorer.cs src/Verifier src/Dispatcher` | Expected: no output. |
+| Count/docs/verifier moved together to 380. | `powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1` | `Offline total: 380 passed, 0 failed`. |
+| Frozen Android/relay paths are absent from the milestone diff. | `git diff --name-only 1dc1f817e0712b0ea2556d3d2aab46ff9ffd6100...codex/beta-M3-lexical-ranking \| rg '^(relay/|docs/Sync-Protocol\.md$|docs/sync-vectors/|.*Android|.*android)'` | Expected: no output, exit 1 from `rg`. |
+
+### Bounded limitation
+
+The optional `byok-embed` ranker was not implemented; no provider call was
+needed for B3's deterministic-first exit. Three local hidden-process attempts
+could not keep the dashboard bound for an in-app Browser visual check, so no
+Browser result is claimed. `docs/BETA-BLOCKED.md` records the attempts.
+
+No Gmail draft, BYOK/provider call, email, upload, deployment, scheduled-task
+registration, Cloudflare action, Google/Play console change, Android/relay/
+sync-vector change, off-repo site edit, dependency change, or secret print was
+performed.
+
 ## B2 - Crash recovery
 
 Branch: `codex/beta-M2-crash-recovery`

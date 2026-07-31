@@ -223,6 +223,27 @@ IdentifiedPosting ActionableIdentified(string externalId, bool injected = false)
     return new IdentifiedPosting(posting, company, job, "mailto:jobs@fixture.test", injected);
 }
 
+IdentifiedPosting RankedIdentified(string externalId, string title, string description)
+{
+    var discovered = FixtureDiscovered(externalId, title, injected: false) with
+    {
+        TitleCanon = title.ToLowerInvariant(),
+        DescriptionText = new string('x', 700) + " " + description,
+        DescriptionSimHash = SimHash.Compute(externalId + description),
+        DedupKey = "fixture|" + externalId,
+    };
+    var (company, job) = Ingest.From(discovered);
+    return new IdentifiedPosting(
+        JobPosting.FromDiscovered(discovered) with
+        {
+            RecruiterIdentifiable = true,
+            CompanyDomainVerified = true,
+        },
+        company,
+        job,
+        "mailto:jobs@fixture.test");
+}
+
 var prefs = new UserPreferences { Comp = new CompTarget(150000m, 180000m, 220000m), Remote = RemoteStance.Any, Seniority = SeniorityBand.Senior };
 var opt = new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email);
 
@@ -649,6 +670,85 @@ Console.WriteLine("\n[ discovery-only run ]");
 }
 
 // ── 3) live localhost dashboard over HTTP ──────────────────────────────────────────────────────────
+Console.WriteLine("\n[ deterministic lexical ranking ]");
+{
+    var store = await SeededStoreAsync();
+    var lexical = new LexicalSemanticScorer(store, 1);
+    var strong = RankedIdentified(
+        "rank-strong",
+        "Senior Software Engineer",
+        "Design and build distributed systems in Go. Own architecture, mentor engineers, and improve reliability.");
+    var adjacent = RankedIdentified(
+        "rank-adjacent",
+        "Technical Program Manager",
+        "Coordinate software delivery and reliability programs across engineering groups.");
+    var unrelated = RankedIdentified(
+        "rank-unrelated",
+        "Retail Marketing Coordinator",
+        "Plan merchandising campaigns, retail promotions, social content, and vendor calendars.");
+
+    var strongFirst = await lexical.ScoreAsync(strong.Posting);
+    var strongSecond = await lexical.ScoreAsync(strong.Posting);
+    var adjacentScore = await lexical.ScoreAsync(adjacent.Posting);
+    var unrelatedScore = await lexical.ScoreAsync(unrelated.Posting);
+    Check("lexical ranking is deterministic for identical profile and posting data",
+        strongFirst == strongSecond,
+        $"{strongFirst} vs {strongSecond}");
+    Check("lexical CV match orders strong, adjacent, and unrelated fixtures",
+        strongFirst.CvMatch > adjacentScore.CvMatch &&
+        adjacentScore.CvMatch > unrelatedScore.CvMatch,
+        $"{strongFirst.CvMatch:0.00} > {adjacentScore.CvMatch:0.00} > {unrelatedScore.CvMatch:0.00}");
+    Check("lexical score explains matched local profile terms",
+        strongFirst.ModelUsed == "lexical-v1" &&
+        strongFirst.Rationale?.Contains("distributed", StringComparison.Ordinal) == true &&
+        strongFirst.Rationale.Contains("title", StringComparison.Ordinal) &&
+        !strongFirst.Rationale.Contains(strong.Posting.DescriptionText, StringComparison.Ordinal),
+        strongFirst.Rationale);
+
+    var rankCounters = new EngineCounters();
+    var pipeline = new ApplicationPipeline(
+        store,
+        tailor,
+        MakeDispatcher(new FakeGmail()),
+        new GatewaySemanticMatcher(gateway),
+        new PipelineOptions { ProfileId = 1, Channel = DispatchChannel.Email });
+    var cycle = new EngineCycle(
+        store,
+        new FakeIdentifiedFeed(new[] { unrelated, adjacent, strong }),
+        lexical,
+        pipeline,
+        opt with { DraftsEnabled = false },
+        rankCounters);
+    await cycle.TickAsync();
+
+    var ordered = (await store.GetRecentJobsAsync(10))
+        .Where(j => j.ExternalId.StartsWith("rank-", StringComparison.Ordinal))
+        .ToArray();
+    Check("engine persists lexical score components and ranker identity",
+        ordered.Length == 3 &&
+        ordered.All(j => j.Fit is not null && j.Legitimacy is not null && j.Total is not null &&
+                         j.ModelUsed == "lexical-v1" &&
+                         j.SubscoresJson?.Contains("\"cv_match\"", StringComparison.Ordinal) == true),
+        string.Join(", ", ordered.Select(j => $"{j.ExternalId}:{j.Total}:{j.ModelUsed}")));
+    Check("recent job view orders scored jobs by meaningful total",
+        ordered.Select(j => j.ExternalId).SequenceEqual(new[] { "rank-strong", "rank-adjacent", "rank-unrelated" }),
+        string.Join(", ", ordered.Select(j => $"{j.ExternalId}:{j.Total:0.00}")));
+
+    var dashboard = new LocalDashboard(
+        rankCounters,
+        FreeTcpPort(),
+        evidence: LocalDashboardEvidence.FromStore(store));
+    var jobsHtml = await dashboard.JobsHtmlAsync();
+    Check("dashboard job view surfaces encoded score components and lexical rationale",
+        jobsHtml.Contains("CV ", StringComparison.Ordinal) &&
+        jobsHtml.Contains("growth ", StringComparison.Ordinal) &&
+        jobsHtml.Contains("lexical-v1", StringComparison.Ordinal) &&
+        jobsHtml.Contains("Matched", StringComparison.Ordinal) &&
+        !jobsHtml.Contains(strong.Posting.DescriptionText, StringComparison.Ordinal),
+        jobsHtml);
+    await dashboard.DisposeAsync();
+}
+
 Console.WriteLine("\n[ localhost dashboard ]");
 {
     var disconnects = 0;

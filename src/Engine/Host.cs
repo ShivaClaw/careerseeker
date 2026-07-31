@@ -644,11 +644,11 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
 
         var evidence = await _evidence.LoadAsync(ct).ConfigureAwait(false);
         var rows = evidence.RecentJobs.Count == 0
-            ? @"<tr><td colspan=""9"">No jobs yet.</td></tr>"
+            ? @"<tr><td colspan=""10"">No jobs yet.</td></tr>"
             : string.Concat(evidence.RecentJobs.Select(JobRowHtml));
 
         var body = $@"<section class=""hero""><div><h1>Recent jobs</h1><div class=""muted"">{evidence.RecentJobs.Count} jobs shown</div></div><a href=""/"">Back to status</a></section>
-<div class=""table-wrap""><table><thead><tr><th>ID</th><th>Job</th><th>Company</th><th>Source</th><th>Remote</th><th>Comp</th><th>Updated</th><th>Flags</th><th>Links</th></tr></thead>
+<div class=""table-wrap""><table><thead><tr><th>ID</th><th>Job</th><th>Company</th><th>Score</th><th>Source</th><th>Remote</th><th>Comp</th><th>Updated</th><th>Flags</th><th>Links</th></tr></thead>
 <tbody>{rows}</tbody></table></div>";
         return PageHtml("CareerSeeker Jobs", "jobs", body);
     }
@@ -667,9 +667,49 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
         var flags = row.Injected
             ? $@"<span class=""warn"">injection</span>{(string.IsNullOrWhiteSpace(row.InjectionSignals) ? "" : " " + WebUtility.HtmlEncode(row.InjectionSignals))}"
             : "-";
+        var score = JobScoreHtml(row);
         var updated = WebUtility.HtmlEncode(row.LastVerified);
         var links = JobLinksHtml(row);
-        return $@"<tr><td class=""n"">{row.JobId}</td><td>{job}</td><td>{company}</td><td>{source}</td><td>{remote}</td><td class=""n"">{comp}</td><td class=""n"">{updated}</td><td>{flags}</td><td><div class=""links"">{links}</div></td></tr>";
+        return $@"<tr><td class=""n"">{row.JobId}</td><td>{job}</td><td>{company}</td><td class=""n"">{score}</td><td>{source}</td><td>{remote}</td><td class=""n"">{comp}</td><td class=""n"">{updated}</td><td>{flags}</td><td><div class=""links"">{links}</div></td></tr>";
+    }
+
+    private static string JobScoreHtml(JobSummaryRow row)
+    {
+        if (row.Total is null)
+            return "-";
+
+        var headline = WebUtility.HtmlEncode(
+            $"{row.Total:0.00} total / {row.Fit:0.00} fit / {row.Legitimacy:0.00} legitimacy");
+        if (string.IsNullOrWhiteSpace(row.SubscoresJson))
+            return headline;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(row.SubscoresJson);
+            var root = doc.RootElement;
+            static double? Number(JsonElement element, string name) =>
+                element.TryGetProperty(name, out var value) && value.TryGetDouble(out var number) ? number : null;
+            var cv = Number(root, "cv_match");
+            var comp = Number(root, "comp_vs_target");
+            var growth = Number(root, "growth_signal");
+            var prefs = Number(root, "prefs_alignment");
+            var rationale = root.TryGetProperty("semantic_rationale", out var rationaleElement) &&
+                            rationaleElement.ValueKind == JsonValueKind.String
+                ? rationaleElement.GetString()
+                : null;
+
+            var parts = WebUtility.HtmlEncode(
+                $"CV {cv:0.00} / comp {comp:0.00} / growth {growth:0.00} / prefs {prefs:0.00}");
+            var model = WebUtility.HtmlEncode(row.ModelUsed ?? "unknown ranker");
+            var why = string.IsNullOrWhiteSpace(rationale)
+                ? ""
+                : $"<div class=\"muted\">{WebUtility.HtmlEncode(rationale)}</div>";
+            return $"{headline}<div class=\"muted\">{parts} · {model}</div>{why}";
+        }
+        catch (JsonException)
+        {
+            return $"{headline}<div class=\"muted\">score detail unavailable</div>";
+        }
     }
 
     private static string JobLinksHtml(JobSummaryRow row)

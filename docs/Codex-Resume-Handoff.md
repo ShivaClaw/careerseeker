@@ -2,6 +2,88 @@
 
 Updated: 2026-07-30
 
+## 2026-07-30 (Terra B3) - Deterministic lexical ranking
+
+Branch: `codex/beta-M3-lexical-ranking`
+
+Integration base: `origin/main` at
+`1dc1f817e0712b0ea2556d3d2aab46ff9ffd6100`, the confirmed PR #11 merge.
+Implementation commit:
+`8f659065c8cc2ccfbb0c424a103f775fb62e07a3`.
+
+Ground truth confirmed the roadmap's placeholder finding and one related gap:
+`run` used `DemoSemanticScorer(4.6, 4.2)` for every posting, and EngineCycle
+computed `ScoreResult` without persisting it. Consequently, real job order was
+largely feed order and the job dashboard had no score evidence to render.
+
+B3 replaces that default with `lexical-v1`, a deterministic offline ranker:
+
+- It loads only the active local profile claims, weights Skill and Title claims
+  above narrative/metric/employer terms, and discounts weak/stated confidence.
+- It tokenizes title and description as untrusted data, ignores boilerplate
+  stop words, and weights title matches above body matches.
+- It derives reproducible CV-match and growth components, stores a bounded
+  matched-term rationale (never the full posting), and makes no provider or
+  network call.
+- EngineCycle now persists the existing unchanged scorer result plus its
+  components/ranker identity. Both stores return those fields; recent scored
+  jobs order by `total`, with unscored/quarantined evidence kept below them.
+- `/jobs` HTML-encodes and displays total, fit, legitimacy, CV, compensation,
+  growth, preferences, ranker identity, and the bounded rationale.
+
+The load-bearing combination remains unchanged:
+`total = min(fit, legitimacy) * red_flag_multiplier`. The Fabrication Gate,
+pinned StrongCloud verifier stage, and Dispatcher no-send boundary were not
+changed. The optional roadmap `byok-embed` ranker was not implemented; the
+offline ranker is complete without it and no provider call was authorized.
+
+The count/doc/verifier lockstep moved EngineHarness 127→133 and
+StoreParityHarness 23→24, for 373→380 total assertions.
+
+Verification executed:
+
+```text
+> dotnet build CareerSeeker.sln -c Release -warnaserror
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+> dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build
+=== 133 passed, 0 failed ===
+
+> dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release --no-build
+=== 24 passed, 0 failed ===
+
+> dotnet src\Engine\bin\Release\net8.0\SeekerSvc.Engine.dll demo --once
+  cycles: 1
+  discovered: 3
+  acted: 1
+  drafted: 1
+  blocked: 1
+  rejected: 1
+  errors: 0
+
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+=== Offline total: 380 passed, 0 failed ===
+CareerSeeker alpha verification complete.
+```
+
+The first full-verifier attempt stopped in the new doc smoke because the exact
+phrase `deterministic offline lexical-v1` crossed a Markdown line break. The
+assertion was corrected to the phrase actually present and the rerun above
+passed. No product/harness assertion failed.
+
+The in-app Browser visual check is not claimed. Three bounded attempts to keep
+the local dashboard alive as a hidden background process all exited before
+port 7791 bound. Exact attempts and the foreground human command are in
+`docs/BETA-BLOCKED.md`. EngineHarness did execute the local dashboard renderer
+and passed encoded component/rationale, persistence, and ordering assertions.
+
+No Gmail draft, BYOK/provider call, email, upload, deployment, scheduled-task
+registration, Cloudflare action, Google/Play console change, Android/relay/
+sync-vector change, off-repo site edit, dependency change, or secret print
+occurred in B3.
+
 ## 2026-07-30 (Terra B2) - Startup and periodic crash recovery
 
 Branch: `codex/beta-M2-crash-recovery`
