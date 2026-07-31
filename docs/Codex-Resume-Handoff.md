@@ -1,6 +1,78 @@
 # Codex Resume Handoff
 
-Updated: 2026-07-24
+Updated: 2026-07-30
+
+## 2026-07-30 (Terra B0) - Beta preflight baseline
+
+Branch: `codex/beta-M0-preflight`, cut from local
+`codex/beta-integration` at `origin/main`.
+
+No product code, harness count, verifier expectation, Android file, live service,
+secret, or off-repo site file changed in B0. The publish/package artifacts were
+created locally under ignored paths and were not uploaded or deployed.
+
+Ground truth derived before editing:
+
+```text
+> git fetch --all
+> git rev-parse origin/main
+14a7dfec374cda410aa28b13c456d695f38e3507
+
+> git rev-parse origin/fix/engine-actually-runs
+40bc9a7166afb7d9742d75ef1b93b2ce0c8f5c1b
+
+> git status --short --branch
+## main...origin/main
+```
+
+The July 30 summary agrees with those two remote SHAs. The prior newest handoff
+entry was dated July 24 and described an earlier `main` snapshot, so it was
+treated as historical evidence rather than current branch truth.
+
+Environment:
+
+```text
+> dotnet --version
+8.0.422
+
+> Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber, OSArchitecture
+Caption        : Microsoft Windows 11 Home
+Version        : 10.0.26200
+BuildNumber    : 26200
+OSArchitecture : 64-bit
+```
+
+B0 verification executed on unchanged `main` at
+`14a7dfec374cda410aa28b13c456d695f38e3507`:
+
+```text
+> dotnet build CareerSeeker.sln -c Release --warnaserror
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+=== Offline total: 341 passed, 0 failed ===
+CareerSeeker alpha verification complete.
+
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+=== Offline total: 341 passed, 0 failed ===
+=== Publish win-x64 single-file executable ===
+=== Published executable demo smoke ===
+  errors: 0
+=== Package trusted-tester alpha ZIP ===
+  manifest: ok
+  OAuth client type: installed/Desktop
+  checksums: 50 verified
+  dashboard smoke: passed
+  Alpha 2.0 setup smoke: passed
+CareerSeeker alpha verification complete.
+```
+
+The package run's scheduled-task helper explicitly reported `Dry run only;
+scheduled task was not registered.` Provider/research/selected-job/live-L1
+helpers were preview or dry-run only. No BYOK request, Gmail draft, email send,
+Cloudflare action, or other live-service mutation occurred.
 
 ## 2026-07-24 (Opus post-launch iteration) - SQLitePCLRaw advisory cleared, 8AM deploy batch staged
 
