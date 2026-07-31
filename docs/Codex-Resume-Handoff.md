@@ -2,6 +2,123 @@
 
 Updated: 2026-07-30
 
+## 2026-07-30 (Terra B1) - Real engine landed after adversarial no-redraft fix
+
+Branch: `codex/beta-M1-engine-runs`
+
+Integration base: `origin/main` at
+`eb3c72bf49edb6ba08f4e01ae6f72a57681dfd0e`, the verified B0 PR #9 merge.
+This is the expected divergence from the July 30 seed, which still names
+`14a7dfec374cda410aa28b13c456d695f38e3507` as `main`.
+
+Reviewed branch tip:
+`origin/fix/engine-actually-runs` at
+`40bc9a7166afb7d9742d75ef1b93b2ce0c8f5c1b`. Its merge base was the seed's
+`14a7dfe` main and its diff changed 15 non-Android/non-relay files. The
+advertised source claims checked out: quarantine was before the action cap,
+dashboard status covered `faulted`, Scout carried true board/external identity,
+and the 341-to-364 verifier/doc update was lockstep.
+
+The adversarial pass found two release-blocking defects and fixed them on top:
+
+- Periodic sweeps admitted the same stored job again every interval. That could
+  produce repeated Gmail drafts for the same posting and keep the same first
+  capped jobs ahead of never-processed jobs. Both stores now expose
+  `HasApplicationForJobAsync`; identified cycles skip already-admitted jobs
+  before spending the cap. Harnesses prove later cycles advance and settled jobs
+  are never redrafted.
+- `run --dry-run` used a fake Gmail client but committed the lifecycle as
+  `DRAFTED`; launchers could also combine a fake LLM with real Gmail when the
+  BYOK vault was absent. Discovery-only now stops Act decisions before
+  Tailor/Gate/Dispatcher, creates no application or simulated draft, and the
+  live Gmail path refuses `--llm fake` with exit 2.
+
+No Fabrication Gate, pinned-stage routing, Dispatcher no-send, Android, relay,
+sync-vector, secret, live-service, or off-repo site file changed. No dependency
+was added.
+
+Verification executed in this session:
+
+```text
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+=== Offline total: 364 passed, 0 failed ===
+CareerSeeker alpha verification complete.
+```
+
+That first run was the reviewed branch unchanged. After the two fixes and the
+count/doc lockstep:
+
+```text
+> dotnet build CareerSeeker.sln -c Release --warnaserror
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+> dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build
+=== 124 passed, 0 failed ===
+
+> dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release --no-build
+=== 23 passed, 0 failed ===
+
+> dotnet run --project tests\LifecycleHarness\LifecycleHarness.csproj -c Release --no-build
+=== 44 passed, 0 failed ===
+
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+=== Offline total: 369 passed, 0 failed ===
+CareerSeeker alpha verification complete.
+```
+
+Bounded public-ATS, no-Gmail smoke:
+
+```text
+> dotnet src\Engine\bin\Release\net8.0\SeekerSvc.Engine.dll run --once --dry-run --llm fake --board greenhouse:remotecom --discovery-timeout-seconds 90 --http-timeout-seconds 30 --max-drafts-per-cycle 2 --db tmp\beta-b1-live\careerseeker.db --artifacts tmp\beta-b1-live\artifacts --jd-dir tmp\beta-b1-live\job-descriptions
+  cycles: 1
+  discovered: 61
+  acted: 0
+  drafted: 0
+  blocked: 0
+  rejected: 41
+  quarantined (injection): 14
+  errors: 0
+  audit chain: ok
+```
+
+The in-app Browser inspected the same real scheduler/dashboard path locally and
+rendered `running`, `cycles 1`, `discovered 61`, `drafted 0`,
+`quarantined 14`, and `errors 0`. The local test process was then stopped.
+
+Fail-closed fake/live pairing check:
+
+```text
+> dotnet src\Engine\bin\Release\net8.0\SeekerSvc.Engine.dll run --once --llm fake
+run refuses a fake LLM on the live Gmail path. Configure BYOK, or pass --dry-run for discovery-only operation.
+EXIT_CODE=2
+```
+
+The first `-IncludePublish -IncludePackage` attempt was intentionally made
+before committing and correctly stopped at `Alpha release manifest was
+generated from a dirty working tree.` It was not treated as a pass. After the
+implementation/count commit `21a13193e205de66606d9e3a74dd4fdf51702cc7`,
+the clean-tree rerun completed:
+
+```text
+> powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+=== Offline total: 369 passed, 0 failed ===
+=== Published executable demo smoke ===
+  errors: 0
+=== Package trusted-tester alpha ZIP ===
+  manifest: ok
+  OAuth client type: installed/Desktop
+  checksums: 50 verified
+  dashboard smoke: passed
+  Alpha 2.0 setup smoke: passed
+CareerSeeker alpha verification complete.
+```
+
+All package/live-L1 helper paths in that run were preview/dry-run only. No
+Gmail draft, provider call, email, upload, deployment, scheduled-task
+registration, Cloudflare action, or other live-service mutation occurred.
+
 ## 2026-07-30 (Terra B0) - Beta preflight baseline
 
 Branch: `codex/beta-M0-preflight`, cut from local
