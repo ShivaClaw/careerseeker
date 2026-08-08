@@ -4,7 +4,7 @@ Updated: 2026-08-07
 
 ## 2026-08-07 (Terra R3) - Sole live Gmail cycle BLOCKED by R2 prerequisite
 
-Branch: `codex/r3-prerequisite-gate`, based on fresh `origin/main` at
+Branch: `codex/r3-prerequisite-gate`, PR #22, based on fresh `origin/main` at
 `d4864590c38cd52a332349f20853423e477e9e0f`.
 
 The iteration began with `git fetch --all --prune`; fresh refs contained no
