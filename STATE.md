@@ -35,6 +35,11 @@
   ledger reports R2 BLOCKED. Fresh ladder and mission reads independently
   require R1/R2 green or complete before the one live Gmail cycle. No Gmail,
   OAuth, token, or secret access occurred; the one-cycle allowance is unused.
+- **Verification:** offline/full gates are build 0/0 and 412/0; analyzer build
+  is 0/0 and analyzer formatting is clean. The full package self-check passed
+  with one executable and zero provider/Gmail calls. MSIX measured 33,671,106
+  bytes, SHA-256
+  `67E0ECE690A2599795565026AFB6E2D04466A991C5C2D4FB6C59576E7A7B93D3`.
 - **Next intent:** finish the docs-only R3 BLOCKED evidence slice, run the
   required gates, merge normally after both CI runs, then release claims.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
