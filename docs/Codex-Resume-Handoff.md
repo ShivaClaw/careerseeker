@@ -2,6 +2,73 @@
 
 Updated: 2026-08-07
 
+## 2026-08-07 (Terra R3) - Sole live Gmail cycle BLOCKED by R2 prerequisite
+
+Branch: `codex/r3-prerequisite-gate`, PR #22, based on fresh `origin/main` at
+`d4864590c38cd52a332349f20853423e477e9e0f`.
+
+The iteration began with `git fetch --all --prune`; fresh refs contained no
+`autonomy/claude-state` branch. Two independent prerequisite reads agreed:
+
+```text
+> git show origin/main:docs/autonomy/CODEX-STATE.md
+R1: DONE
+R2: BLOCKED
+R3: PENDING
+
+> git show origin/main:docs/autonomy/R-LADDER.md
+R3: After R1/R2 green ...
+
+> git show origin/main:docs/autonomy/CODEX-MISSION.md
+R3 live drafting is allowed only after R1 and R2 are complete.
+```
+
+The prerequisite is therefore false and the sole authorized live Gmail cycle
+could not legally start. R3 is marked BLOCKED. No Gmail/OAuth readiness check,
+token or secret existence check, provider call, draft creation, or live retry
+was attempted. The one-cycle allowance remains unused. The smallest human
+unblock is to complete and merge an accepted R2 rehearsal with
+`act-eligible > 0`, then begin a later fresh R3 iteration. The block and queue
+are recorded in `docs/BETA-BLOCKED.md` and
+`docs/autonomy/HUMAN-QUEUE.md`.
+
+This docs-only slice changed no Engine, Dispatcher, Gmail, OAuth, database,
+scoring, verifier, relay, Android, or sync path. Executed verification:
+
+```text
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 412 passed, 0 failed ===
+
+> dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest
+Build succeeded. 0 warnings, 0 errors.
+
+> dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore
+Exit code: 0; no output.
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 412 passed, 0 failed ===
+Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+Package creation and one-executable structural self-check passed.
+Provider calls: 0. Gmail calls/drafts: 0.
+MSIX bytes: 33,671,116
+MSIX SHA-256: 9BBA045F01424A7A2F911056FF85AA988D53D31DF22F6D7D246FDBEDA63AF5C0
+```
+
+The first final-push workflow pair passed: push run `31233469197` and
+pull-request run `31233471024`. A fresh fetch found `origin/main` unchanged
+and no Claude state branch; the required rebase was a no-op. The post-rebase
+full gate repeated build 0/0, offline 412/0, the healthy published demo, and
+the one-executable package self-check. The package bytes/hash above are from
+that post-rebase run; package reproducibility is not claimed.
+
+Boundary: no deploy, console mutation, email, purchase, signing, install,
+secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, `.appdata`-original mutation, public ATS read, or live
+provider/Gmail action occurred.
+
 ## 2026-08-07 (Terra R2) - Real-profile rehearsal BLOCKED after bounded attempts
 
 Branch: `codex/r2-real-profile-rehearsal`, PR #21, based on fresh `origin/main` at
