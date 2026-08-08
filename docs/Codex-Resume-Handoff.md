@@ -4,7 +4,7 @@ Updated: 2026-08-07
 
 ## 2026-08-07 (Terra R2) - Real-profile rehearsal BLOCKED after bounded attempts
 
-Branch: `codex/r2-real-profile-rehearsal`, based on fresh `origin/main` at
+Branch: `codex/r2-real-profile-rehearsal`, PR #21, based on fresh `origin/main` at
 `b9149211d5ad6d5f134ebdcd8c71b13feb7f6c9e`.
 
 R2 added truthful `scored` and `act-eligible` engine counters so a dry-run no
