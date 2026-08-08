@@ -1,11 +1,13 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T19:41:13-06:00
-- **Current rung:** R2 BLOCKED and merged via PR #21 as
-  `d4864590c38cd52a332349f20853423e477e9e0f`.
-- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r2` /
-  `codex/r2-real-profile-rehearsal`.
-- **Files claimed:** none for the next iteration.
+- **Heartbeat:** 2026-08-07T19:43:46-06:00
+- **Current rung:** R3 BLOCKED locally because the explicit R2-DONE
+  prerequisite is not satisfied; evidence PR preparation is in progress.
+- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r3-gate` /
+  `codex/r3-prerequisite-gate`.
+- **Files claimed:** R3 sections in `docs/BETA-BLOCKED.md`,
+  `docs/BETA-AUDIT-REQUEST.md`, `docs/Codex-Resume-Handoff.md`,
+  `docs/autonomy/CODEX-STATE.md`, and new `docs/autonomy/HUMAN-QUEUE.md`.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -29,9 +31,12 @@
   post-rebase full gate repeated 0/0, 412/0, and the package self-check. Final
   runs `31233136277` and `31233138345` passed; PR #21 merged normally as
   `d4864590c38cd52a332349f20853423e477e9e0f`.
-- **Next intent:** stop this clean R2 iteration. On the next iteration, fetch
-  all refs and read both state branches. R3 cannot execute while R2 is BLOCKED;
-  record that gate truthfully before moving to the next workable rung.
+- **Measured R3 gate evidence:** fresh `origin/main` is `d486459`. Its state
+  ledger reports R2 BLOCKED. Fresh ladder and mission reads independently
+  require R1/R2 green or complete before the one live Gmail cycle. No Gmail,
+  OAuth, token, or secret access occurred; the one-cycle allowance is unused.
+- **Next intent:** finish the docs-only R3 BLOCKED evidence slice, run the
+  required gates, merge normally after both CI runs, then release claims.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
