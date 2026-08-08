@@ -4,8 +4,8 @@ Updated: 2026-08-07
 
 ## 2026-08-07 (Terra R1) - Job-side lexical scoring calibration
 
-Branch: `codex/r1-scoring-calibration`, based on fresh `origin/main` at
-`d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`.
+Branch: `codex/r1-scoring-calibration`, PR #20, based on fresh `origin/main`
+at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`.
 
 R1 reproduced the beta-blocking whole-profile denominator defect before the
 fix. With four new assertions present, the old `lexical-v1` run measured:
@@ -53,6 +53,11 @@ Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
 Package creation and one-executable structural self-check passed.
 Provider calls: 0. Gmail calls/drafts: 0.
 ```
+
+The first PR push and pull-request workflows both passed (`31232147469` and
+`31232154680`). A fresh fetch found `origin/main` unchanged and no Claude
+state branch; rebase was a no-op. The post-rebase full gate repeated 0/0,
+412/0, the healthy published demo, and the one-executable package self-check.
 
 The count drift moved EngineHarness 159→164 and the pinned total 407→412;
 README, Engine README, project summary, external audit handoff, verifier, and
