@@ -6,6 +6,33 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## R6(b) - Dependency and SBOM evidence preparation
+
+Branch: `codex/r6-dependency-sbom`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-08-07 |
+|---|---|---|
+| The committed SPDX snapshot matches the source-declared NuGet graph and local package metadata byte-for-byte. | `scripts\New-DependencySbom.ps1 -NoRestore -ValidateOnly` | Passed with 9 packages: 3 direct runtime, 5 transitive runtime, 1 build-only; 2 license declarations remain `NOASSERTION`. SHA-256 is `A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E`. |
+| Prior publish state and checkout EOL policy do not alter the committed source graph. | Run the validator after `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage`; compare the working file with `git -c core.autocrlf=true checkout-index` output | Post-publish validation passed under Windows PowerShell 5.1. SDK-auto-referenced ILLink tooling was excluded, and both checked files had the exact committed SHA-256. |
+| NuGet's dated advisory metadata reports no known entries for this snapshot. | `dotnet list CareerSeeker.sln package --vulnerable --include-transitive --format json`; repeat for `tools\WindowsSdkTools\WindowsSdkTools.csproj` | Both commands used `https://api.nuget.org/v3/index.json`, exited 0, and returned zero vulnerability entries. |
+| D08 is not overstated by package identity evidence. | Inspect `docs\Dependency-SBOM-Inventory.md`, `docs\Positioning.md`, and Q06 in `docs\autonomy\HUMAN-QUEUE.md` | D08 remains UNPROVEN. Signed-binary runtime destination capture, deployed-site tracker scanning, and two legacy license reviews remain queued. |
+| The merge-grade gate remains green. | `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | Build 0 warnings/0 errors; offline 418/0; published demo 1 acted/1 drafted; one-executable package self-check passed with provider calls 0 and Gmail calls/drafts 0. The unsigned candidate measured 33,666,333 bytes with SHA-256 `260CA477DC907EAF9543D51B77F23A32B90170DC251B85D32D2DBF1B6C0B37B9`. |
+| .NET analyzers remain clean. | `dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest`; `dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore` | Analyzer build 0 warnings/0 errors; analyzer formatting verification exited 0 with no findings. |
+
+### Verification boundary
+
+The inventory uses NuGet package metadata and local restored-package hashes;
+it is not runtime network evidence and does not inspect a deployed site. No
+package was installed. PowerShell 7 byte validation remains for CI.
+
+No deploy, console mutation, email, purchase, signing, install, secret access,
+certificate/store mutation, reboot, scheduled-task registration, off-repo
+site edit, Android/relay/sync change, force-push, history rewrite,
+`.appdata`-original mutation, public ATS read, or live provider/Gmail action
+occurred.
+
 ## R6(a) - Confirmed installed-workspace data deletion
 
 Branch: `codex/r6-delete-all-data`
