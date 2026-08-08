@@ -24,8 +24,8 @@ the measured Beta package was:
 
 ```text
 output\release\CareerSeeker-beta-win-x64.msix
-Bytes: 33,672,974
-SHA-256: F3B16A0EE5B0B6EF882BCE8C9132C1C87DDA3159D389A2E45E6C0254FA1CC689
+Bytes: 33,673,026
+SHA-256: 6744C320CD9C0417F531C487524EFB93A7F99AA9C691BA291009CE7B76397E2B
 ```
 
 This bootstrap adds the release-window mission, R0-R7 ladder, and root agent
@@ -39,9 +39,10 @@ off-repo site edit, force-push, history rewrite, `.appdata`-original mutation,
 or live provider/Gmail action occurred. The verification script only ran its
 offline/package/publish paths.
 
-The bytes remained 33,672,974 across the two R0 package runs, while the
-unsigned MSIX SHA-256 changed. This entry therefore records the final
-post-bootstrap gate's observed hash above and does not assert reproducibility.
+Three R0 unsigned package runs changed in both bytes and SHA-256. This entry
+records the final post-rebase merge-gate measurement above; it does not assert
+package reproducibility. Each run did produce exactly one `CareerSeeker.exe`,
+and the final structural/executable self-check passed.
 
 ## 2026-07-30 (Terra post-B8) - Ordered Beta hardening backlog
 
