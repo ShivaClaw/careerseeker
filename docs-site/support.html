@@ -45,14 +45,16 @@
 <p>An in-app provider-key manager is planned for the product shell.</p>
 
 <h3>Delete Local Data</h3>
-<p>Current Windows-engine Beta data is local. Uninstalling the MSIX intentionally preserves user data. After a separate explicit data-deletion confirmation, remove:</p>
+<p>Current Windows-engine Beta data is local. Uninstalling the MSIX intentionally preserves user data. While the app is still available, run this once from the installed executable or an unpacked support tree:</p>
+<pre><code>CareerSeeker.exe delete-all-data</code></pre>
+<p>The command only displays the exact <code>%LOCALAPPDATA%\CareerSeeker</code> target and a path-bound confirmation phrase; it reports <code>NOT DELETED</code>. Close every CareerSeeker window and engine process, then copy that exact phrase into the displayed <code>--confirm-delete-all-data</code> command. The app refuses a volume root or arbitrary target and verifies that the exact workspace is absent before reporting completion.</p>
+<p>The command covers the installed workspace. Separately review:</p>
 <ul>
-<li>The exact <code>%LOCALAPPDATA%\CareerSeeker</code> workspace for an installed Beta.</li>
 <li>The configured source/test workspace when you ran from the repository.</li>
 <li>Exported documents you intentionally saved elsewhere.</li>
 <li>Any warmed local build caches you intentionally created for testing.</li>
 </ul>
-<p>Resolve and inspect the exact target before recursive deletion. Do not combine app uninstall and user-data deletion.</p>
+<p>If the package was already uninstalled, the built-in command is no longer available; use the manual exact-path procedure in the package runbook. Never combine app uninstall and user-data deletion.</p>
 
 <h3>Verify the Audit Log</h3>
 <p>The Store implements hash-chain verification and the offline harnesses exercise it. From source or an advanced terminal, use <code>export-audit</code> for hash-only JSON, <code>export-alpha-package</code> for a local evidence ZIP, and <code>import-alpha-package</code> for safe restore into an isolated import workspace. Raw audit payloads are opt-in.</p>

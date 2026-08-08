@@ -39,13 +39,15 @@ The B0-B8 Windows ladder is implemented:
   disabled startup metadata, and stores mutable state outside the package.
 - **B8 truth pass:** public/count-bearing docs, claims register, and one human launch runbook are aligned to
   that implementation.
+- **R6(a) deletion:** the app resolves only the installed per-user workspace, requires a second exact
+  path-bound confirmation, refuses broad roots/links, and verifies absence before reporting completion.
 
-The pinned offline verifier is **412 passed, 0 failed**:
+The pinned offline verifier is **418 passed, 0 failed**:
 
 | Harness | Assertions |
 |---|---:|
 | Slice | 28 |
-| EngineHarness | 164 |
+| EngineHarness | 170 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
 | StoreParityHarness | 25 |
@@ -53,7 +55,7 @@ The pinned offline verifier is **412 passed, 0 failed**:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| **Total** | **412** |
+| **Total** | **418** |
 
 ## Current product path
 
@@ -230,7 +232,8 @@ None of those external actions were executed by B8.
 - OAuth production verification/CASA pending.
 - Public trust-copy deployment pending.
 - Broad `role_reassign` false positives pending a reviewed detector change plus fixtures.
-- No in-app full-data deletion UI; app removal and user-data deletion are intentionally separate.
+- Dependency/SBOM inventory and the repository-wide PSScriptAnalyzer pass remain R6 work. The app now has
+  a separately confirmed exact-path `delete-all-data` workflow; app removal remains a distinct action.
 - No higher autonomy, Gmail send/read/modify, calendar, or ATS-submit implementation.
 - Existing loopback document-token/query-string and missing Origin/Referer residuals remain accepted only for
   the local-only threat model; revisit before any non-loopback exposure.

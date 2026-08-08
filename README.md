@@ -33,6 +33,11 @@ removal does not delete the database, generated materials, or DPAPI vaults. The 
 ten-step loopback browser onboarding flow. After onboarding, implicit package activation is discovery-only;
 drafting still requires an explicit configured run.
 
+The built-in `delete-all-data` mode is separate from package removal. Its first invocation only prints the
+resolved `%LOCALAPPDATA%\CareerSeeker` target and a path-bound confirmation phrase; deletion occurs only
+when that exact phrase is supplied on a later invocation, and the command reports whether the target was
+removed or was already absent.
+
 The previous console onboarding remains available as `setup --console`. Alpha `.cmd` helpers and the old
 `Package-AlphaRelease.ps1` ZIP builder remain as source-level historical/advanced utilities, but they are not
 the artifact produced by `-IncludePackage`.
@@ -67,7 +72,7 @@ The current pinned breakdown is:
 | Harness | Assertions |
 |---|---:|
 | Slice | 28 |
-| EngineHarness | 164 |
+| EngineHarness | 170 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
 | StoreParityHarness | 25 |
@@ -75,7 +80,7 @@ The current pinned breakdown is:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| **Total** | **412** |
+| **Total** | **418** |
 
 CI runs the warnings-as-errors Release build and the same offline verifier. Optional live switches use
 already-configured local credentials and are not part of the default gate:

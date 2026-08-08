@@ -12,12 +12,15 @@ using SeekerSvc.Store;
 using SeekerSvc.Tailor;
 using SeekerSvc.Verifier;
 
-PackagedRuntime.Prepare();
 var firstArgument = args.FirstOrDefault();
 var explicitMode = firstArgument is not null &&
                    !firstArgument.StartsWith("--", StringComparison.Ordinal)
     ? firstArgument
     : null;
+if (explicitMode?.Equals("delete-all-data", StringComparison.OrdinalIgnoreCase) == true)
+    return RunDeleteAllData();
+
+PackagedRuntime.Prepare();
 var mode = explicitMode ?? DefaultModeFromExecutableName();
 if (HasFlag("--help") || HasFlag("-h"))
 {
@@ -66,6 +69,49 @@ if (mode.Equals("connect-gmail", StringComparison.OrdinalIgnoreCase))
 if (mode.Equals("disconnect-gmail", StringComparison.OrdinalIgnoreCase))
     return await RunDisconnectGmailAsync().ConfigureAwait(false);
 return Fail($"Unknown mode '{mode}'.");
+
+int RunDeleteAllData()
+{
+    FullDataDeletionPlan plan;
+    try
+    {
+        plan = FullDataDeletion.PlanInstalledWorkspace();
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("CareerSeeker could not resolve the exact installed workspace.");
+        Console.Error.WriteLine("  " + ex.Message);
+        return 1;
+    }
+
+    Console.WriteLine("CareerSeeker full-data deletion");
+    Console.WriteLine($"  exact workspace: {plan.WorkspacePath}");
+
+    var confirmation = StringArg("--confirm-delete-all-data");
+    if (string.IsNullOrWhiteSpace(confirmation))
+    {
+        Console.WriteLine("  status: NOT DELETED (separate confirmation required)");
+        Console.WriteLine("  Close every CareerSeeker window and engine process, then rerun with:");
+        Console.WriteLine($"  --confirm-delete-all-data \"{plan.ConfirmationPhrase}\"");
+        return 0;
+    }
+
+    try
+    {
+        var result = FullDataDeletion.Execute(plan, confirmation);
+        Console.WriteLine($"  removed: {(result.Removed ? "yes" : "no")}");
+        Console.WriteLine($"  already absent: {(result.AlreadyAbsent ? "yes" : "no")}");
+        Console.WriteLine($"  target exists after: {(result.TargetExistsAfter ? "yes" : "no")}");
+        Console.WriteLine($"  status: {result.Message}");
+        return result.TargetExistsAfter ? 1 : 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("  status: NOT DELETED");
+        Console.Error.WriteLine("  " + ex.Message);
+        return 1;
+    }
+}
 
 async Task<int> RunDemoAsync()
 {
@@ -1778,6 +1824,7 @@ void PrintUsage()
     Console.WriteLine("  SeekerSvc.Engine.exe clear-byok [--key-vault .appdata/secrets/byok-keys.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe connect-gmail [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--http-timeout-seconds 60]");
     Console.WriteLine("  SeekerSvc.Engine.exe disconnect-gmail [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe delete-all-data [--confirm-delete-all-data \"DELETE ALL CAREERSEEKER DATA AT <exact resolved path>\"]");
 }
 
 sealed class BoundedByokSmokeTailorModel : ITailorModel

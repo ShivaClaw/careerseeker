@@ -167,7 +167,11 @@ powershell -ExecutionPolicy Bypass -File scripts\New-BetaVmInstallMatrix.ps1 `
 Copy the exact MSIX and matrix to a disposable Windows 11 VM. Execute VM01
 through VM11 in order, paste command/observation output into each slot, attach
 screenshot IDs, and change a result from `PENDING` only after observing it.
-Package removal and full-data deletion remain separate confirmations.
+VM10 exercises the app's two-step `delete-all-data` flow while the package is
+still installed: the first invocation must report `NOT DELETED`; only the exact
+displayed path-bound phrase may be supplied to `--confirm-delete-all-data`.
+VM11 then recreates a synthetic sentinel and proves package removal preserves
+it. Package removal and full-data deletion remain separate confirmations.
 
 ## Q05 - Publish and re-download the signed Beta
 

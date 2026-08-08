@@ -63,9 +63,9 @@ $steps = @(
     [pscustomobject]@{ Id = "VM06"; Title = "Relaunch discovery-only"; Expected = "Relaunch reports honest discovery-only state and creates no Gmail draft." },
     [pscustomobject]@{ Id = "VM07"; Title = "Startup, reboot, and single instance"; Expected = "After manual enablement and reboot, exactly one engine instance runs and local logging is present." },
     [pscustomobject]@{ Id = "VM08"; Title = "Pause, resume, and stop controls"; Expected = "Each local control produces the documented state transition and evidence." },
-    [pscustomobject]@{ Id = "VM09"; Title = "Uninstall and preservation"; Expected = "Application/startup registration is removed while the external workspace sentinel remains." },
-    [pscustomobject]@{ Id = "VM10"; Title = "Separately confirmed full-data deletion"; Expected = "Only after explicit confirmation, the exact resolved workspace is removed and verified absent." },
-    [pscustomobject]@{ Id = "VM11"; Title = "Upgrade-in-place"; Expected = "When a prior signed Beta exists, upgrade preserves data and starts the new version once." }
+    [pscustomobject]@{ Id = "VM09"; Title = "Upgrade-in-place"; Expected = "When a prior signed Beta exists, upgrade preserves data and starts the new version once." },
+    [pscustomobject]@{ Id = "VM10"; Title = "Separately confirmed full-data deletion"; Expected = "While installed, the first delete-all-data run reports NOT DELETED; only the exact displayed confirmation removes the resolved workspace and reports it absent." },
+    [pscustomobject]@{ Id = "VM11"; Title = "Recreate, uninstall, and preserve"; Expected = "A relaunch recreates a synthetic workspace sentinel; uninstall removes application/startup registration while preserving that external sentinel." }
 )
 
 if ($ValidateOnly) {

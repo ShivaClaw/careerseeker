@@ -71,7 +71,7 @@ State transitions, gate decisions, scoring events, and engine actions are record
 | Blocklist employers | Configure local preferences/rails when the product shell is wired. |
 | Set daily cap | Planned product control; current harnesses exercise bounded local runs. |
 | Export audit log or local evidence bundle | Run the local `export-audit`, `export-alpha-package`, or `import-alpha-package` command from source/an unpacked test tree; audit-chain verification is implemented in the store and harnesses. Historical Alpha `.cmd` helpers are not part of the current MSIX. |
-| Delete all data | App uninstall preserves data. After separate explicit confirmation, delete `%LOCALAPPDATA%\CareerSeeker` or the configured source/test workspace. |
+| Delete all data | App uninstall preserves data and remains separate. Run `CareerSeeker.exe delete-all-data` once to display the exact `%LOCALAPPDATA%\CareerSeeker` target and path-bound phrase; only the exact `--confirm-delete-all-data` value can remove it, and completion is reported from a post-delete absence check. Configured source/test paths remain separately controlled. |
 
 ## Future Autonomy Levels
 

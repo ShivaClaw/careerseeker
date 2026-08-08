@@ -35,14 +35,26 @@ An in-app provider-key manager is planned for the product shell.
 
 ### Delete Local Data
 
-Current Windows-engine Beta data is local. Uninstalling the MSIX intentionally preserves user data. After a separate explicit data-deletion confirmation, remove:
+Current Windows-engine Beta data is local. Uninstalling the MSIX intentionally preserves user data. While
+the app is still available, run this once from the installed executable or an unpacked support tree:
 
-- The exact `%LOCALAPPDATA%\CareerSeeker` workspace for an installed Beta.
+```powershell
+CareerSeeker.exe delete-all-data
+```
+
+The command only displays the exact `%LOCALAPPDATA%\CareerSeeker` target and a path-bound confirmation
+phrase; it reports `NOT DELETED`. Close every CareerSeeker window and engine process, then copy that exact
+phrase into the displayed `--confirm-delete-all-data` command. The app refuses a volume root or arbitrary
+target and verifies that the exact workspace is absent before reporting completion.
+
+The command covers the installed workspace. Separately review:
+
 - The configured source/test workspace when you ran from the repository.
 - Exported documents you intentionally saved elsewhere.
 - Any warmed local build caches you intentionally created for testing.
 
-Resolve and inspect the exact target before recursive deletion. Do not combine app uninstall and user-data deletion.
+If the package was already uninstalled, the built-in command is no longer available; use the manual
+exact-path procedure in the package runbook. Never combine app uninstall and user-data deletion.
 
 ### Verify the Audit Log
 
