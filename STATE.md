@@ -1,12 +1,15 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T20:30:14-06:00
-- **Current rung:** R5 DONE. PR #24 merged normally as
-  `e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
-- **Current worktree / branch:** no active rung claim. The completed R5
-  worktree is `C:\Users\bkirk\Documents\CareerSeeker-r5` on
-  `codex/r5-distribution-prep`.
-- **Files claimed:** none between iterations.
+- **Heartbeat:** 2026-08-07T20:31:41-06:00
+- **Current rung:** R6(a) confirmed full-data deletion in progress from fresh
+  `origin/main` at `e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
+- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r6-delete` /
+  `codex/r6-delete-all-data`.
+- **Files claimed:** `src/Engine/Program.cs`, `src/Engine/Host.cs`,
+  `src/Engine/PackagedRuntime.cs`, a focused Engine deletion implementation,
+  `tests/EngineHarness/Program.cs`, `scripts/Verify-Alpha.ps1`, count-reporting
+  docs, `docs/Positioning.md`, `docs/BETA-AUDIT-REQUEST.md`,
+  `docs/Codex-Resume-Handoff.md`, and `docs/autonomy/CODEX-STATE.md`.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -77,9 +80,9 @@
   the full gate repeated green. Final runs `31235002582` and `31235004498`
   passed; PR #24 merged normally as
   `e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
-- **Next intent:** start one R6 slice from fresh refs. Take the confirmed
-  in-app `delete-all-data` workflow first unless Claude claims a colliding
-  `Host.cs`/dashboard surface; otherwise take the dependency/SBOM inventory.
+- **Next intent:** finish only R6(a): implement a separately confirmed
+  `delete-all-data` workflow that resolves the exact per-user path, reports
+  removal truthfully, and is harness-covered; gate, merge, close the claim.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
