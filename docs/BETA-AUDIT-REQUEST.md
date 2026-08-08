@@ -17,14 +17,15 @@ Branch: `codex/r6-delete-all-data`
 | The first deletion invocation is non-mutating and displays the exact target plus a path-bound confirmation phrase. | `dotnet run --project src\Engine\SeekerSvc.Engine.csproj -c Release --no-build -- delete-all-data` | Exit 0; displayed `C:\Users\bkirk\AppData\Local\CareerSeeker`, reported `NOT DELETED`, and printed the required `DELETE ALL CAREERSEEKER DATA AT ...` phrase. No confirmation was supplied. |
 | The confirmed operation is constrained and honestly reports its result. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | EngineHarness passed 170/0. Six deletion assertions pin the installed path, exact phrase, mismatch no-op, volume-root refusal, complete exact-target removal with post-delete absence, and already-absent reporting. The destructive assertions used isolated `careerseeker-delete-harness-*` temp roots only. |
 | The public workflow and disposable-VM sequence retain the uninstall/data boundary. | `scripts\Verify-Alpha.ps1`; inspect `docs\Support.md`, `docs\Privacy-Policy.md`, `docs\Beta-Windows-Package-Runbook.md`, and `scripts\New-BetaVmInstallMatrix.ps1` | Repository and site copies agree on the two-step command. VM10 deletes while installed; VM11 recreates a sentinel and tests uninstall preservation separately. |
-| The merge-grade gate remains green. | `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | Build 0 warnings/0 errors; offline 418/0; published demo 1 acted/1 drafted; one-executable package self-check passed with provider calls 0 and Gmail calls/drafts 0. The unsigned candidate measured 33,666,330 bytes with SHA-256 `6711EBFD1EE81E7E3140F2DD426DE3A44D61F499FC185D5039E0DEE70182BCED`. |
+| The merge-grade gate remains green. | `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | Initial candidate: build 0 warnings/0 errors; offline 418/0; published demo 1 acted/1 drafted; one-executable package self-check passed with provider calls 0 and Gmail calls/drafts 0. After fresh main remained `e874c86` and the rebase was a no-op, the full gate repeated green; that unsigned candidate measured 33,666,365 bytes with SHA-256 `1D3793B15FC97DD66AD4A1487ABC99AF92D5156C0ECA88842BA3B9A396348FC7`. |
 | .NET analyzers remain clean. | `dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest`; `dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore` | Analyzer build 0 warnings/0 errors; analyzer formatting verification exited 0 with no findings. |
 
 ### Verification boundary
 
 The real installed workspace was resolved and displayed only; the confirmed
 deletion command was never run against it. Destructive harness coverage used
-fresh isolated temp directories. R6(b), R6(c), and R6(d) remain pending.
+fresh isolated temp directories. PR #25's initial push run `31235635615` and
+pull-request run `31235656763` passed. R6(b), R6(c), and R6(d) remain pending.
 
 No deploy, console mutation, email, purchase, signing, install, secret access,
 certificate/store mutation, reboot, scheduled-task registration, off-repo

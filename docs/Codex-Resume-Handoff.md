@@ -4,7 +4,7 @@ Updated: 2026-08-07
 
 ## 2026-08-07 (Terra R6a) - Confirmed installed-workspace deletion implemented
 
-Branch: `codex/r6-delete-all-data`, based on fresh `origin/main` at
+Branch: `codex/r6-delete-all-data`, PR #25, based on fresh `origin/main` at
 `e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
 
 R6(a) adds a first-class `delete-all-data` executable mode before packaged-
@@ -58,9 +58,15 @@ MSIX SHA-256: 6711EBFD1EE81E7E3140F2DD426DE3A44D61F499FC185D5039E0DEE70182BCED
 ```
 
 The package hash is a per-build unsigned-candidate measurement, not final
-release metadata. R6 remains IN PROGRESS: dependency/SBOM inventory,
-PSScriptAnalyzer, and the remaining ordered-backlog review are separate future
-slices.
+release metadata. PR #25's initial push run `31235635615` and pull-request run
+`31235656763` passed. A mandatory fresh fetch found `origin/main` unchanged at
+`e874c86` and no Claude state branch; `git rebase origin/main` was a no-op. The
+post-fetch full gate repeated build 0/0, offline 418/0, the published demo, and
+the one-executable package self-check. That final local candidate measured
+33,666,365 bytes with SHA-256
+`1D3793B15FC97DD66AD4A1487ABC99AF92D5156C0ECA88842BA3B9A396348FC7`.
+R6 remains IN PROGRESS: dependency/SBOM inventory, PSScriptAnalyzer, and the
+remaining ordered-backlog review are separate future slices.
 
 Boundary: no deploy, console mutation, email, purchase, signing, install,
 secret access, certificate/store mutation, reboot, scheduled-task
