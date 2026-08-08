@@ -7,6 +7,7 @@
   `codex/r5-distribution-prep`.
 - **Files claimed:** `docs/Beta-Changelog.md`,
   `docs/Alpha-to-Beta-Migration.md`, `docs/Positioning.md`,
+  `docs/Beta-Runbook.md`,
   `docs-site/download.html`, `docs-site/download.md`, `docs-site/index.html`,
   `scripts/Verify-Alpha.ps1`, `docs/BETA-AUDIT-REQUEST.md`,
   `docs/Codex-Resume-Handoff.md`, and `docs/autonomy/CODEX-STATE.md`.
