@@ -25,8 +25,9 @@ Implicit activation from the installed MSIX is stricter. Before onboarding it op
 starts `run` in both discovery-only and service-host modes. Installation or startup enablement never counts
 as consent to create a Gmail draft.
 
-The default `lexical-v1` ranker is deterministic and local. It compares the active source profile with
-untrusted posting text, emphasizes title and Skill/Title overlap, persists CV match and other score
+The default `lexical-v2` ranker is deterministic and local. It compares the active source profile with
+untrusted posting text using job-side coverage, so unrelated additions to a richer profile cannot lower
+the same posting. It emphasizes title and Skill/Title overlap, persists CV match and other score
 components, and records a matched-term rationale. `/jobs` orders scored rows by total and shows those
 components.
 
@@ -142,7 +143,7 @@ Current pinned offline results:
 | Harness | Assertions |
 |---|---:|
 | Slice | 28 |
-| EngineHarness | 159 |
+| EngineHarness | 164 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
 | StoreParityHarness | 25 |
@@ -150,7 +151,7 @@ Current pinned offline results:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| **Total** | **407** |
+| **Total** | **412** |
 
 The engine-specific assertions cover browser onboarding, crash reconciliation, SQLite composition,
 single-instance protection, scheduler pause/resume/backoff, honest dashboard state, identified Scout feeds,

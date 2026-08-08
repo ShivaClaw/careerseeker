@@ -316,6 +316,52 @@ IdentifiedPosting RankedIdentified(string externalId, string title, string descr
         "mailto:jobs@fixture.test");
 }
 
+async Task<LexicalSemanticScorer> CalibrationScorerAsync(int distinctTerms)
+{
+    var store = new InMemorySeekerStore();
+    var profileId = await store.UpsertProfileAsync("{}");
+    var baseTerms = new[]
+    {
+        "senior", "software", "engineer", "distributed", "systems",
+        "go", "backend", "cloud", "reliability", "architecture",
+    };
+    foreach (var term in baseTerms.Concat(
+                 Enumerable.Range(baseTerms.Length, distinctTerms - baseTerms.Length)
+                     .Select(i => $"profileterm{i:000}")))
+        await store.AddClaimAsync(new ClaimRow(
+            Guid.NewGuid().ToString("N"), profileId, "Skill", term, "Verified"));
+    return new LexicalSemanticScorer(store, profileId);
+}
+
+JobPosting CalibrationPosting(int index)
+{
+    var targeted = index < 8;
+    var adjacent = index is >= 8 and < 40;
+    var title = targeted
+        ? "Senior Software Engineer"
+        : adjacent
+            ? "Software Delivery Manager"
+            : index % 2 == 0 ? "Retail Marketing Coordinator" : "Financial Operations Analyst";
+    var description = targeted
+        ? "Design backend distributed systems in Go. Own cloud architecture and improve reliability."
+        : adjacent
+            ? "Coordinate software delivery programs, service planning, stakeholder reporting, and release calendars."
+            : "Plan customer campaigns, financial reporting, vendor operations, budgets, and regional schedules.";
+    return new JobPosting
+    {
+        Title = title,
+        TitleCanon = title.ToLowerInvariant(),
+        Location = "Remote",
+        Remote = RemoteMode.Remote,
+        Compensation = new Compensation(180000m, 220000m, "USD", CompInterval.Year, CompSource.Structured),
+        DescriptionText = new string('x', 700) + " " + description + $" Fixture {index}.",
+        RepostCount = 0,
+        FirstPublished = DateTimeOffset.UtcNow.AddDays(-3),
+        RecruiterIdentifiable = true,
+        CompanyDomainVerified = true,
+    };
+}
+
 var prefs = new UserPreferences { Comp = new CompTarget(150000m, 180000m, 220000m), Remote = RemoteStance.Any, Seniority = SeniorityBand.Senior };
 var opt = new EngineOptions(prefs, AutonomyLevel.L1, DispatchChannel.Email);
 
@@ -890,7 +936,7 @@ Console.WriteLine("\n[ deterministic lexical ranking ]");
         adjacentScore.CvMatch > unrelatedScore.CvMatch,
         $"{strongFirst.CvMatch:0.00} > {adjacentScore.CvMatch:0.00} > {unrelatedScore.CvMatch:0.00}");
     Check("lexical score explains matched local profile terms",
-        strongFirst.ModelUsed == "lexical-v1" &&
+        strongFirst.ModelUsed == "lexical-v2" &&
         strongFirst.Rationale?.Contains("distributed", StringComparison.Ordinal) == true &&
         strongFirst.Rationale.Contains("title", StringComparison.Ordinal) &&
         !strongFirst.Rationale.Contains(strong.Posting.DescriptionText, StringComparison.Ordinal),
@@ -918,7 +964,7 @@ Console.WriteLine("\n[ deterministic lexical ranking ]");
     Check("engine persists lexical score components and ranker identity",
         ordered.Length == 3 &&
         ordered.All(j => j.Fit is not null && j.Legitimacy is not null && j.Total is not null &&
-                         j.ModelUsed == "lexical-v1" &&
+                         j.ModelUsed == "lexical-v2" &&
                          j.SubscoresJson?.Contains("\"cv_match\"", StringComparison.Ordinal) == true),
         string.Join(", ", ordered.Select(j => $"{j.ExternalId}:{j.Total}:{j.ModelUsed}")));
     Check("recent job view orders scored jobs by meaningful total",
@@ -933,11 +979,74 @@ Console.WriteLine("\n[ deterministic lexical ranking ]");
     Check("dashboard job view surfaces encoded score components and lexical rationale",
         jobsHtml.Contains("CV ", StringComparison.Ordinal) &&
         jobsHtml.Contains("growth ", StringComparison.Ordinal) &&
-        jobsHtml.Contains("lexical-v1", StringComparison.Ordinal) &&
+        jobsHtml.Contains("lexical-v2", StringComparison.Ordinal) &&
         jobsHtml.Contains("Matched", StringComparison.Ordinal) &&
         !jobsHtml.Contains(strong.Posting.DescriptionText, StringComparison.Ordinal),
         jobsHtml);
     await dashboard.DisposeAsync();
+}
+
+Console.WriteLine("\n[ lexical scoring calibration ]");
+{
+    var corpus = Enumerable.Range(0, 120).Select(CalibrationPosting).ToArray();
+    var profileSizes = new[] { 10, 50, 200 };
+    var scoreRuns = new List<(int Size, SemanticScores[] Semantic, ScoreResult[] Composed)>();
+    foreach (var size in profileSizes)
+    {
+        var lexical = await CalibrationScorerAsync(size);
+        var semantic = new List<SemanticScores>();
+        var composed = new List<ScoreResult>();
+        foreach (var posting in corpus)
+        {
+            var result = await lexical.ScoreAsync(posting);
+            semantic.Add(result);
+            composed.Add(SeekerSvc.Scorer.Scorer.Score(posting, prefs, result));
+        }
+        scoreRuns.Add((size, semantic.ToArray(), composed.ToArray()));
+        var orderedTotals = composed.Select(s => s.Total).Order().ToArray();
+        Console.WriteLine(
+            $"  CAL   profile={size} corpus={corpus.Length} " +
+            $"cv=[{semantic.Min(s => s.CvMatch):0.00},{semantic.Max(s => s.CvMatch):0.00}] " +
+            $"total=[{orderedTotals[0]:0.00},{orderedTotals[^1]:0.00}] " +
+            $"p50={orderedTotals[orderedTotals.Length / 2]:0.00} " +
+            $"p95={orderedTotals[(int)Math.Floor((orderedTotals.Length - 1) * 0.95)]:0.00} " +
+            $"targetMin={composed.Take(8).Min(s => s.Total):0.00} " +
+            $"adjacentMax={composed.Skip(8).Take(32).Max(s => s.Total):0.00} " +
+            $"act={composed.Count(s => s.Dispatch == Dispatch.Act)}");
+    }
+
+    Check("strictly richer profiles never lower the same posting's lexical score",
+        Enumerable.Range(0, corpus.Length).All(i =>
+            scoreRuns[0].Semantic[i].CvMatch <= scoreRuns[1].Semantic[i].CvMatch &&
+            scoreRuns[1].Semantic[i].CvMatch <= scoreRuns[2].Semantic[i].CvMatch),
+        string.Join(", ", scoreRuns.Select(r =>
+            $"{r.Size}:{r.Semantic.Min(s => s.CvMatch):0.00}-{r.Semantic.Max(s => s.CvMatch):0.00}")));
+    Check("derived default 4.0 threshold keeps act eligibility between three and fifteen percent at every profile size",
+        scoreRuns.All(r =>
+            r.Composed.Count(s => s.Dispatch == Dispatch.Act) >= corpus.Length * 0.03 &&
+            r.Composed.Count(s => s.Dispatch == Dispatch.Act) <= corpus.Length * 0.15),
+        string.Join(", ", scoreRuns.Select(r =>
+            $"{r.Size}:{r.Composed.Count(s => s.Dispatch == Dispatch.Act)}/{corpus.Length}")));
+    Check("calibration admits the targeted band and rejects adjacent and unrelated fixtures",
+        scoreRuns.All(r =>
+            r.Composed.Take(8).All(s => s.Dispatch == Dispatch.Act) &&
+            r.Composed.Skip(8).All(s => s.Dispatch != Dispatch.Act)),
+        string.Join(", ", scoreRuns.Select(r =>
+            $"{r.Size}:{r.Composed.Count(s => s.Dispatch == Dispatch.Act)} act")));
+    Check("calibrated rationale reports job-side coverage and ranker version",
+        scoreRuns.All(r => r.Semantic.All(s =>
+            s.ModelUsed == "lexical-v2" &&
+            s.Rationale?.Contains("job coverage", StringComparison.Ordinal) == true &&
+            !s.Rationale.Contains("profile coverage", StringComparison.Ordinal))),
+        string.Join(", ", scoreRuns.Select(r => $"{r.Size}:{r.Semantic[0].ModelUsed}")));
+
+    var demoStore = await SeededStoreAsync();
+    var demoPosting = Healthy("Senior Software Engineer");
+    var demoSemantic = await new LexicalSemanticScorer(demoStore, 1).ScoreAsync(demoPosting);
+    var demoScore = SeekerSvc.Scorer.Scorer.Score(demoPosting, prefs, demoSemantic);
+    Check("lexical-v2 preserves the healthy demo posting's Act decision",
+        demoScore.Dispatch == Dispatch.Act,
+        $"cv={demoSemantic.CvMatch:0.00} fit={demoScore.Fit:0.00} total={demoScore.Total:0.00} {demoSemantic.Rationale}");
 }
 
 Console.WriteLine("\n[ localhost dashboard ]");

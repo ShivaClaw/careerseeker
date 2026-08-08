@@ -1,6 +1,6 @@
 # CareerSeeker External Audit Handoff
 
-Updated: 2026-07-30
+Updated: 2026-08-07
 Audit target: Windows L1 Drafts Beta on `main`
 
 ## Audit question
@@ -19,15 +19,16 @@ The strongest review order is:
 
 ## Current evidence
 
-- Pinned offline verifier: **407 passed, 0 failed**.
+- Pinned offline verifier: **412 passed, 0 failed**.
 - GitHub CI runs the warnings-as-errors Release build and the same verifier on `main`, `agent/**`,
   `codex/**`, and pull requests into `main`.
 - Real engine path: `run` performs identified Greenhouse/Lever/Ashby discovery, local deterministic ranking,
   quarantine, crash reconciliation, bounded action, and honest scheduler status.
 - Recovery harnesses simulate provider success followed by a lost local commit and prove restart/periodic
   reconciliation completes state without a second external effect.
-- Ranking harnesses prove deterministic strong > adjacent > unrelated ordering and persisted dashboard
-  components.
+- Ranking harnesses prove deterministic strong > adjacent > unrelated ordering, persisted dashboard
+  components, and non-decreasing scores across nested 10/50/200-term profiles. The 120-posting calibration
+  corpus holds 8/120 (6.7%) Act eligibility at the derived 4.0 threshold for every profile size.
 - B4 executed five bounded discovery-only public ATS cycles: 61 discovered, 14 quarantined, 47 rejected,
   0 drafted, 0 cycle errors. Manual review classified all 14 quarantine flags as benign `act as`
   responsibility prose; tuning is proposed but deliberately not applied.

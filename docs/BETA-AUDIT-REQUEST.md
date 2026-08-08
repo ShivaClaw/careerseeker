@@ -1,10 +1,36 @@
 # CareerSeeker Beta Audit Request
 
-Updated: 2026-07-30
+Updated: 2026-08-07
 
 This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
+
+## R1 - Scoring realism calibration
+
+Branch: `codex/r1-scoring-calibration`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-08-07 |
+|---|---|---|
+| The former whole-profile denominator creates a rich-profile dead zone. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` after adding the calibration assertions and before changing the scorer | 10 terms: 8/120 Act; 50 terms: 0/120; 200 terms: 0/120. Monotonicity, eligibility-band, targeted-band, and rationale/version assertions failed; `159 passed, 4 failed`. |
+| `lexical-v2` makes the same posting non-decreasing as the profile grows and keeps eligibility sane. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release` | All 10/50/200-term profiles produced CV 1.50–3.88, total 2.99–4.20, target minimum 4.20, adjacent maximum 3.20, and 8/120 Act (6.7%); healthy demo remained Act; `164 passed, 0 failed`. |
+| Count-bearing docs and the verifier moved together. | `scripts\Verify-Alpha.ps1` | Build 0 warnings/0 errors; demo 1 acted/1 drafted/2 rejected; `Offline total: 412 passed, 0 failed`. |
+| The merge-grade publish/package path remains structurally green. | `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | Build 0 warnings/0 errors; offline 412/0; published demo 1 acted/1 drafted; one-executable MSIX structural check passed; provider calls 0; Gmail calls/drafts 0. |
+| Latest .NET analyzers remain clean. | `dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest` and `dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore` | Analyzer build: 0 warnings/0 errors; format analyzer verification exited 0 with no output. |
+
+### Verification boundary
+
+The 120-posting corpus is controlled synthetic calibration, not a claim about
+the production job market. R2 must still run the bounded public-ATS dry-run on
+a copied database with a realistic rich profile. No live provider or Gmail
+call occurred.
+
+No deploy, console mutation, email, purchase, signing, install, secret access,
+certificate/store mutation, reboot, scheduled-task registration, off-repo
+site edit, Android/relay/sync change, force-push, history rewrite, or
+`.appdata`-original mutation occurred.
 
 ## Post-B8 - Ordered hardening backlog
 

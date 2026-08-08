@@ -1,6 +1,6 @@
 # CareerSeeker Public Claims Register
 
-Updated: 2026-07-30
+Updated: 2026-08-07
 Status: Beta skeleton for Brandon review before any public-copy deployment
 
 This register maps material public sentences to the invariant, harness, and source line that supports them.
@@ -17,7 +17,7 @@ Line references are for the B8 source snapshot and should be refreshed whenever 
 |---|---|---|---|---|
 | P01 | “CareerSeeker is a local-first Windows L1 Drafts beta.” | PROVEN | Package runtime and default paths are per-user local; external services are optional. | `src/Engine/PackagedRuntime.cs:19`, `src/Engine/Program.cs:287` |
 | P02 | “CareerSeeker discovers jobs from public ATS boards.” | PROVEN | Identified Scout feed fixtures plus bounded public Greenhouse/Lever/Ashby runs. | `src/Engine/ScoutJobFeed.cs:33`, `tests/EngineHarness/Program.cs:716` |
-| P03 | “CareerSeeker ranks jobs against your local source-of-truth profile.” | PROVEN | Deterministic lexical ordering, explanation, persistence, and dashboard assertions. | `src/Engine/LexicalSemanticScorer.cs:13`, `tests/EngineHarness/Program.cs:867` |
+| P03 | “CareerSeeker ranks jobs against your local source-of-truth profile.” | PROVEN | Job-side lexical coverage is non-decreasing across nested 10/50/200-term profiles; 120-posting calibration, explanation, persistence, and dashboard assertions pass. | `src/Engine/LexicalSemanticScorer.cs:51`, `tests/EngineHarness/Program.cs:1018`, `docs/Scoring-Calibration.md` |
 | P04 | “CareerSeeker researches employers from public sources.” | PROVEN | Brave adapter and grounded dossier harness; historical live GitLab evidence. | `src/Researcher/Researcher.cs:73`, `tests/ResearcherHarness/Program.cs:35` |
 | P05 | “CareerSeeker prepares tailored application materials.” | PROVEN | Tailor-to-Gate vertical slice and ATS PDF renderer harnesses. | `tests/Slice/Program.cs:231`, `tests/RendererHarness/Program.cs:57` |
 | P06 | “CareerSeeker creates reviewable Gmail drafts.” | PROVEN | Draft-only interface/harness and historical Gmail live smoke. | `src/Dispatcher/Dispatch.cs:73`, `tests/DispatcherNoSendHarness/Program.cs:50` |

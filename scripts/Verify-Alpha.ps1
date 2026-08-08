@@ -120,12 +120,15 @@ $offlineProjects = @(
 # pin per-job application lookup parity, periodic no-redraft/idempotent cap advancement, and the honest
 # discovery-only path. Four crash-recovery assertions pin startup/periodic self-healing and idempotent
 # manual-review audit evidence. Six lexical-ranking assertions pin deterministic ordering,
-# persistence, and dashboard explanation. One store-parity assertion positively pins score detail reads.
+# persistence, and dashboard explanation. Five calibration assertions pin 10/50/200-term profile
+# monotonicity, a 120-posting eligibility band, targeted separation at the derived 4.0 threshold, and
+# honest job-side rationale/versioning plus the healthy demo's Act decision. One store-parity assertion
+# positively pins score detail reads.
 # Four engine assertions pin persisted cycle counters/reasons across the engine, dashboard, and audit
 # export; one store-parity assertion pins the new telemetry table in memory and SQLite.
 # Twelve engine assertions pin adaptive backoff and its board-failure input, clean pause/resume,
 # single-instance locking, local control files, honest runtime status, and service-host doctor checks.
-$ExpectedOfflineTotal = 407
+$ExpectedOfflineTotal = 412
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -315,11 +318,11 @@ Invoke-Step "Public README and harness count smoke" {
         'Alpha `.cmd` helpers',
         'no open-source license',
         'all rights are reserved',
-        '| EngineHarness | 159 |',
+        '| EngineHarness | 164 |',
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| **Total** | **407** |',
+        '| **Total** | **412** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -333,15 +336,15 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **407** |',
-        'deterministic local `lexical-v1`',
+        '| **Total** | **412** |',
+        'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
         'No detector threshold was changed',
         '## Human-only work remaining'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| EngineHarness | 159 |',
+        '| EngineHarness | 164 |',
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| StoreParityHarness | 25 |',
@@ -351,8 +354,8 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| **Total** | **407** |',
-        'default `lexical-v1` ranker is deterministic and local',
+        '| **Total** | **412** |',
+        'default `lexical-v2` ranker is deterministic and local',
         'Implicit activation from the installed MSIX is stricter',
         'one `CareerSeeker.exe`',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -361,7 +364,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **407 passed, 0 failed**',
+        'Pinned offline verifier: **412 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
@@ -372,6 +375,16 @@ Invoke-Step "Public README and harness count smoke" {
         'Historical Alpha `.cmd` launchers',
         'Local evidence export/import still uses ZIP'
     ) "docs/External-Audit-Handoff.md"
+
+    $calibration = Get-Content -LiteralPath "docs/Scoring-Calibration.md" -Raw
+    Assert-Contains $calibration @(
+        'strictly nested profiles with',
+        '0/120 with both richer supersets',
+        '`lexical-v2` formula',
+        '| 200 | 1.50–3.88 | 2.99–4.20 | 2.99 | 4.20 | 4.20 | 3.20 | 8/120 (6.7%) |',
+        'existing default Act threshold of 4.0 remains inside that gap',
+        '164 passed, 0 failed'
+    ) "docs/Scoring-Calibration.md"
 
     $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw
     Assert-Contains $historicalAudit @(

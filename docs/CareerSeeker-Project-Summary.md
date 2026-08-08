@@ -1,6 +1,6 @@
 # CareerSeeker Project Summary
 
-Updated: 2026-07-30
+Updated: 2026-08-07
 Audience: implementation, audit, and planning agents
 Primary branch: `main`
 Status: Windows L1 Drafts Beta implementation complete; human launch work pending
@@ -26,8 +26,9 @@ The B0-B8 Windows ladder is implemented:
   quarantine precedes the action cap.
 - **B2 recovery:** startup and every scheduled tick reconcile persisted effect outcomes without repeating a
   successful draft/submission.
-- **B3 ranking:** deterministic local `lexical-v1` ranks strong > adjacent > unrelated fixtures, persists
-  components, and explains matches in `/jobs`.
+- **R1 ranking calibration:** deterministic local `lexical-v2` uses job-side coverage so richer profiles
+  cannot score the same posting lower. A 120-posting fixture corpus pins 10/50/200-term profile behavior,
+  the 4.0 Act threshold, persistence, and `/jobs` explanations.
 - **B4 telemetry:** per-cycle discovered/quarantined/rejected/drafted/error counts and reason codes persist and
   appear in dashboard/audit evidence. A five-cycle public-ATS measurement is recorded.
 - **B5 continuous host:** a hardened per-user Scheduled Task fallback runs the real engine under a supervisor
@@ -39,12 +40,12 @@ The B0-B8 Windows ladder is implemented:
 - **B8 truth pass:** public/count-bearing docs, claims register, and one human launch runbook are aligned to
   that implementation.
 
-The pinned offline verifier is **407 passed, 0 failed**:
+The pinned offline verifier is **412 passed, 0 failed**:
 
 | Harness | Assertions |
 |---|---:|
 | Slice | 28 |
-| EngineHarness | 159 |
+| EngineHarness | 164 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
 | StoreParityHarness | 25 |
@@ -52,7 +53,7 @@ The pinned offline verifier is **407 passed, 0 failed**:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| **Total** | **407** |
+| **Total** | **412** |
 
 ## Current product path
 
