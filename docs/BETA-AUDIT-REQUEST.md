@@ -25,7 +25,9 @@ Branch: `codex/r6-dependency-sbom`
 
 The inventory uses NuGet package metadata and local restored-package hashes;
 it is not runtime network evidence and does not inspect a deployed site. No
-package was installed. PowerShell 7 byte validation remains for CI.
+package was installed. PR #26 is BLOCKED and unmerged: push/pull-request run
+pairs `31236649674`/`31236667575` and `31236744839`/`31236746674` built 0/0 but
+failed the PowerShell 7 byte comparison. See `docs/BETA-BLOCKED.md` and Q07.
 
 No deploy, console mutation, email, purchase, signing, install, secret access,
 certificate/store mutation, reboot, scheduled-task registration, off-repo

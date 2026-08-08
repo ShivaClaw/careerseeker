@@ -2,7 +2,7 @@
 
 Updated: 2026-08-07
 
-## 2026-08-07 (Terra R6b) - Reproducible dependency/SBOM inventory prepared
+## 2026-08-07 (Terra R6b) - Dependency/SBOM inventory BLOCKED in CI
 
 Branch: `codex/r6-dependency-sbom`, based on fresh `origin/main` at
 `3a89fb58673712ac46aff82b35d7d269cb15793c`.
@@ -65,9 +65,15 @@ MSIX SHA-256: 260CA477DC907EAF9543D51B77F23A32B90170DC251B85D32D2DBF1B6C0B37B9
 ```
 
 The package hash is a per-build unsigned-candidate measurement, not final
-release metadata. PowerShell 7 byte validation remains to be proved by CI.
-R6 remains IN PROGRESS: R6(c) PSScriptAnalyzer and R6(d) ordered-backlog review
-are separate future slices.
+release metadata. PR #26's first push/pull-request CI pair (`31236649674`,
+`31236667575`) built 0/0 but found a PowerShell 7 SPDX byte mismatch. Replacing
+`ConvertTo-Json` with a restricted deterministic serializer kept the local
+14,897-byte artifact and hash identical, and offline verification repeated
+418/0. The second push/pull-request pair (`31236744839`, `31236746674`) built
+0/0 but found the same byte mismatch. The bounded two-attempt limit is reached;
+PR #26 is open and unmerged, and R6(b) is BLOCKED pending Q07's one-run
+diagnostic. R6(c) PSScriptAnalyzer and R6(d) ordered-backlog review remain
+separate future slices.
 
 Boundary: no deploy, console mutation, email, purchase, signing, install,
 secret access, certificate/store mutation, reboot, scheduled-task

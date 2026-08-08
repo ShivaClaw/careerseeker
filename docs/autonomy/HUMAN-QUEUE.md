@@ -253,3 +253,23 @@ Then retain human evidence for all of the following before changing D08:
 
 No runtime capture, production-site scan, license acceptance, or D08 status
 promotion was executed in R6(b).
+
+## Q07 - Diagnose R6(b) cross-host SPDX byte drift
+
+Status: BLOCKING PR #26 after the two-attempt limit. Local Windows PowerShell
+5.1 validation passes, but both PowerShell 7 CI pairs failed the exact byte
+comparison after successful 0/0 builds.
+
+Authorize one diagnostic workflow run that records only:
+
+1. SHA-256 and byte length of the runner-generated SPDX document;
+2. the first byte offset that differs from
+   `docs/Dependency-SBOM.spdx.json`; and
+3. either a bounded escaped excerpt around that offset or the generated SPDX as
+   a short-lived workflow artifact.
+
+Compare against the committed 14,897-byte artifact with SHA-256
+`A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E`.
+Fix the identified environment-dependent field, retain the exact byte check,
+then require both push and pull-request CI runs green before merging PR #26.
+Do not treat a semantic-only comparison as an unblock.
