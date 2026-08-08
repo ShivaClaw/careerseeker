@@ -62,9 +62,16 @@ Build succeeded. 0 warnings, 0 errors.
 Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
 Package creation and one-executable structural self-check passed.
 Provider calls: 0. Gmail calls/drafts: 0.
-MSIX bytes: 33,671,096
-MSIX SHA-256: 1C1896E57A229EF955F5A59829B8B64C30748D124636BCD7388164DD7D07BC71
+MSIX bytes: 33,670,999
+MSIX SHA-256: F222B6A27839BF4A2C9EF0E54147B2C24C671E570DC9EBDB3EF2D9F368D21E22
 ```
+
+The first final-push workflow pair passed: push run `31233008890` and
+pull-request run `31233010643`. A fresh fetch then found `origin/main`
+unchanged and no Claude state branch; the required rebase was a no-op. The
+post-rebase full gate repeated build 0/0, offline 412/0, the healthy published
+demo, and the one-executable package self-check. The package bytes/hash above
+are from that post-rebase run; package reproducibility is not claimed.
 
 Boundary: no deploy, console mutation, email, purchase, signing, install,
 secret access, certificate/store mutation, reboot, scheduled-task
