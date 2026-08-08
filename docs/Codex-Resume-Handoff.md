@@ -2,6 +2,85 @@
 
 Updated: 2026-08-07
 
+## 2026-08-07 (Terra R6b) - Dependency/SBOM inventory BLOCKED in CI
+
+Branch: `codex/r6-dependency-sbom`, based on fresh `origin/main` at
+`3a89fb58673712ac46aff82b35d7d269cb15793c`.
+
+R6(b) adds a reviewable SPDX 2.3 JSON snapshot plus a generator that joins the
+source-declared NuGet roots and resolved transitive graph to local nuspec
+license metadata and package SHA-512 hashes. The measured graph is nine unique
+packages: three direct runtime, five transitive runtime, and one explicit
+build-only package. Seven nuspecs declare SPDX license expressions; legacy
+`System.Memory 4.5.3` and `Microsoft.Windows.SDK.BuildTools
+10.0.26100.7705` remain `NOASSERTION` and are queued for human license review.
+
+The committed SPDX artifact is canonical UTF-8/LF/no-BOM and has SHA-256
+`A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E`.
+Validation is byte-for-byte and is part of the offline verifier. A publish-
+state test found that the SDK injects auto-referenced `Microsoft.NET.ILLink.Tasks`
+into assets; the generator now excludes SDK auto-references from the source
+dependency graph. Windows PowerShell 5.1 validation still produced nine
+packages after a full publish, and a simulated `core.autocrlf=true` checkout
+preserved the exact committed hash.
+
+Both NuGet advisory queries used `https://api.nuget.org/v3/index.json` and
+reported zero vulnerability entries for the solution and packaging tool.
+That result is a dated package-metadata observation, not a runtime or deployed-
+site network audit. Positioning D08 therefore remains explicitly UNPROVEN;
+Q06 records the signed-binary destination capture, deployed-site tracker scan,
+and two-license review still required.
+
+Executed verification before the pull request:
+
+```text
+> scripts\New-DependencySbom.ps1 -NoRestore -ValidateOnly
+9 packages: 3 direct runtime, 5 transitive runtime, 1 build-only.
+2 license NOASSERTION; validation passed after the publish gate.
+
+> Windows PowerShell 5.1 validation + simulated core.autocrlf=true checkout
+Working-tree SHA-256: A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E
+Checkout SHA-256:     A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E
+
+> dotnet list ... package --vulnerable --include-transitive --format json
+Solution vulnerability entries: 0; tool vulnerability entries: 0.
+
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 418 passed, 0 failed ===
+
+> dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest
+Build succeeded. 0 warnings, 0 errors.
+
+> dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore
+Exit code: 0; no output.
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 418 passed, 0 failed ===
+Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+Package: one CareerSeeker.exe; provider calls 0; Gmail calls/drafts 0.
+MSIX bytes: 33,666,333
+MSIX SHA-256: 260CA477DC907EAF9543D51B77F23A32B90170DC251B85D32D2DBF1B6C0B37B9
+```
+
+The package hash is a per-build unsigned-candidate measurement, not final
+release metadata. PR #26's first push/pull-request CI pair (`31236649674`,
+`31236667575`) built 0/0 but found a PowerShell 7 SPDX byte mismatch. Replacing
+`ConvertTo-Json` with a restricted deterministic serializer kept the local
+14,897-byte artifact and hash identical, and offline verification repeated
+418/0. The second push/pull-request pair (`31236744839`, `31236746674`) built
+0/0 but found the same byte mismatch. The bounded two-attempt limit is reached;
+PR #26 is open and unmerged, and R6(b) is BLOCKED pending Q07's one-run
+diagnostic. R6(c) PSScriptAnalyzer and R6(d) ordered-backlog review remain
+separate future slices.
+
+Boundary: no deploy, console mutation, email, purchase, signing, install,
+secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, `.appdata`-original mutation, public ATS read, or live
+provider/Gmail action occurred. No dependency was installed.
+
 ## 2026-08-07 (Terra R6a) - Confirmed installed-workspace deletion implemented
 
 Branch: `codex/r6-delete-all-data`, PR #25, based on fresh `origin/main` at

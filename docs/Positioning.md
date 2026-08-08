@@ -51,7 +51,7 @@ the supporting file changes.
 | D05 | “Inference providers may receive posting text, selected profile claims, generated text, research snippets, and Gate prompts.” | PROVEN | Prompt builders expose these bounded categories. | `src/Tailor/GatewayTailorModel.cs:83`, `src/Researcher/GatewayDossierModel.cs:50`, `src/Verifier/GatewaySemanticMatcher.cs:43` |
 | D06 | “CareerSeeker does not use Google user data to train generalized AI/ML models.” | POLICY | Limited Use commitment; not a repository-executable property. | `docs-site/privacy.md` §5 |
 | D07 | “CareerSeeker does not sell or license user data.” | POLICY | Business/data-practice commitment; requires organizational compliance evidence. | `docs-site/privacy.md` §7 |
-| D08 | “CareerSeeker uses no analytics, advertising, or tracking services.” | **UNPROVEN** | No whole-binary/network inventory or deployed-site tracker scan is pinned in CI. Keep as a policy statement until both exist. | Needed: SBOM/network audit + deployed-site scan |
+| D08 | “CareerSeeker uses no analytics, advertising, or tracking services.” | **UNPROVEN (SBOM evidence prepared)** | A CI-drift-checked SPDX snapshot covers all nine resolved NuGet packages and finds only database/PDF/compatibility/native-SQLite/build components. Package identity is not runtime network evidence; no published-binary destination audit or deployed-site tracker scan has run. | `docs/Dependency-SBOM-Inventory.md`, `docs/Dependency-SBOM.spdx.json`; still needed: binary/network audit + deployed-site scan |
 | D09 | “All CareerSeeker product data has no server-side retention.” | **UNPROVEN** | Local Windows pipeline is proven, but the operated signup/KV service means the sentence needs precise product-data scope and deployment audit. | Needed: production data-flow/retention inventory |
 | D10 | “You can delete all local data.” | PROVEN for installed workspace | `delete-all-data` resolves only `%LOCALAPPDATA%\CareerSeeker`, requires the exact displayed path-bound phrase, refuses broad/arbitrary roots, removes without following directory links, verifies absence, and reports already-absent truthfully. Source/test workspaces and separately saved exports remain explicitly out of scope. | `src/Engine/FullDataDeletion.cs:24`, `src/Engine/FullDataDeletion.cs:33`, `src/Engine/Program.cs:20`, `tests/EngineHarness/Program.cs:224`, `tests/EngineHarness/Program.cs:255` |
 
@@ -71,7 +71,7 @@ the supporting file changes.
 
 Before deployment, Brandon should explicitly accept or revise:
 
-1. D08/D09 wording after a production tracker/data-retention inventory.
+1. D08/D09 wording after the remaining production tracker/network and data-retention inventories; the NuGet SBOM alone does not close D08.
 2. D10 wording must retain its installed-workspace scope and the separate source/test/export caveat.
 3. O03 wording: “structured to preserve” is more precise than claiming a real uninstall test.
 4. O05/O06: keep absent from marketing until the installer/reboot/OAuth/signing gates pass.

@@ -41,6 +41,9 @@ The B0-B8 Windows ladder is implemented:
   that implementation.
 - **R6(a) deletion:** the app resolves only the installed per-user workspace, requires a second exact
   path-bound confirmation, refuses broad roots/links, and verifies absence before reporting completion.
+- **R6(b) dependency evidence:** a deterministic SPDX 2.3 snapshot pins nine resolved NuGet components,
+  content hashes, scopes, project use, and declared-license evidence; NuGet advisory queries reported zero
+  known vulnerabilities for the dated snapshot. D08 remains unproven pending binary/network and site scans.
 
 The pinned offline verifier is **418 passed, 0 failed**:
 
@@ -232,8 +235,9 @@ None of those external actions were executed by B8.
 - OAuth production verification/CASA pending.
 - Public trust-copy deployment pending.
 - Broad `role_reassign` false positives pending a reviewed detector change plus fixtures.
-- Dependency/SBOM inventory and the repository-wide PSScriptAnalyzer pass remain R6 work. The app now has
-  a separately confirmed exact-path `delete-all-data` workflow; app removal remains a distinct action.
+- The repository-wide PSScriptAnalyzer pass and ordered-backlog review remain R6 work. The dependency/SBOM
+  snapshot and confirmed exact-path `delete-all-data` workflow are implemented; D08 still needs runtime and
+  deployed-site evidence, and app removal remains a distinct action.
 - No higher autonomy, Gmail send/read/modify, calendar, or ATS-submit implementation.
 - Existing loopback document-token/query-string and missing Origin/Referer residuals remain accepted only for
   the local-only threat model; revisit before any non-loopback exposure.
@@ -244,6 +248,7 @@ None of those external actions were executed by B8.
 - Milestone audit: `docs/BETA-AUDIT-REQUEST.md`
 - External audit: `docs/External-Audit-Handoff.md`
 - Claims register: `docs/Positioning.md`
+- Dependency inventory: `docs/Dependency-SBOM-Inventory.md`
 - Human launch runbook: `docs/Beta-Runbook.md`
 - Package details: `docs/Beta-Windows-Package-Runbook.md`
 - Session chronology: `docs/Codex-Resume-Handoff.md`
