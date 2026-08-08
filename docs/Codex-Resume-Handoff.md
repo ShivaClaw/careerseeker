@@ -2,6 +2,79 @@
 
 Updated: 2026-08-07
 
+## 2026-08-07 (Terra R5) - Beta distribution copy staged in-repository
+
+Branch: `codex/r5-distribution-prep`, PR #24, based on fresh `origin/main` at
+`5661342b1263089a1724fa1eb0cc22e85db7201e`.
+
+R5 now has a tester-facing Alpha-to-Beta changelog, a preservation-first
+migration guide, and paired Markdown/HTML download copy. The shipped baseline
+is the exact `7018ff9` Alpha ZIP: 64,937,092 bytes and SHA-256
+`3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2`.
+The page names `CareerSeeker-beta-win-x64.msix` but offers no artifact link and
+says the Beta download is not yet available. It describes the candidate as
+unsigned and leaves human signing and disposable-machine testing as release
+gates. It does not promote the unproven signing, unattended-reboot, or release-
+readiness sentences from the Positioning register.
+
+The migration guide uses the existing evidence-package export/import path,
+keeps raw payloads excluded, omits overwrite, and explains that provider-key
+and OAuth vaults do not transfer. Its engineering basis includes the measured
+R2 read-only backup result: the 172,032-byte source stayed at SHA-256
+`0A5605288D04302443A129289E03E5B62DA1C7B535FE124B0935455238E18192`
+after copy migration ran twice. A preview of the documented import assembled
+the database, artifacts, and job-description targets under
+`%LOCALAPPDATA%\CareerSeeker\.appdata`, reported `overwrite: no`, and executed
+no import.
+
+`docs/Positioning.md` source lines were re-read against the post-R1 tree and
+refreshed. The verifier now pins the shipped baseline, honest download status,
+absence of a Beta artifact href and prohibited public claims, migration-copy
+evidence, and the runbook's new `/download/` production-diff input.
+
+Executed verification before the pull request:
+
+```text
+> scripts\Import-AlphaPackage.ps1 -PreviewOnly ...
+Preview only: command was assembled but not executed.
+target: C:\Users\bkirk\AppData\Local\CareerSeeker\.appdata
+overwrite: no
+
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 412 passed, 0 failed ===
+
+> dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest
+Build succeeded. 0 warnings, 0 errors.
+
+> dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore
+Exit code: 0; no output.
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 412 passed, 0 failed ===
+Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+Package: one CareerSeeker.exe; provider calls 0; Gmail calls/drafts 0.
+MSIX bytes: 33,671,067
+MSIX SHA-256: 3517C50DBB743F88907BC20ABADD65A0133BF988AB74A6D0FA1B78BED1C6482B
+```
+
+The package hash is a per-build unsigned-candidate measurement; byte-for-byte
+reproducibility and final release metadata are not claimed. PR #24's initial
+push run `31234865823` and pull-request run `31234881620` passed. A mandatory
+fresh fetch found `origin/main` unchanged at `5661342` and no Claude state
+branch; `git rebase origin/main` was a no-op. The post-fetch full gate repeated
+build 0/0, offline 412/0, the published demo, and the one-executable package
+self-check. That final local candidate measured 33,671,071 bytes with SHA-256
+`02762BEC262687B1BD608B27A2FBFEBABF3AF8A8F54DF5066BE08B116C7FF158`.
+R5 is DONE as repository-only preparation; no artifact was published.
+
+Boundary: no deploy, console mutation, email, purchase, signing, install,
+secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, `.appdata`-original mutation, public ATS read, or live
+provider/Gmail action occurred.
+
 ## 2026-08-07 (Terra R4) - Signing and install readiness prepared offline
 
 Branch: `codex/r4-signing-install-readiness`, PR #23, based on fresh
