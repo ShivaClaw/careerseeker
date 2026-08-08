@@ -1,14 +1,11 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T19:12:39-06:00
-- **Current rung:** R1 IN PROGRESS — implementation and local gates green;
-  PR/CI/merge pending.
+- **Heartbeat:** 2026-08-07T19:20:00-06:00
+- **Current rung:** R1 DONE — PR #20 merged normally as
+  `b9149211d5ad6d5f134ebdcd8c71b13feb7f6c9e`.
 - **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r1` /
   `codex/r1-scoring-calibration`.
-- **Files claimed:** `src/Engine/LexicalSemanticScorer.cs`, Engine ranking
-  surfaces/docs, `tests/EngineHarness/Program.cs`, `scripts/Verify-Alpha.ps1`,
-  count-bearing docs, `docs/Scoring-Calibration.md`,
-  `docs/autonomy/CODEX-STATE.md`, and `docs/Codex-Resume-Handoff.md`.
+- **Files claimed:** none for the next iteration.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -22,9 +19,11 @@
   healthy demo Act path, and passed EngineHarness 164/0. Offline gate is
   412/0; analyzer build is 0/0; full publish/package gate and one-executable
   structural check passed with zero provider/Gmail calls.
-- **Next intent:** commit/push the R1 slice, open its evidence PR, wait for both
-  CI runs, refresh/rebase, rerun the full gate, merge normally, then mark R1
-  DONE in both state ledgers and stop the iteration.
+- **Merge evidence:** final push and pull-request CI runs `31232288424` and
+  `31232290498` passed after the no-op rebase and full local package gate.
+- **Next intent:** stop this clean R1 iteration. On the next iteration, fetch
+  all refs, read both state branches, and take one R2 real-profile rehearsal
+  slice only if it does not collide with Claude's claims.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
