@@ -356,11 +356,35 @@ Invoke-Step "Public README and harness count smoke" {
     Assert-Contains $engineReadme @(
         '| **Total** | **412** |',
         'default `lexical-v2` ranker is deterministic and local',
+        'Final counters distinguish `scored` and `act-eligible`',
+        '--migration-output tmp\rehearsal\careerseeker.db',
         'Implicit activation from the installed MSIX is stricter',
         'one `CareerSeeker.exe`',
         '`%LOCALAPPDATA%\CareerSeeker`',
         'Native SCM Windows Service and tray UI are not built'
     ) "src/Engine/README.md"
+
+    $engineCore = Get-Content -LiteralPath "src/Engine/EngineCore.cs" -Raw
+    Assert-Contains $engineCore @(
+        'public long Scored => Interlocked.Read(ref _scored);',
+        'public long ActEligible => Interlocked.Read(ref _actEligible);',
+        '_counters.IncScored();',
+        '_counters.IncActEligible();'
+    ) "src/Engine/EngineCore.cs"
+
+    $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    Assert-Contains $engineProgram @(
+        'Console.WriteLine($"  scored: {counters.Scored}");',
+        'Console.WriteLine($"  act-eligible: {counters.ActEligible}");'
+    ) "src/Engine/Program.cs"
+
+    $storeParity = Get-Content -LiteralPath "tests/StoreParityHarness/Program.cs" -Raw
+    Assert-Contains $storeParity @(
+        '--migration-output',
+        'SqliteOpenMode.ReadOnly',
+        'sourceHashBefore.SequenceEqual(sourceHashAfter)',
+        'Migration output already exists; refusing to overwrite it.'
+    ) "tests/StoreParityHarness/Program.cs"
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(

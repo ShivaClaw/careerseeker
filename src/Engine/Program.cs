@@ -1654,6 +1654,8 @@ void PrintCounters(EngineCounters counters)
     Console.WriteLine("Final counters");
     Console.WriteLine($"  cycles: {counters.Cycles}");
     Console.WriteLine($"  discovered: {counters.Discovered}");
+    Console.WriteLine($"  scored: {counters.Scored}");
+    Console.WriteLine($"  act-eligible: {counters.ActEligible}");
     Console.WriteLine($"  acted: {counters.Acted}");
     Console.WriteLine($"  drafted: {counters.Drafted}");
     Console.WriteLine($"  blocked: {counters.Blocked}");

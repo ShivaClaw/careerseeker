@@ -6,6 +6,34 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## R2 - Real-profile rehearsal (BLOCKED)
+
+Branch: `codex/r2-real-profile-rehearsal`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-08-07 MDT / 2026-08-08 UTC |
+|---|---|---|
+| The rehearsal database is a retained SQLite backup, and its source is unchanged. | `dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release --no-build -- --migration-copy C:\Users\bkirk\Documents\CareerSeeker\.appdata\careerseeker-alpha.db --migration-output tmp\r2-rehearsal\careerseeker-r2.db`, followed by `Get-FileHash -Algorithm SHA256` on the source | Copy integrity/current columns and idempotent migration passed. Source before/after: 172,032 bytes, last-write UTC `2026-07-19T23:04:58`, SHA-256 `0A560528C486375383F1F84F1BA8EA1536B341C75C8BC5EF0CF3D1BEE4E18192`. |
+| The copy uses a realistic-size synthetic profile rather than the repeated demo claims. | `dotnet run --project src\Engine\SeekerSvc.Engine.csproj -c Release --no-build -- import-profile --profile tests\fixtures\r2-realistic-profile.json --db tmp\r2-rehearsal\careerseeker-r2.db` | Import reported 31 claims and `replacement verified: yes`; an exact scorer-tokenizer-equivalent count measured 321 distinct rankable terms. |
+| The non-empty public cycle remained draft-free and audit-clean, but did not satisfy R2 acceptance. | `dotnet run --project src\Engine\SeekerSvc.Engine.csproj -c Release --no-build -- run --once --dry-run --llm fake --board greenhouse:remotecom --discovery-timeout-seconds 90 --http-timeout-seconds 30 --max-drafts-per-cycle 10 --db tmp\r2-rehearsal\careerseeker-r2.db --artifacts tmp\r2-rehearsal\artifacts --jd-dir tmp\r2-rehearsal\job-descriptions` | 58 discovered, 12 quarantined, 46 scored/rejected, 0 act-eligible/acted/drafted/errors; audit chain ok. Offline copied-DB analysis measured total 2.36–3.63, mean 2.932. |
+| The second and final bounded public attempt was empty. | Same command with `--board lever:mistral` | 0 discovered/scored/act-eligible/drafted/errors; audit chain ok. |
+| The final default audit export contains only hash evidence. | `dotnet run --project src\Engine\SeekerSvc.Engine.csproj -c Release --no-build -- export-audit --db tmp\r2-rehearsal\careerseeker-r2.db --out tmp\r2-rehearsal\audit-final.json` | Audit ok; two named cycle rows; 256 events; `payloadsIncluded: false`; Remote reason counts `{"role_reassign":12}`. |
+
+### Block and boundary
+
+R2 requires `act-eligible > 0`, so it is BLOCKED after two bounded attempts.
+The 4.0 rail was not changed to fit a volatile feed, and no third public cycle
+was run. The smallest human unblock is recorded in `docs/BETA-BLOCKED.md`.
+Because R2 is not DONE, R3's one authorized live Gmail draft cycle remains
+ineligible and was not executed.
+
+No deploy, console mutation, email, purchase, signing, install, secret access,
+certificate/store mutation, reboot, scheduled-task registration, off-repo
+site edit, Android/relay/sync change, force-push, history rewrite,
+`.appdata`-original mutation, or live provider/Gmail action occurred. Public
+ATS GETs were the only network activity.
+
 ## R1 - Scoring realism calibration
 
 Branch: `codex/r1-scoring-calibration`

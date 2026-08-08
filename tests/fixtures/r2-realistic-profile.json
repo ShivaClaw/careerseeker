@@ -1,0 +1,196 @@
+{
+  "format": "careerseeker-alpha-profile-v1",
+  "profile": {
+    "name": "R2 Fixture Candidate",
+    "headline": "Senior Staff Software and Platform Engineer",
+    "summary": "Synthetic resume-derived fixture for offline and bounded public-board scoring rehearsal."
+  },
+  "claims": [
+    {
+      "kind": "Title",
+      "text": "Senior Staff Software Engineer, Platform Engineer, Backend Engineer, Technical Lead, Solutions Architect",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "C# .NET ASP.NET Core Entity Framework LINQ REST GraphQL gRPC Web API background services",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "Java Kotlin Spring Boot Go Golang Python FastAPI Flask Node.js JavaScript TypeScript",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "React Next.js Vue Angular HTML CSS accessibility responsive design frontend architecture component systems",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "distributed systems microservices service oriented architecture event driven architecture domain driven design",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "Amazon Web Services AWS Azure Google Cloud Platform GCP cloud infrastructure serverless containers",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "Kubernetes Docker Helm Terraform Pulumi CloudFormation infrastructure as code GitOps ArgoCD deployment automation",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "PostgreSQL SQL Server MySQL SQLite DynamoDB Cosmos DB MongoDB Redis Elasticsearch OpenSearch",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "Kafka RabbitMQ Amazon SQS Azure Service Bus queues streams messaging pubsub event sourcing CQRS",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "data modeling schema design query optimization indexing transactions consistency replication sharding caching",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "system design scalability reliability availability resilience fault tolerance performance capacity planning",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "observability OpenTelemetry Prometheus Grafana Datadog logging metrics tracing alerting dashboards incident response",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "site reliability engineering SRE service level objectives SLO SLA error budgets on call operations",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "continuous integration continuous delivery CI CD GitHub Actions Azure DevOps Jenkins build release pipelines",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "unit testing integration testing contract testing end to end testing property testing test automation quality engineering",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "application security threat modeling secure coding OAuth OIDC identity access management encryption secrets management",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "networking HTTP TLS DNS load balancing proxies gateways firewalls zero trust private networking service mesh",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "Linux Windows PowerShell Bash command line debugging profiling diagnostics memory concurrency multithreading",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "Git version control pull requests code review trunk based development branching release management",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "agile Scrum Kanban product discovery roadmap planning estimation prioritization requirements user stories",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "technical leadership mentoring coaching hiring interviewing onboarding stakeholder management cross functional collaboration",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "architecture decision records design documents technical strategy modernization migration decomposition platform engineering",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "developer experience internal platforms self service tooling documentation standards governance reusable libraries",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "machine learning artificial intelligence generative AI large language models embeddings retrieval augmented generation",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "data engineering ETL ELT analytics warehouses lakes batch processing stream processing orchestration Airflow",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "API design backward compatibility idempotency pagination rate limiting webhooks authentication authorization",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Skill",
+      "text": "payments billing subscriptions commerce financial systems auditability compliance privacy data protection",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Other",
+      "text": "Designed and delivered reliable customer facing services from product discovery through production operations.",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Other",
+      "text": "Led architecture reviews, clarified tradeoffs, reduced operational risk, and supported engineers through complex migrations.",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Other",
+      "text": "Partnered with product, design, security, support, finance, and operations teams across remote organizations.",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    },
+    {
+      "kind": "Education",
+      "text": "Bachelor of Science in Computer Science including algorithms data structures databases operating systems and software engineering",
+      "confidence": "verified",
+      "sourceDoc": "r2-fixture-resume.md"
+    }
+  ]
+}

@@ -378,7 +378,9 @@ var counters = new EngineCounters();
     var cycle = new EngineCycle(store, feed, new FakeSemantic(), pipeline, opt, counters);
 
     await cycle.TickAsync();
-    Check("discovered 3", counters.Discovered == 3, counters.Discovered.ToString());
+    Check("discovered/scored/act-eligible funnel is 3/3/2",
+        counters.Discovered == 3 && counters.Scored == 3 && counters.ActEligible == 2,
+        $"{counters.Discovered}/{counters.Scored}/{counters.ActEligible}");
     Check("drafted 1 (healthy, clean)", counters.Drafted == 1, counters.Drafted.ToString());
     Check("rejected 1 (scam floor)", counters.Rejected == 1, counters.Rejected.ToString());
     Check("blocked 1 (fabrication caught in-loop)", counters.Blocked == 1, counters.Blocked.ToString());
@@ -902,8 +904,10 @@ Console.WriteLine("\n[ discovery-only run ]");
     Check("discovery-only run stores the job without a simulated draft or application",
         (await store.GetRecentJobsAsync(50)).Any(j => j.ExternalId == "discovery-only") &&
         (await store.GetRecentApplicationsAsync(50)).Count == 0 &&
+        countersOnly.Scored == 1 && countersOnly.ActEligible == 1 &&
         countersOnly.Drafted == 0 && countersOnly.Acted == 0 && gmail.Drafts == 0,
-        $"apps={(await store.GetRecentApplicationsAsync(50)).Count} drafted={countersOnly.Drafted} gmail={gmail.Drafts}");
+        $"apps={(await store.GetRecentApplicationsAsync(50)).Count} scored={countersOnly.Scored} " +
+        $"eligible={countersOnly.ActEligible} drafted={countersOnly.Drafted} gmail={gmail.Drafts}");
 }
 
 // ── 3) live localhost dashboard over HTTP ──────────────────────────────────────────────────────────

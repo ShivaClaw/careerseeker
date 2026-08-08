@@ -16,6 +16,7 @@ dotnet run -c Release --project src\Engine\SeekerSvc.Engine.csproj -- `
 Important switches:
 
 - `--dry-run`: discovery, persistence, telemetry, and ranking only; no application or simulated draft.
+  Final counters distinguish `scored` and `act-eligible` from the deliberately zero `acted`/`drafted` values.
 - `--once`: one bounded sweep.
 - `--board greenhouse:<handle>`, `lever:<handle>`, or `ashby:<handle>`: choose public ATS boards.
 - `--max-drafts-per-cycle <n>`: cap acted postings; the default is 10.
@@ -163,6 +164,17 @@ Run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\Verify-Alpha.ps1
+```
+
+For a rehearsal that must preserve an existing database, create one retained,
+verified backup through the same read-only migration-copy API used by the
+parity harness. The command refuses to overwrite its destination and verifies
+the source's length, timestamp, and SHA-256 before retaining the copy:
+
+```powershell
+dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release --no-build -- `
+  --migration-copy .appdata\careerseeker-alpha.db `
+  --migration-output tmp\rehearsal\careerseeker.db
 ```
 
 ## Deliberate gaps
