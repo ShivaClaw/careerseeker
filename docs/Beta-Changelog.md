@@ -33,6 +33,9 @@ specific until the final artifact is signed and selected for release.
   for each 10/50/200-term fixture profile across a 120-posting corpus.
 - Alpha evidence packages can be exported and imported with path-safety,
   preservation-by-default, and audit verification.
+- The app now includes a two-step `delete-all-data` mode for the exact installed
+  workspace. Its first run deletes nothing; only the exact displayed
+  path-bound confirmation can remove data, and completion is verified.
 
 ## Safety boundaries retained
 
@@ -62,5 +65,3 @@ Reconnect or reconfigure those integrations after migration if wanted.
 - The R2 real-profile rehearsal is blocked after two bounded public-board
   attempts produced zero Act-eligible postings; the authorized live Gmail
   drafting allowance therefore remains unused.
-- In-app confirmed full data deletion is scheduled for R6. Until then, use the
-  documented exact-path manual removal workflow.

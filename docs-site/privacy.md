@@ -83,7 +83,7 @@ CareerSeeker does not:
 | **Pause or stop the engine** | Use the local dashboard/control files or stop the local process/service host. A native tray is not built. |
 | **Revoke Gmail access** | Use the token-protected local dashboard control, or run `CareerSeeker.exe disconnect-gmail` from source/an unpacked test tree, then optionally confirm removal from Google Account permissions. |
 | **Revoke LLM provider keys** | Run `CareerSeeker.exe clear-byok` from source/an unpacked test tree, then delete any environment or `secrets/env.secrets` copies you supplied. |
-| **Delete all local data** | Uninstalling preserves user data. After a separate explicit confirmation, delete the exact `%LOCALAPPDATA%\CareerSeeker` workspace (or the configured source/test workspace). |
+| **Delete all local data** | While the app is available, run `CareerSeeker.exe delete-all-data` once to display the exact `%LOCALAPPDATA%\CareerSeeker` target and its path-bound phrase. Close CareerSeeker, then rerun with that exact `--confirm-delete-all-data` value. The app verifies the target is absent before reporting completion. Uninstall remains a separate action; configured source/test workspaces and exports saved elsewhere remain separately controlled paths. |
 | **Export audit log or local evidence bundle** | Run the local `export-audit`, `export-alpha-package`, or `import-alpha-package` command from source/an unpacked test tree; raw event payloads are opt-in. Historical Alpha `.cmd` helpers are not part of the current MSIX. |
 | **Remove verified claims** | Edit the local profile/claims source and rerun affected applications through the Gate. |
 
@@ -91,7 +91,7 @@ CareerSeeker does not:
 
 Windows-engine L1 profile, job, application, credential, and generated-material data is stored locally with no CareerSeeker server-side retention. The separate public tester-signup service has its own operational signup/release metadata. You control Windows-engine retention by deleting local databases, generated artifacts, and vault files.
 
-Nightly encrypted local backups and in-app deletion controls are planned product features, not completed L1 beta features.
+Nightly encrypted local backups remain a planned feature. Confirmed deletion of the installed per-user workspace is implemented through the local `delete-all-data` command described above.
 
 ## 10. Security
 

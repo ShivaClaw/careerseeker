@@ -74,6 +74,9 @@ export/import steps above remain the tester migration procedure.
 ## Removal boundary
 
 Removing the app package and deleting local user data are separate actions.
-Package removal must not be presented as data deletion. Until the confirmed
-in-app R6 workflow is complete, follow the exact-path manual removal procedure
-in `docs/Beta-Windows-Package-Runbook.md` only after separate confirmation.
+Package removal must not be presented as data deletion. While the app remains
+available, run `CareerSeeker.exe delete-all-data` once to display the exact
+installed-workspace phrase, close CareerSeeker, and supply that exact phrase
+with `--confirm-delete-all-data`. Configured source/test workspaces and exports
+saved elsewhere remain separate paths. The manual post-uninstall fallback is
+documented in `docs/Beta-Windows-Package-Runbook.md`.

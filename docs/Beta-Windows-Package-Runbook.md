@@ -144,16 +144,33 @@ screenshots, and notes. A human executes those steps on a disposable Windows
 VM. The generator itself never installs, registers, reboots, uninstalls, or
 deletes data.
 
-For an intentionally installed tester package, a human can remove only the application with:
+While the package is still installed, resolve its executable and run the
+separately confirmed data off-ramp first without a confirmation:
+
+```powershell
+$Package = Get-AppxPackage CareerSeeker.LocalBeta
+$CareerSeeker = Join-Path $Package.InstallLocation 'CareerSeeker.exe'
+& $CareerSeeker delete-all-data
+```
+
+That invocation must report `NOT DELETED` and print the exact resolved path-bound
+phrase. Close every CareerSeeker process, then copy that phrase exactly:
+
+```powershell
+& $CareerSeeker delete-all-data `
+  --confirm-delete-all-data 'DELETE ALL CAREERSEEKER DATA AT <COPY EXACT DISPLAYED PATH>'
+```
+
+The command must report `target exists after: no`. It refuses an arbitrary or
+volume-root target and does not follow nested directory links. To test package
+removal separately, relaunch once to recreate a synthetic workspace sentinel,
+then remove only the application:
 
 ```powershell
 Get-AppxPackage CareerSeeker.LocalBeta | Remove-AppxPackage
 ```
 
-Only after a separate explicit data-deletion confirmation:
-
-```powershell
-Remove-Item -LiteralPath "$env:LOCALAPPDATA\CareerSeeker" -Recurse -Force
-```
-
-Resolve and inspect that exact path before deletion. Never combine application removal with data deletion.
+If the package was already removed, the in-app command is unavailable; the
+manual fallback remains `Remove-Item -LiteralPath
+"$env:LOCALAPPDATA\CareerSeeker" -Recurse -Force` after resolving and inspecting
+that exact path. Never combine application removal with data deletion.

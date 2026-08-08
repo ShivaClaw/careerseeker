@@ -79,14 +79,14 @@
 <tr><td><strong>Pause or stop the engine</strong></td><td>Use the local dashboard/control files or stop the local process/service host. A native tray is not built.</td></tr>
 <tr><td><strong>Revoke Gmail access</strong></td><td>Use the token-protected local dashboard control, or run <code>CareerSeeker.exe disconnect-gmail</code> from source/an unpacked test tree, then optionally confirm removal from Google Account permissions.</td></tr>
 <tr><td><strong>Revoke LLM provider keys</strong></td><td>Run <code>CareerSeeker.exe clear-byok</code> from source/an unpacked test tree, then delete any environment or <code>secrets/env.secrets</code> copies you supplied.</td></tr>
-<tr><td><strong>Delete all local data</strong></td><td>Uninstalling preserves user data. After a separate explicit confirmation, delete the exact <code>%LOCALAPPDATA%\CareerSeeker</code> workspace (or the configured source/test workspace).</td></tr>
+<tr><td><strong>Delete all local data</strong></td><td>While the app is available, run <code>CareerSeeker.exe delete-all-data</code> once to display the exact <code>%LOCALAPPDATA%\CareerSeeker</code> target and its path-bound phrase. Close CareerSeeker, then rerun with that exact <code>--confirm-delete-all-data</code> value. The app verifies the target is absent before reporting completion. Uninstall remains a separate action; configured source/test workspaces and exports saved elsewhere remain separately controlled paths.</td></tr>
 <tr><td><strong>Export audit log or local evidence bundle</strong></td><td>Run the local <code>export-audit</code>, <code>export-alpha-package</code>, or <code>import-alpha-package</code> command from source/an unpacked test tree; raw event payloads are opt-in. Historical Alpha <code>.cmd</code> helpers are not part of the current MSIX.</td></tr>
 <tr><td><strong>Remove verified claims</strong></td><td>Edit the local profile/claims source and rerun affected applications through the Gate.</td></tr>
 </table>
 
 <h2>9. Data Retention</h2>
 <p>Windows-engine L1 profile, job, application, credential, and generated-material data is stored locally with no CareerSeeker server-side retention. The separate public tester-signup service has its own operational signup/release metadata. You control Windows-engine retention by deleting local databases, generated artifacts, and vault files.</p>
-<p>Nightly encrypted local backups and in-app deletion controls are planned product features, not completed L1 beta features.</p>
+<p>Nightly encrypted local backups remain a planned feature. Confirmed deletion of the installed per-user workspace is implemented through the local <code>delete-all-data</code> command described above.</p>
 
 <h2>10. Security</h2>
 <ul>

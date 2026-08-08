@@ -231,11 +231,12 @@ package registration and fill every recorded-output slot:
 5. Close and relaunch; confirm the engine starts discovery-only and status is honest.
 6. Enable startup manually, reboot, and confirm one engine instance plus local logging.
 7. Pause, resume, and stop through the documented local controls.
-8. Uninstall the application. Confirm Start-menu/startup registration is removed and the local workspace/vault
-   sentinel remains.
-9. Only after a separate explicit data-deletion confirmation, remove the exact resolved
-   `%LOCALAPPDATA%\CareerSeeker` directory and confirm it is gone.
-10. Repeat upgrade-in-place from the previous signed Beta when one exists.
+8. Repeat upgrade-in-place from the previous signed Beta when one exists.
+9. While the app is still installed, run `CareerSeeker.exe delete-all-data` once and confirm it reports
+   `NOT DELETED`. Close every CareerSeeker process, copy the exact displayed path-bound phrase into
+   `--confirm-delete-all-data`, and confirm `target exists after: no`.
+10. Relaunch once to recreate a synthetic workspace sentinel, then uninstall the application. Confirm
+    Start-menu/startup registration is removed while the external sentinel remains.
 
 Do not claim install, uninstall, startup, or reboot support before this matrix is recorded.
 Q04 in `docs/autonomy/HUMAN-QUEUE.md` is the exact handoff.
