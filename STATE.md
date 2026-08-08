@@ -1,8 +1,8 @@
 # Codex coordination state
 
 - **Heartbeat:** 2026-08-07T19:32:28-06:00
-- **Current rung:** R2 BLOCKED locally after two bounded public-board attempts;
-  PR preparation and merge verification are in progress.
+- **Current rung:** R2 BLOCKED after two bounded public-board attempts; PR #21
+  is open and awaiting both CI runs.
 - **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r2` /
   `codex/r2-real-profile-rehearsal`.
 - **Files claimed:** `src/Engine/EngineCore.cs`, `src/Engine/Program.cs`,
@@ -27,7 +27,7 @@
   analyzer build 0/0; package self-check passed with one executable and zero
   provider/Gmail calls. Final post-commit package measured 33,671,096 bytes,
   SHA-256 `1C1896E57A229EF955F5A59829B8B64C30748D124636BCD7388164DD7D07BC71`.
-- **Next intent:** finish the R2 evidence PR, obtain both green CI runs, rebase
+- **Next intent:** obtain both green PR #21 CI runs, rebase
   and repeat the full gate if main moves, merge normally, then release claims.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
