@@ -25,10 +25,13 @@
   limit is reached, so R2 is BLOCKED and R3 remains ineligible.
 - **Verification:** offline/full gates are 0 warnings/0 errors and 412/0;
   analyzer build 0/0; package self-check passed with one executable and zero
-  provider/Gmail calls. Final post-commit package measured 33,671,096 bytes,
-  SHA-256 `1C1896E57A229EF955F5A59829B8B64C30748D124636BCD7388164DD7D07BC71`.
-- **Next intent:** obtain both green PR #21 CI runs, rebase
-  and repeat the full gate if main moves, merge normally, then release claims.
+  provider/Gmail calls. Final post-rebase package measured 33,670,999 bytes,
+  SHA-256 `F222B6A27839BF4A2C9EF0E54147B2C24C671E570DC9EBDB3EF2D9F368D21E22`.
+- **CI/rebase evidence:** push run `31233008890` and PR run `31233010643`
+  passed. Fresh `origin/main` remained `b914921`; rebase was a no-op and the
+  post-rebase full gate repeated 0/0, 412/0, and the package self-check.
+- **Next intent:** push the final evidence-only handoff update, obtain the two
+  replacement green runs, merge PR #21 normally, then release claims.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
