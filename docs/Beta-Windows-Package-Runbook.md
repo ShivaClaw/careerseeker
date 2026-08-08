@@ -1,6 +1,6 @@
 # CareerSeeker Beta Windows package runbook
 
-Updated: 2026-07-30
+Updated: 2026-08-07
 
 ## What B7 produces
 
@@ -40,6 +40,36 @@ Add-AppxPackage -Path .\CareerSeeker-beta-win-x64.msix -AllowUnsigned
 Unsigned installation is a bounded tester path, not a public distribution mechanism. This runbook does not
 install, remove, or alter any package on behalf of the user.
 
+## Offline production-flow validation
+
+R4 adds validation-only paths that exercise parameter and control flow without
+reading a certificate, signing, installing, or writing a VM evidence file.
+Use an already-built disposable MSIX; the PFX path is intentionally allowed to
+be absent in validation-only mode.
+
+```powershell
+$Artifact = 'output\release\CareerSeeker-beta-win-x64.msix'
+$Publisher = 'CN=EXACT CERTIFICATE SUBJECT'
+$Hash = (Get-FileHash -LiteralPath $Artifact -Algorithm SHA256).Hash
+
+powershell -ExecutionPolicy Bypass -File scripts\Sign-BetaRelease.ps1 `
+  -PackagePath $Artifact `
+  -CertificatePath C:\secure\publisher.pfx `
+  -TimestampUrl https://timestamp.digicert.com `
+  -ValidateOnly
+
+powershell -ExecutionPolicy Bypass -File scripts\New-BetaVmInstallMatrix.ps1 `
+  -ArtifactPath $Artifact `
+  -ExpectedSha256 $Hash `
+  -ExpectedPublisher $Publisher `
+  -ValidateOnly
+```
+
+`-ValidateOnly` checks the package suffix/existence, HTTPS timestamp URL,
+expected SHA-256, publisher shape, repository-local paths, and all eleven VM
+step definitions. It does not prove a signature, publisher identity, install,
+startup, reboot, upgrade, uninstall, or deletion result.
+
 ## Production signing handoff
 
 Windows requires a trusted signature for ordinary MSIX distribution. Before building, set `-Publisher` to
@@ -56,11 +86,24 @@ powershell -ExecutionPolicy Bypass -File scripts\Sign-BetaRelease.ps1 `
   -PackagePath output\release\CareerSeeker-beta-win-x64.msix `
   -CertificatePath C:\secure\publisher.pfx
 Remove-Item Env:\CAREERSEEKER_SIGNING_PASSWORD
+
+powershell -ExecutionPolicy Bypass -File scripts\Test-BetaReleasePackage.ps1 `
+  -PackagePath output\release\CareerSeeker-beta-win-x64.msix `
+  -ExpectedPublisher 'CN=EXACT CERTIFICATE SUBJECT' `
+  -RequireSigned
 ```
 
-For public Beta, prefer Azure Artifact Signing in CI after human account/identity setup. A human must create
-that service, choose its billing, approve GitHub permissions/secrets, and configure the signing action. This
-agent intentionally performs none of those live-service actions.
+The signing hook now verifies the result with SignTool before returning. The
+package verifier independently requires an exact manifest-publisher match,
+rejects Microsoft's unsigned-package OID, and requires SignTool policy
+verification when `-RequireSigned` is supplied.
+
+For public Beta, prefer Azure Artifact Signing in CI after human account and
+identity setup. `docs/autonomy/HUMAN-QUEUE.md` Q03 records the current Azure
+CLI resource/RBAC commands and the manual GitHub OIDC signing-action shape. A
+human must choose billing, complete portal-only identity validation, approve
+repository permissions, and execute the signing workflow. This agent
+intentionally performs none of those live-service actions.
 
 Microsoft references:
 
@@ -68,6 +111,9 @@ Microsoft references:
 - https://learn.microsoft.com/windows/msix/package/unsigned-package
 - https://learn.microsoft.com/windows/msix/desktop/tamper-protection
 - https://learn.microsoft.com/windows/apps/desktop/modernize/desktop-to-uwp-extensions
+- https://learn.microsoft.com/azure/artifact-signing/quickstart
+- https://learn.microsoft.com/azure/artifact-signing/tutorial-assign-roles
+- https://github.com/Azure/artifact-signing-action
 
 ## Verification and removal
 
@@ -78,6 +124,25 @@ Microsoft references:
 - no `.appdata`, output, DPAPI vault, token, or plaintext secret payload;
 - the unpacked executable traverses the ten-step offline setup smoke with zero provider/Gmail calls;
 - deleting the unpacked package tree leaves a synthetic external user vault untouched.
+
+After a real signed artifact passes `-ExpectedPublisher ... -RequireSigned`,
+initialize a recorded-output checklist (still without installing anything):
+
+```powershell
+$Artifact = 'output\release\CareerSeeker-beta-win-x64.msix'
+$Hash = (Get-FileHash -LiteralPath $Artifact -Algorithm SHA256).Hash
+powershell -ExecutionPolicy Bypass -File scripts\New-BetaVmInstallMatrix.ps1 `
+  -ArtifactPath $Artifact `
+  -ExpectedSha256 $Hash `
+  -ExpectedPublisher 'CN=EXACT CERTIFICATE SUBJECT' `
+  -OutputPath output\release\Beta-VM-Install-Matrix.md
+```
+
+The generator first performs the signed-package verification and then writes
+eleven `PENDING` steps with slots for timestamps, commands/observations,
+screenshots, and notes. A human executes those steps on a disposable Windows
+VM. The generator itself never installs, registers, reboots, uninstalls, or
+deletes data.
 
 For an intentionally installed tester package, a human can remove only the application with:
 

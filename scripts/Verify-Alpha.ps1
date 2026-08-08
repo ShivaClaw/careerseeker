@@ -18,6 +18,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$repoRoot = Split-Path -Parent $PSScriptRoot
 
 function Invoke-Step {
     param(
@@ -607,6 +608,101 @@ Invoke-Step "Code-signing guidance smoke" {
         'Azure Artifact Signing when eligible, otherwise an OV certificate fallback'
     ) "docs/CareerSeeker-Spec.md"
     Assert-DoesNotContain $spec @('Azure Artifact Signing/OV/EV') "docs/CareerSeeker-Spec.md"
+
+    $signScript = Get-Content -LiteralPath "scripts/Sign-BetaRelease.ps1" -Raw
+    Assert-Contains $signScript @(
+        '[switch] $ValidateOnly',
+        'TimestampUrl must be an absolute HTTPS URL.',
+        'mode: validation only; no signing or certificate read',
+        'verify /pa /all'
+    ) "scripts/Sign-BetaRelease.ps1"
+
+    $packageTest = Get-Content -LiteralPath "scripts/Test-BetaReleasePackage.ps1" -Raw
+    Assert-Contains $packageTest @(
+        '[string] $ExpectedPublisher',
+        '[switch] $RequireSigned',
+        'Manifest Publisher does not exactly match ExpectedPublisher.',
+        'must not retain the unsigned-package OID',
+        '@("verify", "/pa", "/all", "/v", $fullPackage)'
+    ) "scripts/Test-BetaReleasePackage.ps1"
+
+    $matrixScript = Get-Content -LiteralPath "scripts/New-BetaVmInstallMatrix.ps1" -Raw
+    Assert-Contains $matrixScript @(
+        'mode: validation only; no install, signature check, or output write',
+        'VM07',
+        'Startup, reboot, and single instance',
+        'Separately confirmed full-data deletion',
+        'Recorded output:',
+        '-RequireSigned'
+    ) "scripts/New-BetaVmInstallMatrix.ps1"
+
+    $packageRunbook = Get-Content -LiteralPath "docs/Beta-Windows-Package-Runbook.md" -Raw
+    Assert-Contains $packageRunbook @(
+        'Offline production-flow validation',
+        '-ExpectedPublisher',
+        '-RequireSigned',
+        'eleven `PENDING` steps'
+    ) "docs/Beta-Windows-Package-Runbook.md"
+
+    $humanQueue = Get-Content -LiteralPath "docs/autonomy/HUMAN-QUEUE.md" -Raw
+    Assert-Contains $humanQueue @(
+        'az artifact-signing certificate-profile create',
+        'Artifact Signing Certificate Profile Signer',
+        'azure/login@v3',
+        'azure/artifact-signing-action@v2',
+        'scripts\New-BetaVmInstallMatrix.ps1',
+        'wrangler r2 object put',
+        'wrangler r2 object get',
+        'Downloaded R2 object hash mismatch.'
+    ) "docs/autonomy/HUMAN-QUEUE.md"
+
+    $validationRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "tmp/r4-release-validation"))
+    $expectedRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "tmp/r4-release-validation"))
+    if (-not $validationRoot.Equals($expectedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Unexpected R4 validation directory."
+    }
+    if (Test-Path -LiteralPath $validationRoot) {
+        Remove-Item -LiteralPath $validationRoot -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $validationRoot | Out-Null
+    try {
+        $dummyPackage = Join-Path $validationRoot "validation-only.msix"
+        [System.IO.File]::WriteAllText($dummyPackage, "R4 validation placeholder")
+        $dummyHash = (Get-FileHash -LiteralPath $dummyPackage -Algorithm SHA256).Hash
+        & (Join-Path $PSScriptRoot "Sign-BetaRelease.ps1") `
+            -PackagePath $dummyPackage `
+            -CertificatePath (Join-Path $validationRoot "not-read.pfx") `
+            -ValidateOnly
+        if ($LASTEXITCODE -ne 0) { throw "Signing validation-only flow failed." }
+
+        $httpRejected = $false
+        try {
+            & (Join-Path $PSScriptRoot "Sign-BetaRelease.ps1") `
+                -PackagePath $dummyPackage `
+                -CertificatePath (Join-Path $validationRoot "not-read.pfx") `
+                -TimestampUrl "http://timestamp.invalid" `
+                -ValidateOnly
+        }
+        catch {
+            $httpRejected = $_.Exception.Message.Contains("absolute HTTPS URL")
+        }
+        if (-not $httpRejected) { throw "Signing validation did not reject an HTTP timestamp URL." }
+
+        $matrixOut = Join-Path $validationRoot "matrix-should-not-exist.md"
+        & (Join-Path $PSScriptRoot "New-BetaVmInstallMatrix.ps1") `
+            -ArtifactPath $dummyPackage `
+            -ExpectedSha256 $dummyHash `
+            -ExpectedPublisher "CN=CareerSeeker R4 Offline Validation" `
+            -OutputPath $matrixOut `
+            -ValidateOnly
+        if ($LASTEXITCODE -ne 0) { throw "VM matrix validation-only flow failed." }
+        if (Test-Path -LiteralPath $matrixOut) { throw "VM matrix validation-only flow wrote an output file." }
+    }
+    finally {
+        if (Test-Path -LiteralPath $validationRoot) {
+            Remove-Item -LiteralPath $validationRoot -Recurse -Force
+        }
+    }
 }
 
 Invoke-Step "Per-user storage guidance smoke" {
@@ -724,6 +820,47 @@ if ($IncludePackage) {
         if ($LASTEXITCODE -ne 0) {
             throw "Beta MSIX package self-check failed."
         }
+    }
+
+    Invoke-Step "Beta production-signed manifest expectation smoke" {
+        $r4Publisher = "CN=CareerSeeker R4 Offline Validation"
+        $r4Output = "tmp/r4-production-manifest"
+        $r4PackageName = "CareerSeeker-r4-production-shaped-unsigned.msix"
+        & (Join-Path $PSScriptRoot "Package-BetaRelease.ps1") `
+            -Configuration $Configuration `
+            -OutputDirectory $r4Output `
+            -PackageName $r4PackageName `
+            -Publisher $r4Publisher `
+            -NoPublish
+        if ($LASTEXITCODE -ne 0) {
+            throw "Production-shaped unsigned MSIX creation failed."
+        }
+        $r4Package = Join-Path $r4Output $r4PackageName
+        & (Join-Path $PSScriptRoot "Test-BetaReleasePackage.ps1") `
+            -PackagePath $r4Package `
+            -Configuration $Configuration `
+            -ExpectedPublisher $r4Publisher
+        if ($LASTEXITCODE -ne 0) {
+            throw "Production-signed manifest expectation smoke failed."
+        }
+
+        $unsignedRejected = $false
+        try {
+            & (Join-Path $PSScriptRoot "Test-BetaReleasePackage.ps1") `
+                -PackagePath $r4Package `
+                -Configuration $Configuration `
+                -ExpectedPublisher $r4Publisher `
+                -RequireSigned
+        }
+        catch {
+            $message = $_.Exception.Message
+            $unsignedRejected = $message.Contains("No signature found") -or
+                $message.Contains("Command failed")
+        }
+        if (-not $unsignedRejected) {
+            throw "-RequireSigned did not reject the intentionally unsigned production-shaped package."
+        }
+        Write-Host "Production-shaped manifest accepted only without -RequireSigned; unsigned artifact rejected as expected."
     }
 }
 
