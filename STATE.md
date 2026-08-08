@@ -25,8 +25,8 @@
   limit is reached, so R2 is BLOCKED and R3 remains ineligible.
 - **Verification:** offline/full gates are 0 warnings/0 errors and 412/0;
   analyzer build 0/0; package self-check passed with one executable and zero
-  provider/Gmail calls. Package measured 33,671,042 bytes, SHA-256
-  `A951EA84B3539089E59111D497C4F6621F3E07AA1AA1362D4C5C76F334063941`.
+  provider/Gmail calls. Final post-commit package measured 33,671,096 bytes,
+  SHA-256 `1C1896E57A229EF955F5A59829B8B64C30748D124636BCD7388164DD7D07BC71`.
 - **Next intent:** finish the R2 evidence PR, obtain both green CI runs, rebase
   and repeat the full gate if main moves, merge normally, then release claims.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
