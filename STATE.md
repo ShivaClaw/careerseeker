@@ -8,7 +8,8 @@
 - **Files claimed:** a focused dependency-inventory script, its generated
   repository evidence doc, `scripts/Verify-Alpha.ps1`, `docs/Positioning.md`,
   living audit/summary docs, `docs/BETA-AUDIT-REQUEST.md`,
-  `docs/Codex-Resume-Handoff.md`, and `docs/autonomy/CODEX-STATE.md`.
+  `docs/Codex-Resume-Handoff.md`, `docs/autonomy/CODEX-STATE.md`, and
+  `docs/autonomy/HUMAN-QUEUE.md`.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
