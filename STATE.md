@@ -9,9 +9,12 @@
   mandatory `git fetch --all --prune`.
 - **Fresh integration base:** `origin/main` =
   `e95b1b3ece212d13995fabe6669305be89907bf7`.
-- **Measured evidence:** full publish/package gate: build 0 warnings/0 errors;
-  offline 407 passed/0 failed; one executable; MSIX 33,672,974 bytes,
-  SHA-256 `89EB41B5DA430BE8908318F3607582F74AFA9D1534D98AEB53D64FEC11FF65D2`.
+- **Measured evidence:** final post-bootstrap full publish/package gate: build
+  0 warnings/0 errors; offline 407 passed/0 failed; one executable; MSIX
+  33,672,974 bytes, SHA-256
+  `F3B16A0EE5B0B6EF882BCE8C9132C1C87DDA3159D389A2E45E6C0254FA1CC689`.
+  A prior R0 unsigned package had the same bytes but a distinct hash; this is
+  not claimed reproducible.
 - **Next intent:** commit and push this state branch; commit/push R0 bootstrap,
   obtain CI evidence, then merge only after the required fresh rebase and full
   gate.
