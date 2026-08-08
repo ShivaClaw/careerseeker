@@ -2,6 +2,76 @@
 
 Updated: 2026-08-07
 
+## 2026-08-07 (Terra R4) - Signing and install readiness prepared offline
+
+Branch: `codex/r4-signing-install-readiness`, PR #23, based on fresh
+`origin/main` at `f774edb20e3b7e8349a39781d9be5ac3c4f0506c`.
+
+R4 adds an executable no-certificate signing validation path, exact signed
+manifest expectations, and an evidence-ready disposable-VM checklist.
+`Sign-BetaRelease.ps1 -ValidateOnly` resolves the MSIX and PFX inputs, requires
+an absolute HTTPS timestamp URL, and returns before reading the certificate or
+`CAREERSEEKER_SIGNING_PASSWORD`; its real path now verifies the signature after
+signing. `Test-BetaReleasePackage.ps1 -ExpectedPublisher -RequireSigned`
+requires an exact manifest subject, rejects the special unsigned-package OID,
+and runs SignTool policy verification.
+
+`New-BetaVmInstallMatrix.ps1` verifies repository-local paths, the exact
+artifact SHA-256, and the expected publisher. Validation-only mode proved all
+eleven VM01-VM11 steps are present and wrote no file. Its execution mode first
+requires the signed-package verifier, then creates a Markdown matrix whose
+results remain `PENDING` until a human records timestamps, command or
+observation output, screenshot IDs, and notes. It does not install, register,
+reboot, enable startup, uninstall, or delete data.
+
+The human queue now contains Q03-Q05 with current Azure Artifact Signing
+account/profile/RBAC commands, the GitHub OIDC `azure/login@v3` and
+`azure/artifact-signing-action@v2` shape, exact signed-package checks, VM
+matrix initialization, and versioned Cloudflare R2 upload/re-download/hash
+verification. Wrangler was measured at 4.112.0. Only official Microsoft,
+GitHub, and Cloudflare documentation was used for volatile command syntax.
+No Azure, GitHub-settings, certificate, R2, or deployment action was executed.
+
+The first complete publish/package attempt correctly rejected the intentionally
+unsigned production-shaped control, but the harness expected only a wrapped
+`Command failed` exception while this PowerShell host surfaced SignTool's
+measured `No signature found` message directly. The harness was narrowed to
+recognize those two explicit failure shapes, and the complete gate was rerun
+successfully:
+
+```text
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 412 passed, 0 failed ===
+Signing validation: no signing/certificate read; password read: no.
+VM matrix validation: VM01-VM11; no signature check, install, or output write.
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 412 passed, 0 failed ===
+Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+Baseline package: one CareerSeeker.exe; provider calls 0; Gmail calls/drafts 0.
+Production-shaped control: exact publisher match; unsigned OID absent.
+-RequireSigned: unsigned control rejected with No signature found.
+MSIX bytes: 33,671,092
+MSIX SHA-256: 3FF2AF41E95DF3B01B666AEA6881BCC7BA1EAD11B05857E4804230DE3ACDE911
+
+> dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest
+Build succeeded. 0 warnings, 0 errors.
+
+> dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore
+Exit code: 0; no output.
+```
+
+R4 is DONE as repository-only preparation. Q03 Azure signing, Q04 disposable
+VM execution, and Q05 R2/public publication remain human-only and unexecuted.
+
+Boundary: no deploy, console mutation, email, purchase, signing, install,
+secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, `.appdata`-original mutation, public ATS read, or live
+provider/Gmail action occurred.
+
 ## 2026-08-07 (Terra R3) - Sole live Gmail cycle BLOCKED by R2 prerequisite
 
 Branch: `codex/r3-prerequisite-gate`, PR #22, based on fresh `origin/main` at
