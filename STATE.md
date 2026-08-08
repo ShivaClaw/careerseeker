@@ -1,15 +1,13 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T20:50:49-06:00
-- **Current rung:** R6(b) dependency/SBOM inventory in progress from fresh
-  `origin/main` at `3a89fb58673712ac46aff82b35d7d269cb15793c`.
-- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r6-sbom` /
-  `codex/r6-dependency-sbom`.
-- **Files claimed:** a focused dependency-inventory script, its generated
-  repository evidence doc, `scripts/Verify-Alpha.ps1`, `docs/Positioning.md`,
-  living audit/summary docs, `docs/BETA-AUDIT-REQUEST.md`,
-  `docs/Codex-Resume-Handoff.md`, `docs/autonomy/CODEX-STATE.md`, and
-  `docs/autonomy/HUMAN-QUEUE.md`.
+- **Heartbeat:** 2026-08-07T21:18:24-06:00
+- **Current rung:** R6(b) dependency/SBOM inventory BLOCKED on open draft PR
+  #26 after the bounded two CI attempts. Fresh `origin/main` remains
+  `3a89fb58673712ac46aff82b35d7d269cb15793c`.
+- **Current worktree / branch:** retained diagnostic worktree
+  `C:\Users\bkirk\Documents\CareerSeeker-r6-sbom` / `codex/r6-dependency-sbom`.
+- **Files claimed:** none for the next iteration. PR #26's paths remain a
+  retained blocked diagnostic surface; avoid editing them unless taking Q07.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -94,9 +92,22 @@
   and the full gate repeated green. Final runs `31235763233` and `31235764578`
   passed; PR #25 merged normally as
   `3a89fb58673712ac46aff82b35d7d269cb15793c`.
-- **Next intent:** finish only R6(b): build and verify reproducible
-  dependency/SBOM evidence without touching R6(c) PSScriptAnalyzer or the
-  remaining ordered backlog.
+- **R6(b) local evidence:** generated a nine-package SPDX 2.3 snapshot (3
+  direct runtime, 5 transitive runtime, 1 build-only; 2 license
+  `NOASSERTION`) with SHA-256 `A82CE684…01D71E`. NuGet advisory queries
+  reported zero entries. Windows PowerShell 5.1 post-publish validation and a
+  simulated `core.autocrlf=true` checkout matched. Offline/full gates are
+  build 0/0 and 418/0; analyzers are 0/0; the full candidate had one
+  executable, zero provider/Gmail calls, 33,666,333 bytes, and SHA-256
+  `260CA477DC907EAF9543D51B77F23A32B90170DC251B85D32D2DBF1B6C0B37B9`.
+- **R6(b) blocker:** PR #26 push/PR pairs `31236649674`/`31236667575` and
+  `31236744839`/`31236746674` each built 0/0 and then failed exact SPDX byte
+  validation under PowerShell 7. The second attempt replaced
+  `ConvertTo-Json` with a restricted deterministic serializer without changing
+  local bytes. The two-attempt limit is reached; PR #26 is draft and unmerged.
+  Q07 is the smallest diagnostic unblock. No third CI attempt was started.
+- **Next intent:** start a fresh iteration at R6(c) PSScriptAnalyzer, leaving
+  the blocked PR #26/Q07 surface untouched unless explicitly unblocked.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
