@@ -3,18 +3,22 @@
 Snapshot: 2026-08-08 UTC  
 Source base: `3a89fb58673712ac46aff82b35d7d269cb15793c`  
 Machine-readable artifact: `docs/Dependency-SBOM.spdx.json` (SPDX 2.3 JSON)  
-Snapshot SHA-256: `C63D89C84412F85E8004B57A684AD32FFFF66CAC5BEF14D5493825DFEE1BF1C5`
+Snapshot SHA-256: `A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E`
 
 ## Scope and method
 
-This inventory covers every NuGet package resolved by the 23 projects in
-`CareerSeeker.sln` plus the separate `tools/WindowsSdkTools` packaging project.
+This inventory covers every source-declared NuGet package root and its resolved
+transitive closure across the 23 projects in `CareerSeeker.sln`, plus the
+separate `tools/WindowsSdkTools` packaging project.
 `scripts/New-DependencySbom.ps1` restores the solution, restores the build tool
 in locked mode, reads `dotnet list package --include-transitive --format json`,
 and joins that graph to the locally cached NuGet nuspec and SHA-512 metadata.
 The committed SPDX document records package URLs, Package URLs (purls), exact
 versions, SHA-512 content hashes, declared license expressions when the nuspec
 provides one, project usage, and direct/transitive/build-only scope.
+SDK-injected `autoReferenced` packages are toolchain inputs rather than
+source-declared NuGet roots, so the generator excludes them. This specifically
+prevents a preceding publish from changing the source dependency snapshot.
 The generator writes canonical UTF-8 without a byte-order mark and LF newlines;
 `.gitattributes` disables end-of-line conversion for the JSON so its SHA-256 is
 stable across checkout settings.

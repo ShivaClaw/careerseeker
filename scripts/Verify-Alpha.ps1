@@ -177,7 +177,7 @@ Invoke-Step "Dependency SBOM drift smoke" {
     }
 
     $sbomHash = (Get-FileHash -LiteralPath $sbomPath -Algorithm SHA256).Hash
-    if ($sbomHash -ne "C63D89C84412F85E8004B57A684AD32FFFF66CAC5BEF14D5493825DFEE1BF1C5") {
+    if ($sbomHash -ne "A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E") {
         throw "Dependency SPDX snapshot SHA-256 drifted: $sbomHash"
     }
 
@@ -190,7 +190,7 @@ Invoke-Step "Dependency SBOM drift smoke" {
         "zero known NuGet advisories were reported for this snapshot",
         'application projects do not currently commit `packages.lock.json`',
         "D08 remains **UNPROVEN**",
-        "C63D89C84412F85E8004B57A684AD32FFFF66CAC5BEF14D5493825DFEE1BF1C5"
+        "A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E"
     ) "docs/Dependency-SBOM-Inventory.md"
 
     $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw

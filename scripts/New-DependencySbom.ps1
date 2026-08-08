@@ -86,6 +86,17 @@ function Get-SpdxId {
     return 'SPDXRef-Package-' + (($Id + '-' + $Version) -replace '[^A-Za-z0-9.-]', '-')
 }
 
+function Test-AutoReferencedPackage {
+    param([object] $Package)
+
+    if ($null -eq $Package.PSObject.Properties['autoReferenced']) {
+        return $false
+    }
+    return [System.Convert]::ToString($Package.autoReferenced).Equals(
+        'true',
+        [System.StringComparison]::OrdinalIgnoreCase)
+}
+
 function Get-LocalPackageMetadata {
     param(
         [string] $GlobalPackages,
@@ -205,7 +216,12 @@ foreach ($report in $reports) {
     foreach ($project in @($report.Value.projects)) {
         $projectPath = Get-RepoRelativePath $project.path
         foreach ($framework in @($project.frameworks)) {
-            foreach ($package in @($framework.topLevelPackages | Where-Object { $null -ne $_ })) {
+            # SDK-injected auto-references (for example ILLink.Tasks after a publish)
+            # are toolchain inputs, not source-declared NuGet roots. Excluding them
+            # prevents a prior publish from changing this source dependency graph.
+            foreach ($package in @($framework.topLevelPackages | Where-Object {
+                $null -ne $_ -and -not (Test-AutoReferencedPackage $_)
+            })) {
                 $key = "$($package.id.ToLowerInvariant())/$($package.resolvedVersion.ToLowerInvariant())"
                 if (-not $packageRecords.ContainsKey($key)) {
                     $packageRecords[$key] = [pscustomobject]@{
@@ -343,14 +359,14 @@ $document = [ordered]@{
     creationInfo = [ordered]@{
         created = $SnapshotUtc
         creators = @('Tool: scripts/New-DependencySbom.ps1')
-        comment = 'Generated from restored project.assets.json data exposed by dotnet list package and locally cached NuGet nuspec/hash metadata.'
+        comment = 'Generated from source-declared NuGet roots and their resolved transitive graph exposed by dotnet list package, excluding SDK auto-references, plus locally cached NuGet nuspec/hash metadata.'
     }
     documentDescribes = @($packages | ForEach-Object { $_.SPDXID })
     packages = $packages
     relationships = $relationships
 }
 
-$json = (($document | ConvertTo-Json -Depth 12).Replace("`r`n", "`n").Replace("`r", "`n")) + "`n"
+$json = (($document | ConvertTo-Json -Depth 12 -Compress).Replace("`r`n", "`n").Replace("`r", "`n")) + "`n"
 if ($ValidateOnly) {
     if (-not (Test-Path -LiteralPath $output -PathType Leaf)) {
         throw "Committed SPDX inventory is missing: $output"
