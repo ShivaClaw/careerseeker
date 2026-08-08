@@ -10,7 +10,7 @@ file claims remain on `autonomy/codex-state:STATE.md`.
 | R0 | DONE | PR #19 merged as `d267e5e`; local full publish/package gate built with 0 warnings/0 errors and offline 407/0; both CI runs passed. One executable was structurally verified. |
 | R1 | DONE | PR #20. Defect reproduced: nested 10/50/200-term profiles acted 8/120, 0/120, 0/120 (`159 passed, 4 failed`). Job-side `lexical-v2` produced 8/120 at all sizes, retained threshold 4.0, and preserved the healthy demo (`164 passed, 0 failed`). Offline/full gates passed at 412/0 with analyzer build 0/0 and one-exe package self-check; both initial CI runs passed. |
 | R2 | BLOCKED | A retained migration copy preserved the source at 172,032 bytes and SHA-256 `0A5605…E18192`; a 31-claim/321-term fixture imported successfully. Remote.com measured 58 discovered, 12 quarantined, 46 scored/rejected, 0 act-eligible/drafted/errors; totals were 2.36–3.63. Mistral returned 0. Audit chain was intact. Two-attempt limit reached; see `docs/BETA-BLOCKED.md`. |
-| R3 | PENDING | No live drafting cycle executed. |
+| R3 | BLOCKED | Fresh `origin/main` at `d486459` reports R2 BLOCKED, while both `R-LADDER.md` and `CODEX-MISSION.md` permit the sole live Gmail cycle only after R1/R2 are green/DONE. Two independent prerequisite reads agreed. No Gmail/token/secret access or live attempt occurred; the one-cycle allowance remains unused. See `docs/BETA-BLOCKED.md` and `docs/autonomy/HUMAN-QUEUE.md`. |
 | R4 | PENDING | No R4 command evidence yet. |
 | R5 | PENDING | No R5 command evidence yet. |
 | R6 | PENDING | No R6 command evidence yet. |

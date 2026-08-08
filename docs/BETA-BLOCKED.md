@@ -2,6 +2,34 @@
 
 Updated: 2026-08-07
 
+## R3 sole live Gmail drafting cycle — prerequisite R2 is not DONE
+
+Scope: the 2026-08-07 authorization permits exactly one non-dry-run Gmail
+drafting cycle, capped at ten drafts and leaving every draft unsent, only
+after R1 and R2 are DONE/green.
+
+Two independent read-only prerequisite checks were executed after the
+iteration's mandatory `git fetch --all --prune`:
+
+1. Fresh `origin/main` was
+   `d4864590c38cd52a332349f20853423e477e9e0f`. Its merge-tracked
+   `docs/autonomy/CODEX-STATE.md` reports R1 DONE and R2 BLOCKED after the two
+   bounded public-board rehearsals produced zero act-eligible postings.
+2. Fresh `docs/autonomy/R-LADDER.md` requires R1/R2 green, and
+   `docs/autonomy/CODEX-MISSION.md` independently limits the live exception
+   to after R1 and R2 are complete. Both therefore prohibit starting R3.
+
+R3 is BLOCKED by its authorization prerequisite. No live attempt was made:
+attempting Gmail auth, reading token state, or creating a draft would cross
+the mission boundary rather than diagnose the prerequisite. The window's
+single live-cycle allowance remains unused.
+
+Smallest human unblock: first complete a fresh bounded R2 rehearsal with
+`act-eligible > 0`, merge its evidence, and change R2 from BLOCKED to DONE.
+Only a later fresh iteration may then check Gmail readiness and execute the
+one capped live cycle. If Gmail auth is unavailable at that point, record the
+separate auth block without touching OAuth configuration or retrying live.
+
 ## R2 real-profile public-ATS rehearsal — no posting cleared the calibrated Act rail
 
 Scope: R2 acceptance requires a nonzero `act-eligible` result from a bounded

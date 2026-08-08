@@ -6,6 +6,22 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## R3 - Sole live Gmail cycle prerequisite (BLOCKED)
+
+Branch: `codex/r3-prerequisite-gate`
+
+| Claim | Exact reviewer command | Observed 2026-08-07 |
+|---|---|---|
+| Fresh merge-tracked state does not authorize R3. | `git fetch --all --prune`; `git rev-parse origin/main`; `git show origin/main:docs/autonomy/CODEX-STATE.md` | `origin/main` was `d4864590c38cd52a332349f20853423e477e9e0f`; R1 was DONE and R2 was BLOCKED. |
+| Both controlling R3 rules require R2 green/complete. | `git show origin/main:docs/autonomy/R-LADDER.md`; `git show origin/main:docs/autonomy/CODEX-MISSION.md` | Ladder: “After R1/R2 green”; mission: live drafting allowed “only after R1 and R2 are complete.” |
+| No live-cycle implementation or safety surface changed. | `git diff --name-only origin/main...HEAD` | Expected final PR diff is evidence/autonomy documentation only. No Engine, Dispatcher, Gmail, OAuth, secret, or database path is changed. |
+
+R3 is BLOCKED by its explicit prerequisite. No Gmail or OAuth readiness check,
+token/secret access, draft creation, or live retry was attempted; doing so
+would have been unauthorized. The sole live-cycle allowance remains unused.
+The smallest human unblock is to make R2 DONE with a fresh accepted rehearsal,
+as recorded in `docs/BETA-BLOCKED.md` and `docs/autonomy/HUMAN-QUEUE.md`.
+
 ## R2 - Real-profile rehearsal (BLOCKED)
 
 Branch: `codex/r2-real-profile-rehearsal`
