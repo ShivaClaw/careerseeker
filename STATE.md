@@ -1,11 +1,16 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T19:53:07-06:00
-- **Current rung:** R3 BLOCKED and merged via PR #22 as
-  `f774edb20e3b7e8349a39781d9be5ac3c4f0506c`.
-- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r3-gate` /
-  `codex/r3-prerequisite-gate`.
-- **Files claimed:** none for the next iteration.
+- **Heartbeat:** 2026-08-07T19:59:45-06:00
+- **Current rung:** R4 signing/install readiness in progress from fresh
+  `origin/main` at `f774edb20e3b7e8349a39781d9be5ac3c4f0506c`.
+- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r4` /
+  `codex/r4-signing-install-readiness`.
+- **Files claimed:** `scripts/Sign-BetaRelease.ps1`,
+  `scripts/Test-BetaReleasePackage.ps1`,
+  `scripts/New-BetaVmInstallMatrix.ps1`, `scripts/Verify-Alpha.ps1`,
+  `docs/Beta-Windows-Package-Runbook.md`, `docs/Beta-Runbook.md`,
+  `docs/autonomy/HUMAN-QUEUE.md`, `docs/autonomy/CODEX-STATE.md`,
+  `docs/BETA-AUDIT-REQUEST.md`, and `docs/Codex-Resume-Handoff.md`.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -43,9 +48,10 @@
   repeated 0/0, 412/0, and the package self-check. Final runs `31233608884`
   and `31233610994` passed; PR #22 merged normally as
   `f774edb20e3b7e8349a39781d9be5ac3c4f0506c`.
-- **Next intent:** stop this clean R3 iteration. On the next iteration, fetch
-  all refs and take one R4 signing/install-readiness preparation slice if it
-  does not collide with fresh Claude claims.
+- **Next intent:** finish one R4 preparation slice: validate signing flow
+  offline, validate signed-package expectations, generate the disposable-VM
+  checklist, record exact human commands, run gates, and merge only if both CI
+  workflows pass.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
