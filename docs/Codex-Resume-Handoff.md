@@ -2,6 +2,48 @@
 
 Updated: 2026-07-30
 
+## 2026-08-07 (Terra R0) - Fresh re-entry verification and autonomy bootstrap
+
+Branch: `codex/r0-bootstrap`, based on fresh `origin/main` at
+`e95b1b3ece212d13995fabe6669305be89907bf7`.
+
+Executed evidence:
+
+```text
+> git fetch --all --prune
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+=== Offline total: 407 passed, 0 failed ===
+```
+
+The same successful command produced exactly one executable payload:
+`output\release\_beta-msix-stage\CareerSeeker.exe` (74,606,153 bytes), and
+the measured Beta package was:
+
+```text
+output\release\CareerSeeker-beta-win-x64.msix
+Bytes: 33,673,026
+SHA-256: 6744C320CD9C0417F531C487524EFB93A7F99AA9C691BA291009CE7B76397E2B
+```
+
+This bootstrap adds the release-window mission, R0-R7 ladder, and root agent
+pointer. The directly pushed `autonomy/codex-state` branch is the live
+coordination heartbeat; `autonomy/claude-state` was absent after the initial
+fetch, so no Claude file claim could be read.
+
+Boundary: no deploy, console, email, purchase, signing, install, secret
+access, certificate/store mutation, reboot, scheduled-task registration,
+off-repo site edit, force-push, history rewrite, `.appdata`-original mutation,
+or live provider/Gmail action occurred. The verification script only ran its
+offline/package/publish paths.
+
+Three R0 unsigned package runs changed in both bytes and SHA-256. This entry
+records the final post-rebase merge-gate measurement above; it does not assert
+package reproducibility. Each run did produce exactly one `CareerSeeker.exe`,
+and the final structural/executable self-check passed.
+
 ## 2026-07-30 (Terra post-B8) - Ordered Beta hardening backlog
 
 Branch: `codex/beta-hardening`
