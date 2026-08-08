@@ -215,6 +215,64 @@ Console.WriteLine("\n[ Beta onboarding local web flow ]");
     }
 }
 
+Console.WriteLine("\n[ confirmed full-data deletion ]");
+{
+    var installedPlan = FullDataDeletion.PlanInstalledWorkspace();
+    var expectedInstalled = Path.GetFullPath(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "CareerSeeker")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    Check("delete-all-data resolves the exact installed per-user workspace",
+        installedPlan.WorkspacePath.Equals(expectedInstalled, StringComparison.OrdinalIgnoreCase),
+        installedPlan.WorkspacePath);
+    Check("delete-all-data confirmation is bound to the displayed exact path",
+        installedPlan.ConfirmationPhrase == "DELETE ALL CAREERSEEKER DATA AT " + installedPlan.WorkspacePath,
+        installedPlan.ConfirmationPhrase);
+
+    var root = Path.Combine(Path.GetTempPath(), "careerseeker-delete-harness-" + Guid.NewGuid().ToString("N"));
+    var originalCurrentDirectory = Environment.CurrentDirectory;
+    try
+    {
+        var nested = Path.Combine(root, ".appdata", "oauth");
+        Directory.CreateDirectory(nested);
+        var sentinel = Path.Combine(nested, "gmail-token.dpapi");
+        await File.WriteAllTextAsync(sentinel, "synthetic deletion sentinel");
+        await File.WriteAllTextAsync(Path.Combine(root, "engine.log"), "synthetic log");
+        var plan = FullDataDeletion.PlanWorkspace(root);
+
+        var wrongConfirmationRejected = false;
+        try { FullDataDeletion.Execute(plan, "DELETE ALL CAREERSEEKER DATA AT wrong-path"); }
+        catch (InvalidOperationException) { wrongConfirmationRejected = true; }
+        Check("delete-all-data rejects a mismatched confirmation without touching data",
+            wrongConfirmationRejected && File.Exists(sentinel));
+
+        var volumeRootRejected = false;
+        try { FullDataDeletion.PlanWorkspace(Path.GetPathRoot(root)!); }
+        catch (InvalidOperationException) { volumeRootRejected = true; }
+        Check("delete-all-data refuses a volume root", volumeRootRejected);
+
+        Environment.CurrentDirectory = nested;
+        var removed = FullDataDeletion.Execute(plan, plan.ConfirmationPhrase);
+        Check("exact confirmation removes the complete workspace and verifies absence",
+            removed.Removed && !removed.AlreadyAbsent && !removed.TargetExistsAfter &&
+            !Directory.Exists(root) &&
+            !Path.GetFullPath(Environment.CurrentDirectory).StartsWith(
+                plan.WorkspacePath + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase),
+            removed.Message);
+
+        var repeated = FullDataDeletion.Execute(plan, plan.ConfirmationPhrase);
+        Check("repeat deletion honestly reports an already absent workspace",
+            !repeated.Removed && repeated.AlreadyAbsent && !repeated.TargetExistsAfter &&
+            repeated.Message.Contains("Nothing was deleted", StringComparison.Ordinal),
+            repeated.Message);
+    }
+    finally
+    {
+        Environment.CurrentDirectory = originalCurrentDirectory;
+        try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch (IOException) { }
+    }
+}
+
 // one Tailor serving the whole cycle: fabricates only when the prompt names the "Fabricator" job
 string Respond(ProviderCall call)
 {

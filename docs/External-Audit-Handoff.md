@@ -19,7 +19,7 @@ The strongest review order is:
 
 ## Current evidence
 
-- Pinned offline verifier: **412 passed, 0 failed**.
+- Pinned offline verifier: **418 passed, 0 failed**.
 - GitHub CI runs the warnings-as-errors Release build and the same verifier on `main`, `agent/**`,
   `codex/**`, and pull requests into `main`.
 - Real engine path: `run` performs identified Greenhouse/Lever/Ashby discovery, local deterministic ranking,
@@ -62,6 +62,7 @@ The strongest review order is:
 | Engine is single-instance per DB and supervised | `src/Engine/SingleInstanceLease.cs`, `scripts/Start-BetaEngineHost.ps1` | `EngineHarness`; supervisor self-test |
 | Onboarding is loopback, consent-bound, and claim-reviewing | `src/Engine/BetaSetupWebFlow.cs` | `EngineHarness`; packaged setup smoke |
 | MSIX has one exe and external user data | `scripts/Package-BetaRelease.ps1`, `src/Engine/PackagedRuntime.cs` | `scripts/Test-BetaReleasePackage.ps1` |
+| Full-data deletion is exact-path and separately confirmed | `src/Engine/FullDataDeletion.cs`, `src/Engine/Program.cs` | `EngineHarness`; verifier confirmation preview |
 | ATS-clean PDFs are deterministic | `src/Dispatcher/AtsPdfDocumentRenderer.cs` | `RendererHarness`, `DispatcherNoSendHarness` |
 | Company research is grounded-or-dropped | `src/Researcher/Researcher.cs`, `src/Researcher/Grounding.cs` | `ResearcherHarness` |
 | Dashboard/control surface is loopback/token bounded | `src/Engine/Host.cs`, `src/Engine/BetaSetupWebFlow.cs` | `EngineHarness` |
@@ -124,6 +125,7 @@ create provider cost or a Gmail draft. They are not needed to reproduce the offl
 - Verify the package default after onboarding is `dryRun` plus `serviceHost`.
 - Verify package identity cannot be asserted by an argument.
 - Verify package removal instructions separate app removal from user-data deletion.
+- Verify `delete-all-data` accepts only the displayed path-bound phrase and never follows directory links.
 - Verify provider failures never delete/replace a previously usable key vault without explicit replacement.
 - Verify AI resume extraction never promotes a claim above `stated` and preserves source/evidence.
 - Verify crash recovery reads the effect-attempt journal and never retries a `SUCCEEDED` effect.

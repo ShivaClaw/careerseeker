@@ -129,7 +129,8 @@ $offlineProjects = @(
 # export; one store-parity assertion pins the new telemetry table in memory and SQLite.
 # Twelve engine assertions pin adaptive backoff and its board-failure input, clean pause/resume,
 # single-instance locking, local control files, honest runtime status, and service-host doctor checks.
-$ExpectedOfflineTotal = 412
+# Six engine assertions pin exact-path, separately confirmed, broad-root-refusing full-data deletion.
+$ExpectedOfflineTotal = 418
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -216,6 +217,61 @@ Invoke-Step "Engine SQLite demo smoke" {
     )
 }
 
+Invoke-Step "Full-data deletion confirmation preview" {
+    $output = & dotnet run --project "src/Engine/SeekerSvc.Engine.csproj" `
+        -c $Configuration --no-build -- delete-all-data 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "delete-all-data confirmation preview failed: $($output -join [Environment]::NewLine)"
+    }
+
+    $preview = $output -join "`n"
+    Assert-Contains $preview @(
+        "CareerSeeker full-data deletion",
+        "exact workspace:",
+        (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "CareerSeeker"),
+        "status: NOT DELETED (separate confirmation required)",
+        "DELETE ALL CAREERSEEKER DATA AT"
+    ) "delete-all-data confirmation preview"
+}
+
+Invoke-Step "Confirmed full-data deletion source and copy smoke" {
+    $deletion = Get-Content -LiteralPath "src/Engine/FullDataDeletion.cs" -Raw
+    Assert-Contains $deletion @(
+        'DELETE ALL CAREERSEEKER DATA AT ',
+        'PlanInstalledWorkspace()',
+        'Refusing full-data deletion for a volume root.',
+        'The app command is pinned to the exact installed workspace',
+        'FileAttributes.ReparsePoint',
+        'TargetExistsAfter: false'
+    ) "src/Engine/FullDataDeletion.cs"
+
+    $program = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    Assert-Contains $program @(
+        'explicitMode?.Equals("delete-all-data"',
+        'status: NOT DELETED (separate confirmation required)',
+        '--confirm-delete-all-data',
+        'target exists after:'
+    ) "src/Engine/Program.cs"
+
+    $engineHarness = Get-Content -LiteralPath "tests/EngineHarness/Program.cs" -Raw
+    Assert-Contains $engineHarness @(
+        'delete-all-data rejects a mismatched confirmation without touching data',
+        'delete-all-data refuses a volume root',
+        'exact confirmation removes the complete workspace and verifies absence',
+        'repeat deletion honestly reports an already absent workspace'
+    ) "tests/EngineHarness/Program.cs"
+
+    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw
+    Assert-Contains $positioning @(
+        '| D10 | “You can delete all local data.” | PROVEN for installed workspace |',
+        '`src/Engine/FullDataDeletion.cs:24`',
+        'source/test/export caveat'
+    ) "docs/Positioning.md"
+    Assert-DoesNotContain $positioning @(
+        'no in-app confirmed full-deletion workflow is implemented'
+    ) "docs/Positioning.md"
+}
+
 Invoke-Step "Docs-site trust copy smoke" {
     $trustSnippets = @(
         "export-audit",
@@ -241,21 +297,27 @@ Invoke-Step "Docs-site trust copy smoke" {
                 "Google user data to train generalized AI or ML models",
                 "L1 Drafts beta",
                 "%LOCALAPPDATA%\CareerSeeker",
-                "current Beta MSIX is unsigned"
+                "current Beta MSIX is unsigned",
+                "delete-all-data",
+                "--confirm-delete-all-data"
             ) $relative
         }
         if ($relative -like "*support*") {
             Assert-Contains $content @(
                 "Current Beta Actions",
                 "%LOCALAPPDATA%\CareerSeeker",
-                "Do not combine app uninstall and user-data deletion"
+                "Never combine app uninstall and user-data deletion",
+                "NOT DELETED",
+                "--confirm-delete-all-data"
             ) $relative
         }
         if ($relative -like "*autonomy*") {
             Assert-Contains $content @(
                 "L1 Drafts beta",
                 "Current L1 beta path",
-                "%LOCALAPPDATA%\CareerSeeker"
+                "%LOCALAPPDATA%\CareerSeeker",
+                "delete-all-data",
+                "--confirm-delete-all-data"
             ) $relative
         }
         if ($relative -like "*download*") {
@@ -377,11 +439,11 @@ Invoke-Step "Public README and harness count smoke" {
         'Alpha `.cmd` helpers',
         'no open-source license',
         'all rights are reserved',
-        '| EngineHarness | 164 |',
+        '| EngineHarness | 170 |',
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| **Total** | **412** |',
+        '| **Total** | **418** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -395,7 +457,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **412** |',
+        '| **Total** | **418** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -403,7 +465,7 @@ Invoke-Step "Public README and harness count smoke" {
         '## Human-only work remaining'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| EngineHarness | 164 |',
+        '| EngineHarness | 170 |',
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| StoreParityHarness | 25 |',
@@ -413,7 +475,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| **Total** | **412** |',
+        '| **Total** | **418** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -447,7 +509,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **412 passed, 0 failed**',
+        'Pinned offline verifier: **418 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
@@ -466,7 +528,7 @@ Invoke-Step "Public README and harness count smoke" {
         '`lexical-v2` formula',
         '| 200 | 1.50–3.88 | 2.99–4.20 | 2.99 | 4.20 | 4.20 | 3.20 | 8/120 (6.7%) |',
         'existing default Act threshold of 4.0 remains inside that gap',
-        '164 passed, 0 failed'
+        '170 passed, 0 failed'
     ) "docs/Scoring-Calibration.md"
 
     $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw

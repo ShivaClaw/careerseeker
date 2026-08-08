@@ -73,6 +73,12 @@ to `%LOCALAPPDATA%\CareerSeeker`, where the existing relative paths create:
 The public installed/Desktop OAuth client metadata is copied once from immutable package resources and never
 overwrites an existing user copy. Normal MSIX removal does not delete this external workspace.
 
+`delete-all-data` is the separately confirmed installed-workspace off-ramp. Run it once without a
+confirmation to print the exact `%LOCALAPPDATA%\CareerSeeker` target and its path-bound phrase. Close every
+CareerSeeker process, then pass that exact phrase with `--confirm-delete-all-data`. The command refuses
+volume roots, arbitrary paths, and a workspace-root reparse point; it removes nested links without following
+them and verifies whether the target is absent before reporting completion.
+
 Build and non-installing package verification:
 
 ```powershell
@@ -144,7 +150,7 @@ Current pinned offline results:
 | Harness | Assertions |
 |---|---:|
 | Slice | 28 |
-| EngineHarness | 164 |
+| EngineHarness | 170 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
 | StoreParityHarness | 25 |
@@ -152,7 +158,7 @@ Current pinned offline results:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| **Total** | **412** |
+| **Total** | **418** |
 
 The engine-specific assertions cover browser onboarding, crash reconciliation, SQLite composition,
 single-instance protection, scheduler pause/resume/backoff, honest dashboard state, identified Scout feeds,

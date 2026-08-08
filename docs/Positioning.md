@@ -53,7 +53,7 @@ the supporting file changes.
 | D07 | “CareerSeeker does not sell or license user data.” | POLICY | Business/data-practice commitment; requires organizational compliance evidence. | `docs-site/privacy.md` §7 |
 | D08 | “CareerSeeker uses no analytics, advertising, or tracking services.” | **UNPROVEN** | No whole-binary/network inventory or deployed-site tracker scan is pinned in CI. Keep as a policy statement until both exist. | Needed: SBOM/network audit + deployed-site scan |
 | D09 | “All CareerSeeker product data has no server-side retention.” | **UNPROVEN** | Local Windows pipeline is proven, but the operated signup/KV service means the sentence needs precise product-data scope and deployment audit. | Needed: production data-flow/retention inventory |
-| D10 | “You can delete all local data.” | PARTIAL | Manual exact-path deletion exists; no in-app confirmed full-deletion workflow is implemented. | `docs/Beta-Windows-Package-Runbook.md` §Verification and removal |
+| D10 | “You can delete all local data.” | PROVEN for installed workspace | `delete-all-data` resolves only `%LOCALAPPDATA%\CareerSeeker`, requires the exact displayed path-bound phrase, refuses broad/arbitrary roots, removes without following directory links, verifies absence, and reports already-absent truthfully. Source/test workspaces and separately saved exports remain explicitly out of scope. | `src/Engine/FullDataDeletion.cs:24`, `src/Engine/FullDataDeletion.cs:33`, `src/Engine/Program.cs:20`, `tests/EngineHarness/Program.cs:224`, `tests/EngineHarness/Program.cs:255` |
 
 ## Package and operations claims
 
@@ -72,7 +72,7 @@ the supporting file changes.
 Before deployment, Brandon should explicitly accept or revise:
 
 1. D08/D09 wording after a production tracker/data-retention inventory.
-2. D10 wording until an in-app full-deletion workflow exists.
+2. D10 wording must retain its installed-workspace scope and the separate source/test/export caveat.
 3. O03 wording: “structured to preserve” is more precise than claiming a real uninstall test.
 4. O05/O06: keep absent from marketing until the installer/reboot/OAuth/signing gates pass.
 5. O07: label contact times as targets, not commitments.
