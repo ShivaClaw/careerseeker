@@ -1,20 +1,18 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T19:43:46-06:00
-- **Current rung:** R3 BLOCKED because the explicit R2-DONE prerequisite is
-  not satisfied; PR #22 is open and awaiting both CI runs.
+- **Heartbeat:** 2026-08-07T19:53:07-06:00
+- **Current rung:** R3 BLOCKED and merged via PR #22 as
+  `f774edb20e3b7e8349a39781d9be5ac3c4f0506c`.
 - **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r3-gate` /
   `codex/r3-prerequisite-gate`.
-- **Files claimed:** R3 sections in `docs/BETA-BLOCKED.md`,
-  `docs/BETA-AUDIT-REQUEST.md`, `docs/Codex-Resume-Handoff.md`,
-  `docs/autonomy/CODEX-STATE.md`, and new `docs/autonomy/HUMAN-QUEUE.md`.
+- **Files claimed:** none for the next iteration.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
 - **Claude state:** `autonomy/claude-state` remained absent after the
   iteration's mandatory fetch.
 - **Fresh integration base:** `origin/main` =
-  `d4864590c38cd52a332349f20853423e477e9e0f`.
+  `f774edb20e3b7e8349a39781d9be5ac3c4f0506c`.
 - **Measured R2 evidence:** retained copy integrity/idempotence passed and the
   source remained 172,032 bytes with SHA-256 `0A5605…E18192`. The imported
   fixture has 31 claims / 321 rankable terms. Remote.com measured 58
@@ -40,11 +38,14 @@
   with one executable and zero provider/Gmail calls. Final post-rebase MSIX
   measured 33,671,116 bytes, SHA-256
   `9BBA045F01424A7A2F911056FF85AA988D53D31DF22F6D7D246FDBEDA63AF5C0`.
-- **CI/rebase evidence:** push run `31233469197` and PR run `31233471024`
+- **CI/rebase/merge evidence:** initial runs `31233469197` and `31233471024`
   passed. Fresh main remained `d486459`; rebase was a no-op and the full gate
-  repeated 0/0, 412/0, and the package self-check.
-- **Next intent:** push the final evidence-only update, obtain both replacement
-  green runs, merge PR #22 normally, then release claims.
+  repeated 0/0, 412/0, and the package self-check. Final runs `31233608884`
+  and `31233610994` passed; PR #22 merged normally as
+  `f774edb20e3b7e8349a39781d9be5ac3c4f0506c`.
+- **Next intent:** stop this clean R3 iteration. On the next iteration, fetch
+  all refs and take one R4 signing/install-readiness preparation slice if it
+  does not collide with fresh Claude claims.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
