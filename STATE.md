@@ -1,8 +1,8 @@
 # Codex coordination state
 
 - **Heartbeat:** 2026-08-07T19:43:46-06:00
-- **Current rung:** R3 BLOCKED locally because the explicit R2-DONE
-  prerequisite is not satisfied; evidence PR preparation is in progress.
+- **Current rung:** R3 BLOCKED because the explicit R2-DONE prerequisite is
+  not satisfied; PR #22 is open and awaiting both CI runs.
 - **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r3-gate` /
   `codex/r3-prerequisite-gate`.
 - **Files claimed:** R3 sections in `docs/BETA-BLOCKED.md`,
@@ -40,8 +40,8 @@
   with one executable and zero provider/Gmail calls. Final post-commit MSIX
   measured 33,671,050 bytes, SHA-256
   `DBED06ACF01F47672F0ECF267C40A6C48F5DF50CBD20A44A4297BD5FD9863DFA`.
-- **Next intent:** finish the docs-only R3 BLOCKED evidence slice, run the
-  required gates, merge normally after both CI runs, then release claims.
+- **Next intent:** obtain both green PR #22 CI runs, rebase onto fresh main if
+  needed, repeat the full gate, merge normally, then release claims.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
