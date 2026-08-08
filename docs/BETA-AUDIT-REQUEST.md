@@ -6,6 +6,33 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## R5 - Repository-only distribution preparation
+
+Branch: `codex/r5-distribution-prep`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-08-07 |
+|---|---|---|
+| The staged download copy identifies the Beta candidate without offering an artifact link or promoting the three unproven operational claims. | `scripts\Verify-Alpha.ps1`; `Select-String` over `docs-site\download.md`, `docs-site\download.html`, `docs\Beta-Changelog.md`, and `docs\Alpha-to-Beta-Migration.md` for the prohibited claim text | Both download pages say `Beta download is not yet available`, identify the unsigned candidate, retain the exact shipped Alpha baseline, and contain no Beta MSIX artifact href. The prohibited strings were absent. |
+| The Alpha baseline is pinned to the shipped artifact rather than a later local ZIP. | `rg -n "7018ff9|3A4251|64,937,092" docs\Codex-Resume-Handoff.md docs\Beta-Changelog.md docs-site\download.md docs-site\download.html` | Changelog and download copy match the historical shipped artifact: commit `7018ff9`, 64,937,092 bytes, SHA-256 `3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2`. |
+| The tester migration command is preservation-first and resolves the packaged per-user workspace without executing an import. | `$betaData = Join-Path $env:LOCALAPPDATA 'CareerSeeker\.appdata'; scripts\Import-AlphaPackage.ps1 -PreviewOnly ...` | Preview assembled the database, artifacts, and job-description paths under `%LOCALAPPDATA%\CareerSeeker\.appdata`; reported `overwrite: no`; and explicitly did not execute the command. |
+| Positioning source references were refreshed against the post-R1 tree. | PowerShell regex extraction of every ``path:line`` reference in `docs\Positioning.md`, followed by reading the referenced line | Every numeric source reference resolved. The R1 claim points at `LexicalSemanticScorer.cs:74` job coverage and `EngineHarness:1022` monotonicity; package references point at the current executable, startup, and external-sentinel assertions. |
+| The merge-grade gate remains green. | `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | Build 0 warnings/0 errors; offline 412/0; published demo 1 acted/1 drafted; one-executable package self-check passed with provider calls 0 and Gmail calls/drafts 0. The unsigned candidate measured 33,671,067 bytes with SHA-256 `3517C50DBB743F88907BC20ABADD65A0133BF988AB74A6D0FA1B78BED1C6482B`. |
+| .NET analyzers remain clean. | `dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest`; `dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore` | Analyzer build 0 warnings/0 errors; analyzer formatting verification exited 0 with no findings. |
+
+### Verification boundary
+
+R5 changed repository copy and tests only. The MSIX hash above is a measured
+unsigned candidate, not final release metadata. No artifact URL was created,
+and the off-repo production site was not read or changed.
+
+No deploy, console mutation, email, purchase, signing, install, secret access,
+certificate/store mutation, reboot, scheduled-task registration, off-repo
+site edit, Android/relay/sync change, force-push, history rewrite,
+`.appdata`-original mutation, public ATS read, or live provider/Gmail action
+occurred.
+
 ## R4 - Signing and install readiness preparation
 
 Branch: `codex/r4-signing-install-readiness`
