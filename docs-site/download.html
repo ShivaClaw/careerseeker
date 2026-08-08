@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerSeeker Beta download</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 800px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
+  h1, h2 { color: #111; }
+  .status { border: 1px solid #b26a00; background: #fff8e8; padding: 16px; border-radius: 8px; }
+  code { background: #f4f4f4; padding: 0.1rem 0.25rem; overflow-wrap: anywhere; }
+  a { color: #06c; }
+</style>
+</head>
+<body>
+<h1>CareerSeeker Beta download</h1>
+<p class="status"><strong>Status: Beta download is not yet available.</strong></p>
+<p>The repository candidate is <code>CareerSeeker-beta-win-x64.msix</code> for x64 Windows. It is currently unsigned. Human signing, signature verification, and a disposable Windows install/upgrade/removal matrix remain release gates. No public Beta artifact URL is staged on this page.</p>
+
+<h2>What testers can expect</h2>
+<ul>
+  <li>One MSIX containing one <code>CareerSeeker.exe</code>.</li>
+  <li>A local-first Windows L1 Drafts beta: CareerSeeker prepares reviewable Gmail drafts and has no email-send or application-submit path.</li>
+  <li>Public ATS discovery and local job ranking against the source-of-truth profile.</li>
+  <li>Prompt-injection quarantine and the Fabrication Gate before any draft.</li>
+  <li>Local runtime state under <code>%LOCALAPPDATA%\CareerSeeker</code>.</li>
+  <li>An optional startup task that is disabled by default; package activation is discovery-only.</li>
+</ul>
+
+<p>The previously shipped Alpha remains the last published artifact: <code>CareerSeeker-alpha2-bridge-win-x64-2026-07-24-7018ff9.zip</code>, 64,937,092 bytes, SHA-256 <code>3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2</code>.</p>
+
+<h2>Moving from Alpha</h2>
+<p>The Beta transition uses the existing <code>export-alpha-package</code> and <code>import-alpha-package</code> workflow. Export first, keep the evidence ZIP as a backup, and import without overwrite. Provider keys and Gmail OAuth tokens are not transferred; reconnect them separately if wanted.</p>
+<p>See the repository's <a href="https://github.com/ShivaClaw/careerseeker/blob/main/docs/Beta-Changelog.md">Beta changelog</a> and <a href="https://github.com/ShivaClaw/careerseeker/blob/main/docs/Alpha-to-Beta-Migration.md">Alpha-to-Beta migration guide</a>.</p>
+<p>The evidence ZIP can be checked with <code>export-audit</code> before import. Removing the app package and deleting <code>%LOCALAPPDATA%\CareerSeeker</code> remain separate, explicit actions.</p>
+
+<p><a href="index.html">Back to CareerSeeker resources</a></p>
+</body>
+</html>

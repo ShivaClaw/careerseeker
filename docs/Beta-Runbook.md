@@ -24,6 +24,7 @@ or tester machine and therefore requires a human. Terra executed none of these a
 Canonical review inputs:
 
 - `docs-site/index.html`
+- `docs-site/download.md` and `docs-site/download.html`
 - `docs-site/privacy.md` and `docs-site/privacy.html`
 - `docs-site/support.md` and `docs-site/support.html`
 - `docs-site/autonomy-contract.md` and `docs-site/autonomy-contract.html`
@@ -40,13 +41,14 @@ Human steps:
 6. Verify production, not just a per-deploy URL:
 
    - `https://careerseeker.app/`
+   - `https://careerseeker.app/download/`
    - `https://careerseeker.app/privacy/`
    - `https://careerseeker.app/support/`
    - `https://careerseeker.app/autonomy-contract/`
 
 7. Check visible version/date, links, Google Limited Use/no-training language, honest `gmail.compose`
-   capability, Beta package/data-removal wording, and absence of “signed”, “reboot-proven”, or
-   “production-ready” claims.
+   capability, Beta package/data-removal wording, and that the staged download page still says no Beta
+   download is available until the signed artifact and disposable-machine evidence exist.
 8. Record the production deployment id and exact verification output in the handoff.
 
 Do not deploy if repository and production copy still disagree.

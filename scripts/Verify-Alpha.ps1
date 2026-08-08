@@ -229,7 +229,9 @@ Invoke-Step "Docs-site trust copy smoke" {
         "docs-site/support.md",
         "docs-site/support.html",
         "docs-site/autonomy-contract.md",
-        "docs-site/autonomy-contract.html"
+        "docs-site/autonomy-contract.html",
+        "docs-site/download.md",
+        "docs-site/download.html"
     )) {
         $content = Get-Content -LiteralPath $relative -Raw
         $snippets = $trustSnippets
@@ -256,10 +258,64 @@ Invoke-Step "Docs-site trust copy smoke" {
                 "%LOCALAPPDATA%\CareerSeeker"
             ) $relative
         }
+        if ($relative -like "*download*") {
+            Assert-Contains $content @(
+                "Beta download is not yet available",
+                "CareerSeeker-beta-win-x64.msix",
+                "64,937,092",
+                "3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2",
+                "currently unsigned",
+                "%LOCALAPPDATA%\CareerSeeker"
+            ) $relative
+            Assert-DoesNotContain $content @(
+                "signed and trusted by Windows",
+                "survives reboot unattended",
+                "production-ready",
+                'href="CareerSeeker-beta-win-x64.msix"'
+            ) $relative
+        }
     }
 
     $index = Get-Content -LiteralPath "docs-site/index.html" -Raw
-    Assert-Contains $index @("privacy.html", "support.html", "autonomy-contract.html") "docs-site/index.html"
+    Assert-Contains $index @("download.html", "privacy.html", "support.html", "autonomy-contract.html") "docs-site/index.html"
+}
+
+Invoke-Step "R5 distribution copy smoke" {
+    $changelog = Get-Content -LiteralPath "docs/Beta-Changelog.md" -Raw
+    Assert-Contains $changelog @(
+        "7018ff9",
+        "CareerSeeker-alpha2-bridge-win-x64-2026-07-24-7018ff9.zip",
+        "64,937,092",
+        "3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2",
+        "CareerSeeker-beta-win-x64.msix",
+        "The repository candidate is unsigned",
+        "No public Beta artifact or download URL has been published"
+    ) "docs/Beta-Changelog.md"
+
+    $migration = Get-Content -LiteralPath "docs/Alpha-to-Beta-Migration.md" -Raw
+    Assert-Contains $migration @(
+        "Export-AlphaEvidencePackage.ps1",
+        "Import-AlphaPackage.ps1",
+        "Import preserves existing files",
+        'Do not add `-Overwrite`',
+        '`StoreParityHarness --migration-copy`',
+        "172,032 bytes",
+        "0A5605288D04302443A129289E03E5B62DA1C7B535FE124B0935455238E18192",
+        "%LOCALAPPDATA%\CareerSeeker"
+    ) "docs/Alpha-to-Beta-Migration.md"
+
+    Assert-DoesNotContain ($changelog + $migration) @(
+        "signed and trusted by Windows",
+        "survives reboot unattended",
+        "production-ready"
+    ) "R5 distribution documents"
+
+    $runbook = Get-Content -LiteralPath "docs/Beta-Runbook.md" -Raw
+    Assert-Contains $runbook @(
+        "docs-site/download.md",
+        "https://careerseeker.app/download/",
+        "staged download page still says no Beta"
+    ) "docs/Beta-Runbook.md"
 }
 
 Invoke-Step "Trust wording smoke" {
@@ -270,7 +326,9 @@ Invoke-Step "Trust wording smoke" {
         "docs/Autonomy-Contract.md",
         "docs/External-Audit-Handoff.md",
         "docs-site/privacy.md",
-        "docs-site/autonomy-contract.md"
+        "docs-site/autonomy-contract.md",
+        "docs-site/download.md",
+        "docs-site/download.html"
     )) {
         $content = Get-Content -LiteralPath $relative -Raw
         Assert-DoesNotContain $content @("without any send capability") $relative
