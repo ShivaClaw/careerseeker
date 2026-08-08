@@ -86,6 +86,64 @@ function Get-SpdxId {
     return 'SPDXRef-Package-' + (($Id + '-' + $Version) -replace '[^A-Za-z0-9.-]', '-')
 }
 
+function ConvertTo-CanonicalJsonString {
+    param([AllowEmptyString()][string] $Value)
+
+    $builder = [System.Text.StringBuilder]::new()
+    [void] $builder.Append('"')
+    foreach ($character in $Value.ToCharArray()) {
+        $code = [int] $character
+        switch ($code) {
+            8 { [void] $builder.Append('\b'); continue }
+            9 { [void] $builder.Append('\t'); continue }
+            10 { [void] $builder.Append('\n'); continue }
+            12 { [void] $builder.Append('\f'); continue }
+            13 { [void] $builder.Append('\r'); continue }
+            34 { [void] $builder.Append('\"'); continue }
+            92 { [void] $builder.Append('\\'); continue }
+        }
+        if ($code -lt 32) {
+            [void] $builder.Append(('\u{0:x4}' -f $code))
+        } else {
+            [void] $builder.Append($character)
+        }
+    }
+    [void] $builder.Append('"')
+    return $builder.ToString()
+}
+
+function ConvertTo-CanonicalJson {
+    param([AllowNull()][object] $Value)
+
+    if ($null -eq $Value) {
+        return 'null'
+    }
+    if ($Value -is [string] -or $Value -is [char]) {
+        return ConvertTo-CanonicalJsonString ([System.Convert]::ToString($Value))
+    }
+    if ($Value -is [bool]) {
+        return $(if ($Value) { 'true' } else { 'false' })
+    }
+    if ($Value -is [System.Collections.IDictionary]) {
+        $members = @(
+            foreach ($entry in $Value.GetEnumerator()) {
+                (ConvertTo-CanonicalJsonString ([System.Convert]::ToString($entry.Key))) +
+                    ':' + (ConvertTo-CanonicalJson $entry.Value)
+            }
+        )
+        return '{' + ($members -join ',') + '}'
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        $items = @(
+            foreach ($item in $Value) {
+                ConvertTo-CanonicalJson $item
+            }
+        )
+        return '[' + ($items -join ',') + ']'
+    }
+    throw "Unsupported canonical JSON value type: $($Value.GetType().FullName)"
+}
+
 function Test-AutoReferencedPackage {
     param([object] $Package)
 
@@ -366,7 +424,7 @@ $document = [ordered]@{
     relationships = $relationships
 }
 
-$json = (($document | ConvertTo-Json -Depth 12 -Compress).Replace("`r`n", "`n").Replace("`r", "`n")) + "`n"
+$json = (ConvertTo-CanonicalJson $document) + "`n"
 if ($ValidateOnly) {
     if (-not (Test-Path -LiteralPath $output -PathType Leaf)) {
         throw "Committed SPDX inventory is missing: $output"
