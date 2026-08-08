@@ -2,6 +2,72 @@
 
 Updated: 2026-08-07
 
+## 2026-08-07 (Terra R6a) - Confirmed installed-workspace deletion implemented
+
+Branch: `codex/r6-delete-all-data`, based on fresh `origin/main` at
+`e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
+
+R6(a) adds a first-class `delete-all-data` executable mode before packaged-
+workspace preparation. The first invocation is deliberately non-mutating: it
+prints the exact `%LOCALAPPDATA%\CareerSeeker` path and a path-bound confirmation
+phrase. Only a separate invocation carrying that exact phrase can proceed. The
+implementation refuses volume roots, arbitrary targets, and a linked root;
+removes nested directory links without following them; moves the current
+directory outside the target; and verifies the exact path is absent before
+reporting completion. A repeat reports that nothing was deleted.
+
+The installed-path preview resolved
+`C:\Users\bkirk\AppData\Local\CareerSeeker` and reported `NOT DELETED`; no
+confirmation was supplied against the real path. Six EngineHarness assertions
+used isolated `careerseeker-delete-harness-*` temp roots for the destructive
+cases. The count drift moved EngineHarness 164 -> 170 and the offline total
+412 -> 418 across the verifier and every living count-reporting document.
+
+Privacy, support, autonomy, migration, changelog, and runbook copy now explain
+the exact two-step command without conflating it with uninstall. The VM matrix
+runs deletion while installed at VM10, then recreates a sentinel before the
+separate uninstall-preservation check at VM11. Positioning D10 is now PROVEN
+for the installed workspace, with source/test workspaces and separately saved
+exports explicitly out of scope.
+
+Executed verification before the pull request:
+
+```text
+> dotnet run --project src\Engine\SeekerSvc.Engine.csproj -c Release --no-build -- delete-all-data
+exact workspace: C:\Users\bkirk\AppData\Local\CareerSeeker
+status: NOT DELETED (separate confirmation required)
+
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+=== EngineHarness: 170 passed, 0 failed ===
+=== Offline total: 418 passed, 0 failed ===
+
+> dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest
+Build succeeded. 0 warnings, 0 errors.
+
+> dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore
+Exit code: 0; no output.
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 418 passed, 0 failed ===
+Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+Package: one CareerSeeker.exe; provider calls 0; Gmail calls/drafts 0.
+MSIX bytes: 33,666,330
+MSIX SHA-256: 6711EBFD1EE81E7E3140F2DD426DE3A44D61F499FC185D5039E0DEE70182BCED
+```
+
+The package hash is a per-build unsigned-candidate measurement, not final
+release metadata. R6 remains IN PROGRESS: dependency/SBOM inventory,
+PSScriptAnalyzer, and the remaining ordered-backlog review are separate future
+slices.
+
+Boundary: no deploy, console mutation, email, purchase, signing, install,
+secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, `.appdata`-original mutation, public ATS read, or live
+provider/Gmail action occurred. The real installed workspace was not deleted.
+
 ## 2026-08-07 (Terra R5) - Beta distribution copy staged in-repository
 
 Branch: `codex/r5-distribution-prep`, PR #24, based on fresh `origin/main` at

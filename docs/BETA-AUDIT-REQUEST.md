@@ -6,6 +6,32 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## R6(a) - Confirmed installed-workspace data deletion
+
+Branch: `codex/r6-delete-all-data`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-08-07 |
+|---|---|---|
+| The first deletion invocation is non-mutating and displays the exact target plus a path-bound confirmation phrase. | `dotnet run --project src\Engine\SeekerSvc.Engine.csproj -c Release --no-build -- delete-all-data` | Exit 0; displayed `C:\Users\bkirk\AppData\Local\CareerSeeker`, reported `NOT DELETED`, and printed the required `DELETE ALL CAREERSEEKER DATA AT ...` phrase. No confirmation was supplied. |
+| The confirmed operation is constrained and honestly reports its result. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release --no-build` | EngineHarness passed 170/0. Six deletion assertions pin the installed path, exact phrase, mismatch no-op, volume-root refusal, complete exact-target removal with post-delete absence, and already-absent reporting. The destructive assertions used isolated `careerseeker-delete-harness-*` temp roots only. |
+| The public workflow and disposable-VM sequence retain the uninstall/data boundary. | `scripts\Verify-Alpha.ps1`; inspect `docs\Support.md`, `docs\Privacy-Policy.md`, `docs\Beta-Windows-Package-Runbook.md`, and `scripts\New-BetaVmInstallMatrix.ps1` | Repository and site copies agree on the two-step command. VM10 deletes while installed; VM11 recreates a sentinel and tests uninstall preservation separately. |
+| The merge-grade gate remains green. | `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | Build 0 warnings/0 errors; offline 418/0; published demo 1 acted/1 drafted; one-executable package self-check passed with provider calls 0 and Gmail calls/drafts 0. The unsigned candidate measured 33,666,330 bytes with SHA-256 `6711EBFD1EE81E7E3140F2DD426DE3A44D61F499FC185D5039E0DEE70182BCED`. |
+| .NET analyzers remain clean. | `dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest`; `dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore` | Analyzer build 0 warnings/0 errors; analyzer formatting verification exited 0 with no findings. |
+
+### Verification boundary
+
+The real installed workspace was resolved and displayed only; the confirmed
+deletion command was never run against it. Destructive harness coverage used
+fresh isolated temp directories. R6(b), R6(c), and R6(d) remain pending.
+
+No deploy, console mutation, email, purchase, signing, install, secret access,
+certificate/store mutation, reboot, scheduled-task registration, off-repo
+site edit, Android/relay/sync change, force-push, history rewrite,
+`.appdata`-original mutation, public ATS read, or live provider/Gmail action
+occurred.
+
 ## R5 - Repository-only distribution preparation
 
 Branch: `codex/r5-distribution-prep`
