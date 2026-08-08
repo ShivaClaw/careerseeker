@@ -417,7 +417,7 @@ async Task<int> RunEngineAsync()
         Console.WriteLine($"  local control directory: {controls.Directory}");
     Console.WriteLine($"  host mode: {(serviceHost ? "scheduled-task service" : "interactive")}");
     Console.WriteLine($"  max drafts per cycle: {(maxDraftsPerCycle > 0 ? maxDraftsPerCycle.ToString() : "unlimited")}");
-    Console.WriteLine("  ranker: deterministic offline lexical-v1 (local profile/posting overlap)");
+    Console.WriteLine("  ranker: deterministic offline lexical-v2 (job-side profile coverage)");
 
     if (once)
     {

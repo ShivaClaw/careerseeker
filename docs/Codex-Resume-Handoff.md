@@ -1,6 +1,74 @@
 # Codex Resume Handoff
 
-Updated: 2026-07-30
+Updated: 2026-08-07
+
+## 2026-08-07 (Terra R1) - Job-side lexical scoring calibration
+
+Branch: `codex/r1-scoring-calibration`, PR #20, based on fresh `origin/main`
+at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`.
+
+R1 reproduced the beta-blocking whole-profile denominator defect before the
+fix. With four new assertions present, the old `lexical-v1` run measured:
+
+```text
+profile=10:  act=8/120, CV max 4.08, total max 4.27
+profile=50:  act=0/120, CV max 2.86, total max 3.85
+profile=200: act=0/120, CV max 2.63, total max 3.77
+=== 159 passed, 4 failed ===
+```
+
+`lexical-v2` normalizes matched evidence by rankable job terms. Title terms
+carry 1.5 placement weight, description-only terms 1.0, Skill/Title evidence
+can reach full contribution, and the blend is 70% job coverage plus 30% title
+coverage. Adding or strengthening profile evidence can only hold or increase
+a posting's score. Rationale and persisted ranker identity were updated.
+
+The post-fix calibration measured the same distribution at 10, 50, and 200
+terms: CV 1.50–3.88, total 2.99–4.20, target minimum 4.20, adjacent maximum
+3.20, and 8/120 Act (6.7%). The existing 4.0 threshold remains in the
+observed 1.00-point gap. A fifth assertion pins the real healthy demo fixture,
+which remained Act.
+
+Executed evidence:
+
+```text
+> dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release
+=== 164 passed, 0 failed ===
+
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+Engine demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+=== Offline total: 412 passed, 0 failed ===
+
+> dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest
+Build succeeded. 0 warnings, 0 errors.
+
+> dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore
+Exit code: 0; no output.
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 412 passed, 0 failed ===
+Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+Package creation and one-executable structural self-check passed.
+Provider calls: 0. Gmail calls/drafts: 0.
+```
+
+The first PR push and pull-request workflows both passed (`31232147469` and
+`31232154680`). A fresh fetch found `origin/main` unchanged and no Claude
+state branch; rebase was a no-op. The post-rebase full gate repeated 0/0,
+412/0, the healthy published demo, and the one-executable package self-check.
+
+The count drift moved EngineHarness 159→164 and the pinned total 407→412;
+README, Engine README, project summary, external audit handoff, verifier, and
+calibration document moved together. Positioning P03 now points to the
+job-side formula and nested-profile assertion.
+
+Boundary: no deploy, console mutation, email, purchase, signing, install,
+secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, `.appdata`-original mutation, or live provider/Gmail action
+occurred.
 
 ## 2026-08-07 (Terra R0) - Fresh re-entry verification and autonomy bootstrap
 

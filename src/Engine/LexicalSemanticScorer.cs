@@ -6,9 +6,10 @@ namespace SeekerSvc.Engine;
 
 /// <summary>
 /// Deterministic, offline fit signals derived from the local source-of-truth profile and an untrusted
-/// posting treated strictly as data. Title matches are weighted above description matches; Skill and
-/// Title claims are weighted above narrative/metric/employer text. No posting text is executed or sent
-/// to a provider.
+/// posting treated strictly as data. Coverage is normalized by the posting's rankable terms so adding
+/// unrelated profile evidence cannot lower an existing job's score. Title matches are weighted above
+/// description matches; Skill and Title claims are weighted above narrative/metric/employer text. No
+/// posting text is executed or sent to a provider.
 /// </summary>
 public sealed partial class LexicalSemanticScorer : ISemanticScorer
 {
@@ -44,31 +45,34 @@ public sealed partial class LexicalSemanticScorer : ISemanticScorer
         var descriptionTerms = Tokenize(posting.DescriptionText);
 
         if (profileTerms.Count == 0)
-            return new SemanticScores(2.5, GrowthScore(titleTerms, descriptionTerms), "lexical-v1",
+            return new SemanticScores(2.5, GrowthScore(titleTerms, descriptionTerms), "lexical-v2",
                 "No rankable local profile terms; CV match held neutral.");
 
-        var totalProfileWeight = profileTerms.Values.Sum();
-        var matchedWeight = 0.0;
+        var jobTerms = titleTerms.Union(descriptionTerms).ToArray();
+        var totalJobWeight = 0.0;
+        var matchedJobWeight = 0.0;
         var matched = new List<(string Term, double Weight, string Where)>();
-        foreach (var (term, weight) in profileTerms)
+        foreach (var term in jobTerms)
         {
-            if (titleTerms.Contains(term))
-            {
-                matchedWeight += weight;
-                matched.Add((term, weight, "title"));
-            }
-            else if (descriptionTerms.Contains(term))
-            {
-                matchedWeight += weight * 0.65;
-                matched.Add((term, weight * 0.65, "description"));
-            }
+            var where = titleTerms.Contains(term) ? "title" : "description";
+            var placementWeight = where == "title" ? 1.5 : 1.0;
+            totalJobWeight += placementWeight;
+            if (!profileTerms.TryGetValue(term, out var profileWeight))
+                continue;
+
+            // Skill claims top out at 3.0. Lower-confidence/narrative evidence contributes less, while
+            // adding a claim or strengthening an existing claim can only increase this contribution.
+            var claimStrength = Math.Clamp(profileWeight / 3.0, 0.0, 1.0);
+            var contribution = placementWeight * claimStrength;
+            matchedJobWeight += contribution;
+            matched.Add((term, contribution, where));
         }
 
         var titleCoverage = titleTerms.Count == 0
             ? 0.0
             : titleTerms.Count(profileTerms.ContainsKey) / (double)titleTerms.Count;
-        var profileCoverage = matchedWeight / Math.Max(1.0, totalProfileWeight);
-        var combined = Math.Clamp(0.70 * profileCoverage + 0.30 * titleCoverage, 0.0, 1.0);
+        var jobCoverage = matchedJobWeight / Math.Max(1.0, totalJobWeight);
+        var combined = Math.Clamp(0.70 * jobCoverage + 0.30 * titleCoverage, 0.0, 1.0);
         var cvMatch = Math.Round(1.5 + 3.5 * combined, 2);
         var growth = GrowthScore(titleTerms, descriptionTerms);
 
@@ -79,10 +83,10 @@ public sealed partial class LexicalSemanticScorer : ISemanticScorer
             .Select(m => $"{m.Term} ({m.Where})")
             .ToArray();
         var rationale = evidence.Length == 0
-            ? $"No meaningful profile-term overlap; profile coverage {profileCoverage:P0}, title coverage {titleCoverage:P0}."
-            : $"Matched {string.Join(", ", evidence)}; profile coverage {profileCoverage:P0}, title coverage {titleCoverage:P0}.";
+            ? $"No meaningful profile-term overlap; job coverage {jobCoverage:P0}, title coverage {titleCoverage:P0}."
+            : $"Matched {string.Join(", ", evidence)}; job coverage {jobCoverage:P0}, title coverage {titleCoverage:P0}.";
 
-        return new SemanticScores(cvMatch, growth, "lexical-v1", rationale);
+        return new SemanticScores(cvMatch, growth, "lexical-v2", rationale);
     }
 
     private static Dictionary<string, double> ProfileTerms(IReadOnlyList<ClaimRow> claims)

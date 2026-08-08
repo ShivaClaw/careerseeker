@@ -67,7 +67,7 @@ The current pinned breakdown is:
 | Harness | Assertions |
 |---|---:|
 | Slice | 28 |
-| EngineHarness | 159 |
+| EngineHarness | 164 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
 | StoreParityHarness | 25 |
@@ -75,7 +75,7 @@ The current pinned breakdown is:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| **Total** | **407** |
+| **Total** | **412** |
 
 CI runs the warnings-as-errors Release build and the same offline verifier. Optional live switches use
 already-configured local credentials and are not part of the default gate:
@@ -116,9 +116,10 @@ The persistent engine reconciles recorded external-effect outcomes at startup an
 cycle. A recorded provider success completes the missing local transition without repeating the external
 effect. An unknown pending outcome is left for manual review.
 
-Ranking defaults to deterministic local `lexical-v1`. It weights title and Skill/Title overlap, persists
-the components and matched-term rationale, and orders `/jobs` by the composed score. It does not require
-an inference provider.
+Ranking defaults to deterministic local `lexical-v2`. It measures job-side term coverage so adding
+unrelated verified profile evidence cannot lower a posting's score, weights title and Skill/Title overlap,
+persists the components and matched-term rationale, and orders `/jobs` by the composed score. It does not
+require an inference provider.
 
 ## Safety invariants
 
