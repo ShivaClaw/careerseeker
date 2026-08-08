@@ -53,8 +53,8 @@ Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
 Baseline package: one CareerSeeker.exe; provider calls 0; Gmail calls/drafts 0.
 Production-shaped control: exact publisher match; unsigned OID absent.
 -RequireSigned: unsigned control rejected with No signature found.
-MSIX bytes: 33,671,092
-MSIX SHA-256: 3FF2AF41E95DF3B01B666AEA6881BCC7BA1EAD11B05857E4804230DE3ACDE911
+MSIX bytes: 33,671,066
+MSIX SHA-256: F7A93B25D3CB0441C5DD04FF625F7481F237DDC72727187A83958F09F8CCA611
 
 > dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest
 Build succeeded. 0 warnings, 0 errors.
@@ -62,6 +62,14 @@ Build succeeded. 0 warnings, 0 errors.
 > dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore
 Exit code: 0; no output.
 ```
+
+Initial push run `31234255359` and pull-request run `31234256715`
+passed. A fresh fetch found `origin/main` unchanged at `f774edb` and no
+Claude state branch; `git rebase origin/main` was a no-op. The required
+post-rebase full gate repeated build 0/0, offline 412/0, the healthy published
+demo, the one-executable package smoke, exact production publisher/OID checks,
+and the unsigned-control rejection. The package bytes/hash above are from that
+post-rebase run; byte-for-byte package reproducibility is not claimed.
 
 R4 is DONE as repository-only preparation. Q03 Azure signing, Q04 disposable
 VM execution, and Q05 R2/public publication remain human-only and unexecuted.
