@@ -4,7 +4,7 @@ Updated: 2026-08-07
 
 ## 2026-08-07 (Terra R5) - Beta distribution copy staged in-repository
 
-Branch: `codex/r5-distribution-prep`, based on fresh `origin/main` at
+Branch: `codex/r5-distribution-prep`, PR #24, based on fresh `origin/main` at
 `5661342b1263089a1724fa1eb0cc22e85db7201e`.
 
 R5 now has a tester-facing Alpha-to-Beta changelog, a preservation-first
@@ -60,9 +60,14 @@ MSIX SHA-256: 3517C50DBB743F88907BC20ABADD65A0133BF988AB74A6D0FA1B78BED1C6482B
 ```
 
 The package hash is a per-build unsigned-candidate measurement; byte-for-byte
-reproducibility and final release metadata are not claimed. PR, CI, fresh-ref
-rebase, post-rebase full verification, and merge are still pending in this
-entry and must be appended before R5 becomes DONE.
+reproducibility and final release metadata are not claimed. PR #24's initial
+push run `31234865823` and pull-request run `31234881620` passed. A mandatory
+fresh fetch found `origin/main` unchanged at `5661342` and no Claude state
+branch; `git rebase origin/main` was a no-op. The post-fetch full gate repeated
+build 0/0, offline 412/0, the published demo, and the one-executable package
+self-check. That final local candidate measured 33,671,071 bytes with SHA-256
+`02762BEC262687B1BD608B27A2FBFEBABF3AF8A8F54DF5066BE08B116C7FF158`.
+R5 is DONE as repository-only preparation; no artifact was published.
 
 Boundary: no deploy, console mutation, email, purchase, signing, install,
 secret access, certificate/store mutation, reboot, scheduled-task
