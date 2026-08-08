@@ -1,10 +1,14 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T20:49:38-06:00
-- **Current rung:** R6 IN PROGRESS; R6(a) confirmed full-data deletion is DONE
-  on merged PR #25. R6(b), R6(c), and R6(d) remain.
-- **Current worktree / branch:** no active rung worktree or topic branch.
-- **Files claimed:** none.
+- **Heartbeat:** 2026-08-07T20:50:49-06:00
+- **Current rung:** R6(b) dependency/SBOM inventory in progress from fresh
+  `origin/main` at `3a89fb58673712ac46aff82b35d7d269cb15793c`.
+- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r6-sbom` /
+  `codex/r6-dependency-sbom`.
+- **Files claimed:** a focused dependency-inventory script, its generated
+  repository evidence doc, `scripts/Verify-Alpha.ps1`, `docs/Positioning.md`,
+  living audit/summary docs, `docs/BETA-AUDIT-REQUEST.md`,
+  `docs/Codex-Resume-Handoff.md`, and `docs/autonomy/CODEX-STATE.md`.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -89,8 +93,9 @@
   and the full gate repeated green. Final runs `31235763233` and `31235764578`
   passed; PR #25 merged normally as
   `3a89fb58673712ac46aff82b35d7d269cb15793c`.
-- **Next intent:** one R6(b) slice: build the dependency/SBOM inventory without
-  touching R6(c) PSScriptAnalyzer or the remaining ordered backlog.
+- **Next intent:** finish only R6(b): build and verify reproducible
+  dependency/SBOM evidence without touching R6(c) PSScriptAnalyzer or the
+  remaining ordered backlog.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
