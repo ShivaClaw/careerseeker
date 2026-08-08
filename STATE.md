@@ -11,10 +11,10 @@
   `e95b1b3ece212d13995fabe6669305be89907bf7`.
 - **Measured evidence:** final post-bootstrap full publish/package gate: build
   0 warnings/0 errors; offline 407 passed/0 failed; one executable; MSIX
-  33,672,974 bytes, SHA-256
-  `F3B16A0EE5B0B6EF882BCE8C9132C1C87DDA3159D389A2E45E6C0254FA1CC689`.
-  A prior R0 unsigned package had the same bytes but a distinct hash; this is
-  not claimed reproducible.
+  33,673,026 bytes, SHA-256
+  `6744C320CD9C0417F531C487524EFB93A7F99AA9C691BA291009CE7B76397E2B`.
+  Three R0 unsigned package runs varied in bytes and hash; this is not claimed
+  reproducible. The final structural/executable self-check passed.
 - **Next intent:** after both PR #19 CI runs pass, fetch all refs, rebase onto
   fresh `origin/main`, rerun the full publish/package gate, push normally,
   confirm both CI runs remain green, merge normally, and record the clean
