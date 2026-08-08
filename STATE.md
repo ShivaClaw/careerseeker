@@ -1,15 +1,10 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T20:31:41-06:00
-- **Current rung:** R6(a) confirmed full-data deletion in progress from fresh
-  `origin/main` at `e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
-- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r6-delete` /
-  `codex/r6-delete-all-data`.
-- **Files claimed:** `src/Engine/Program.cs`, `src/Engine/Host.cs`,
-  `src/Engine/PackagedRuntime.cs`, a focused Engine deletion implementation,
-  `tests/EngineHarness/Program.cs`, `scripts/Verify-Alpha.ps1`, count-reporting
-  docs, `docs/Positioning.md`, `docs/BETA-AUDIT-REQUEST.md`,
-  `docs/Codex-Resume-Handoff.md`, and `docs/autonomy/CODEX-STATE.md`.
+- **Heartbeat:** 2026-08-07T20:49:38-06:00
+- **Current rung:** R6 IN PROGRESS; R6(a) confirmed full-data deletion is DONE
+  on merged PR #25. R6(b), R6(c), and R6(d) remain.
+- **Current worktree / branch:** no active rung worktree or topic branch.
+- **Files claimed:** none.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -80,10 +75,24 @@
   the full gate repeated green. Final runs `31235002582` and `31235004498`
   passed; PR #24 merged normally as
   `e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
-- **Next intent:** finish only R6(a): implement a separately confirmed
-  `delete-all-data` workflow that resolves the exact per-user path, reports
-  removal truthfully, and is harness-covered; gate, merge, close the claim.
+- **Measured R6(a) evidence:** the no-confirmation installed-path preview
+  resolved `C:\Users\bkirk\AppData\Local\CareerSeeker` and reported `NOT
+  DELETED`. Six isolated-temp EngineHarness assertions pin exact path/phrase,
+  mismatch and root refusal, complete removal, and already-absent reporting.
+  Public and runbook copy preserve the uninstall/data-deletion boundary.
+- **R6(a) verification:** analyzer build 0/0 and analyzer formatting clean;
+  offline/full gates build 0/0 and 418/0. The post-fetch package had one
+  executable, zero provider/Gmail calls, 33,666,365 bytes, and SHA-256
+  `1D3793B15FC97DD66AD4A1487ABC99AF92D5156C0ECA88842BA3B9A396348FC7`.
+- **R6(a) CI/rebase/merge evidence:** initial runs `31235635615` and
+  `31235656763` passed. Fresh main remained `e874c86`; the rebase was a no-op
+  and the full gate repeated green. Final runs `31235763233` and `31235764578`
+  passed; PR #25 merged normally as
+  `3a89fb58673712ac46aff82b35d7d269cb15793c`.
+- **Next intent:** one R6(b) slice: build the dependency/SBOM inventory without
+  touching R6(c) PSScriptAnalyzer or the remaining ordered backlog.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
-  mutation, or live provider/Gmail action.
+  mutation, public ATS read, live provider/Gmail action, or confirmed deletion
+  of the real installed workspace.
