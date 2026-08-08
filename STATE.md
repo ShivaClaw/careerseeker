@@ -1,11 +1,15 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T20:12:21-06:00
-- **Current rung:** R4 DONE and merged via PR #23 as
-  `5661342b1263089a1724fa1eb0cc22e85db7201e`.
-- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r4` /
-  `codex/r4-signing-install-readiness`.
-- **Files claimed:** none for the next iteration.
+- **Heartbeat:** 2026-08-07T20:13:51-06:00
+- **Current rung:** R5 distribution preparation in progress from fresh
+  `origin/main` at `5661342b1263089a1724fa1eb0cc22e85db7201e`.
+- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r5` /
+  `codex/r5-distribution-prep`.
+- **Files claimed:** `docs/Beta-Changelog.md`,
+  `docs/Alpha-to-Beta-Migration.md`, `docs/Positioning.md`,
+  `docs-site/download.html`, `docs-site/download.md`, `docs-site/index.html`,
+  `scripts/Verify-Alpha.ps1`, `docs/BETA-AUDIT-REQUEST.md`,
+  `docs/Codex-Resume-Handoff.md`, and `docs/autonomy/CODEX-STATE.md`.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -58,9 +62,10 @@
   and the package self-check. Final runs `31234356170` and `31234358472`
   passed; PR #23 merged normally as
   `5661342b1263089a1724fa1eb0cc22e85db7201e`.
-- **Next intent:** stop this clean R4 iteration. On the next iteration, fetch
-  all refs and take one R5 distribution-preparation slice if it does not
-  collide with fresh Claude claims.
+- **Next intent:** finish one R5 repository-only distribution slice: add the
+  Alpha-to-Beta changelog and migration guide, stage truthful Beta download
+  copy, refresh Positioning references, run gates, and merge only after both
+  CI workflows pass.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
