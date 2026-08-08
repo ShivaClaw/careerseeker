@@ -126,8 +126,8 @@ Prepare:
 - scope justification explaining why `gmail.send` cannot create/manage reviewable drafts;
 - data-flow diagram: local Windows app → Google Gmail Drafts API; no CareerSeeker cloud processing of Gmail
   content;
-- DPAPI/storage, deletion, incident-response, vulnerability-management, dependency/SBOM, and secure-development
-  evidence;
+- DPAPI/storage, deletion, incident-response, vulnerability-management, secure-development, and the
+  dependency/SBOM evidence in `docs/Dependency-SBOM-Inventory.md` plus `docs/Dependency-SBOM.spdx.json`;
 - `scripts\Verify-Alpha.ps1` and claims-register evidence.
 
 Human steps:

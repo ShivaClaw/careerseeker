@@ -220,3 +220,36 @@ Official Cloudflare command references:
 
 - https://developers.cloudflare.com/r2/objects/upload-objects/
 - https://developers.cloudflare.com/r2/reference/wrangler-commands/
+
+## Q06 - Complete D08 runtime, site, and license review
+
+Status: WAITING ON Q03-Q05 for the exact signed/published artifact. R6(b)
+prepared the repository NuGet evidence, but the public no-tracking sentence
+remains UNPROVEN.
+
+Reconfirm the committed snapshot and current NuGet advisory result:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\New-DependencySbom.ps1 -NoRestore -ValidateOnly
+Get-FileHash docs\Dependency-SBOM.spdx.json -Algorithm SHA256
+dotnet list CareerSeeker.sln package --vulnerable --include-transitive --format json
+dotnet list tools\WindowsSdkTools\WindowsSdkTools.csproj package --vulnerable --include-transitive --format json
+```
+
+Then retain human evidence for all of the following before changing D08:
+
+1. Review the license URLs recorded for `System.Memory 4.5.3` and
+   `Microsoft.Windows.SDK.BuildTools 10.0.26100.7705`; their legacy nuspecs do
+   not supply SPDX expressions, so the SBOM deliberately says `NOASSERTION`.
+2. On the disposable VM, capture outbound destinations from the exact signed
+   executable through first launch, discovery-only use, and each separately
+   consented provider/Gmail/search path. Reconcile every destination to an
+   intentional product function and record unexpected traffic as a blocker.
+3. After Q05 publishes the approved site, save a clean-browser HAR and tracker
+   scan for the production pages, including third-party requests and storage.
+4. Keep package, binary/runtime, and deployed-site results distinct. The
+   nine-package NuGet inventory alone cannot prove absence of analytics,
+   advertising, or tracking behavior.
+
+No runtime capture, production-site scan, license acceptance, or D08 status
+promotion was executed in R6(b).

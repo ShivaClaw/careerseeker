@@ -1,0 +1,299 @@
+{
+    "spdxVersion":  "SPDX-2.3",
+    "dataLicense":  "CC0-1.0",
+    "SPDXID":  "SPDXRef-DOCUMENT",
+    "name":  "CareerSeeker NuGet dependency inventory",
+    "documentNamespace":  "https://github.com/ShivaClaw/careerseeker/sbom/nuget/BE37770EB61E0C795061F736EE5B5F7270DD120559AACAB5F7F39858A1ACDEF4",
+    "creationInfo":  {
+                         "created":  "2026-08-08T03:01:03Z",
+                         "creators":  [
+                                          "Tool: scripts/New-DependencySbom.ps1"
+                                      ],
+                         "comment":  "Generated from restored project.assets.json data exposed by dotnet list package and locally cached NuGet nuspec/hash metadata."
+                     },
+    "documentDescribes":  [
+                              "SPDXRef-Package-Microsoft.Data.Sqlite-8.0.11",
+                              "SPDXRef-Package-Microsoft.Data.Sqlite.Core-8.0.11",
+                              "SPDXRef-Package-Microsoft.Windows.SDK.BuildTools-10.0.26100.7705",
+                              "SPDXRef-Package-PdfPig-0.1.15",
+                              "SPDXRef-Package-SQLitePCLRaw.bundle-e-sqlite3-2.1.12",
+                              "SPDXRef-Package-SQLitePCLRaw.core-2.1.12",
+                              "SPDXRef-Package-SQLitePCLRaw.lib.e-sqlite3-2.1.12",
+                              "SPDXRef-Package-SQLitePCLRaw.provider.e-sqlite3-2.1.12",
+                              "SPDXRef-Package-System.Memory-4.5.3"
+                          ],
+    "packages":  [
+                     {
+                         "name":  "Microsoft.Data.Sqlite",
+                         "SPDXID":  "SPDXRef-Package-Microsoft.Data.Sqlite-8.0.11",
+                         "versionInfo":  "8.0.11",
+                         "downloadLocation":  "https://api.nuget.org/v3-flatcontainer/microsoft.data.sqlite/8.0.11/microsoft.data.sqlite.8.0.11.nupkg",
+                         "filesAnalyzed":  false,
+                         "licenseConcluded":  "NOASSERTION",
+                         "licenseDeclared":  "MIT",
+                         "copyrightText":  "NOASSERTION",
+                         "checksums":  [
+                                           {
+                                               "algorithm":  "SHA512",
+                                               "checksumValue":  "57374540586B0DA9B6AE53AE4BEA10FAA84CC33850653366B4FD115783CADC8E4E999E8DF9C54976A47A787DAC6D71A44F527ED879A2182539AD80B64B445091"
+                                           }
+                                       ],
+                         "externalRefs":  [
+                                              {
+                                                  "referenceCategory":  "PACKAGE-MANAGER",
+                                                  "referenceType":  "purl",
+                                                  "referenceLocator":  "pkg:nuget/Microsoft.Data.Sqlite@8.0.11"
+                                              }
+                                          ],
+                         "primaryPackagePurpose":  "LIBRARY",
+                         "comment":  "CareerSeeker scope: direct-runtime. Projects: src/Dispatcher/SeekerSvc.Dispatcher.csproj, src/Engine/SeekerSvc.Engine.csproj, src/Pipeline/SeekerSvc.Pipeline.csproj, src/Store/SeekerSvc.Store.csproj, src/Tailor/SeekerSvc.Tailor.csproj, src/TailorHookBridge/SeekerSvc.Tailor.HookBridge.csproj, tests/ByokLiveHarness/ByokLiveHarness.csproj, tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj, tests/EngineHarness/EngineHarness.csproj, tests/GmailLiveHarness/GmailLiveHarness.csproj, tests/HookHarness/HookHarness.csproj, tests/LifecycleHarness/LifecycleHarness.csproj, tests/RendererHarness/RendererHarness.csproj, tests/ScoutLiveHarness/ScoutLiveHarness.csproj, tests/Slice/Slice.csproj, tests/StoreParityHarness/StoreParityHarness.csproj. NuGet license URL: https://licenses.nuget.org/MIT."
+                     },
+                     {
+                         "name":  "Microsoft.Data.Sqlite.Core",
+                         "SPDXID":  "SPDXRef-Package-Microsoft.Data.Sqlite.Core-8.0.11",
+                         "versionInfo":  "8.0.11",
+                         "downloadLocation":  "https://api.nuget.org/v3-flatcontainer/microsoft.data.sqlite.core/8.0.11/microsoft.data.sqlite.core.8.0.11.nupkg",
+                         "filesAnalyzed":  false,
+                         "licenseConcluded":  "NOASSERTION",
+                         "licenseDeclared":  "MIT",
+                         "copyrightText":  "NOASSERTION",
+                         "checksums":  [
+                                           {
+                                               "algorithm":  "SHA512",
+                                               "checksumValue":  "81EFB4B0FEAA97D67502645A4385D8C6A11E3B4E2BB1DB3F2211CE2A7E9C703FD9F342126CDD328FF12DCF08BE1CBD1478CC134BDF19DA5237EFC6DFF46AB83D"
+                                           }
+                                       ],
+                         "externalRefs":  [
+                                              {
+                                                  "referenceCategory":  "PACKAGE-MANAGER",
+                                                  "referenceType":  "purl",
+                                                  "referenceLocator":  "pkg:nuget/Microsoft.Data.Sqlite.Core@8.0.11"
+                                              }
+                                          ],
+                         "primaryPackagePurpose":  "LIBRARY",
+                         "comment":  "CareerSeeker scope: transitive-runtime. Projects: src/Dispatcher/SeekerSvc.Dispatcher.csproj, src/Engine/SeekerSvc.Engine.csproj, src/Pipeline/SeekerSvc.Pipeline.csproj, src/Store/SeekerSvc.Store.csproj, src/Tailor/SeekerSvc.Tailor.csproj, src/TailorHookBridge/SeekerSvc.Tailor.HookBridge.csproj, tests/ByokLiveHarness/ByokLiveHarness.csproj, tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj, tests/EngineHarness/EngineHarness.csproj, tests/GmailLiveHarness/GmailLiveHarness.csproj, tests/HookHarness/HookHarness.csproj, tests/LifecycleHarness/LifecycleHarness.csproj, tests/RendererHarness/RendererHarness.csproj, tests/ScoutLiveHarness/ScoutLiveHarness.csproj, tests/Slice/Slice.csproj, tests/StoreParityHarness/StoreParityHarness.csproj. NuGet license URL: https://licenses.nuget.org/MIT."
+                     },
+                     {
+                         "name":  "Microsoft.Windows.SDK.BuildTools",
+                         "SPDXID":  "SPDXRef-Package-Microsoft.Windows.SDK.BuildTools-10.0.26100.7705",
+                         "versionInfo":  "10.0.26100.7705",
+                         "downloadLocation":  "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/10.0.26100.7705/microsoft.windows.sdk.buildtools.10.0.26100.7705.nupkg",
+                         "filesAnalyzed":  false,
+                         "licenseConcluded":  "NOASSERTION",
+                         "licenseDeclared":  "NOASSERTION",
+                         "copyrightText":  "NOASSERTION",
+                         "checksums":  [
+                                           {
+                                               "algorithm":  "SHA512",
+                                               "checksumValue":  "04857E003F77121DD8BF7C44E796BD003FE8E5FFB0996D4D3A84AED836A31AC9C2DF6E1B9EC8678EBDAF851732CC2F1F098D2D211157D27660F72410FFDFA5E7"
+                                           }
+                                       ],
+                         "externalRefs":  [
+                                              {
+                                                  "referenceCategory":  "PACKAGE-MANAGER",
+                                                  "referenceType":  "purl",
+                                                  "referenceLocator":  "pkg:nuget/Microsoft.Windows.SDK.BuildTools@10.0.26100.7705"
+                                              }
+                                          ],
+                         "primaryPackagePurpose":  "BUILD_TOOL",
+                         "comment":  "CareerSeeker scope: build-only. Projects: tools/WindowsSdkTools/WindowsSdkTools.csproj. NuGet license URL: https://aka.ms/WinSDKLicenseURL."
+                     },
+                     {
+                         "name":  "PdfPig",
+                         "SPDXID":  "SPDXRef-Package-PdfPig-0.1.15",
+                         "versionInfo":  "0.1.15",
+                         "downloadLocation":  "https://api.nuget.org/v3-flatcontainer/pdfpig/0.1.15/pdfpig.0.1.15.nupkg",
+                         "filesAnalyzed":  false,
+                         "licenseConcluded":  "NOASSERTION",
+                         "licenseDeclared":  "Apache-2.0",
+                         "copyrightText":  "NOASSERTION",
+                         "checksums":  [
+                                           {
+                                               "algorithm":  "SHA512",
+                                               "checksumValue":  "3393C7C901EE8C5B8A30EB8B421CA9F4B350CF7E84EABFEAAC297CE81FD80B033B802C635B8205413C733A76DDA22D4156EBC0D8B142255F77F938E37C4B4AA6"
+                                           }
+                                       ],
+                         "externalRefs":  [
+                                              {
+                                                  "referenceCategory":  "PACKAGE-MANAGER",
+                                                  "referenceType":  "purl",
+                                                  "referenceLocator":  "pkg:nuget/PdfPig@0.1.15"
+                                              }
+                                          ],
+                         "primaryPackagePurpose":  "LIBRARY",
+                         "comment":  "CareerSeeker scope: direct-runtime. Projects: src/Engine/SeekerSvc.Engine.csproj, tests/EngineHarness/EngineHarness.csproj. NuGet license URL: https://licenses.nuget.org/Apache-2.0."
+                     },
+                     {
+                         "name":  "SQLitePCLRaw.bundle_e_sqlite3",
+                         "SPDXID":  "SPDXRef-Package-SQLitePCLRaw.bundle-e-sqlite3-2.1.12",
+                         "versionInfo":  "2.1.12",
+                         "downloadLocation":  "https://api.nuget.org/v3-flatcontainer/sqlitepclraw.bundle_e_sqlite3/2.1.12/sqlitepclraw.bundle_e_sqlite3.2.1.12.nupkg",
+                         "filesAnalyzed":  false,
+                         "licenseConcluded":  "NOASSERTION",
+                         "licenseDeclared":  "Apache-2.0",
+                         "copyrightText":  "NOASSERTION",
+                         "checksums":  [
+                                           {
+                                               "algorithm":  "SHA512",
+                                               "checksumValue":  "29B78A5ED88CAE9C5DEDD160B27A2B03519C8BFC554430819A47D935D8A213595AE8E75410CB724D32774C17829FD9C8BD9817A39B8277D7550A38B7032E8BB8"
+                                           }
+                                       ],
+                         "externalRefs":  [
+                                              {
+                                                  "referenceCategory":  "PACKAGE-MANAGER",
+                                                  "referenceType":  "purl",
+                                                  "referenceLocator":  "pkg:nuget/SQLitePCLRaw.bundle_e_sqlite3@2.1.12"
+                                              }
+                                          ],
+                         "primaryPackagePurpose":  "LIBRARY",
+                         "comment":  "CareerSeeker scope: direct-runtime. Projects: src/Dispatcher/SeekerSvc.Dispatcher.csproj, src/Engine/SeekerSvc.Engine.csproj, src/Pipeline/SeekerSvc.Pipeline.csproj, src/Store/SeekerSvc.Store.csproj, src/Tailor/SeekerSvc.Tailor.csproj, src/TailorHookBridge/SeekerSvc.Tailor.HookBridge.csproj, tests/ByokLiveHarness/ByokLiveHarness.csproj, tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj, tests/EngineHarness/EngineHarness.csproj, tests/GmailLiveHarness/GmailLiveHarness.csproj, tests/HookHarness/HookHarness.csproj, tests/LifecycleHarness/LifecycleHarness.csproj, tests/RendererHarness/RendererHarness.csproj, tests/ScoutLiveHarness/ScoutLiveHarness.csproj, tests/Slice/Slice.csproj, tests/StoreParityHarness/StoreParityHarness.csproj. NuGet license URL: https://licenses.nuget.org/Apache-2.0."
+                     },
+                     {
+                         "name":  "SQLitePCLRaw.core",
+                         "SPDXID":  "SPDXRef-Package-SQLitePCLRaw.core-2.1.12",
+                         "versionInfo":  "2.1.12",
+                         "downloadLocation":  "https://api.nuget.org/v3-flatcontainer/sqlitepclraw.core/2.1.12/sqlitepclraw.core.2.1.12.nupkg",
+                         "filesAnalyzed":  false,
+                         "licenseConcluded":  "NOASSERTION",
+                         "licenseDeclared":  "Apache-2.0",
+                         "copyrightText":  "NOASSERTION",
+                         "checksums":  [
+                                           {
+                                               "algorithm":  "SHA512",
+                                               "checksumValue":  "5A09A0C8AC062D347A65F21FD7ED5D14DC6C3B2A7D1A6B14F588E37948E0CFE3599F0DA1CA3541D14F2D693D59D6FBF6D6CE7E82F847437BEDA596A3B0C28962"
+                                           }
+                                       ],
+                         "externalRefs":  [
+                                              {
+                                                  "referenceCategory":  "PACKAGE-MANAGER",
+                                                  "referenceType":  "purl",
+                                                  "referenceLocator":  "pkg:nuget/SQLitePCLRaw.core@2.1.12"
+                                              }
+                                          ],
+                         "primaryPackagePurpose":  "LIBRARY",
+                         "comment":  "CareerSeeker scope: transitive-runtime. Projects: src/Dispatcher/SeekerSvc.Dispatcher.csproj, src/Engine/SeekerSvc.Engine.csproj, src/Pipeline/SeekerSvc.Pipeline.csproj, src/Store/SeekerSvc.Store.csproj, src/Tailor/SeekerSvc.Tailor.csproj, src/TailorHookBridge/SeekerSvc.Tailor.HookBridge.csproj, tests/ByokLiveHarness/ByokLiveHarness.csproj, tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj, tests/EngineHarness/EngineHarness.csproj, tests/GmailLiveHarness/GmailLiveHarness.csproj, tests/HookHarness/HookHarness.csproj, tests/LifecycleHarness/LifecycleHarness.csproj, tests/RendererHarness/RendererHarness.csproj, tests/ScoutLiveHarness/ScoutLiveHarness.csproj, tests/Slice/Slice.csproj, tests/StoreParityHarness/StoreParityHarness.csproj. NuGet license URL: https://licenses.nuget.org/Apache-2.0."
+                     },
+                     {
+                         "name":  "SQLitePCLRaw.lib.e_sqlite3",
+                         "SPDXID":  "SPDXRef-Package-SQLitePCLRaw.lib.e-sqlite3-2.1.12",
+                         "versionInfo":  "2.1.12",
+                         "downloadLocation":  "https://api.nuget.org/v3-flatcontainer/sqlitepclraw.lib.e_sqlite3/2.1.12/sqlitepclraw.lib.e_sqlite3.2.1.12.nupkg",
+                         "filesAnalyzed":  false,
+                         "licenseConcluded":  "NOASSERTION",
+                         "licenseDeclared":  "Apache-2.0",
+                         "copyrightText":  "NOASSERTION",
+                         "checksums":  [
+                                           {
+                                               "algorithm":  "SHA512",
+                                               "checksumValue":  "0E58BE10B28DB915F483BD94AB62363996B9CE08B87F049757825EDF0C85EE31FDA33E8029103DC17233330B95796ED17C065D49580870479964E379F4B76D88"
+                                           }
+                                       ],
+                         "externalRefs":  [
+                                              {
+                                                  "referenceCategory":  "PACKAGE-MANAGER",
+                                                  "referenceType":  "purl",
+                                                  "referenceLocator":  "pkg:nuget/SQLitePCLRaw.lib.e_sqlite3@2.1.12"
+                                              }
+                                          ],
+                         "primaryPackagePurpose":  "LIBRARY",
+                         "comment":  "CareerSeeker scope: transitive-runtime. Projects: src/Dispatcher/SeekerSvc.Dispatcher.csproj, src/Engine/SeekerSvc.Engine.csproj, src/Pipeline/SeekerSvc.Pipeline.csproj, src/Store/SeekerSvc.Store.csproj, src/Tailor/SeekerSvc.Tailor.csproj, src/TailorHookBridge/SeekerSvc.Tailor.HookBridge.csproj, tests/ByokLiveHarness/ByokLiveHarness.csproj, tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj, tests/EngineHarness/EngineHarness.csproj, tests/GmailLiveHarness/GmailLiveHarness.csproj, tests/HookHarness/HookHarness.csproj, tests/LifecycleHarness/LifecycleHarness.csproj, tests/RendererHarness/RendererHarness.csproj, tests/ScoutLiveHarness/ScoutLiveHarness.csproj, tests/Slice/Slice.csproj, tests/StoreParityHarness/StoreParityHarness.csproj. NuGet license URL: https://licenses.nuget.org/Apache-2.0."
+                     },
+                     {
+                         "name":  "SQLitePCLRaw.provider.e_sqlite3",
+                         "SPDXID":  "SPDXRef-Package-SQLitePCLRaw.provider.e-sqlite3-2.1.12",
+                         "versionInfo":  "2.1.12",
+                         "downloadLocation":  "https://api.nuget.org/v3-flatcontainer/sqlitepclraw.provider.e_sqlite3/2.1.12/sqlitepclraw.provider.e_sqlite3.2.1.12.nupkg",
+                         "filesAnalyzed":  false,
+                         "licenseConcluded":  "NOASSERTION",
+                         "licenseDeclared":  "Apache-2.0",
+                         "copyrightText":  "NOASSERTION",
+                         "checksums":  [
+                                           {
+                                               "algorithm":  "SHA512",
+                                               "checksumValue":  "9384426E53FE1DCD4901CEFB72B57E7C564B8997893DA63C563300F24BE48B4D19D1DA211BAC715F0E2A92E5720940B6F870A16E1C16FB27619A39A551901751"
+                                           }
+                                       ],
+                         "externalRefs":  [
+                                              {
+                                                  "referenceCategory":  "PACKAGE-MANAGER",
+                                                  "referenceType":  "purl",
+                                                  "referenceLocator":  "pkg:nuget/SQLitePCLRaw.provider.e_sqlite3@2.1.12"
+                                              }
+                                          ],
+                         "primaryPackagePurpose":  "LIBRARY",
+                         "comment":  "CareerSeeker scope: transitive-runtime. Projects: src/Dispatcher/SeekerSvc.Dispatcher.csproj, src/Engine/SeekerSvc.Engine.csproj, src/Pipeline/SeekerSvc.Pipeline.csproj, src/Store/SeekerSvc.Store.csproj, src/Tailor/SeekerSvc.Tailor.csproj, src/TailorHookBridge/SeekerSvc.Tailor.HookBridge.csproj, tests/ByokLiveHarness/ByokLiveHarness.csproj, tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj, tests/EngineHarness/EngineHarness.csproj, tests/GmailLiveHarness/GmailLiveHarness.csproj, tests/HookHarness/HookHarness.csproj, tests/LifecycleHarness/LifecycleHarness.csproj, tests/RendererHarness/RendererHarness.csproj, tests/ScoutLiveHarness/ScoutLiveHarness.csproj, tests/Slice/Slice.csproj, tests/StoreParityHarness/StoreParityHarness.csproj. NuGet license URL: https://licenses.nuget.org/Apache-2.0."
+                     },
+                     {
+                         "name":  "System.Memory",
+                         "SPDXID":  "SPDXRef-Package-System.Memory-4.5.3",
+                         "versionInfo":  "4.5.3",
+                         "downloadLocation":  "https://api.nuget.org/v3-flatcontainer/system.memory/4.5.3/system.memory.4.5.3.nupkg",
+                         "filesAnalyzed":  false,
+                         "licenseConcluded":  "NOASSERTION",
+                         "licenseDeclared":  "NOASSERTION",
+                         "copyrightText":  "NOASSERTION",
+                         "checksums":  [
+                                           {
+                                               "algorithm":  "SHA512",
+                                               "checksumValue":  "70FCE15A52CC76AACBAE05C8E89E2E398D1D32903F63F640A7DD4A3E5747F2C7A887D4BFD22F2A2E40274906CF91648DFD169734FB7C74EB9B4F72614084E1DB"
+                                           }
+                                       ],
+                         "externalRefs":  [
+                                              {
+                                                  "referenceCategory":  "PACKAGE-MANAGER",
+                                                  "referenceType":  "purl",
+                                                  "referenceLocator":  "pkg:nuget/System.Memory@4.5.3"
+                                              }
+                                          ],
+                         "primaryPackagePurpose":  "LIBRARY",
+                         "comment":  "CareerSeeker scope: transitive-runtime. Projects: src/Dispatcher/SeekerSvc.Dispatcher.csproj, src/Engine/SeekerSvc.Engine.csproj, src/Pipeline/SeekerSvc.Pipeline.csproj, src/Store/SeekerSvc.Store.csproj, src/Tailor/SeekerSvc.Tailor.csproj, src/TailorHookBridge/SeekerSvc.Tailor.HookBridge.csproj, tests/ByokLiveHarness/ByokLiveHarness.csproj, tests/DispatcherNoSendHarness/DispatcherNoSendHarness.csproj, tests/EngineHarness/EngineHarness.csproj, tests/GmailLiveHarness/GmailLiveHarness.csproj, tests/HookHarness/HookHarness.csproj, tests/LifecycleHarness/LifecycleHarness.csproj, tests/RendererHarness/RendererHarness.csproj, tests/ScoutLiveHarness/ScoutLiveHarness.csproj, tests/Slice/Slice.csproj, tests/StoreParityHarness/StoreParityHarness.csproj. NuGet license URL: https://github.com/dotnet/corefx/blob/master/LICENSE.TXT."
+                     }
+                 ],
+    "relationships":  [
+                          {
+                              "spdxElementId":  "SPDXRef-DOCUMENT",
+                              "relationshipType":  "DESCRIBES",
+                              "relatedSpdxElement":  "SPDXRef-Package-Microsoft.Data.Sqlite-8.0.11"
+                          },
+                          {
+                              "spdxElementId":  "SPDXRef-DOCUMENT",
+                              "relationshipType":  "DESCRIBES",
+                              "relatedSpdxElement":  "SPDXRef-Package-Microsoft.Data.Sqlite.Core-8.0.11"
+                          },
+                          {
+                              "spdxElementId":  "SPDXRef-DOCUMENT",
+                              "relationshipType":  "DESCRIBES",
+                              "relatedSpdxElement":  "SPDXRef-Package-Microsoft.Windows.SDK.BuildTools-10.0.26100.7705"
+                          },
+                          {
+                              "spdxElementId":  "SPDXRef-DOCUMENT",
+                              "relationshipType":  "DESCRIBES",
+                              "relatedSpdxElement":  "SPDXRef-Package-PdfPig-0.1.15"
+                          },
+                          {
+                              "spdxElementId":  "SPDXRef-DOCUMENT",
+                              "relationshipType":  "DESCRIBES",
+                              "relatedSpdxElement":  "SPDXRef-Package-SQLitePCLRaw.bundle-e-sqlite3-2.1.12"
+                          },
+                          {
+                              "spdxElementId":  "SPDXRef-DOCUMENT",
+                              "relationshipType":  "DESCRIBES",
+                              "relatedSpdxElement":  "SPDXRef-Package-SQLitePCLRaw.core-2.1.12"
+                          },
+                          {
+                              "spdxElementId":  "SPDXRef-DOCUMENT",
+                              "relationshipType":  "DESCRIBES",
+                              "relatedSpdxElement":  "SPDXRef-Package-SQLitePCLRaw.lib.e-sqlite3-2.1.12"
+                          },
+                          {
+                              "spdxElementId":  "SPDXRef-DOCUMENT",
+                              "relationshipType":  "DESCRIBES",
+                              "relatedSpdxElement":  "SPDXRef-Package-SQLitePCLRaw.provider.e-sqlite3-2.1.12"
+                          },
+                          {
+                              "spdxElementId":  "SPDXRef-DOCUMENT",
+                              "relationshipType":  "DESCRIBES",
+                              "relatedSpdxElement":  "SPDXRef-Package-System.Memory-4.5.3"
+                          }
+                      ]
+}
