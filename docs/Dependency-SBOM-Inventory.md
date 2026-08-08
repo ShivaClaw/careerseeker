@@ -15,6 +15,9 @@ and joins that graph to the locally cached NuGet nuspec and SHA-512 metadata.
 The committed SPDX document records package URLs, Package URLs (purls), exact
 versions, SHA-512 content hashes, declared license expressions when the nuspec
 provides one, project usage, and direct/transitive/build-only scope.
+The generator writes canonical UTF-8 without a byte-order mark and LF newlines;
+`.gitattributes` disables end-of-line conversion for the JSON so its SHA-256 is
+stable across checkout settings.
 
 The offline verifier runs the generator with `-NoRestore -ValidateOnly` after
 the normal build has restored assets. Validation is byte-for-byte: any package,
