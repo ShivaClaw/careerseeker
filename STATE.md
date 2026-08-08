@@ -1,23 +1,19 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T20:13:51-06:00
-- **Current rung:** R5 distribution preparation in progress from fresh
-  `origin/main` at `5661342b1263089a1724fa1eb0cc22e85db7201e`.
-- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r5` /
+- **Heartbeat:** 2026-08-07T20:30:14-06:00
+- **Current rung:** R5 DONE. PR #24 merged normally as
+  `e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
+- **Current worktree / branch:** no active rung claim. The completed R5
+  worktree is `C:\Users\bkirk\Documents\CareerSeeker-r5` on
   `codex/r5-distribution-prep`.
-- **Files claimed:** `docs/Beta-Changelog.md`,
-  `docs/Alpha-to-Beta-Migration.md`, `docs/Positioning.md`,
-  `docs/Beta-Runbook.md`,
-  `docs-site/download.html`, `docs-site/download.md`, `docs-site/index.html`,
-  `scripts/Verify-Alpha.ps1`, `docs/BETA-AUDIT-REQUEST.md`,
-  `docs/Codex-Resume-Handoff.md`, and `docs/autonomy/CODEX-STATE.md`.
+- **Files claimed:** none between iterations.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
 - **Claude state:** `autonomy/claude-state` remained absent after the
   iteration's mandatory fetch.
 - **Fresh integration base:** `origin/main` =
-  `5661342b1263089a1724fa1eb0cc22e85db7201e`.
+  `e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
 - **Measured R2 evidence:** retained copy integrity/idempotence passed and the
   source remained 172,032 bytes with SHA-256 `0A5605…E18192`. The imported
   fixture has 31 claims / 321 rankable terms. Remote.com measured 58
@@ -63,10 +59,27 @@
   and the package self-check. Final runs `31234356170` and `31234358472`
   passed; PR #23 merged normally as
   `5661342b1263089a1724fa1eb0cc22e85db7201e`.
-- **Next intent:** finish one R5 repository-only distribution slice: add the
-  Alpha-to-Beta changelog and migration guide, stage truthful Beta download
-  copy, refresh Positioning references, run gates, and merge only after both
-  CI workflows pass.
+- **Measured R5 evidence:** staged changelog pins the shipped `7018ff9` Alpha
+  ZIP at 64,937,092 bytes / SHA-256 `3A4251F6…E900F2`; preservation-first
+  migration preview resolved `%LOCALAPPDATA%\CareerSeeker\.appdata`, reported
+  overwrite disabled, and executed no import. Download Markdown/HTML says no
+  Beta download is available, contains no MSIX artifact href, and omits the
+  three unproven operational claims. Positioning line references were
+  refreshed against the post-R1 tree. Q05 was re-read and already contains the
+  exact signed-artifact/download-metadata/site handoff, so no new human queue
+  item was needed.
+- **R5 verification:** offline/full gates are build 0/0 and 412/0; analyzer
+  build is 0/0 and analyzer formatting is clean. The post-fetch package had
+  one executable, zero provider/Gmail calls, 33,671,071 bytes, and SHA-256
+  `02762BEC262687B1BD608B27A2FBFEBABF3AF8A8F54DF5066BE08B116C7FF158`.
+- **R5 CI/rebase/merge evidence:** initial runs `31234865823` and
+  `31234881620` passed. Fresh main remained `5661342`; rebase was a no-op and
+  the full gate repeated green. Final runs `31235002582` and `31235004498`
+  passed; PR #24 merged normally as
+  `e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
+- **Next intent:** start one R6 slice from fresh refs. Take the confirmed
+  in-app `delete-all-data` workflow first unless Claude claims a colliding
+  `Host.cs`/dashboard surface; otherwise take the dependency/SBOM inventory.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
