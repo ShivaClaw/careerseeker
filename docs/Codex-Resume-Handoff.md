@@ -2,6 +2,84 @@
 
 Updated: 2026-08-07
 
+## 2026-08-07 (Terra R2) - Real-profile rehearsal BLOCKED after bounded attempts
+
+Branch: `codex/r2-real-profile-rehearsal`, PR #21, based on fresh `origin/main` at
+`b9149211d5ad6d5f134ebdcd8c71b13feb7f6c9e`.
+
+R2 added truthful `scored` and `act-eligible` engine counters so a dry-run no
+longer collapses “would Act” into the deliberately zero acted/drafted values.
+EngineHarness pins both identified and discovery-only funnels. The parity
+harness now accepts one `--migration-output` with one `--migration-copy`,
+refuses overwrite, opens the source read-only, migrates the retained copy
+twice, and verifies source length/timestamp/SHA-256 before returning it.
+
+The source `.appdata` database measured 172,032 bytes, last-write UTC
+`2026-07-19T23:04:58`, and SHA-256
+`0A560528C486375383F1F84F1BA8EA1536B341C75C8BC5EF0CF3D1BEE4E18192`
+both before and after the rehearsal. The retained copy passed integrity,
+current-column, and idempotent-migration checks. Importing
+`tests/fixtures/r2-realistic-profile.json` replaced the demo oracle with 31
+verified claims; an exact scorer-tokenizer-equivalent count measured 321
+distinct rankable terms.
+
+Two bounded public-read attempts were executed:
+
+```text
+Greenhouse:remotecom
+discovered 58; quarantined 12; scored/rejected 46; act-eligible 0;
+acted 0; drafted 0; errors 0; audit chain ok
+
+Lever:mistral
+discovered/scored/act-eligible/acted/drafted/errors 0; audit chain ok
+```
+
+Offline inspection of the copied Remote.com score rows measured totals
+2.36–3.63 (mean 2.932), with no row clearing the calibrated 4.0 Act rail. The
+final default hash-only audit export reported an intact chain, two named cycle
+rows, 256 events, and no payloads; Remote quarantine reasons were
+`{"role_reassign":12}`. The rail was not weakened to fit a volatile feed and
+no third public cycle was run. R2 is therefore BLOCKED, and the smallest human
+unblock is in `docs/BETA-BLOCKED.md`. Because R2 is not DONE, R3's authorized
+live Gmail drafting cycle remains ineligible and was not executed.
+
+Executed verification:
+
+```text
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 412 passed, 0 failed ===
+
+> dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest
+Build succeeded. 0 warnings, 0 errors.
+
+> dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore
+Exit code: 0; no output.
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 412 passed, 0 failed ===
+Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+Package creation and one-executable structural self-check passed.
+Provider calls: 0. Gmail calls/drafts: 0.
+MSIX bytes: 33,670,999
+MSIX SHA-256: F222B6A27839BF4A2C9EF0E54147B2C24C671E570DC9EBDB3EF2D9F368D21E22
+```
+
+The first final-push workflow pair passed: push run `31233008890` and
+pull-request run `31233010643`. A fresh fetch then found `origin/main`
+unchanged and no Claude state branch; the required rebase was a no-op. The
+post-rebase full gate repeated build 0/0, offline 412/0, the healthy published
+demo, and the one-executable package self-check. The package bytes/hash above
+are from that post-rebase run; package reproducibility is not claimed.
+
+Boundary: no deploy, console mutation, email, purchase, signing, install,
+secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, `.appdata`-original mutation, or live provider/Gmail action
+occurred. The only network activity was two bounded public ATS reads; all
+database/profile/audit work occurred on the retained copy.
+
 ## 2026-08-07 (Terra R1) - Job-side lexical scoring calibration
 
 Branch: `codex/r1-scoring-calibration`, PR #20, based on fresh `origin/main`

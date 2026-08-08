@@ -2,6 +2,13 @@ using Microsoft.Data.Sqlite;
 using SeekerSvc.Store;
 
 var realMigrationSources = ReadOptionValues(args, "--migration-copy");
+var retainedMigrationOutputs = ReadOptionValues(args, "--migration-output");
+if (retainedMigrationOutputs.Count > 0)
+{
+    if (realMigrationSources.Count != 1 || retainedMigrationOutputs.Count != 1)
+        throw new ArgumentException("--migration-output requires exactly one --migration-copy source and one output path.");
+    return await CreateRetainedMigrationCopyAsync(realMigrationSources[0], retainedMigrationOutputs[0]);
+}
 if (realMigrationSources.Count > 0)
     return await ExerciseRealMigrationCopiesAsync(realMigrationSources);
 
@@ -283,6 +290,84 @@ static async Task<int> ExerciseRealMigrationCopiesAsync(IReadOnlyList<string> so
 
     Console.WriteLine($"\n=== {sources.Count - failed} passed, {failed} failed ===");
     return failed == 0 ? 0 : 1;
+}
+
+// Retains one verified migration copy for a bounded rehearsal. The source is opened read-only and
+// compared by length, timestamp, and SHA-256 before/after. The destination must not already exist.
+static async Task<int> CreateRetainedMigrationCopyAsync(string source, string destination)
+{
+    var sourcePath = Path.GetFullPath(source);
+    var destinationPath = Path.GetFullPath(destination);
+    if (!File.Exists(sourcePath))
+        throw new FileNotFoundException("Migration source does not exist.", sourcePath);
+    if (string.Equals(sourcePath, destinationPath, StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException("Migration output must differ from its source.");
+    if (File.Exists(destinationPath))
+        throw new IOException("Migration output already exists; refusing to overwrite it.");
+
+    var sourceInfo = new FileInfo(sourcePath);
+    var sourceLength = sourceInfo.Length;
+    var sourceWriteUtc = sourceInfo.LastWriteTimeUtc;
+    var sourceHashBefore = await HashFileAsync(sourcePath);
+    var destinationDirectory = Path.GetDirectoryName(destinationPath);
+    if (!string.IsNullOrWhiteSpace(destinationDirectory))
+        Directory.CreateDirectory(destinationDirectory);
+
+    try
+    {
+        var sourceBuilder = new SqliteConnectionStringBuilder
+        {
+            DataSource = sourcePath,
+            Mode = SqliteOpenMode.ReadOnly,
+            Cache = SqliteCacheMode.Private
+        };
+        var destinationBuilder = new SqliteConnectionStringBuilder
+        {
+            DataSource = destinationPath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Private
+        };
+        await using (var sourceConnection = new SqliteConnection(sourceBuilder.ToString()))
+        await using (var destinationConnection = new SqliteConnection(destinationBuilder.ToString()))
+        {
+            await sourceConnection.OpenAsync();
+            await destinationConnection.OpenAsync();
+            sourceConnection.BackupDatabase(destinationConnection);
+        }
+
+        await using (var store = SqliteSeekerStore.ForFile(destinationPath))
+        {
+            await store.InitializeAsync();
+            await store.InitializeAsync();
+        }
+
+        var snapshot = await ReadMigrationCopySnapshotAsync(destinationPath);
+        var sourceInfoAfter = new FileInfo(sourcePath);
+        var sourceHashAfter = await HashFileAsync(sourcePath);
+        var wanted = new[] { "paused_from", "resume_path", "cover_path", "answers_json" };
+        var passed =
+            snapshot.IntegrityOk &&
+            wanted.All(snapshot.ApplicationColumns.Contains) &&
+            sourceLength == sourceInfoAfter.Length &&
+            sourceWriteUtc == sourceInfoAfter.LastWriteTimeUtc &&
+            sourceHashBefore.SequenceEqual(sourceHashAfter);
+        if (!passed)
+            throw new InvalidOperationException("Retained migration copy failed structural/source invariants.");
+
+        Console.WriteLine("=== CareerSeeker retained migration copy ===");
+        Console.WriteLine("  PASS  copied migration is intact/idempotent and source is unchanged");
+        Console.WriteLine($"  output: {destinationPath}");
+        Console.WriteLine($"  bytes: {new FileInfo(destinationPath).Length}");
+        return 0;
+    }
+    catch
+    {
+        SqliteConnection.ClearAllPools();
+        DeleteIfExists(destinationPath);
+        DeleteIfExists(destinationPath + "-wal");
+        DeleteIfExists(destinationPath + "-shm");
+        throw;
+    }
 }
 
 static async Task<MigrationCopySnapshot> ReadMigrationCopySnapshotAsync(string path)

@@ -2,6 +2,27 @@
 
 Measurement executed 2026-07-30 MDT / 2026-07-31 UTC by Terra.
 
+## R2 rehearsal addendum — 2026-08-07 MDT / 2026-08-08 UTC
+
+Two bounded `run --once --dry-run --llm fake` public-board reads were executed
+on a verified migration copy after importing a 31-claim, 321-rankable-term
+synthetic profile fixture. The original `.appdata` database remained
+byte-identical.
+
+| Board | Cycles | Discovered | Scored | Act-eligible | Quarantined | Rejected | Drafted | Errors | Reason codes |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| `Greenhouse:remotecom` | 1 | 58 | 46 | 0 | 12 | 46 | 0 | 0 | `role_reassign`: 12 |
+| `Lever:mistral` | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | none |
+| **Total** | **2** | **58** | **46** | **0** | **12** | **46** | **0** | **0** | `role_reassign`: 12 |
+
+For the one non-empty cycle, the observed quarantine-signal rate was
+12/58 = **20.69%**. No manual posting-content review was performed in this
+iteration, so no false-positive rate is claimed for this addendum. The
+hash-only audit export reported an intact chain, two named cycle rows, 256
+events, and no exported payloads. Dry-run deliberately skipped Act; the
+separate `act-eligible` counter shows that no scored posting cleared the 4.0
+rail. No draft, provider call, Gmail call, or send occurred.
+
 ## Result
 
 The bounded measurement executed five discovery-only Scout cycles across

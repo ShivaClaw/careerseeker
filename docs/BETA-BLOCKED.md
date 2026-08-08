@@ -1,6 +1,40 @@
 # CareerSeeker Beta Blocked Items
 
-Updated: 2026-07-30
+Updated: 2026-08-07
+
+## R2 real-profile public-ATS rehearsal — no posting cleared the calibrated Act rail
+
+Scope: R2 acceptance requires a nonzero `act-eligible` result from a bounded
+public-ATS `--once --dry-run` cycle on a verified migration copy containing a
+realistic 150+-term profile. No drafting or Gmail/provider call was permitted.
+
+The source database remained byte-identical before and after the rehearsal:
+172,032 bytes, last-write UTC `2026-07-19T23:04:58`, SHA-256
+`0A560528C486375383F1F84F1BA8EA1536B341C75C8BC5EF0CF3D1BEE4E18192`.
+The retained backup API verified the copied database's integrity, current
+schema, idempotent migration, and unchanged source. A synthetic resume-derived
+fixture then replaced the copy's demo profile with 31 verified claims and 321
+distinct rankable terms.
+
+Two bounded public-read attempts were made on 2026-08-07 MDT / 2026-08-08 UTC:
+
+1. `Greenhouse:remotecom` discovered 58, quarantined 12, scored/rejected 46,
+   and produced 0 act-eligible, 0 acted, 0 drafted, and 0 errors. An offline
+   read of the copied database measured totals 2.36–3.63 (mean 2.932); no
+   scored row reached the calibrated 4.0 Act threshold.
+2. `Lever:mistral` returned zero postings and therefore 0 act-eligible, 0
+   drafted, and 0 errors.
+
+The final hash-only audit export reported an intact chain, two named cycle
+rows, 256 events, and no payloads. R2 is BLOCKED because its required
+`act-eligible > 0` acceptance condition was not met. The global score rail was
+not weakened to fit a volatile feed, and no third public cycle was run.
+
+Smallest human unblock: after return, select one currently non-empty,
+engineering-heavy public ATS board for a fresh bounded R2 rehearsal, or direct
+a new controlled calibration against an approved captured job corpus before
+authorizing any score/threshold change. R3 remains ineligible unless R2 is
+subsequently marked DONE.
 
 ## B3 local Browser visual check — background dashboard process would not stay bound
 

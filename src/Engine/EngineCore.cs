@@ -11,9 +11,11 @@ namespace SeekerSvc.Engine;
 /// <summary>Live, thread-safe tallies the dashboard renders. One run cycle updates these.</summary>
 public sealed class EngineCounters
 {
-    private long _discovered, _acted, _drafted, _blocked, _rejected, _quarantined, _errors, _cycles;
+    private long _discovered, _scored, _actEligible, _acted, _drafted, _blocked, _rejected, _quarantined, _errors, _cycles;
     private long _lastCycleUtcTicks;
     public long Discovered => Interlocked.Read(ref _discovered);
+    public long Scored => Interlocked.Read(ref _scored);
+    public long ActEligible => Interlocked.Read(ref _actEligible);
     public long Acted => Interlocked.Read(ref _acted);
     public long Drafted => Interlocked.Read(ref _drafted);
     public long Blocked => Interlocked.Read(ref _blocked);
@@ -38,6 +40,8 @@ public sealed class EngineCounters
     }
 
     internal void AddDiscovered(long n) => Interlocked.Add(ref _discovered, n);
+    internal void IncScored() => Interlocked.Increment(ref _scored);
+    internal void IncActEligible() => Interlocked.Increment(ref _actEligible);
     internal void IncActed() => Interlocked.Increment(ref _acted);
     internal void IncDrafted() => Interlocked.Increment(ref _drafted);
     internal void IncBlocked() => Interlocked.Increment(ref _blocked);
@@ -259,6 +263,9 @@ public sealed class EngineCycle
                 var sem = await _semantic.ScoreAsync(item.Posting, ct).ConfigureAwait(false);
                 var score = SeekerSvc.Scorer.Scorer.Score(item.Posting, _opt.Preferences, sem);
                 await SaveScoreAsync(write.JobId, score, sem, ct).ConfigureAwait(false);
+                _counters.IncScored();
+                if (score.Dispatch == Dispatch.Act)
+                    _counters.IncActEligible();
 
                 // Dry-run/discovery-only means exactly that. In particular, do not route an Act
                 // decision through a fake Gmail client and then label the result DRAFTED: no Gmail
@@ -307,6 +314,9 @@ public sealed class EngineCycle
                 var sem = await _semantic.ScoreAsync(posting, ct).ConfigureAwait(false);
                 var score = SeekerSvc.Scorer.Scorer.Score(posting, _opt.Preferences, sem);
                 await SaveScoreAsync(jobId, score, sem, ct).ConfigureAwait(false);
+                _counters.IncScored();
+                if (score.Dispatch == Dispatch.Act)
+                    _counters.IncActEligible();
 
                 var job = new PipelineJob(jobId, posting.Title, _opt.CompanyName,
                     score.Dispatch == Dispatch.Act ? "mailto:jobs@" + _opt.CompanyHandle + ".com" : null);
