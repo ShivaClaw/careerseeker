@@ -1,11 +1,18 @@
 param(
     [string] $PackagePath = "output/release/CareerSeeker-beta-win-x64.msix",
-    [string] $Configuration = "Release"
+    [string] $Configuration = "Release",
+    [string] $ExpectedPublisher,
+    [switch] $RequireSigned
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $sdkBuildToolsVersion = "10.0.26100.7705"
+$unsignedPublisherOid = "OID.2.25.311729368913984317654407730594956997722=1"
+
+if ($RequireSigned -and [string]::IsNullOrWhiteSpace($ExpectedPublisher)) {
+    throw "-RequireSigned requires -ExpectedPublisher with the exact certificate subject."
+}
 
 function Invoke-CheckedOutput {
     param([string] $Command, [string[]] $Arguments)
@@ -37,8 +44,13 @@ try {
     }
     $makeAppx = Join-Path $Matches[1].Trim() `
         "microsoft.windows.sdk.buildtools/$sdkBuildToolsVersion/bin/10.0.26100.0/x64/makeappx.exe"
+    $signTool = Join-Path $Matches[1].Trim() `
+        "microsoft.windows.sdk.buildtools/$sdkBuildToolsVersion/bin/10.0.26100.0/x64/signtool.exe"
     if (-not (Test-Path -LiteralPath $makeAppx -PathType Leaf)) {
         throw "MakeAppx.exe is unavailable after locked restore."
+    }
+    if ($RequireSigned -and -not (Test-Path -LiteralPath $signTool -PathType Leaf)) {
+        throw "SignTool.exe is unavailable after locked restore."
     }
 
     $testRoot = Join-Path $repoRoot "tmp/beta-package-self-check"
@@ -68,6 +80,20 @@ try {
     $identity = $manifest.SelectSingleNode("/f:Package/f:Identity", $ns)
     if ($null -eq $identity -or $identity.Name -ne "CareerSeeker.LocalBeta") {
         throw "Unexpected MSIX identity."
+    }
+    $manifestPublisher = [string] $identity.Publisher
+    $signedManifestShapeVerified = $false
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedPublisher)) {
+        if (-not $manifestPublisher.Equals($ExpectedPublisher, [System.StringComparison]::Ordinal)) {
+            throw "Manifest Publisher does not exactly match ExpectedPublisher."
+        }
+        if ($manifestPublisher.IndexOf($unsignedPublisherOid, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            throw "A production-shaped manifest must not retain the unsigned-package OID."
+        }
+        $signedManifestShapeVerified = $true
+    }
+    if ($RequireSigned) {
+        Invoke-CheckedOutput $signTool @("verify", "/pa", "/all", "/v", $fullPackage) | Out-Null
     }
     $application = $manifest.SelectSingleNode("/f:Package/f:Applications/f:Application", $ns)
     if ($null -eq $application -or $application.Executable -ne "CareerSeeker.exe" -or
@@ -120,6 +146,9 @@ try {
     $hash = (Get-FileHash -LiteralPath $fullPackage -Algorithm SHA256).Hash
     Write-Host "Beta package self-check passed."
     Write-Host "  identity: $($identity.Name)"
+    Write-Host "  publisher: $manifestPublisher"
+    Write-Host "  signed manifest shape: $(if ($signedManifestShapeVerified) { 'subject match; unsigned OID absent' } else { 'not requested' })"
+    Write-Host "  signature verification: $(if ($RequireSigned) { 'passed' } else { 'not requested' })"
     Write-Host "  executable payload: 1 (CareerSeeker.exe)"
     Write-Host "  startup task: optional, disabled by default"
     Write-Host "  external user workspace preserved: yes"

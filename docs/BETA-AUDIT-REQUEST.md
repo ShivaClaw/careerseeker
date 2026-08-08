@@ -6,6 +6,34 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## R4 - Signing and install readiness preparation
+
+Branch: `codex/r4-signing-install-readiness`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-08-07 |
+|---|---|---|
+| The PFX signing flow validates its package/certificate/timestamp parameters without reading a certificate, password, or signing anything. | `scripts\Sign-BetaRelease.ps1 -PackagePath tmp\r4-release-validation\validation-only.msix -CertificatePath tmp\r4-release-validation\not-read.pfx -ValidateOnly` (executed inside `scripts\Verify-Alpha.ps1`) | Validation passed, reported `no signing or certificate read` and `password read: no`; an HTTP timestamp URL was rejected. |
+| Production-signed package expectations are executable before a real certificate exists. | `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | A production-shaped package with publisher `CN=CareerSeeker R4 Offline Validation` passed exact subject matching and unsigned-OID absence; the same intentionally unsigned artifact was rejected by `-RequireSigned` with `No signature found`. |
+| The disposable-VM checklist is deterministic and non-mutating in validation mode. | `scripts\New-BetaVmInstallMatrix.ps1 ... -ValidateOnly` (executed inside the verifier) | Exact SHA-256 and publisher validation passed; all eleven IDs VM01-VM11 were present; no signature check, install, or output write occurred. The execution mode is gated by signed-package verification and emits `PENDING` recorded-output slots. |
+| The human queue contains current setup/sign/verify/VM/publish commands. | `rg -n "artifact-signing|azure/login@v3|artifact-signing-action@v2|New-BetaVmInstallMatrix|wrangler r2 object (put|get)" docs\autonomy\HUMAN-QUEUE.md` | Q03-Q05 cover Azure account/profile/RBAC, GitHub OIDC signing, exact publisher verification, the VM matrix, and versioned R2 upload/re-download/hash verification. Wrangler was measured at 4.112.0; no Wrangler mutation command was run. |
+| The merge-grade gate remains green. | `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | Build 0 warnings/0 errors; offline 412/0; published demo 1 acted/1 drafted; one-executable package self-check passed with provider calls 0 and Gmail calls/drafts 0. The unsigned baseline MSIX was 33,671,092 bytes with SHA-256 `3FF2AF41E95DF3B01B666AEA6881BCC7BA1EAD11B05857E4804230DE3ACDE911`. |
+| .NET analyzers remain clean. | `dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest`; `dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore` | Analyzer build 0 warnings/0 errors; analyzer formatting verification exited 0 with no findings. |
+
+### Verification boundary
+
+R4 prepared and validated the offline flow only. No Azure resource, identity,
+RBAC assignment, repository secret/variable, signing request, certificate,
+signature, package registration, install, reboot, startup change, uninstall,
+data deletion, R2 object, or site deployment was created or executed. Signing,
+the VM matrix, and publication remain human steps Q03-Q05.
+
+No deploy, console mutation, email, purchase, signing, install, secret access,
+certificate/store mutation, reboot, scheduled-task registration, off-repo
+site edit, Android/relay/sync change, force-push, history rewrite,
+`.appdata`-original mutation, or live provider/Gmail action occurred.
+
 ## R3 - Sole live Gmail cycle prerequisite (BLOCKED)
 
 Branch: `codex/r3-prerequisite-gate`

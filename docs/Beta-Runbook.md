@@ -158,29 +158,69 @@ approval. A conventional trusted code-signing certificate remains the fallback.
    production-signed manifest.
 4. Configure CI secrets/permissions through the platform UI; never commit a PFX, password, client secret, or
    signing token.
-5. Sign and timestamp the MSIX. The local PFX hook, when intentionally used, is:
+5. Before any signing, exercise the no-certificate/no-write validation flow:
 
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\Sign-BetaRelease.ps1 `
      -PackagePath output\release\CareerSeeker-beta-win-x64.msix `
-     -CertificatePath C:\secure\publisher.pfx
+     -CertificatePath C:\secure\publisher.pfx `
+     -ValidateOnly
    ```
 
-6. Verify signature and package:
+6. Sign and timestamp the MSIX through the human-approved Azure Artifact
+   Signing workflow. Q03 in `docs/autonomy/HUMAN-QUEUE.md` contains the exact
+   Azure resource, RBAC, GitHub OIDC/action, build, and verification commands.
+   The local PFX fallback, when intentionally used, is:
 
    ```powershell
-   Get-AuthenticodeSignature output\release\CareerSeeker-beta-win-x64.msix
-   powershell -ExecutionPolicy Bypass -File scripts\Test-BetaReleasePackage.ps1
+   $env:CAREERSEEKER_SIGNING_PASSWORD = Read-Host -AsSecureString |
+     ConvertFrom-SecureString -AsPlainText
+   powershell -ExecutionPolicy Bypass -File scripts\Sign-BetaRelease.ps1 `
+     -PackagePath output\release\CareerSeeker-beta-win-x64.msix `
+     -CertificatePath C:\secure\publisher.pfx
+   Remove-Item Env:\CAREERSEEKER_SIGNING_PASSWORD
    ```
 
-7. Record signer subject, timestamp, artifact bytes, SHA-256, CI run, and verification output.
+7. Verify signature, exact publisher, and absence of the unsigned-package OID:
 
-Official reference:
-https://learn.microsoft.com/windows/msix/package/signing-package-overview
+   ```powershell
+   $ExactPublisher = 'CN=EXACT CERTIFICATE SUBJECT'
+   powershell -ExecutionPolicy Bypass -File scripts\Test-BetaReleasePackage.ps1 `
+     -PackagePath output\release\CareerSeeker-beta-win-x64.msix `
+     -ExpectedPublisher $ExactPublisher `
+     -RequireSigned
+   Get-AuthenticodeSignature output\release\CareerSeeker-beta-win-x64.msix |
+     Format-List Status, StatusMessage, SignerCertificate, TimeStamperCertificate
+   ```
+
+8. Record signer subject, timestamp, artifact bytes, SHA-256, CI run, and verification output.
+
+Official references:
+
+- https://learn.microsoft.com/windows/msix/package/signing-package-overview
+- https://learn.microsoft.com/azure/artifact-signing/quickstart
+- https://learn.microsoft.com/azure/artifact-signing/tutorial-assign-roles
+- https://github.com/Azure/artifact-signing-action
 
 ## 6. Disposable Windows installer matrix
 
-Use a disposable Windows 11 tester VM or machine with no CareerSeeker package registration:
+First initialize the checklist from the exact signed artifact. This verifies
+the signature and writes only a Markdown evidence template; it performs no
+install or machine mutation:
+
+```powershell
+$Artifact = 'output\release\CareerSeeker-beta-win-x64.msix'
+$ExactPublisher = 'CN=EXACT CERTIFICATE SUBJECT'
+$Hash = (Get-FileHash -LiteralPath $Artifact -Algorithm SHA256).Hash
+powershell -ExecutionPolicy Bypass -File scripts\New-BetaVmInstallMatrix.ps1 `
+  -ArtifactPath $Artifact `
+  -ExpectedSha256 $Hash `
+  -ExpectedPublisher $ExactPublisher `
+  -OutputPath output\release\Beta-VM-Install-Matrix.md
+```
+
+Then use a disposable Windows 11 tester VM or machine with no CareerSeeker
+package registration and fill every recorded-output slot:
 
 1. Install the exact signed artifact.
 2. Confirm Start-menu name/icon and that Startup Apps shows CareerSeeker disabled.
@@ -196,13 +236,17 @@ Use a disposable Windows 11 tester VM or machine with no CareerSeeker package re
 10. Repeat upgrade-in-place from the previous signed Beta when one exists.
 
 Do not claim install, uninstall, startup, or reboot support before this matrix is recorded.
+Q04 in `docs/autonomy/HUMAN-QUEUE.md` is the exact handoff.
 
 ## 7. Publish the signed Beta artifact
 
 Only after Sections 1, 2, 5, and 6:
 
 1. Use a new versioned Beta object/path; do not overwrite the shipped Alpha ZIP.
-2. Upload the exact signed MSIX through the existing human-controlled release/R2 workflow.
+2. Upload the exact signed MSIX through the existing human-controlled release/R2 workflow. Q05 in
+   `docs/autonomy/HUMAN-QUEUE.md` pins the bucket, versioned object-key shape, Wrangler upload, download, hash,
+   and signed-package re-verification commands. It intentionally does not use the unsupported
+   `wrangler r2 object list` command.
 3. Update download metadata/site links to the new version, bytes, and SHA-256.
 4. Download it through the public path to a clean machine, verify the signature/hash, then repeat the minimal
    install/onboarding/uninstall preservation smoke.
