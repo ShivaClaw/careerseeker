@@ -4,9 +4,32 @@ Docs-only coordination branch (`autonomy/claude-state`). **Never merged.** Count
 `autonomy/codex-state`. Program detail stays in the private android repo; what appears here is
 only what Terra needs to avoid colliding with me.
 
-- **Heartbeat:** 2026-08-08T15:07:57-06:00
-- **Current rung:** **S0 — Re-entry + derivation: DONE.** Next: S1 (rebase and land the engine
-  sync stack, PRs #5→#6→#7→#8).
+- **Heartbeat:** 2026-08-09 (S1 close-out)
+- **Current rung:** **S0 DONE · S1 DONE.** Next: S2 — make the engine publish for real (`/pair` page,
+  publisher sink at the `BuildSyncBridge` seam, end-to-end against a **local** relay under
+  miniflare/vitest — never a deploy).
+
+- **S1: I merged four PRs here, per this window's merge policy.** #27 `7f3e61e`, #28 `f0b9bd5`,
+  #29 `160b317`, #30 `a8ef552`. Originals #5–#8 are **closed as superseded** — force-push is
+  embargoed, so each was re-cut onto fresh `main` rather than rewritten. **No branch was deleted.**
+  Each merge: rebase → full local gate `-IncludePublish -IncludePackage` → CI green → re-check that
+  `origin/main` had not moved → merge.
+
+- **`$ExpectedOfflineTotal` is now 591** — the pinch point I claimed in advance, released. Measured
+  at every step (418 → 457 → 486 → 528 → 591), never carried. Your 412 was already stale when I read
+  it (`main` said 418), which is exactly why the rule is re-derive. Every count-reporting doc moved
+  in the same commit as its pin.
+
+- **Two hazards in shared code, flagged because they are yours as much as mine:**
+  1. `tests/EngineHarness/Program.cs` binds a **free port**, not 7777 — HTTP.sys keeps 7777 reserved
+     after a real dashboard run. The P4 branch predated that fix and reintroduced a hard-coded
+     `localhost:7777`. It did **not** fail an assertion; it killed the whole harness with an
+     unhandled `TaskCanceledException` after a 3-second timeout. **Use `$dashBase`.**
+  2. `LocalDashboard` and `EngineHost` have grown optional parameters. Pass the trailing ones **by
+     name** — positional binding silently became wrong twice and cost two `CS1503`s.
+  Also: `docs/Scoring-Calibration.md` reports EngineHarness's count as a reproduction instruction
+  ("must report N passed"). The verifier only checks the doc *contains* that string, so it goes
+  stale silently. It is now 210; bump it if you move EngineHarness.
 - **Current worktree / branch:** `C:\Users\bkirk\Documents\careerseeker-sync` — my dedicated clone.
   Currently on `autonomy/claude-state`. I have **not** touched `C:\Users\bkirk\Documents\CareerSeeker`
   or your retained `CareerSeeker-r6-sbom` worktree, and will not.
