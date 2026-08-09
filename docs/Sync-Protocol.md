@@ -98,12 +98,60 @@ to verify — see §5.4 for why it moved.
 Other unknown top-level fields MUST be rejected, not ignored. A permissive parser here is
 how a future version's field silently becomes an injection point.
 
+Every **structural** rejection — an unknown top-level field, padded base64, a nonce that is
+not 12 bytes, a `dir` that is neither `e2p` nor `p2e`, a body that is not parseable JSON —
+is reported as `decrypt_failed` (§7.2). v1 deliberately does **not** add a `malformed`
+code: a distinct code would be a new observable, and §7.2 already requires that a receiver
+not let an observer separate `decrypt_failed` from `bad_signature`. "This envelope is not
+acceptable" is the whole of what a rejection may communicate. Amended in S5 (PQ-A2-2) to
+state what both implementations already did rather than leave the code unnamed.
+
 ### 3.1 Size limits
 
-An envelope MUST NOT exceed **1 MiB** total. The relay MUST reject larger with HTTP 413.
+The **decoded ciphertext** — the AEAD output including its 16-byte tag, after base64url
+decoding — MUST NOT exceed **1 MiB**. A receiver measures those decoded bytes, not the
+length of the JSON envelope and not the length of the base64url text, and rejects a larger
+one with `too_large` (§7.2) *before* attempting any cryptography.
+
+The relay cannot check that rule directly — it holds no key and never decodes `ciphertext`,
+so the only quantity it can count is base64url characters. It therefore enforces the **same**
+cap converted into its own units: a `ciphertext` string longer than
+`ceil(4/3 × 1 MiB) = 1,398,102` characters, or a request body longer than that plus 4 KiB of
+JSON scaffolding, is rejected with HTTP 413 (`relay/src/protocol.ts`
+`MAX_CIPHERTEXT_B64U_CHARS` / `MAX_PUSH_BODY_CHARS`, applied in `relay/src/channel.ts`).
+
+That conversion is normative, not incidental: **the relay MUST carry every envelope this
+section declares legal.** A relay cap written as its own round number is a bug even when the
+number looks conservative, because a sender obeying §3.1 and §4.4 has no way to discover it
+except as a 413 on a correctly-sized chunk.
+
 Document payloads that would exceed this are chunked at the payload layer (§4.4), not by
 splitting ciphertext — a partial AEAD frame is not decryptable and must never be on the
 wire.
+
+Amended in S5 (PQ-A2-1). The P0 wording — "an envelope MUST NOT exceed 1 MiB total" —
+described something neither implementation ever measured: both
+(`src/Sync/EnvelopeReceiver.cs:45`, `core/.../EnvelopeReceiver.kt`) test the decoded
+ciphertext. The prose was moved to the implementations rather than the reverse, because
+the ciphertext is the thing that gets decrypted and because changing two shipping receivers
+to satisfy a sentence would be a wire-visible change made for the sentence's sake. The
+`invalid-oversized` vector pins the receiver rule: it sets a ciphertext of
+`max_envelope_bytes + 1` **decoded** bytes.
+
+Corrected later the same day, and the correction is the more interesting half. The first
+version of this amendment observed that the relay's string test was *stricter* than the
+receivers' byte test and concluded "an envelope the relay agrees to carry can never be one a
+receiver rejects on size — so there is no gap". That implication is true and the conclusion
+does not follow: it reasons in one direction only. Running the other direction against a local
+relay showed the relay 413ing a ciphertext of exactly 1 MiB decoded — **legal by the sentence
+at the top of this section, and refused by the transport**. The old guard compared a character
+count to a byte budget, which capped the decoded payload at 786,432 bytes and left the top
+**256 KiB** of the declared range untransmittable. Nothing sends envelopes that large today
+(§4.4 chunking is unimplemented in both codebases), so this was latent rather than live — but
+§4.4 instructs a future chunker to size against exactly the number that does not fit. The
+relay now derives its cap from this section's, and `relay/test/relay.test.ts` pins the
+derivation, the maximum legal envelope surviving a push/pull round trip, and the first
+character beyond it.
 
 ---
 
@@ -148,7 +196,7 @@ Engine → phone:
 | `evidence` | `{audit_ok, first_broken_seq?, event_count, events:[{seq, ts, actor, kind, entity, entity_id}]}` — the engine's audit-chain verdict plus recent event metadata. Never full event payload bodies. |
 | `heartbeat` | `{ts, cycle, counters}`. Drives the app's "last seen" indicator. |
 | `conflict` | Rejection of a `doc_edit`: `{app_id, doc_kind, base_rev, current_rev}`. |
-| `entitlement_ack` | Engine confirms a verified Pro entitlement was applied. |
+| `entitlement_ack` | Engine confirms a verified Pro entitlement was applied. Body in §4.3.3. |
 | `error` | §7.2. |
 
 Phone → engine:
@@ -255,6 +303,54 @@ vector per reason: signature-invalid, wrong-product, wrong-package, not-purchase
 
 Because `entitlement` is state-changing (§5.4), the envelope also carries the device ECDSA
 `sig`, so the audit chain records *which paired device* delivered the entitlement.
+
+### 4.3.3 Entitlement acknowledgement body (`entitlement_ack`)
+
+**Decided 2026-08-07 (gate PQ-A6-1, default-proceed).** `entitlement_ack` is the only thing
+that may unlock Pro on the phone. §4.3.2 makes the phone a courier: it forwards the
+Play-signed receipt, the engine verifies it against its configured public key, and this
+kind is the engine's answer. Until S5 the kind had a name in the §4.3 table and no body at
+all, which is why the phone-side unlock path could not be written — parsing an unspecified
+shape would have been inventing wire format.
+
+```
+entitlement_ack body = {
+  "product_id":      <string>,   // the product granted, e.g. "pro_unlock"
+  "acknowledged_at": <string>,   // RFC 3339 UTC — when the ENGINE recorded the grant
+  "order_id":        <string>    // OPTIONAL — Play orderId, for support correspondence
+}
+```
+
+`product_id` MUST be one of the product ids the receiver already knows (§4.3.2's configured
+set). A receiver that sees anything else MUST ignore the ack rather than unlock on it: the
+field records *which* entitlement was granted, and is not a request to grant one.
+
+`acknowledged_at` is the engine's clock and is **advisory only** (§6.3). It exists for
+display and support. A receiver MUST NOT expire, re-lock, or refuse an entitlement on the
+strength of this timestamp — clocks are not security inputs here, and an entitlement that
+silently lapsed because two machines disagreed about the time would be indistinguishable
+from a revocation nobody performed.
+
+`order_id` is optional because it is Play correspondence data, not authorisation. An ack
+without it is complete and MUST be honoured; an ack carrying it gains no additional weight.
+It is present so a human can match a support ticket to a purchase.
+
+**There is no negative form.** A receipt the engine rejects produces an `error` (§7.2)
+naming the reason — never an `entitlement_ack` with a failure flag inside it. An ack means
+*granted*, full stop. A kind whose meaning depends on reading a field inside the body is
+exactly the parser hazard §4.2 exists to avoid, and here it would be a hazard on the one
+path that turns a paid feature on.
+
+Because `entitlement_ack` is `e2p`, the envelope MUST NOT carry `sig` (§3) — the engine
+holds no device signing key. Its authenticity comes from the AEAD under the pairing's
+`k_e2p`, which only the paired engine can produce; a relay that fabricated one would have
+to forge a tag.
+
+This body says nothing about *how* the phone stores the resulting state. That the unlock is
+reachable only through an ack — and never through a locally-computed verdict on a receipt —
+is a phone-side design boundary recorded as PQ-A2-4 in the android repo, and it is
+load-bearing: a device that could self-certify its own entitlement would be a device with
+an incentive to.
 
 ### 4.4 Chunking
 
@@ -502,7 +598,7 @@ contain plaintext content.
 | --- | --- |
 | `version_unsupported` | `v` was not 1. |
 | `replay_rejected` | `seq` was not greater than the highest accepted. |
-| `decrypt_failed` | AEAD tag check failed — wrong key, tampering, or corruption. |
+| `decrypt_failed` | AEAD tag check failed — wrong key, tampering, or corruption. **Also every structural rejection**: unknown top-level field, padded base64, wrong nonce length, unparseable framing (§3). There is deliberately no separate `malformed` code. |
 | `unknown_kind` | `kind` not recognised, or reserved-but-unimplemented. |
 | `key_unknown` | `key_id` is not the active pairing's key. Checked **before** decryption (§5.3). |
 | `bad_signature` | `device_sig` missing or invalid on a state-changing kind. |
@@ -557,6 +653,9 @@ auditable rather than silent:
 | This doc (P0) | `doc_edit` body carries `device_sig` | field removed; the envelope `sig` covers it (§3, §5.4) |
 | This doc (P0/§4.3) | `entitlement` body `{voucher}` (option-A entitlement Worker) | `{original_json, signature}` — the engine verifies Google Play's signature (gate P0-WORKER option C; §4.3.2, P4) |
 | This doc (§4.3.1) | application summary `{id,state,company,title,score}` | adds nullable `outcome` — Pro outcome tracking, absent when unset/non-Pro (§4.3.1, P4 §2.5) |
+| This doc (P0/§3.1) | "An envelope MUST NOT exceed **1 MiB** total" | the cap is on the **decoded ciphertext**, which is what both shipping receivers always measured; the relay's own limits are stated separately and are stricter (§3.1, S5 / PQ-A2-1) |
+| This doc (§3) | structural rejection had no named error code | structural rejection reports `decrypt_failed`; no `malformed` code is added, so the observable set does not grow (§3, §7.2, S5 / PQ-A2-2) |
+| This doc (§4.3) | `entitlement_ack` listed with no body | body is `{product_id, acknowledged_at, order_id?}` (§4.3.3, S5 / gate PQ-A6-1, default-proceed) |
 
 `CareerSeeker-Spec.md` §7.2 is amended in the same commit that introduces this file. Two
 documents disagreeing about a wire format is precisely the drift `CLAUDE.md` exists to
@@ -608,3 +707,34 @@ A conforming implementation decrypts every `valid` vector to the stated plaintex
 rejects every invalid one **with the stated code**. Rejecting for the wrong reason is a
 failure: it usually means a check fired earlier than intended and the real check is
 untested.
+
+#### 10.1 The `type` field, and why a new kind gets its own
+
+Every vector carries a `type`. Vectors of type `envelope` go through the generic
+round-trip, AAD-tampering and receiver loops in **both** consumers; `pairing`,
+`entitlement` and `entitlement_ack` vectors are read by dedicated sections instead. Both
+consumers filter on the same string (`tests/SyncHarness/Program.cs:62`,
+`core/.../ProtocolVectorsTest.kt:55`).
+
+That partition is load-bearing, not cosmetic. The `envelope` suite is fed through a
+**single receiver in sequence order** — valid vectors first, then invalid ones — so its
+`seq` space is fully packed by design: the valid `e2p` vectors occupy 1–4 and every invalid
+`e2p` vector sits above them, relying on the high-water mark staying at 4. Adding a new
+*valid* `e2p` envelope vector would raise that mark past `invalid-truncated-tag` (seq 5)
+and `invalid-unknown-kind` (seq 8), whose expected `decrypt_failed` and `unknown_kind`
+would silently become `replay_rejected` — the replay check runs before both
+(`src/Sync/EnvelopeReceiver.cs:53`). There is no integer that avoids this: the vector would
+need `seq > 4` to be accepted and `seq < 5` to be harmless.
+
+So a new payload kind is introduced under its **own `type`**, consumed by a dedicated
+section, exactly as `entitlement` was. Renumbering existing vectors is not an option: their
+bytes are a published wire artifact that a second repository vendors at a pinned commit.
+
+#### 10.2 `entitlement-ack` is specified and pinned, not yet asserted
+
+The `entitlement-ack` and `entitlement-ack-no-order-id` vectors (S5) pin §4.3.3's body.
+**No consumer asserts against them yet.** The C# and Kotlin appliers arrive in the same
+rung; until they do, these files are a fixed target for those appliers to be written
+against, and are *not* evidence that either implementation handles `entitlement_ack`. The
+pair exists so that `order_id`'s optionality is pinned by an artifact rather than by prose:
+one vector carries it, one does not, and both are valid.
