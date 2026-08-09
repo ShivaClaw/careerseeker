@@ -1,0 +1,28 @@
+{
+  "type": "entitlement_ack",
+  "name": "entitlement-ack-no-order-id",
+  "valid": true,
+  "notes": "The same grant WITHOUT order_id. Pins that the field is genuinely optional: this ack is complete and must be honoured exactly like the one above. An implementation that requires order_id fails here rather than in a support ticket about an unlock that did not happen.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=31|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "jSOteWJswIJkzCxV",
+  "plaintext_json": {
+    "kind": "entitlement_ack",
+    "body": {
+      "product_id": "pro_unlock",
+      "acknowledged_at": "2026-06-11T14:02:11Z"
+    }
+  },
+  "ciphertext_b64u": "ztp0QuXLbwPKJkDVb3wH8KhrDyTc4p0C6F9Vex879XE4fKe11l_VNtO76eHCpYcDYFkd4DH3fLTNBA5AfA9VQR-o59so-23od-c2f7LOcwb-_8-IGpi8m3wNMYTGjSj8EYAbaL1aTqyMHGRufg4dN3PRCWYehg",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 31,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "jSOteWJswIJkzCxV",
+    "ciphertext": "ztp0QuXLbwPKJkDVb3wH8KhrDyTc4p0C6F9Vex879XE4fKe11l_VNtO76eHCpYcDYFkd4DH3fLTNBA5AfA9VQR-o59so-23od-c2f7LOcwb-_8-IGpi8m3wNMYTGjSj8EYAbaL1aTqyMHGRufg4dN3PRCWYehg"
+  },
+  "expect_error": null
+}

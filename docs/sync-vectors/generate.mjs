@@ -635,7 +635,54 @@ const entitlementVectors = [
   }),
 ];
 
-const all = [...vectors, ...pairingVectors, ...entitlementVectors];
+// ------------------------------------------------- entitlement acknowledgement vectors (S5)
+//
+// `entitlement_ack` is the engine's answer to a verified receipt, and the ONLY thing that
+// may unlock Pro on the phone (Sync-Protocol.md section 4.3.3, gate PQ-A6-1). Its body was
+// undefined until S5, so no applier could be written on either side.
+//
+// These carry `type: 'entitlement_ack'` rather than 'envelope', which is deliberate and is
+// documented in Sync-Protocol.md section 10.1: the `envelope` suite is fed through ONE
+// receiver in sequence order, its valid e2p vectors occupy seq 1-4, and every invalid e2p
+// vector above them depends on the high-water mark staying at 4. A new valid e2p envelope
+// vector would need seq > 4 to be accepted and seq < 5 to leave invalid-truncated-tag
+// (seq 5) alone -- no such integer exists. A new kind therefore gets its own type and a
+// dedicated consumer section, exactly as the entitlement vectors did. The seqs below are
+// well clear of the envelope suite so the two can never be interleaved by accident.
+//
+// e2p, so per section 3 the envelope carries NO `sig`: the engine holds no device key.
+
+function makeAckVector({ name, seq, body, notes }) {
+  return makeVector({
+    name, valid: true, dir: 'e2p', seq, plaintext: { kind: 'entitlement_ack', body }, notes,
+    mutate: (vec) => { vec.type = 'entitlement_ack'; return vec; },
+  });
+}
+
+const ackVectors = [
+  makeAckVector({
+    name: 'entitlement-ack', seq: 30,
+    body: {
+      product_id: PRO_PRODUCT_ID,
+      acknowledged_at: TS,
+      // Matches entitlement-valid's orderId, so the two vectors read as one story:
+      // that receipt, acknowledged.
+      order_id: 'GPA.3390-8461-2039-11123',
+    },
+    notes: 'The engine acknowledging a verified Pro grant, with the optional order_id present. '
+         + 'Section 4.3.3. This is the only payload that may unlock Pro on the phone; acknowledged_at '
+         + 'is advisory (section 6.3) and must never expire or re-lock the entitlement.',
+  }),
+  makeAckVector({
+    name: 'entitlement-ack-no-order-id', seq: 31,
+    body: { product_id: PRO_PRODUCT_ID, acknowledged_at: TS },
+    notes: 'The same grant WITHOUT order_id. Pins that the field is genuinely optional: this ack is '
+         + 'complete and must be honoured exactly like the one above. An implementation that requires '
+         + 'order_id fails here rather than in a support ticket about an unlock that did not happen.',
+  }),
+];
+
+const all = [...vectors, ...pairingVectors, ...entitlementVectors, ...ackVectors];
 
 // ---------------------------------------------------------------- write / check
 
