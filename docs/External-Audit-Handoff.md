@@ -19,7 +19,7 @@ The strongest review order is:
 
 ## Current evidence
 
-- Pinned offline verifier: **528 passed, 0 failed**.
+- Pinned offline verifier: **591 passed, 0 failed**.
 - GitHub CI runs the warnings-as-errors Release build and the same verifier on `main`, `agent/**`,
   `codex/**`, and pull requests into `main`.
 - Real engine path: `run` performs identified Greenhouse/Lever/Ashby discovery, local deterministic ranking,

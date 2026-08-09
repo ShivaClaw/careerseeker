@@ -1463,19 +1463,19 @@ Console.WriteLine("\n[ localhost dashboard ]");
             $"{appPost.StatusCode}, calls={appControls}, state={controlled?.State}");
 
         // ── Pro funnel board + outcome marking (P4 §2.5c) ──
-        var lockedApps = await http.GetStringAsync("http://localhost:7777/applications");
+        var lockedApps = await http.GetStringAsync($"{dashBase}/applications");
         Check("/applications locks the funnel + outcome controls when Pro is not entitled",
             lockedApps.Contains("Outcome tracking is a") && !lockedApps.Contains("Pro funnel") && !lockedApps.Contains("name=\"outcome\""),
             "expected the Pro-locked notice, no funnel, no outcome control");
 
         new StoreEntitlementStateStore(evidenceStore).Save(new EntitlementState(true, DateTimeOffset.UtcNow));
 
-        var proApps = await http.GetStringAsync("http://localhost:7777/applications");
+        var proApps = await http.GetStringAsync($"{dashBase}/applications");
         Check("/applications shows the funnel + outcome controls once Pro is entitled",
             proApps.Contains("Pro funnel") && proApps.Contains("Reply rate") && proApps.Contains("name=\"outcome\""),
             "expected the funnel panel and an outcome select");
 
-        var proStatus = await http.GetStringAsync("http://localhost:7777/status");
+        var proStatus = await http.GetStringAsync($"{dashBase}/status");
         using (var proStatusDoc = JsonDocument.Parse(proStatus))
         {
             Check("/status reports outcome control + Pro funnel availability",
@@ -1483,12 +1483,12 @@ Console.WriteLine("\n[ localhost dashboard ]");
                 && proStatusDoc.RootElement.GetProperty("proFunnelAvailable").GetBoolean(), proStatus);
         }
 
-        var forgedOutcome = await noRedirect.PostAsync("http://localhost:7777/controls/application/outcome",
+        var forgedOutcome = await noRedirect.PostAsync($"{dashBase}/controls/application/outcome",
             new FormUrlEncodedContent(new Dictionary<string, string>
             { ["token"] = "wrong", ["applicationId"] = applicationId.ToString(), ["outcome"] = "interview" }));
         Check("outcome control rejects a bad token", forgedOutcome.StatusCode == HttpStatusCode.Forbidden, forgedOutcome.StatusCode.ToString());
 
-        using var wrongOutcomeHost = new HttpRequestMessage(HttpMethod.Post, "http://localhost:7777/controls/application/outcome")
+        using var wrongOutcomeHost = new HttpRequestMessage(HttpMethod.Post, $"{dashBase}/controls/application/outcome")
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string>
             { ["token"] = token, ["applicationId"] = applicationId.ToString(), ["outcome"] = "interview" }),
@@ -1497,7 +1497,7 @@ Console.WriteLine("\n[ localhost dashboard ]");
         var wrongOutcomeHostResp = await noRedirect.SendAsync(wrongOutcomeHost);
         Check("outcome control rejects a foreign Host header", (int)wrongOutcomeHostResp.StatusCode >= 400, wrongOutcomeHostResp.StatusCode.ToString());
 
-        var outcomePost = await noRedirect.PostAsync("http://localhost:7777/controls/application/outcome",
+        var outcomePost = await noRedirect.PostAsync($"{dashBase}/controls/application/outcome",
             new FormUrlEncodedContent(new Dictionary<string, string>
             { ["token"] = token, ["applicationId"] = applicationId.ToString(), ["outcome"] = "interview" }));
         var outcomeSet = await evidenceStore.GetApplicationAsync(applicationId);

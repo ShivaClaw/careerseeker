@@ -742,7 +742,9 @@ async Task<int> RunDashboardAsync()
         return new ProDashboardState(entitled, FunnelBoard.Compute(apps, DateTimeOffset.UtcNow));
     });
 
-    await using var dashboard = new LocalDashboard(counters, port, actions, evidence, new[] { artifactsPath }, pro);
+    // Named, not positional: main added engineState/engineRuntime ahead of `pro` while this branch was
+    // unmerged, so the sixth argument is no longer the Pro seam.
+    await using var dashboard = new LocalDashboard(counters, port, actions, evidence, new[] { artifactsPath }, pro: pro);
     using var stop = new CancellationTokenSource();
     var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
