@@ -402,7 +402,9 @@ public sealed class InMemorySeekerStore : ISeekerStore
                         draft?.ExternalRef,
                         app.ResumePath,
                         app.CoverPath,
-                        !string.IsNullOrWhiteSpace(app.AnswersJson));
+                        !string.IsNullOrWhiteSpace(app.AnswersJson),
+                        app.Outcome,
+                        app.OutcomeAt);
                 })
                 .ToList();
         }
@@ -430,6 +432,22 @@ public sealed class InMemorySeekerStore : ISeekerStore
             };
             AppendLocked(new EventInput("engine", "artifacts_saved", "application", applicationId.ToString(),
                 $"{{\"resume\":{JsonBool(resumePath)},\"cover\":{JsonBool(coverPath)},\"answers\":{JsonBool(answersJson)}}}"));
+        }
+        finally { _mutex.Release(); }
+    }
+
+    public async Task SetOutcomeAsync(long applicationId, string outcome, string at, string actor, CancellationToken ct = default)
+    {
+        if (!ApplicationOutcome.All.Contains(outcome))
+            throw new ArgumentException($"Unknown outcome '{outcome}'.", nameof(outcome));
+        await _mutex.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (!_apps.TryGetValue(applicationId, out var app))
+                throw new InvalidOperationException($"No application {applicationId}");
+            _apps[applicationId] = app with { Outcome = outcome, OutcomeAt = at, UpdatedAt = Now() };
+            AppendLocked(new EventInput(actor, "outcome_set", "application", applicationId.ToString(),
+                $"{{\"outcome\":\"{outcome}\",\"at\":\"{at}\"}}"));
         }
         finally { _mutex.Release(); }
     }

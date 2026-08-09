@@ -118,6 +118,8 @@ CREATE TABLE IF NOT EXISTS applications (
   resume_path    TEXT,
   cover_path     TEXT,
   answers_json   TEXT,
+  outcome        TEXT,
+  outcome_at     TEXT,
   gate_id        INTEGER,
   channel        TEXT    CHECK (channel IS NULL OR channel IN ('ats_form','email','manual_finish')),
   submitted_at   TEXT,

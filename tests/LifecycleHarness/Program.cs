@@ -411,6 +411,7 @@ sealed class FaultingStore : ISeekerStore
     public Task<bool> HasApplicationForJobAsync(long jobId, CancellationToken ct = default) => _inner.HasApplicationForJobAsync(jobId, ct);
     public Task<IReadOnlyList<long>> GetApplicationIdsInStatesAsync(IReadOnlyList<string> states, CancellationToken ct = default) => _inner.GetApplicationIdsInStatesAsync(states, ct);
     public Task SaveApplicationArtifactsAsync(long applicationId, string? resumePath, string? coverPath, string? answersJson, CancellationToken ct = default) => _inner.SaveApplicationArtifactsAsync(applicationId, resumePath, coverPath, answersJson, ct);
+    public Task SetOutcomeAsync(long applicationId, string outcome, string at, string actor, CancellationToken ct = default) => _inner.SetOutcomeAsync(applicationId, outcome, at, actor, ct);
     public Task<long> AppendEventAsync(EventInput e, CancellationToken ct = default) => _inner.AppendEventAsync(e, ct);
     public Task<IReadOnlyList<EventRow>> GetEventsAsync(CancellationToken ct = default) => _inner.GetEventsAsync(ct);
     public Task<AuditVerification> VerifyAuditAsync(CancellationToken ct = default) => _inner.VerifyAuditAsync(ct);

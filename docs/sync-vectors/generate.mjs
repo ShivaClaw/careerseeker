@@ -26,7 +26,7 @@
 // =======================================================================
 
 import {
-  createCipheriv, createDecipheriv, createECDH, createHash, createPrivateKey,
+  constants, createCipheriv, createDecipheriv, createECDH, createHash, createPrivateKey,
   createPublicKey, hkdfSync, sign as cryptoSign, verify as cryptoVerify,
 } from 'node:crypto';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
@@ -64,6 +64,58 @@ const REVOKED_D = Buffer.from('0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de0
 
 /** One-time pairing secret from the QR. 32 bytes. */
 const PAIR_SECRET = Buffer.from('5ec1e7a2b3c4d5e6f708192a3b4c5d6e7f808192a3b4c5d6e7f8091a2b3c4d5e', 'hex');
+
+/**
+ * Fixed test RSA-2048 keypair -- the Play "License Key" analog for the entitlement vectors.
+ * Google Play signs each purchase's original_json with RSASSA-PKCS1-v1_5 over SHA-1; the
+ * public half is what Play Console publishes as "Your License Key for This Application"
+ * (base64 X.509 SubjectPublicKeyInfo). PKCS1-v1_5 signing is DETERMINISTIC, so entitlement
+ * signatures regenerate byte-for-byte -- no embed-and-verify is needed for the RSA layer
+ * (unlike the ECDSA envelope `sig`, which is randomised per signature; see SIG_CONSTANTS).
+ *
+ * PUBLISHED TEST KEY. It is NOT, and MUST NEVER BE, a real Play license key. The engine's
+ * GoogleSignedPayloadVerifier takes the production public key as configuration on account day.
+ */
+const TEST_RSA_PRIVATE_PEM = `-----BEGIN PRIVATE KEY-----
+MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCZPtJFoZrrIjm4
+d1xy6hg3aC8zXBZ+y3Bh+nRl9wT634Zz0H0IynyhZBzMVQIDifGhu2Delr5MK9KS
+JTESEZJod9L6g7tXy8jFHZ9bym/48NyVX5tr/+caFway/9sHB63w2CViYwXCitL9
+k5vz9uNlPapJSG5vGY7bY0YOQWGdC3KosXXTbf5PQPMkuWizaq+rsMk5gVqngKRa
+6Owmb8Bf/wQgcJP5G1LIFR+rhDeiE2ke0u1q15k45ntSlEfjWbZD03OngzJbZK+E
+jpFOFJRO/2nf4cVX/mCWBxyEP/WxyXN9ebdFs12+MDFYxR7b/7atgxabJfYe34x5
+9ILEi2uRAgMBAAECggEAC03cBZuR1EMhDjTCfWORR70IBk+GWpy30d0UwFTEFEbF
+dz5A4D4iNWbaIk8pp93Wv38VT+C/cYT7XSEgiTGsosd7/lNrUA2jO2R1AI4NS8gQ
+rXVw/zrQRFdrJ2xs2WGSo3p+P3oIebzzKsC8YfcAon41qn7iTpBhvliIrr0vQyib
+dSva2tHtR1UXUDpSF4rwWxjG5cYyh+va42/CZ909PB2OTjtntzKrgt1Zv1cPodnr
+JP4wOCe6IDjBMjTQsWQRnzyYets2j6BNn+tsndusDR0KXJolURi0wkLbUUY9zkl6
+R5CJ9BGVuJINeONvqazb7ZEwpU4gRkkSape+KRCaJQKBgQDL3z/6xoQ6i8gd3xQZ
+KTLdMHF+8JNTPmCfSKLBP196x8Ah6N28Np7mw/yCIYBlxleuq/VQ/HIS/ucj8EqU
+sOGV+I8uOmHhLL1esxofy08ILc3gRe5juej+aixR8octG3cptCsSTyTPoANGrO2N
+pUaDxYFH3ydGzowFG9z2NWIA2wKBgQDAbboiCIwQsVwP7cc4UVfddXNTwJEYXhKL
+S7aQK/Dh2EdekMy5lDf3k28Oyj3Fayz7DtWjlF4qmahHkftQnsGb1qYy/egRnCc0
+kF8A8yTDtT/l+RnQHvA8FMBjp2dRSbLmega0ZMedsij+67FFAZmbIjKn2205Jn3R
+6Pc5e9QLAwKBgChY1Gai5wRXKZGP1oBsQN65eZyvq9hrnd+oFl28Vv8LjSCo30ki
+Xiw5WT2/t5Nsv2mYKoKOk1zjCYd5RKlMoDh36o4xi7Fuk0Osmlz0dX2e4wGhlV4z
+KsM+6+qD3vC0YM7mEygadaSJfFx+WL0RmnT1n3JD3ZgLxHY2X3JyeiTFAoGAXz5w
+YKQGX8TJooC4mKF6cfzORmgL6Rm26Adjp1x4b/CS8rWM/1XjlcD9uT5U8MAplWI0
+UDEBouhHKJWS5MaPYckOnjKaiQzXQucqftfaHJw7smJnamHF2pcS2sBjHRLzX6yK
+YQN44g7qx7J1HYi7NNPqarbrCtyIbjt3Epa9z20CgYAWT3LhWcxdTE2bXehv7gKQ
+GtpudISEFuVw66182x6BRoNEuaptNI+HbgG/hhUbUX4VTpu2JnR5zGKnwUkJmkTC
+9M3jq/P0G8Ld/URfY+skuqcJTmkVAfDr6xqAUnWW9T/pz3Vmfju4Wn4m5Dp0YES5
+kJGV8XYA/nPnuZEWf66RQw==
+-----END PRIVATE KEY-----`;
+const RSA_PRIV = createPrivateKey(TEST_RSA_PRIVATE_PEM);
+// X.509 SubjectPublicKeyInfo, STANDARD base64 -- exactly the string Play Console publishes.
+const RSA_PUB_SPKI_B64 = createPublicKey(RSA_PRIV).export({ type: 'spki', format: 'der' }).toString('base64');
+
+/** The permanent applicationId (gate P4-APPID, kept 2026-07-24) and the sole Pro product id (P-MONEY). */
+const APP_PACKAGE = 'app.careerseeker.dashboard';
+const PRO_PRODUCT_ID = 'pro_unlock';
+/**
+ * purchaseState inside the RAW original_json: 0 == PURCHASED. (The Java `Purchase.getPurchaseState()`
+ * API remaps this to 1; the engine verifies the raw JSON string, so it uses the JSON encoding: 0.)
+ */
+const PURCHASE_STATE_PURCHASED = 0;
 
 // ---------------------------------------------------------------- P-256 helpers
 
@@ -137,6 +189,37 @@ function sigInput(aad, nonceB64u, ciphertext) {
   return `careerseeker/v1/cmd|${aad}|${nonceB64u}|${sha256(ciphertext).toString('hex')}`;
 }
 
+// ---------------------------------------------------------------- Play entitlement payload
+//
+// Google Play's IAB signature: RSASSA-PKCS1-v1_5 over the EXACT original_json UTF-8 bytes,
+// SHA-1, STANDARD base64 (with '+' '/' '=' padding, as Play emits it). This is payload
+// CONTENT, not envelope framing, so the base64url rules of section 4.1/section 3 do not
+// apply to it -- the `signature` field is standard base64 and consumers decode it as such.
+
+/** Build a compact original_json string. This exact string is what gets RSA-signed, verbatim. */
+function originalJson({
+  orderId = 'GPA.3390-8461-2039-11123',
+  packageName = APP_PACKAGE,
+  productId = PRO_PRODUCT_ID,
+  purchaseTime = 1753300000000,
+  purchaseState = PURCHASE_STATE_PURCHASED,
+  purchaseToken = 'hijklmnoabcdefghij.AO-J1OxTESTtokenTESTtokenTESTtoken0123456789',
+  quantity = 1,
+  acknowledged = true,
+} = {}) {
+  // Field order mirrors a real Play payload; the STRING is signed verbatim, so consumers
+  // MUST verify over these exact bytes and never re-serialise.
+  return JSON.stringify({
+    orderId, packageName, productId, purchaseTime, purchaseState, purchaseToken, quantity, acknowledged,
+  });
+}
+
+/** RSASSA-PKCS1-v1_5 / SHA-1 over the original_json bytes -> standard base64 (deterministic). */
+function playSign(originalJsonStr) {
+  return cryptoSign('sha1', Buffer.from(originalJsonStr, 'utf8'),
+    { key: RSA_PRIV, padding: constants.RSA_PKCS1_PADDING }).toString('base64');
+}
+
 // ---------------------------------------------------------------- embedded signatures
 //
 // Paste values printed by a run where a constant is missing. Every run re-VERIFIES
@@ -146,6 +229,11 @@ const SIG_CONSTANTS = {
   'doc-edit-signed': '885b4073064938a33c392ae9b76adfb2e0943eace32f46fbfca4e6edccc5dc32042b939a827147ebcb06811886cc55425d9813eeead0836241f636f8a485bec7',
   'sig-tampered': 'dc4fc1fba734e2d35e9d583c5aaf1520f04714b34169573f1f594e72005d9040357beffa23913aa8a2c36fabbddafbdafb8013054bbaabf3cf95944796b51978',
   'sig-by-revoked-key': '1dceb4541a31cfb5448cec45d7ca4296511fdf6db9c6918374a21d0710198b510f04e67c09327141d01ddb91925ef161920833a1639c8eb5c74166ea50128bae',
+  'entitlement-valid': 'b388153b166f4d21b3a570e045252fa432d6e7d09cf61c683d691e051060a3f7a4cb53857a2e75d35e580f54f0de313ee7f42e089327fc52d2c6e84fd7176b5e',
+  'entitlement-tampered-json': 'e805be6d113bf820f0d34fb6bb203e2f2c42996149f2103153a89725df3f4302c848363bd6d43f7c1f76765113984b0bf9cd3b9103691f1bbf51396d05f1356a',
+  'entitlement-wrong-product': 'a50ecc33d4fd2750fb17fd6894956bb363b8d9198b566aa6b51c860a15318b6f32b0e7e7e498a1194a5ff63e10fa2eb6aa934f781fcae1bda1e04b5c391a615e',
+  'entitlement-wrong-package': '61c72fb942b1af2078a2c61c1916b3150c4fcc1bcdf6647b22b2855ddedcc28f41d1f3943d3c988e50278f1ee0ca30e5cc15d5c288bdfadf6f75aa7a8c7d0ee9',
+  'entitlement-not-purchased': 'fca398cc636be339805418fd313946d17f28924f738dd2c3e57902a5875c5f995e7606fec176364f921087572f687d711ed1ae7fd9570b445610fb122310e157',
 };
 
 // ---------------------------------------------------------------- pairing derivations
@@ -473,7 +561,81 @@ const pairingVectors = [
 // Sanity: verify the valid completion opens, so the suite can never ship self-inconsistent.
 open(K_P2E_DERIVED, PAIR_NONCE, PAIR_AAD, PAIR_CIPHERTEXT);
 
-const all = [...vectors, ...pairingVectors];
+// ---------------------------------------------------------------- entitlement vectors (P4)
+//
+// `entitlement` is a state-changing p2e kind (section 5.4), so every vector carries the
+// device ECDSA envelope `sig` -- reusing makeVector's embed-and-verify machinery. The body
+// is Google Play's option-C payload {original_json, signature}: the engine verifies the RSA
+// signature over the exact original_json bytes, then checks packageName, productId, and
+// purchaseState. Rejection reasons must be distinct, so the negatives isolate one failure
+// each. `type: 'entitlement'` keeps them out of the generic envelope round-trip loop; a
+// dedicated harness section exercises the wire layer (decrypt + device sig) and, in P4's
+// verifier commit, the RSA layer.
+
+/** All five entitlement vectors share this expected-config block. */
+function entitlementExpectation(expect) {
+  return {
+    rsa_pub_spki_b64: RSA_PUB_SPKI_B64,      // STANDARD base64 X.509 SPKI -- the Play "License Key" form
+    package_name_expected: APP_PACKAGE,
+    product_ids_expected: [PRO_PRODUCT_ID],
+    purchase_state_purchased: PURCHASE_STATE_PURCHASED,
+    expect,                                  // accepted | signature_invalid | wrong_product | wrong_package | not_purchased
+  };
+}
+
+function makeEntitlementVector({ name, valid, seq, bodyOriginalJson, signature, expect, notes }) {
+  return makeVector({
+    name, valid, dir: 'p2e', seq, sigWith: device, notes,
+    plaintext: { kind: 'entitlement', body: { original_json: bodyOriginalJson, signature } },
+    mutate: (vec) => { vec.type = 'entitlement'; vec.entitlement = entitlementExpectation(expect); return vec; },
+  });
+}
+
+const OJ_VALID = originalJson();
+const SIG_VALID = playSign(OJ_VALID);
+// Tamper: sign the genuine purchase, then swap the orderId in the body. The RSA signature no
+// longer covers the presented bytes -- exactly a stolen-signature-on-a-different-record attack.
+const OJ_TAMPERED = originalJson({ orderId: 'GPA.0000-0000-0000-00000' });
+const OJ_WRONG_PRODUCT = originalJson({ productId: 'premium_unlock' });
+const OJ_WRONG_PACKAGE = originalJson({ packageName: 'app.evil.clone' });
+const OJ_NOT_PURCHASED = originalJson({ purchaseState: 4 }); // any value != 0 (PURCHASED) in the raw JSON
+
+const entitlementVectors = [
+  makeEntitlementVector({
+    name: 'entitlement-valid', valid: true, seq: 20, expect: 'accepted',
+    bodyOriginalJson: OJ_VALID, signature: SIG_VALID,
+    notes: 'A genuine Pro purchase: RSA signature verifies over original_json, packageName and '
+         + 'productId match, purchaseState is 0 (PURCHASED in the raw JSON). Envelope carries a '
+         + 'valid device ECDSA sig. The engine enables Pro and audits the delivering device key.',
+  }),
+  makeEntitlementVector({
+    name: 'entitlement-tampered-json', valid: false, seq: 21, expect: 'signature_invalid',
+    bodyOriginalJson: OJ_TAMPERED, signature: SIG_VALID,
+    notes: 'The signature from a genuine purchase presented against a DIFFERENT original_json '
+         + '(orderId swapped). RSA verification must fail. The envelope itself is well-formed and '
+         + 'the device sig is valid -- the rejection is at the RSA layer, not the wire layer.',
+  }),
+  makeEntitlementVector({
+    name: 'entitlement-wrong-product', valid: false, seq: 22, expect: 'wrong_product',
+    bodyOriginalJson: OJ_WRONG_PRODUCT, signature: playSign(OJ_WRONG_PRODUCT),
+    notes: 'A correctly Play-signed purchase for a product that is NOT pro_unlock. RSA verifies, '
+         + 'but the productId check rejects it. Distinct from signature_invalid: the crypto is sound.',
+  }),
+  makeEntitlementVector({
+    name: 'entitlement-wrong-package', valid: false, seq: 23, expect: 'wrong_package',
+    bodyOriginalJson: OJ_WRONG_PACKAGE, signature: playSign(OJ_WRONG_PACKAGE),
+    notes: 'A correctly Play-signed purchase whose packageName is not app.careerseeker.dashboard '
+         + '(a repackaged clone). RSA verifies; the packageName check rejects it.',
+  }),
+  makeEntitlementVector({
+    name: 'entitlement-not-purchased', valid: false, seq: 24, expect: 'not_purchased',
+    bodyOriginalJson: OJ_NOT_PURCHASED, signature: playSign(OJ_NOT_PURCHASED),
+    notes: 'A correctly Play-signed record whose purchaseState is not 0/PURCHASED (e.g. a pending '
+         + 'or cancelled purchase). RSA verifies; the purchaseState check rejects it.',
+  }),
+];
+
+const all = [...vectors, ...pairingVectors, ...entitlementVectors];
 
 // ---------------------------------------------------------------- write / check
 

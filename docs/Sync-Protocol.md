@@ -148,7 +148,7 @@ Engine → phone:
 | `evidence` | `{audit_ok, first_broken_seq?, event_count, events:[{seq, ts, actor, kind, entity, entity_id}]}` — the engine's audit-chain verdict plus recent event metadata. Never full event payload bodies. |
 | `heartbeat` | `{ts, cycle, counters}`. Drives the app's "last seen" indicator. |
 | `conflict` | Rejection of a `doc_edit`: `{app_id, doc_kind, base_rev, current_rev}`. |
-| `entitlement_ack` | Engine confirms a Pro voucher was accepted. |
+| `entitlement_ack` | Engine confirms a verified Pro entitlement was applied. |
 | `error` | §7.2. |
 
 Phone → engine:
@@ -157,7 +157,7 @@ Phone → engine:
 | --- | --- |
 | `doc_edit` | `{app_id, doc_kind, base_rev, new_text, device_sig}`. See §5.4 and §8. |
 | `outcome` | Pro: `{app_id, outcome, at}`. `outcome` ∈ `sent` \| `replied` \| `interview` \| `offer` \| `rejected`. |
-| `entitlement` | `{voucher}` — the signed Pro voucher from the entitlement Worker. |
+| `entitlement` | `{original_json, signature}` — Google Play's signed purchase payload. Body in §4.3.2. State-changing: the envelope MUST carry `sig` (§5.4). |
 | `pull_request` | `{since_seq}` — ask the engine to re-publish from a sequence point. |
 | `error` | §7.2. |
 
@@ -185,12 +185,18 @@ structured fields below.
 ```
 snapshot body = {
   "counters": { "discovered","acted","drafted","blocked","rejected","errors","cycles" },  // all long
-  "applications": [ { "id","state","company","title","score" } ],   // score: int 0–100
+  "applications": [ { "id","state","company","title","score","outcome"? } ],   // score: int 0–100; outcome: see below
   "jobs":         [ { "id","company","title","repost","injection_flag" } ]  // repost, injection_flag: bool
 }
 
 delta body = snapshot body + { "since_seq": <long> }
 ```
+
+`outcome` is the **nullable** Pro outcome-tracking state (P4 §2.5), one of
+`sent | no_reply | replied | interview | offer | rejected`, or **absent** when unset or non-Pro. It is
+display-only, like every other carried string. It is the *store's* superset; the phone-set p2e `outcome`
+kind (§4.3) carries the five-value subset without `no_reply`, which is a desktop-set observation. A
+receiver treats an absent field as "no outcome", never as a malformed value.
 
 `delta` currently carries the recent window (a bounded set), not a computed diff; `since_seq` is
 the last envelope the publisher sent, and the receiver applies latest-wins over what it holds. A
@@ -206,6 +212,49 @@ work that P3 opens with: the engine renders these to PDF and today persists only
 so it must first persist the tailored source **text** and a per-document **rev**, and decide how
 the draft-email body — which lives in Gmail as a draft, not in the store — is sourced. Until that
 lands, no implementation carries a `doc` branch, by the no-parser-for-unshipped-shapes rule.
+
+### 4.3.2 Entitlement body (`entitlement`)
+
+The phone is a **courier** for a Google-signed assertion; the engine is the verifier (gate
+P0-WORKER option C — `docs/Entitlement-Architecture.md` in the android repo). The body is
+exactly what Play Billing hands the phone:
+
+```
+entitlement body = {
+  "original_json": <string>,   // Purchase.getOriginalJson() VERBATIM — the exact bytes the signature covers
+  "signature":     <string>    // Purchase.getSignature() — see the encoding note below
+}
+```
+
+`original_json` is Google's purchase record as a JSON **string** (fields include `orderId`,
+`packageName`, `productId`, `purchaseTime`, `purchaseState`, `purchaseToken`, `acknowledged`).
+The engine MUST verify over the **exact bytes** of this string and MUST NOT re-serialise it —
+re-encoding would change the bytes the signature was made over. It is display/verify-only and,
+like all carried text, stays inert (§8.6).
+
+`signature` is **RSASSA-PKCS1-v1_5 over SHA-1** of the `original_json` UTF-8 bytes, made with
+the app's Play-generated RSA key. The **public** half is the "License Key for This
+Application" from Play Console, a base64 X.509 `SubjectPublicKeyInfo`. Two encoding facts are
+load-bearing and differ from the rest of this protocol:
+
+- `signature` is **standard base64** (alphabet `+` `/`, `=` padding), because that is what
+  Play emits. It is payload *content*, not envelope framing, so the unpadded-base64url rule of
+  §3/§4.1 does **not** apply to it — a receiver decodes it as standard base64.
+- SHA-1 is Google's fixed IAB format, not a choice here. The assessment (not practically
+  exploitable in this design; the Developer-API path stays a named seam) lives in
+  `Entitlement-Architecture.md` §"weakness 1" and is not re-litigated in code.
+
+The engine verifies, in order: the RSA signature over `original_json`; then `packageName ==`
+the configured `applicationId` (`app.careerseeker.dashboard`); `productId ∈ {pro_unlock}`;
+and `purchaseState == 0` (**PURCHASED in the raw JSON** — note `Purchase.getPurchaseState()`
+remaps this to `1`, but the engine reads the raw JSON, whose purchased value is `0`). The Play
+public key, the `applicationId`, and the product-id set are **configuration**, not constants
+baked into the verifier — the production license key only exists once the Play app is created,
+and slots in then. Each check has a distinct rejection reason (`generate.mjs` pins one negative
+vector per reason: signature-invalid, wrong-product, wrong-package, not-purchased).
+
+Because `entitlement` is state-changing (§5.4), the envelope also carries the device ECDSA
+`sig`, so the audit chain records *which paired device* delivered the entitlement.
 
 ### 4.4 Chunking
 
@@ -460,6 +509,7 @@ contain plaintext content.
 | `rev_conflict` | `base_rev` did not match; see the `conflict` payload. |
 | `pairing_unknown` | The relay has no Durable Object for this pairing. |
 | `too_large` | Envelope exceeded the §3.1 limit. |
+| `unimplemented` | A recognised shipping kind the engine does not yet handle (e.g. inbound `doc_edit`, whose editing surface is P3). Distinct from `unknown_kind` — the kind IS known, so the phone should not treat it as a version/vocabulary error. |
 
 A receiver MUST NOT distinguish, in anything the relay can observe, between
 `decrypt_failed` and `bad_signature` by timing or response size. Both are "this envelope
@@ -505,6 +555,8 @@ auditable rather than silent:
 | `docs/CareerSeeker-Spec.md` §8.3 / this doc (P0) | X25519 pairing exchange | ECDH P-256 under a versioned `suite`; hybrid `p256+mlkem768` reserved (§5.2, P1) |
 | This doc (P0) | Ed25519 `device_sig` inside the payload body | ECDSA P-256 as top-level `sig` over AAD+nonce+ciphertext-hash (§5.4, P1) |
 | This doc (P0) | `doc_edit` body carries `device_sig` | field removed; the envelope `sig` covers it (§3, §5.4) |
+| This doc (P0/§4.3) | `entitlement` body `{voucher}` (option-A entitlement Worker) | `{original_json, signature}` — the engine verifies Google Play's signature (gate P0-WORKER option C; §4.3.2, P4) |
+| This doc (§4.3.1) | application summary `{id,state,company,title,score}` | adds nullable `outcome` — Pro outcome tracking, absent when unset/non-Pro (§4.3.1, P4 §2.5) |
 
 `CareerSeeker-Spec.md` §7.2 is amended in the same commit that introduces this file. Two
 documents disagreeing about a wire format is precisely the drift `CLAUDE.md` exists to

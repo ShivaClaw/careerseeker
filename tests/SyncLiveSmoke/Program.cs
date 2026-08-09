@@ -153,6 +153,60 @@ var engineWrongKey = new EnvelopeReceiver(activeKeyId: "k-live", deviceSigPub: E
 var forged = engineWrongKey.Receive(ToReceived(p2ePulled[0]), dir => phoneKeys.KeyPhoneToEngine);
 Check("engine rejects the doc_edit under the wrong device key", forged.Error == SyncError.BadSignature, forged.Error?.ToWire());
 
+// ---- phone -> engine: the P4 §2.4 inbound path (entitlement + outcome + pull_request) ----
+//
+// A simulated phone pushes a signed `entitlement` whose body is the Play-signed entitlement-valid
+// vector (so BOTH layers are exercised live: the envelope's device ECDSA sig AND the payload's RSA
+// signature), a signed `outcome`, and an unsigned `pull_request`. The engine's InboundDispatcher pulls
+// p2e, verifies, applies, and the pull_request round-trips a fresh snapshot back to the phone.
+Console.WriteLine("\n[ inbound p2e: entitlement + outcome + pull_request (P4 §2.4) ]");
+{
+    var entVec = LoadVector("entitlement-valid");
+    var entBody = entVec.GetProperty("plaintext_json").GetProperty("body");
+    var originalJson = entBody.GetProperty("original_json").GetString()!;
+    var signature = entBody.GetProperty("signature").GetString()!;
+    var rsaPub = entVec.GetProperty("entitlement").GetProperty("rsa_pub_spki_b64").GetString()!;
+
+    var entSvc = new EntitlementService(
+        new GoogleSignedPayloadVerifier(rsaPub, "app.careerseeker.dashboard", new HashSet<string> { "pro_unlock" }),
+        new MemEntitlementStore(), () => DateTimeOffset.UtcNow);
+    var outcomeApplier = new LiveOutcomeApplier();
+    // The republisher continues the e2p stream (highest so far is 3), so pull_request emits snapshot seq 4.
+    var republishPub = new SyncPublisher(paired.KeyEngineToPhone, pairing, "k-live",
+        (envJson, ct) => client.PushAsync(finalToken, envJson, ct), startSeq: 3);
+    var republisher = new LiveRepublisher(republishPub,
+        new Counters(Discovered: 9, Acted: 4, Drafted: 4, Blocked: 0, Rejected: 1, Errors: 0, Cycles: 5),
+        new[] { new AppSummary("app_live_1", "OFFER", "Northwind Labs", "Senior Platform Engineer", 88) },
+        new[] { new JobSummary("job_live_1", "Northwind Labs", "Senior Platform Engineer", Repost: false, InjectionFlag: false) });
+    var dispatcher = new InboundDispatcher(
+        new EnvelopeReceiver("k-live", paired.DeviceSigPub), entSvc,
+        DeviceSignature.Fingerprint(paired.DeviceSigPub), _ => phoneKeys.KeyPhoneToEngine, outcomeApplier, republisher);
+
+    var entPlain = JsonSerializer.SerializeToUtf8Bytes(new { kind = "entitlement", body = new { original_json = originalJson, signature } });
+    Check("phone pushes a signed entitlement (p2e seq 2)",
+        await client.PushAsync(finalToken, SealEnvelope(pairing, "p2e", 2, phoneKeys.KeyPhoneToEngine, entPlain, sig: phoneSigning)));
+    var outcomePlain = JsonSerializer.SerializeToUtf8Bytes(new { kind = "outcome", body = new { app_id = "app_live_1", outcome = "interview", at = "2026-07-24T00:00:00Z" } });
+    Check("phone pushes a signed outcome (p2e seq 3)",
+        await client.PushAsync(finalToken, SealEnvelope(pairing, "p2e", 3, phoneKeys.KeyPhoneToEngine, outcomePlain, sig: phoneSigning)));
+    var pullReqPlain = JsonSerializer.SerializeToUtf8Bytes(new { kind = "pull_request", body = new { since_seq = 0 } });
+    Check("phone pushes a pull_request (p2e seq 4, unsigned)",
+        await client.PushAsync(finalToken, SealEnvelope(pairing, "p2e", 4, phoneKeys.KeyPhoneToEngine, pullReqPlain, sig: null)));
+
+    var (inbound, _) = await client.PullAsync(finalToken, "p2e", 1); // since the doc_edit at seq 1
+    var dispatched = new List<InboundOutcome>();
+    foreach (var env in inbound.OrderBy(e => e.GetProperty("seq").GetInt64()))
+        dispatched.Add((await dispatcher.DispatchAsync(ToReceived(env))).Outcome);
+    Check("engine dispatched entitlement -> outcome -> pull_request in order",
+        dispatched.SequenceEqual(new[] { InboundOutcome.EntitlementApplied, InboundOutcome.OutcomeApplied, InboundOutcome.SnapshotRepublished }));
+    Check("both layers verified live: Pro is entitled after the Play-signed entitlement", entSvc.IsEntitled());
+    Check("the signed outcome reached the §2.5 applier seam", outcomeApplier.Bodies.Count == 1 && outcomeApplier.Bodies[0].Contains("interview"));
+
+    var (republished, _) = await client.PullAsync(finalToken, "e2p", 3);
+    Check("pull_request round-trips a fresh snapshot to the phone (e2p seq 4)", republished.Count == 1);
+    var snap = new EnvelopeReceiver("k-live").Receive(ToReceived(republished[0]), _ => paired.KeyEngineToPhone);
+    Check("the republished envelope opens as kind=snapshot", snap.Accepted && snap.Kind == "snapshot", snap.Error?.ToWire());
+}
+
 // ---- relay-side replay rejection ---------------------------------------------------
 Console.WriteLine("\n[ replay + unpair ]");
 Check("relay refuses a duplicate seq (409)", !await client.PushAsync(finalToken, e2pEnvelope));
@@ -211,4 +265,49 @@ static byte[] ExportUncompressed(ECDsa key)
     p.Q.X!.CopyTo(point, 1);
     p.Q.Y!.CopyTo(point, 33);
     return point;
+}
+
+// Load a shared vector by name from docs/sync-vectors/v1 (the same files the offline harnesses read),
+// so the live entitlement body is the exact Play-signed bytes the hermetic suite pins.
+static JsonElement LoadVector(string name)
+{
+    var dir = LocateVectorDir() ?? throw new InvalidOperationException("docs/sync-vectors/v1 not found on any parent of the run directory");
+    using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, name + ".json")));
+    return doc.RootElement.Clone();
+}
+
+static string? LocateVectorDir()
+{
+    var candidates = new List<string>();
+    var probe = new DirectoryInfo(Directory.GetCurrentDirectory());
+    while (probe is not null) { candidates.Add(probe.FullName); probe = probe.Parent; }
+    probe = new DirectoryInfo(AppContext.BaseDirectory);
+    while (probe is not null) { candidates.Add(probe.FullName); probe = probe.Parent; }
+    return candidates
+        .Select(root => Path.Combine(root, "docs", "sync-vectors", "v1"))
+        .FirstOrDefault(path => File.Exists(Path.Combine(path, "index.json")));
+}
+
+/// <summary>In-memory entitlement flag store for the live smoke (persistence + audit are proven against the real store in EngineHarness).</summary>
+sealed class MemEntitlementStore : IEntitlementStateStore
+{
+    private EntitlementState? _state;
+    public EntitlementState? Load() => _state;
+    public void Save(EntitlementState state) => _state = state;
+    public void AuditApplied(string productId, string orderId, string deviceFingerprint, bool acknowledged) { }
+}
+
+/// <summary>Records the outcome bodies handed to the §2.5 seam during the live round-trip.</summary>
+sealed class LiveOutcomeApplier : IOutcomeApplier
+{
+    public readonly List<string> Bodies = new();
+    public Task ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default)
+    { Bodies.Add(outcomeBodyJson); return Task.CompletedTask; }
+}
+
+/// <summary>Re-publishes a fresh snapshot through the shipping SyncPublisher when a pull_request arrives.</summary>
+sealed class LiveRepublisher(SyncPublisher publisher, Counters counters, AppSummary[] apps, JobSummary[] jobs) : ISnapshotRepublisher
+{
+    public Task RepublishSnapshotAsync(long sinceSeq, CancellationToken ct = default)
+        => publisher.PublishSnapshotAsync(counters, apps, jobs, ct);
 }

@@ -90,5 +90,5 @@ dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release
 scripts\Verify-Alpha.ps1
 ```
 
-The first command must report `186 passed, 0 failed`; the second command pins
+The first command must report `210 passed, 0 failed`; the second command pins
 the repository-wide measured total and count-reporting documentation.

@@ -67,6 +67,13 @@ public interface ISeekerStore
         string? answersJson,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Set the Pro outcome-tracking state for an application (P4 §2.5), appending an audit event.
+    /// <paramref name="outcome"/> MUST be in <see cref="ApplicationOutcome.All"/>; <paramref name="at"/>
+    /// is the RFC 3339 timestamp of the observation.
+    /// </summary>
+    Task SetOutcomeAsync(long applicationId, string outcome, string at, string actor, CancellationToken ct = default);
+
     // ---- durable in-flight dispatch payload (L2 gate content survives restart; no audit event —
     //      the payload carries tailored content, which does not belong in the event log) ----
     Task SavePendingDispatchAsync(long applicationId, string payloadJson, CancellationToken ct = default);
@@ -92,6 +99,21 @@ public interface ISeekerStore
     // ---- config (rails, autonomy level, budgets, quiet hours) ----
     Task<string?> GetConfigAsync(string key, CancellationToken ct = default);
     Task SetConfigAsync(string key, string value, CancellationToken ct = default);
+}
+
+/// <summary>
+/// The Pro outcome-tracking vocabulary (P4 §2.5). <see cref="All"/> is the store's set of application
+/// outcome states. <see cref="PhoneSettable"/> is the subset the phone can set via a p2e `outcome`
+/// envelope (Sync-Protocol §4.3): `no_reply` is a desktop-set observation ("I checked, no response"),
+/// not phone-settable, so it is in the store superset but not on the settable wire.
+/// </summary>
+public static class ApplicationOutcome
+{
+    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
+        { "sent", "no_reply", "replied", "interview", "offer", "rejected" };
+
+    public static readonly IReadOnlySet<string> PhoneSettable = new HashSet<string>(StringComparer.Ordinal)
+        { "sent", "replied", "interview", "offer", "rejected" };
 }
 
 /// <summary>Convenience helpers layered on the store contract.</summary>

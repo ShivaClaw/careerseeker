@@ -150,16 +150,16 @@ Current pinned offline results:
 | Harness | Assertions |
 |---|---:|
 | Slice | 28 |
-| EngineHarness | 186 |
+| EngineHarness | 210 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
-| StoreParityHarness | 25 |
+| StoreParityHarness | 28 |
 | GatewayGateHarness | 36 |
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| SyncHarness | 94 |
-| **Total** | **528** |
+| SyncHarness | 130 |
+| **Total** | **591** |
 
 The engine-specific assertions cover browser onboarding, crash reconciliation, SQLite composition,
 single-instance protection, scheduler pause/resume/backoff, honest dashboard state, identified Scout feeds,

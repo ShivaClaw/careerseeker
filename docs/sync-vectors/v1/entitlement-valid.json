@@ -1,0 +1,40 @@
+{
+  "type": "entitlement",
+  "name": "entitlement-valid",
+  "valid": true,
+  "notes": "A genuine Pro purchase: RSA signature verifies over original_json, packageName and productId match, purchaseState is 0 (PURCHASED in the raw JSON). Envelope carries a valid device ECDSA sig. The engine enables Pro and audits the delivering device key.",
+  "key_hex": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=p2e|seq=20|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "4YyTiAMBr63aXySm",
+  "plaintext_json": {
+    "kind": "entitlement",
+    "body": {
+      "original_json": "{\"orderId\":\"GPA.3390-8461-2039-11123\",\"packageName\":\"app.careerseeker.dashboard\",\"productId\":\"pro_unlock\",\"purchaseTime\":1753300000000,\"purchaseState\":0,\"purchaseToken\":\"hijklmnoabcdefghij.AO-J1OxTESTtokenTESTtokenTESTtoken0123456789\",\"quantity\":1,\"acknowledged\":true}",
+      "signature": "i0MLWYNXg/mLQMFDK7qwdYDRULKo16UmiYo4lZo/AP4AdkxA1UHw8QwG5/vMh9J85NYv6q4ZYezvn3YBk5sENgKUHgLuUO5zRaRciMIYM6kWj60QgKQK+ob8GG+EyVURqWZQYOIITU5KHt3vUwcojtw58x37yoSf+Sw3qQgQOdWP50FcdY6woxIntNhTkhWsyR3KQNvimkpOaAVfKFHwHqGXoEChWgNszOFxk3DFcGZfK0FlZ2pF5JVYFxsyBa/ZV3rYPu4yriTF+yvkEwfCCwKiY/3oRVjB2So8bpJgBumUbQW/w/6ZGZPxVTsBrMC1AjWO9e3tWYpfDhGRTvD82w=="
+    }
+  },
+  "ciphertext_b64u": "u15DDrSF5ofgUhPh6DS7M0RYa8n1RTQkb2aKnBTlNoBG0ABPOTBc1JAPb7x__Z8xKYZFQ0NlD8pgysy0i27jC0JJSXZl2__qNzcvxFxiZGaNOwH8nJ1R_QuGfh4YSPX0DSLTlO6uZbDOwf9NSzcL4-tClckGXDvuvO84J-zgSlktXaynrIUZAAnxYbS8SL7Fb1C0u0JQZ-p0oR3S9FH9SkqoVqD_6-fIyVcegK3aHtGCm4XNBILI5KKxsdQ1aigeKrvK_oYyxi4Dow_YAot5-7s8mrauRmiTMhubzcMvJ9E8QJm1YhY0DKkAWr0-Lu0bQzKU5pIjCn_eDDhk394-aeQBUrmGTqe4DxdT6YW8JxdaZAbbWwJMDiD2fXXZUfiAxteHjDyETw6O_yTYyPFxv4gySOKgsRHlnz9mSmeFYAB0UDvMu_bD7qLXCNKSLd1BXdV4XjrywY4qnPJ6-ypqIYNQf3WcYPuMGDzqd7_0AzUphlQEoi7VZlYHHFoyOfxTsScrH21ejYuGNH1AijhGrFy1pKfrNAdPr-x0ubAU4Bm8JoaLGJdZNV_GRQJl--NSFykb42EG6bmvWry2zxFtAnv_llPu_MKsiwkJaQDsupoaoppzI_4vyRJ9Cz6lTE_vuFBpVmfxaQg3MIAzSzBzsOTVP8Xl97pYXfTftvnctC_3NXWtRZXrfpz9lVtGRtri_A4McAkg9cDl3--q_vk_nV_W060ZVfhi56HBwrB-YWUWVp4_xE4ntBeu-rY5_VnXyga8NimrNJrKr6Zb8_VvPNEY5_p7oFAJAPGNIgYdqh_wXdwQr5Y_dqx8cMqTMedq9WWJQAE8t4ierwJgfMqMFUHzD5S0qG0_FbA5Ib98WDxeKvMGYy1_kMpcuC6mpQGfwNSgs7Map58Q4hfsAZum5DetO3kVcow3lIdzDG-R4YjwTzkJ8vNA2NFoJ0MG",
+  "sig_input": "careerseeker/v1/cmd|v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=p2e|seq=20|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01|4YyTiAMBr63aXySm|63382b82e376ea2bc670d3ea98adde5daf5422320dc867dd890afa90e39e03c5",
+  "device_sig_pub_b64u": "BKxF8K8_11xECd9NEpUYKVww4nL3-YazsWNpXFt8qJedrl7-l94OglqF3xmNW7jPgLdWjdOi4hYl0ClHTYQkVpE",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "p2e",
+    "seq": 20,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "4YyTiAMBr63aXySm",
+    "ciphertext": "u15DDrSF5ofgUhPh6DS7M0RYa8n1RTQkb2aKnBTlNoBG0ABPOTBc1JAPb7x__Z8xKYZFQ0NlD8pgysy0i27jC0JJSXZl2__qNzcvxFxiZGaNOwH8nJ1R_QuGfh4YSPX0DSLTlO6uZbDOwf9NSzcL4-tClckGXDvuvO84J-zgSlktXaynrIUZAAnxYbS8SL7Fb1C0u0JQZ-p0oR3S9FH9SkqoVqD_6-fIyVcegK3aHtGCm4XNBILI5KKxsdQ1aigeKrvK_oYyxi4Dow_YAot5-7s8mrauRmiTMhubzcMvJ9E8QJm1YhY0DKkAWr0-Lu0bQzKU5pIjCn_eDDhk394-aeQBUrmGTqe4DxdT6YW8JxdaZAbbWwJMDiD2fXXZUfiAxteHjDyETw6O_yTYyPFxv4gySOKgsRHlnz9mSmeFYAB0UDvMu_bD7qLXCNKSLd1BXdV4XjrywY4qnPJ6-ypqIYNQf3WcYPuMGDzqd7_0AzUphlQEoi7VZlYHHFoyOfxTsScrH21ejYuGNH1AijhGrFy1pKfrNAdPr-x0ubAU4Bm8JoaLGJdZNV_GRQJl--NSFykb42EG6bmvWry2zxFtAnv_llPu_MKsiwkJaQDsupoaoppzI_4vyRJ9Cz6lTE_vuFBpVmfxaQg3MIAzSzBzsOTVP8Xl97pYXfTftvnctC_3NXWtRZXrfpz9lVtGRtri_A4McAkg9cDl3--q_vk_nV_W060ZVfhi56HBwrB-YWUWVp4_xE4ntBeu-rY5_VnXyga8NimrNJrKr6Zb8_VvPNEY5_p7oFAJAPGNIgYdqh_wXdwQr5Y_dqx8cMqTMedq9WWJQAE8t4ierwJgfMqMFUHzD5S0qG0_FbA5Ib98WDxeKvMGYy1_kMpcuC6mpQGfwNSgs7Map58Q4hfsAZum5DetO3kVcow3lIdzDG-R4YjwTzkJ8vNA2NFoJ0MG",
+    "sig": "s4gVOxZvTSGzpXDgRSUvpDLW59Cc9hxoPWkeBRBgo_eky1OFei51015YD1Tw3jE-5_QuCJMn_FLSxuhP1xdrXg"
+  },
+  "expect_error": null,
+  "entitlement": {
+    "rsa_pub_spki_b64": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmT7SRaGa6yI5uHdccuoYN2gvM1wWfstwYfp0ZfcE+t+Gc9B9CMp8oWQczFUCA4nxobtg3pa+TCvSkiUxEhGSaHfS+oO7V8vIxR2fW8pv+PDclV+ba//nGhcGsv/bBwet8NglYmMFworS/ZOb8/bjZT2qSUhubxmO22NGDkFhnQtyqLF1023+T0DzJLlos2qvq7DJOYFap4CkWujsJm/AX/8EIHCT+RtSyBUfq4Q3ohNpHtLtateZOOZ7UpRH41m2Q9Nzp4MyW2SvhI6RThSUTv9p3+HFV/5glgcchD/1sclzfXm3RbNdvjAxWMUe2/+2rYMWmyX2Ht+MefSCxItrkQIDAQAB",
+    "package_name_expected": "app.careerseeker.dashboard",
+    "product_ids_expected": [
+      "pro_unlock"
+    ],
+    "purchase_state_purchased": 0,
+    "expect": "accepted"
+  }
+}
