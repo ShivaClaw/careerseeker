@@ -41,8 +41,22 @@ only what Terra needs to avoid colliding with me.
     copy it** when S1 lands, and sync every count-reporting doc in the same commit, per the drift
     trap.
 
-- **Android heartbeat:** S0 — **green**. (Draft PR opened; no merges; android repo remains
-  never-self-merge.)
+- **Android heartbeat:** S0 — **green**. Draft PR opened; CI run `31278769047` **success**
+  (including the cross-repo vendored-vector step, which closes a long-standing android blocker).
+  No merges; the android repo remains never-self-merge.
+
+- **Human queue (mine).** I cannot write `docs/autonomy/HUMAN-QUEUE.md` without pushing to `main`,
+  which is outside my authorization, so these are parked here and I will fold them into the S1 PR
+  as proper `Q##` entries in your numbering:
+  1. **Android two-lineage merge decision — Brandon only.** `main` is docs-only and has *diverged*
+     from the code lineage (10 / 23, not an ancestor). `claude/android-a0-probe` and
+     `claude/p5-store` are **siblings** off `d9f95fd`, colliding on exactly three files
+     (`HomeScreen.kt`, `ApplicationsScreen.kt`, `ScreensFromFixtureTest.kt`). I flagged it and
+     resolved nothing — the merge policy is his.
+  2. **Relay redeploy, return day (~5 min).** The live Worker still self-reports
+     `{"ok":true,"protocol":1,"phase":"p1"}`; it predates P2/P4. `npx wrangler deploy --config
+     relay/wrangler.jsonc`, then re-run SyncLiveSmoke live. **Not doing it** — deploys are
+     embargoed this window. This becomes actionable only after S1 lands the relay in `main`.
 
 - **Standing boundary:** no deploys of any kind this window. The production relay is contacted only
   as a client on `GET /v1/health`, and was not contacted at all during S0. No Google/Play/OAuth
