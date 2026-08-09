@@ -113,13 +113,17 @@ decoding — MUST NOT exceed **1 MiB**. A receiver measures those decoded bytes,
 length of the JSON envelope and not the length of the base64url text, and rejects a larger
 one with `too_large` (§7.2) *before* attempting any cryptography.
 
-The relay enforces its own limits, and they are deliberately not the same number: it
-rejects a request body over 1 MiB + 4 KiB, and an envelope whose `ciphertext` **string**
-exceeds 1 MiB, both with HTTP 413 (`relay/src/channel.ts:139` and `:160`). Because
-base64url expands by 4/3, the relay's string-length test is the *stricter* of the two — an
-envelope the relay agrees to carry can never be one a receiver rejects on size. The relay's
-limit is a resource guard on an untrusted body; the receiver's is a protocol rule about
-what it will decrypt.
+The relay cannot check that rule directly — it holds no key and never decodes `ciphertext`,
+so the only quantity it can count is base64url characters. It therefore enforces the **same**
+cap converted into its own units: a `ciphertext` string longer than
+`ceil(4/3 × 1 MiB) = 1,398,102` characters, or a request body longer than that plus 4 KiB of
+JSON scaffolding, is rejected with HTTP 413 (`relay/src/protocol.ts`
+`MAX_CIPHERTEXT_B64U_CHARS` / `MAX_PUSH_BODY_CHARS`, applied in `relay/src/channel.ts`).
+
+That conversion is normative, not incidental: **the relay MUST carry every envelope this
+section declares legal.** A relay cap written as its own round number is a bug even when the
+number looks conservative, because a sender obeying §3.1 and §4.4 has no way to discover it
+except as a 413 on a correctly-sized chunk.
 
 Document payloads that would exceed this are chunked at the payload layer (§4.4), not by
 splitting ciphertext — a partial AEAD frame is not decryptable and must never be on the
@@ -133,6 +137,21 @@ the ciphertext is the thing that gets decrypted and because changing two shippin
 to satisfy a sentence would be a wire-visible change made for the sentence's sake. The
 `invalid-oversized` vector pins the receiver rule: it sets a ciphertext of
 `max_envelope_bytes + 1` **decoded** bytes.
+
+Corrected later the same day, and the correction is the more interesting half. The first
+version of this amendment observed that the relay's string test was *stricter* than the
+receivers' byte test and concluded "an envelope the relay agrees to carry can never be one a
+receiver rejects on size — so there is no gap". That implication is true and the conclusion
+does not follow: it reasons in one direction only. Running the other direction against a local
+relay showed the relay 413ing a ciphertext of exactly 1 MiB decoded — **legal by the sentence
+at the top of this section, and refused by the transport**. The old guard compared a character
+count to a byte budget, which capped the decoded payload at 786,432 bytes and left the top
+**256 KiB** of the declared range untransmittable. Nothing sends envelopes that large today
+(§4.4 chunking is unimplemented in both codebases), so this was latent rather than live — but
+§4.4 instructs a future chunker to size against exactly the number that does not fit. The
+relay now derives its cap from this section's, and `relay/test/relay.test.ts` pins the
+derivation, the maximum legal envelope surviving a push/pull round trip, and the first
+character beyond it.
 
 ---
 
