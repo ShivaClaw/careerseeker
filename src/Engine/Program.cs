@@ -179,7 +179,9 @@ async Task<int> RunDemoAsync()
             dashboardActions,
             evidence,
             new[] { artifactsPath },
-            syncBridge);
+            // Named, not positional: main grew `pauseRequested` and `maximumBackoff` ahead of this
+            // parameter while the sync branch was unmerged, so position 8 is no longer the bridge.
+            syncBridge: syncBridge);
         using var stop = new CancellationTokenSource();
         var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 

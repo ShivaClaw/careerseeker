@@ -72,7 +72,7 @@ The current pinned breakdown is:
 | Harness | Assertions |
 |---|---:|
 | Slice | 28 |
-| EngineHarness | 170 |
+| EngineHarness | 186 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
 | StoreParityHarness | 25 |
@@ -80,8 +80,8 @@ The current pinned breakdown is:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| SyncHarness | 68 |
-| **Total** | **486** |
+| SyncHarness | 94 |
+| **Total** | **528** |
 
 CI runs the warnings-as-errors Release build and the same offline verifier. Optional live switches use
 already-configured local credentials and are not part of the default gate:

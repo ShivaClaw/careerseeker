@@ -139,7 +139,13 @@ $offlineProjects = @(
 # signatures and the revoked-key case land: 418 + 68 = 486. Measured, not inferred -- the P1 commit
 # subject says "harness 39->60", but the branch's later commits carry it to 68, so 60 would have been
 # a plausible-looking wrong number. The drift trap reported the real one.
-$ExpectedOfflineTotal = 486
+# P2 (engine publisher) then moves two harnesses at once: SyncHarness 68 -> 94 for the snapshot/delta/
+# heartbeat/evidence payload builders and the snapshot-retry invariant, and EngineHarness 170 -> 186 for
+# the host wiring behind --sync. 418 + 94 + 16 = 528. Note this is the first bump in the series that
+# changes a harness OTHER than SyncHarness, which is why docs/Scoring-Calibration.md's reproduction
+# instruction ("must report 170 passed") had to move to 186 in the same commit: its assertion would
+# have kept passing on the stale string while telling a reader the wrong number.
+$ExpectedOfflineTotal = 528
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -448,12 +454,12 @@ Invoke-Step "Public README and harness count smoke" {
         'Alpha `.cmd` helpers',
         'no open-source license',
         'all rights are reserved',
-        '| EngineHarness | 170 |',
+        '| EngineHarness | 186 |',
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 68 |',
-        '| **Total** | **486** |',
+        '| SyncHarness | 94 |',
+        '| **Total** | **528** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -467,7 +473,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **486** |',
+        '| **Total** | **528** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -475,19 +481,19 @@ Invoke-Step "Public README and harness count smoke" {
         '## Human-only work remaining'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| EngineHarness | 170 |',
+        '| EngineHarness | 186 |',
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| StoreParityHarness | 25 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 68 |'
+        '| SyncHarness | 94 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 68 |',
-        '| **Total** | **486** |',
+        '| SyncHarness | 94 |',
+        '| **Total** | **528** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -521,7 +527,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **486 passed, 0 failed**',
+        'Pinned offline verifier: **528 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
@@ -540,7 +546,7 @@ Invoke-Step "Public README and harness count smoke" {
         '`lexical-v2` formula',
         '| 200 | 1.50–3.88 | 2.99–4.20 | 2.99 | 4.20 | 4.20 | 3.20 | 8/120 (6.7%) |',
         'existing default Act threshold of 4.0 remains inside that gap',
-        '170 passed, 0 failed'
+        '186 passed, 0 failed'
     ) "docs/Scoring-Calibration.md"
 
     $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw
