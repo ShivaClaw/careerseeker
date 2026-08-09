@@ -144,6 +144,7 @@ async Task<int> RunDemoAsync()
     async Task<int> RunDemoWithStoreAsync(ISeekerStore store, long profileId, string? storeDetail)
     {
         var counters = new EngineCounters();
+        var syncEnabled = HasFlag("--sync");
         var cycle = BuildDemoCycle(store, counters, profileId, artifactsPath);
         var jdDir = !string.IsNullOrWhiteSpace(dbPath)
             ? Path.Combine(Path.GetDirectoryName(dbPath) ?? ".appdata", "job-descriptions")
@@ -168,14 +169,19 @@ async Task<int> RunDemoAsync()
             return 0;
         }
 
+        var evidence = LocalDashboardEvidence.FromStore(store);
+        var syncBridge = BuildSyncBridge(counters, evidence, syncEnabled);
         await using var host = new EngineHost(
             cycle,
             counters,
             TimeSpan.FromSeconds(intervalSeconds),
             port,
             dashboardActions,
-            LocalDashboardEvidence.FromStore(store),
-            new[] { artifactsPath });
+            evidence,
+            new[] { artifactsPath },
+            // Named, not positional: main grew `pauseRequested` and `maximumBackoff` ahead of this
+            // parameter while the sync branch was unmerged, so position 8 is no longer the bridge.
+            syncBridge: syncBridge);
         using var stop = new CancellationTokenSource();
         var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -216,6 +222,33 @@ EngineCycle BuildDemoCycle(ISeekerStore store, EngineCounters counters, long pro
         new PostingDispatchInfo(DispatchChannel.Email, "jobs@feed.example")), "CareerSeeker Alpha",
         "alpha@careerseeker.app", new DemoFeed(), "feed", "Discovered", profileId,
         artifactDirectory: artifactDirectory);
+
+// Read-only dashboard sync (spec section 8, P2) is opt-in and privacy-load-bearing
+// (docs/Sync-Consent-Copy.md): default OFF, enabled with --sync. When enabled, each cycle also
+// pushes the read-only dashboard state (counters + recent application/job summaries, never a raw
+// posting body) to a paired phone through the blind relay.
+//
+// Publishing requires a completed pairing (k_e2p, pairing id, relay token). Pairing is device-bound;
+// its persistence — the DPAPI-backed pairing vault, phone-pairing UI, and desktop /pair page — lands
+// in the P2 device session (P2-Runbook.md section 2.1). Until a pairing exists there is nothing to
+// publish to, so --sync is honored but no-ops with an explicit note. Once the vault is present, this
+// is where a SyncPublisher (sink backed by RelayClient.PushAsync against the paired token) and an
+// EngineSyncBridge get constructed and returned.
+//
+// The vault MUST persist the last e2p seq and this method MUST construct the publisher with
+// startSeq = max(vault.last_e2p_seq, relay latest e2p) — Sync-Protocol.md §6.1. The phone's
+// high-water mark survives its restarts; an engine that resumed at seq 1 would have every
+// envelope (including the recovery snapshot) rejected as a replay. SyncPublisher already takes
+// startSeq for exactly this; the vault is what supplies it.
+EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidence evidence, bool enabled)
+{
+    if (!enabled)
+        return null;
+
+    Console.WriteLine("Sync: --sync set, but no paired phone was found; nothing will be published.");
+    Console.WriteLine("      Pair a phone first (device-bound P2 step); publishing turns on once a pairing exists.");
+    return null;
+}
 
 async Task<int> RunAlphaAsync()
 {
@@ -1806,7 +1839,7 @@ void PrintUsage()
     Console.WriteLine("Usage:");
     Console.WriteLine("  SeekerSvc.Engine.exe setup [--smoke] [--setup-port 0] [--client resources/google-client.json] [--port 7777]");
     Console.WriteLine("  SeekerSvc.Engine.exe setup --console [--smoke] [--skip-gmail] [--skip-ai] [--ai-provider gemini|anthropic|manual] [--gemini-model gemini-3.1-flash-lite] [--anthropic-model claude-haiku-4-5] [--client resources/google-client.json] [--port 7777]");
-    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
+    Console.WriteLine("  SeekerSvc.Engine.exe demo [--once] [--port 7777] [--interval-seconds 30] [--db .appdata/careerseeker-demo.db] [--artifacts .appdata/artifacts] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--sync] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe alpha --email you@gmail.com [--llm fake|byok] [--fast-smoke] [--gate-semantic-candidates 3] [--http-timeout-seconds 60] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts]");
     Console.WriteLine("  SeekerSvc.Engine.exe run [--once] [--service-host] [--dry-run] [--board greenhouse:remotecom] [--board lever:mistral] [--port 7777] [--interval-seconds 900] [--max-backoff-seconds 3600] [--control-dir .appdata/engine-control] [--max-drafts-per-cycle 10] [--llm byok|fake] [--discovery-timeout-seconds 240] [--gate-semantic-candidates 3] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--secrets secrets/env.secrets] [--key-vault .appdata/secrets/byok-keys.dpapi] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
     Console.WriteLine("  SeekerSvc.Engine.exe dashboard [--once] [--port 7777] [--db .appdata/careerseeker-alpha.db] [--artifacts .appdata/artifacts] [--jd-dir .appdata/job-descriptions] [--audit-out output/careerseeker-audit.json] [--package-out output/careerseeker-alpha-package.zip] [--gmail-control] [--client resources/google-client.json] [--vault .appdata/oauth/gmail-token.dpapi]");
