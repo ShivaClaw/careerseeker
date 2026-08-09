@@ -2453,6 +2453,67 @@ Console.WriteLine("\n[ Pro outcome funnel windows 7/30/90d (P4 §2.5c) ]");
         FunnelBoard.Compute(Array.Empty<ApplicationSummaryRow>(), funnelNow).Last7.ReplyRatePct == 0);
 }
 
+// ── sync pairing vault (S2): the persistence --sync needs to survive a restart ──
+{
+    Console.WriteLine("\n[ sync pairing vault ]");
+    var vaultDir = Path.Combine("tmp", "engine-harness-sync-vault");
+    Directory.CreateDirectory(vaultDir);
+    var vaultPath = Path.Combine(vaultDir, $"pairing-{Guid.NewGuid():N}.dpapi");
+    var vault = new SyncPairingVault(vaultPath);
+
+    try
+    {
+        Check("a missing vault loads as no pairing, never as a partial one",
+            !vault.Exists && vault.Load() is null);
+
+        var kE2p = new byte[32]; kE2p[0] = 1;
+        var kP2e = new byte[32]; kP2e[0] = 2;
+        var sigPub = new byte[65]; sigPub[0] = 0x04;
+        var saved = new SyncPairing(
+            "p_harness", "p256-hkdf-sha256", "http://127.0.0.1:8787",
+            kE2p, kP2e, sigPub, "tok_harness", SyncPairingVault.DefaultKeyId,
+            LastE2pSeq: 7, LastP2eSeq: 3);
+        vault.Save(saved);
+
+        var loaded = vault.Load();
+        Check("vault round-trips the pairing, both keys, and both high-water marks",
+            loaded is not null
+            && loaded.Pairing == "p_harness"
+            && loaded.KeyId == SyncPairingVault.DefaultKeyId
+            && loaded.KeyEngineToPhone.SequenceEqual(kE2p)
+            && loaded.KeyPhoneToEngine.SequenceEqual(kP2e)
+            && loaded.DeviceSigPub.SequenceEqual(sigPub)
+            && loaded.LastE2pSeq == 7 && loaded.LastP2eSeq == 3);
+
+        // §6.1 is a correctness rule, not bookkeeping: an engine that rewound its e2p counter would
+        // have every later envelope rejected as a replay, including the recovery snapshot, and the
+        // phone would stop updating while the engine still reported success locally.
+        vault.RecordE2pSeq(9);
+        Check("a higher e2p seq advances the high-water mark", vault.Load()!.LastE2pSeq == 9);
+        vault.RecordE2pSeq(4);
+        Check("a lower e2p seq is ignored, never rewound", vault.Load()!.LastE2pSeq == 9);
+        vault.RecordP2eSeq(5);
+        vault.RecordP2eSeq(5);
+        Check("p2e advances once and an equal seq does not double-apply",
+            vault.Load()!.LastP2eSeq == 5);
+
+        var described = SyncPairingVault.Describe(vault.Load()!);
+        Check("Describe reports the pairing without leaking key material",
+            described.Contains("p_harness", StringComparison.Ordinal)
+            && described.Contains("e2p seq 9", StringComparison.Ordinal)
+            && !described.Contains(Convert.ToBase64String(kE2p)[..8], StringComparison.Ordinal)
+            && !described.Contains("tok_harness", StringComparison.Ordinal));
+
+        vault.Delete();
+        Check("delete removes the pairing so --sync reverts to publishing nothing",
+            !vault.Exists && vault.Load() is null);
+    }
+    finally
+    {
+        try { if (File.Exists(vaultPath)) File.Delete(vaultPath); } catch { /* best effort */ }
+    }
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 

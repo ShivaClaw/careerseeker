@@ -255,10 +255,44 @@ EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidenc
     if (!enabled)
         return null;
 
-    Console.WriteLine("Sync: --sync set, but no paired phone was found; nothing will be published.");
-    Console.WriteLine("      Pair a phone first (device-bound P2 step); publishing turns on once a pairing exists.");
-    return null;
+    var vault = new SyncPairingVault(SyncVaultPath());
+    var paired = vault.Load();
+    if (paired is null)
+    {
+        Console.WriteLine("Sync: --sync set, but no paired phone was found; nothing will be published.");
+        Console.WriteLine("      Open the dashboard's /pair page to pair a phone; publishing turns on once a pairing exists.");
+        return null;
+    }
+
+    // §6.1: resume ABOVE the persisted high-water mark. Starting at 0 after a restart would make the
+    // relay reject every envelope this engine sends, including the recovery snapshot, and the phone
+    // would silently stop updating while the engine reported success locally.
+    var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+    var relay = new RelayClient(http, paired.RelayUrl, paired.Pairing);
+
+    // The sink persists the high-water mark itself rather than EngineSyncBridge growing a callback:
+    // the bridge is shared with the harnesses and has no business knowing about DPAPI. `publisherRef`
+    // exists because the sink needs the publisher's seq and the publisher needs the sink — the seq is
+    // assigned before the sink runs, so reading HighestSeq here reports the seq being pushed.
+    SyncPublisher? publisherRef = null;
+    var publisher = new SyncPublisher(
+        paired.KeyEngineToPhone,
+        paired.Pairing,
+        paired.KeyId,
+        sink: async (envelopeJson, ct) =>
+        {
+            var ok = await relay.PushAsync(paired.RelayToken, envelopeJson, ct).ConfigureAwait(false);
+            if (ok && publisherRef is not null) vault.RecordE2pSeq(publisherRef.HighestSeq);
+            return ok;
+        },
+        startSeq: paired.LastE2pSeq);
+    publisherRef = publisher;
+
+    Console.WriteLine($"Sync: publishing to {SyncPairingVault.Describe(paired)}.");
+    return new EngineSyncBridge(counters, evidence, publisher);
 }
+
+string SyncVaultPath() => StringArg("--sync-vault") ?? Path.Combine(".appdata", "sync", "pairing.dpapi");
 
 async Task<int> RunAlphaAsync()
 {
