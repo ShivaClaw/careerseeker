@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    // Runtime types come from `wrangler types` (worker-configuration.d.ts), which
+    // supersedes @cloudflare/workers-types. That file is generated, gitignored, and
+    // regenerated in CI -- 550 KB of generated declarations does not belong in a diff.
+    "types": [],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src/**/*.ts", "worker-configuration.d.ts"]
+}

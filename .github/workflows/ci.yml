@@ -46,3 +46,58 @@ jobs:
       - name: Run offline alpha verification
         shell: pwsh
         run: ./scripts/Verify-Alpha.ps1
+
+  relay:
+    name: Blind relay (Worker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: relay
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: relay/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate runtime types
+        run: npx wrangler types
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+      # Validates wrangler.jsonc without deploying. The relay does not go live until
+      # P1, and going live is a gated decision -- CI must never be the thing that
+      # ships it.
+      - name: Validate config (no deploy)
+        run: npx wrangler deploy --dry-run
+
+      # The relay holds no key material, so any crypto primitive in its source is
+      # either dead code or a mistake. Grepping is crude, but this is exactly the
+      # regression that reads as innocuous in a diff.
+      - name: Assert the relay has no decryption path
+        run: |
+          if grep -rniE 'subtle\.(decrypt|importKey)|createDecipher|aes-256-gcm' src/; then
+            echo "::error::Relay source references decryption. The relay must stay blind."
+            exit 1
+          fi
+          echo "OK: no decryption path in relay/src."
+
+      # The shared protocol vectors are generated, never hand-edited. Both this repo's
+      # SyncHarness and the Android :core tests consume them, so a hand-tweaked vector
+      # would silently desynchronize two codebases.
+      - name: Assert sync vectors match their generator
+        working-directory: .
+        run: node docs/sync-vectors/generate.mjs --check

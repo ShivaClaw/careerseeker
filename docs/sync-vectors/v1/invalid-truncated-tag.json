@@ -1,0 +1,40 @@
+{
+  "name": "invalid-truncated-tag",
+  "valid": false,
+  "notes": "Last 4 bytes of the 16-byte GCM tag removed. Must fail authentication, not throw a parse error.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=5|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "tdaf-cyMXFdndxMg",
+  "plaintext_json": {
+    "kind": "delta",
+    "body": {
+      "since_seq": 48210,
+      "applications": [
+        {
+          "id": "app_01H8XK",
+          "state": "READY",
+          "company": "Northwind Labs",
+          "title": "Senior Platform Engineer",
+          "score": 82
+        }
+      ],
+      "counters": {
+        "discovered": 3,
+        "drafted": 1,
+        "blocked": 0
+      }
+    }
+  },
+  "ciphertext_b64u": "93NNw9geLPWfxs_Q5PXjVmUBqnUev2YqWusHjdrbSgajX2b8IlDPnLGWI42XWAMxmUNZj2EixTWr2o1wMf9OBErBg14S3w36LUoadQCxCHDA8xz59xFRk8BrjCaJ78LQBxNrj102EjCtZywVtIXHRn-VKGMe3_VXFdzvpzDCUk6i5aB5DtDYxjJFWVj6k5JyFJv8Usxjxo7J4fyv0wweYpvNtYogPlnGaYooTIrfI7tYslFewqgMbHBs6MXGxxoJJE1mcBdQcfCJw8UgSrIp8MuoZlYObz-sx5PO8QVms31B388tmsTd4XY",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 5,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "tdaf-cyMXFdndxMg",
+    "ciphertext": "93NNw9geLPWfxs_Q5PXjVmUBqnUev2YqWusHjdrbSgajX2b8IlDPnLGWI42XWAMxmUNZj2EixTWr2o1wMf9OBErBg14S3w36LUoadQCxCHDA8xz59xFRk8BrjCaJ78LQBxNrj102EjCtZywVtIXHRn-VKGMe3_VXFdzvpzDCUk6i5aB5DtDYxjJFWVj6k5JyFJv8Usxjxo7J4fyv0wweYpvNtYogPlnGaYooTIrfI7tYslFewqgMbHBs6MXGxxoJJE1mcBdQcfCJw8UgSrIp8MuoZlYObz-sx5PO8QVms31B388tmsTd4XY"
+  },
+  "expect_error": "decrypt_failed"
+}

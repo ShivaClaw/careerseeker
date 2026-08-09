@@ -1,0 +1,24 @@
+{
+  "name": "empty-body",
+  "valid": true,
+  "notes": "Empty object body. AES-GCM over a short plaintext still produces a full 16-byte tag.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=4|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "zf7lbe4T9k3J0HzE",
+  "plaintext_json": {
+    "kind": "snapshot",
+    "body": {}
+  },
+  "ciphertext_b64u": "sX8dsKd9v_QrxRM1VnLfTOcdA3UqYvHo12tHI7GPizKQKERhpXebQeJUq4on",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 4,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "zf7lbe4T9k3J0HzE",
+    "ciphertext": "sX8dsKd9v_QrxRM1VnLfTOcdA3UqYvHo12tHI7GPizKQKERhpXebQeJUq4on"
+  },
+  "expect_error": null
+}

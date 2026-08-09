@@ -1,0 +1,21 @@
+{
+  "name": "invalid-padded-base64",
+  "valid": false,
+  "notes": "Padded base64 must be rejected rather than leniently accepted. Accepting both spellings means the vectors no longer pin one encoding.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=10|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "AAAAAAAAAAAAAAAA==",
+  "plaintext_json": null,
+  "ciphertext_b64u": "AAAA==",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 10,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "AAAAAAAAAAAAAAAA==",
+    "ciphertext": "AAAA=="
+  },
+  "expect_error": "decrypt_failed"
+}
