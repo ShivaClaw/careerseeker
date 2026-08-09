@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "invalid-version",
   "valid": false,
   "notes": "v=2. Must be rejected WITHOUT attempting decryption.",

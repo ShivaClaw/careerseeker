@@ -135,7 +135,11 @@ $offlineProjects = @(
 # the shared vectors in docs/sync-vectors/v1 that the Android :core tests also consume, so cross-repo
 # protocol drift fails here rather than in the field. Measured on the rebased branch, not carried over
 # from the pre-rebase pin: main moved 366 -> 418 while this branch waited, so 418 + 39 = 457.
-$ExpectedOfflineTotal = 457
+# P1 then takes SyncHarness from 39 to 68 as pairing (P-256 suite), the src/Sync library, device
+# signatures and the revoked-key case land: 418 + 68 = 486. Measured, not inferred -- the P1 commit
+# subject says "harness 39->60", but the branch's later commits carry it to 68, so 60 would have been
+# a plausible-looking wrong number. The drift trap reported the real one.
+$ExpectedOfflineTotal = 486
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -448,8 +452,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 39 |',
-        '| **Total** | **457** |',
+        '| SyncHarness | 68 |',
+        '| **Total** | **486** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -463,7 +467,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **457** |',
+        '| **Total** | **486** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -477,13 +481,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 25 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 39 |'
+        '| SyncHarness | 68 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 39 |',
-        '| **Total** | **457** |',
+        '| SyncHarness | 68 |',
+        '| **Total** | **486** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -517,7 +521,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **457 passed, 0 failed**',
+        'Pinned offline verifier: **486 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',

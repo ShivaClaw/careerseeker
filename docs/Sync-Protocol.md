@@ -33,15 +33,21 @@ its own, and no envelope from anyone creates a path to sending email — see §8
 
 | Route | Method | Purpose |
 | --- | --- | --- |
+| `/v1/{pairing}/create` | POST | Engine bootstraps the pairing channel (§5.2.1) |
+| `/v1/{pairing}/pair` | POST | Phone submits the pairing completion (§5.2.2) |
+| `/v1/{pairing}/pair` | GET | Engine collects the completion; one-shot (§5.2.2) |
 | `/v1/{pairing}/push` | POST | Append one envelope to the recipient's queue |
-| `/v1/{pairing}/pull?since={seq}` | GET | Fetch envelopes with `seq > since` |
+| `/v1/{pairing}/pull?since={seq}&dir={dir}` | GET | Fetch envelopes for direction `dir` with `seq > since` |
 | `/v1/{pairing}/live` | WSS | Live fan-out while a client is connected |
 | `/v1/{pairing}` | DELETE | Unpair — purge the Durable Object and all queued envelopes |
 | `/v1/health` | GET | Liveness. Returns no pairing information. |
 
-All routes require `Authorization: Bearer <pairing_token>` except `/v1/health`. The token
+All routes require `Authorization: Bearer <relay_token>` except `/v1/health`. The token
 authenticates **the pairing, not a person** — the relay has no concept of a user, an
-account, or an email address, and MUST NOT acquire one.
+account, or an email address, and MUST NOT acquire one. Both endpoints derive the token
+from the pairing secret (§5.2.3), so the relay never mints or distributes a credential;
+it only recognises one. The relay MUST store a **hash** of the token and compare in
+constant time — a relay storage dump must not yield usable bearer tokens.
 
 Transport is HTTPS/WSS only. Clients MUST reject cleartext. Envelopes are JSON, UTF-8.
 
@@ -77,12 +83,20 @@ The envelope is the only structure the relay parses.
 | `key_id` | string | Which derived key encrypted this. See §5.3. |
 | `nonce` | string | base64url, 12 bytes, unpadded. Fresh CSPRNG value per envelope. |
 | `ciphertext` | string | base64url, unpadded. AES-256-GCM output with the 16-byte tag appended. |
+| `sig` | string | *Optional; see below.* base64url ECDSA-P256-SHA256 signature (§5.4). |
 
 All base64url values are **unpadded** (RFC 4648 §5, no `=`). Decoders MUST reject padded
 input rather than accepting both, so the vectors mean one thing.
 
-Unknown top-level fields MUST be rejected, not ignored. A permissive parser here is how a
-future version's field silently becomes an injection point.
+`sig` is **required** on `p2e` envelopes whose payload kind is state-changing
+(`doc_edit`, `outcome`, `entitlement`) and **forbidden** elsewhere — a receiver MUST
+reject an `e2p` envelope carrying `sig`, and MUST reject a state-changing `p2e` envelope
+lacking it (`bad_signature`, checked *after* decryption reveals the kind). Amended in P1;
+the P0 draft carried the signature inside the payload body, which required canonical JSON
+to verify — see §5.4 for why it moved.
+
+Other unknown top-level fields MUST be rejected, not ignored. A permissive parser here is
+how a future version's field silently becomes an injection point.
 
 ### 3.1 Size limits
 
@@ -188,26 +202,113 @@ a counter that resets after a crash is a worse failure than the birthday bound.
 
 ### 5.2 Key agreement
 
-At pairing, the desktop renders a QR encoding
-`{pairing_id, engine_pub, relay_url, one_time_secret}` where `engine_pub` is an X25519
-public key. The phone generates its own X25519 pair, performs ECDH, and both sides run:
+**Amended in P1 (gates P1-CURVE, 2026-07-23).** The P0 draft specified X25519, which
+neither platform can build without new dependencies or degraded key storage (see the P1
+runbook and `Post-Quantum-Posture.md` in the program repo). v1 uses **ECDH P-256**, and
+the handshake is *suite-versioned* so the post-quantum hybrid is a suite bump rather than
+a breaking change.
+
+The QR rendered on the desktop encodes:
+
+```json
+{ "v": 1,
+  "suite": "p256-hkdf-sha256",
+  "pairing": "p_7Fq2mXk9LtVbN3wR",
+  "engine_pub": "<base64url uncompressed P-256 point, 65 bytes>",
+  "relay": "https://relay.careerseeker.app",
+  "secret": "<base64url, 32 bytes, single-use, 60s TTL>" }
+```
+
+`suite` values: `p256-hkdf-sha256` (v1); `p256+mlkem768-hkdf-sha256` (reserved for the
+hybrid migration — under it, the QR additionally carries the ML-KEM encapsulation key, and
+`ikm` below becomes a concatenation of both shared secrets). A phone that does not
+recognise `suite` MUST refuse to pair, showing the version mismatch — never silently fall
+back. QR payload budget is checked against the hybrid suite's sizes now: ML-KEM-768's
+1184-byte key fits comfortably in a version-40 QR alongside these fields.
+
+Both sides derive, with `ss = ECDH-P256(own_priv, peer_pub)` (the 32-byte X coordinate):
 
 ```
-ikm  = X25519(priv, peer_pub)
-salt = one_time_secret
-k_e2p = HKDF-SHA256(ikm, salt, info="careerseeker/v1/e2p", 32)
-k_p2e = HKDF-SHA256(ikm, salt, info="careerseeker/v1/p2e", 32)
+ikm          = concat(ss)                 // one element in v1; hybrid appends mlkem_ss
+salt         = secret                     // the QR's one-time secret
+k_e2p        = HKDF-SHA256(ikm, salt, info="careerseeker/v1/e2p",         32)
+k_p2e        = HKDF-SHA256(ikm, salt, info="careerseeker/v1/p2e",         32)
+relay_token  = b64u( HKDF-SHA256(ikm, salt, info="careerseeker/v1/relay-token", 32) )
+confirm      = BE_uint32( HKDF-SHA256(ikm, salt, info="careerseeker/v1/confirm", 4) )
+               mod 1_000_000, rendered as 6 digits, zero-padded
 ```
 
-Two directional keys, so a captured envelope cannot be replayed back at its sender.
+`ikm` is **always the concatenation function over the suite's shared secrets**, even while
+there is only one. Deriving from the raw ECDH output directly would make the hybrid
+migration a breaking change for every paired device; deriving through `concat` makes it a
+suite bump. This line is deliberate and load-bearing — do not "simplify" it away.
 
-`one_time_secret` is single-use with a 60-second TTL, and the exchange is confirmed by a
-6-digit code derived from the agreed keys and displayed on both screens. A shoulder-surfer
-who photographs the QR still cannot complete pairing: they lack the confirmation step, and
-the secret is burned on first use.
+Two directional keys, so a captured envelope cannot be replayed back at its sender. The
+6-digit `confirm` code is displayed on both screens and the user confirms they match —
+a shoulder-surfer who photographs the QR cannot complete pairing: the secret is burned on
+first use (engine-enforced), and the confirmation step catches a raced completion.
 
-**Keys never touch the relay.** The relay has no key material of any kind, only the
-pairing token used for route authorization.
+**Keys never touch the relay.** The relay sees the pairing id, the token hash, and — in
+the completion message only — the phone's *public* ECDH key. Public keys are not secrets;
+everything secret rides inside ciphertext or never leaves a device.
+
+#### 5.2.1 Channel bootstrap (engine → relay)
+
+Before rendering the QR, the engine calls `POST /v1/{pairing}/create` with
+`Authorization: Bearer <relay_token>`. The relay instantiates the Durable Object, stores
+`SHA-256(relay_token)`, and answers 201 (or 409 if the pairing id exists). From that point
+every route on the pairing requires the same bearer, compared in constant time against
+the stored hash. The engine can do this because it derives `relay_token` before the phone
+exists — the derivation needs only `ikm`… which needs the phone's key. **It does not:**
+the engine derives a *provisional* token from
+`HKDF-SHA256(secret, salt="careerseeker/v1/bootstrap", info="careerseeker/v1/relay-token", 32)`
+— keyed on the one-time secret alone — and both sides replace it with the `ikm`-derived
+token in their first authenticated exchange after completion. The provisional token is
+exactly as secret as the QR itself, lives at most 60 seconds beyond it, and a relay
+compromise during that window yields a token whose channel has never carried an envelope.
+
+#### 5.2.2 Pairing completion (phone → relay → engine)
+
+The phone, having scanned the QR and derived keys:
+
+`POST /v1/{pairing}/pair` (bearer: provisional token) with body:
+
+```json
+{ "suite": "p256-hkdf-sha256",
+  "phone_pub": "<base64url uncompressed P-256 point>",
+  "nonce": "<base64url 12 bytes>",
+  "ciphertext": "<base64url>" }
+```
+
+where `ciphertext = AES-256-GCM(k_p2e, nonce, aad, payload)` with
+`aad = "careerseeker/v1/pair|" + pairing + "|" + suite + "|" + phone_pub` and
+`payload = {"device_sig_pub": "<base64url uncompressed P-256 point>", "ts": "..."}`.
+
+`phone_pub` must travel in clear — the engine cannot derive `k_p2e` without it — but it is
+bound into the AAD, so the relay cannot substitute its own key without breaking the tag:
+a swapped `phone_pub` changes both the derived key *and* the AAD, and decryption fails
+either way. The **device signing public key travels only inside the ciphertext**, per the
+original spec's intent: the relay never learns which signing key belongs to a pairing.
+
+The relay stores the completion (one per pairing; second POST → 409) for the engine to
+collect via `GET /v1/{pairing}/pair`, which is **one-shot**: the relay deletes it on
+read. The engine then: derives `ikm` from `phone_pub` → verifies the ciphertext →
+extracts `device_sig_pub` → burns the one-time secret → displays `confirm` and waits for
+the user's match → records the pairing (suite included) in the audit chain.
+
+The engine MUST accept only the **first** valid completion and only within the secret's
+TTL. `error` code for a losing or late completion: `pairing_unknown`.
+
+#### 5.2.3 Relay token summary
+
+| Phase | Token | Derivation |
+| --- | --- | --- |
+| Bootstrap → completion collected | provisional | HKDF over the one-time secret (§5.2.1) |
+| Paired, steady state | final | HKDF over `ikm` (§5.2) |
+
+The engine rotates the relay-side hash from provisional to final by calling
+`POST /v1/{pairing}/create` again with the old bearer and the new token hash in the body
+(`{"rotate_to": "<SHA-256 hex of final token>"}`). Rotation is idempotent and one-way.
 
 ### 5.3 Key ids and rotation
 
@@ -227,24 +328,40 @@ device keeps working. Revocation is an explicit check, not a side effect of cryp
 
 ### 5.4 Device signing key
 
-At pairing the phone generates an **Ed25519** key in the Android Keystore (StrongBox where
-available) and sends its public key inside the encrypted pairing completion.
+**Amended in P1 (gate P1-CURVE).** The P0 draft said Ed25519 in the Android Keystore —
+impossible below API 33, and this program's minSdk is 26. The device key is **ECDSA
+P-256**, generated in the Android Keystore (hardware-backed from API 23, StrongBox from
+28), never exportable, and its public half travels only inside the encrypted pairing
+completion (§5.2.2).
 
-Every phone-originated envelope that changes engine state (`doc_edit`, `outcome`,
-`entitlement`) carries `device_sig`: Ed25519 over the ASCII string
+Every phone-originated envelope whose kind is state-changing (`doc_edit`, `outcome`,
+`entitlement`) carries the top-level `sig` field (§3): **ECDSA-P256-SHA256** over the
+ASCII string
 
 ```
-careerseeker/v1/cmd|<pairing>|<seq>|<kind>|<sha256-hex of the canonical body without device_sig>
+careerseeker/v1/cmd|<AAD string per §4.1>|<nonce b64u>|<sha256-hex of the raw ciphertext bytes>
 ```
 
-The engine MUST verify this signature before applying anything, and MUST record the
-signature and key fingerprint in its hash-chained audit log. This extends the project's
-"nobody is ever blind" property to remote actions: the audit trail can prove *a specific
-paired device* asked for a change, not merely that a change happened.
+The signature moved from *inside the payload body* (P0 draft) to *over the envelope*,
+deliberately. Signing body fields requires both implementations to serialise JSON
+identically — the canonicalization trap §4.1 exists to avoid — whereas the AAD string,
+the nonce, and the ciphertext bytes are already exact wire artifacts both sides possess.
+The signature therefore binds the *entire* envelope: header (via AAD), sequence number
+(anti-replay for the signature itself), and content (via the ciphertext hash), with
+nothing left to canonicalise. Signature encoding: base64url over the raw 64-byte `r||s`
+form (not DER), fixed-width, big-endian.
+
+The engine MUST verify `sig` against the pairing's `device_sig_pub` before applying
+anything, and MUST record the signature and the key's fingerprint
+(`SHA-256(uncompressed point)`, first 16 hex chars) in its hash-chained audit log. This
+extends the project's "nobody is ever blind" property to remote actions: the audit trail
+can prove *a specific paired device* asked for a change, not merely that a change
+happened.
 
 Encryption alone would not give this. The AEAD proves the sender held the shared key; the
 signature proves which device, non-repudiably, in a form that survives in the audit log
-after decryption.
+after decryption. A future L2 — phone-approved gate decisions — inherits this mechanism
+unchanged, which is why it is built now rather than when L2 needs it.
 
 ---
 
@@ -342,6 +459,9 @@ auditable rather than silent:
 | `docs/CareerSeeker-Spec.md` §7.2 | XChaCha20-Poly1305 | AES-256-GCM (§5.1) |
 | `docs/CareerSeeker-Spec.md` §7.2 | `{v, device, seq, ts, key_id, nonce, ciphertext}` | adds `pairing`; `device` becomes `dir` (§3) |
 | `docs/CareerSeeker-Spec.md` §7.2 | event kinds listed as the shipping set | those kinds are **reserved for L2**; v1 ships the §4.3 set |
+| `docs/CareerSeeker-Spec.md` §8.3 / this doc (P0) | X25519 pairing exchange | ECDH P-256 under a versioned `suite`; hybrid `p256+mlkem768` reserved (§5.2, P1) |
+| This doc (P0) | Ed25519 `device_sig` inside the payload body | ECDSA P-256 as top-level `sig` over AAD+nonce+ciphertext-hash (§5.4, P1) |
+| This doc (P0) | `doc_edit` body carries `device_sig` | field removed; the envelope `sig` covers it (§3, §5.4) |
 
 `CareerSeeker-Spec.md` §7.2 is amended in the same commit that introduces this file. Two
 documents disagreeing about a wire format is precisely the drift `CLAUDE.md` exists to

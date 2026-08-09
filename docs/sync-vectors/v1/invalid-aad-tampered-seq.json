@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "invalid-aad-tampered-seq",
   "valid": false,
   "notes": "Envelope seq rewritten to 9999 after sealing, as a malicious relay would. The AAD no longer matches, so the tag check fails. This is the vector that proves header fields are actually bound into the AEAD.",

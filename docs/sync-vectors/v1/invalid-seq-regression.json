@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "invalid-seq-regression",
   "valid": false,
   "notes": "seq 1 arriving after seq 4 was accepted. Must be rejected on the header, BEFORE any decryption attempt. Consume this vector after delta-basic..empty-body.",

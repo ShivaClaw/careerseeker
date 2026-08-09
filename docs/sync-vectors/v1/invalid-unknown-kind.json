@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "invalid-unknown-kind",
   "valid": false,
   "notes": "Decrypts cleanly, then fails on kind. Proves the kind check is real and not implied by decryption.",

@@ -1,0 +1,33 @@
+{
+  "type": "envelope",
+  "name": "sig-tampered",
+  "valid": false,
+  "notes": "Valid envelope, one flipped byte in sig. Decrypts fine; must still be rejected. Uses the doc-edit-signed constant tampered in-flight, so no second signing key is involved.",
+  "key_hex": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=p2e|seq=3|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "eeW08MZEF8bdxZ_5",
+  "plaintext_json": {
+    "kind": "doc_edit",
+    "body": {
+      "app_id": "app_01H8XK",
+      "doc_kind": "cover_letter",
+      "base_rev": 4,
+      "new_text": "Revised opening paragraph."
+    }
+  },
+  "ciphertext_b64u": "-YIQETHf_63PBFvDq796LBJoBae9MMf45AVoIXmNW6HwvZgbc-uUImZzVAvb_IRPJTgxOedrJD0ef9UmG52nRFDwjlgD0fdwlY7D4eWzuFmLO3Eo7Dz-vSPaPUy_LUDjS4eZiYeazfI-wDC53d5s3kYRtexY7yQqwhcE0wfwFNZNhBLbxgvZflVnf02QDRD00g",
+  "sig_input": "careerseeker/v1/cmd|v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=p2e|seq=3|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01|eeW08MZEF8bdxZ_5|7ddd6f2fcef5d007a5dd538a533fe6cd77b6b5dffe7e2ebff62b0646861d1d77",
+  "device_sig_pub_b64u": "BKxF8K8_11xECd9NEpUYKVww4nL3-YazsWNpXFt8qJedrl7-l94OglqF3xmNW7jPgLdWjdOi4hYl0ClHTYQkVpE",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "p2e",
+    "seq": 3,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "eeW08MZEF8bdxZ_5",
+    "ciphertext": "-YIQETHf_63PBFvDq796LBJoBae9MMf45AVoIXmNW6HwvZgbc-uUImZzVAvb_IRPJTgxOedrJD0ef9UmG52nRFDwjlgD0fdwlY7D4eWzuFmLO3Eo7Dz-vSPaPUy_LUDjS4eZiYeazfI-wDC53d5s3kYRtexY7yQqwhcE0wfwFNZNhBLbxgvZflVnf02QDRD00g",
+    "sig": "3E_B-6c04ixenVg8Wq8VIPBHFLNBaVc_H1lOcgBdkEA1e-_6I5E6qKLDb6u92vva-4ATBUu6q_PPlZRHlrUZeA"
+  },
+  "expect_error": "bad_signature"
+}

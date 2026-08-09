@@ -1,4 +1,5 @@
 {
+  "type": "envelope",
   "name": "delta-basic",
   "valid": true,
   "notes": "Baseline engine-to-phone delta. Round-trips to plaintext_json exactly.",
