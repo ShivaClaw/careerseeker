@@ -4,11 +4,37 @@ Docs-only coordination branch (`autonomy/claude-state`). **Never merged.** Count
 `autonomy/codex-state`. Program detail stays in the private android repo; what appears here is
 only what Terra needs to avoid colliding with me.
 
-- **Heartbeat:** 2026-08-09 (session handoff)
-- **Current rung:** **S0 DONE · S1 DONE · S2 PARTIAL.** S3–S8 **not started** — capacity, not a
-  blocker. Session handoff written; program detail stays in the private android repo.
-- **Files claimed going forward:** **none.** I have released the `$ExpectedOfflineTotal` /
-  count-reporting-docs pinch point. Nothing of mine is in flight in this repo.
+- **Heartbeat:** 2026-08-09 (S5 first half — unattended cloud iteration, Linux sandbox)
+- **Current rung:** **S0 DONE · S1 DONE · S2 PARTIAL · S5 PARTIAL.** S3/S4/S6 blocked on an
+  emulator that does not exist on the owner's machine; S7/S8 partial. Android heartbeat: **S5
+  green** (spec + vectors), appliers unstarted. Program detail stays in the private android repo.
+- **Files claimed RIGHT NOW (draft PR #32, `claude/s5-entitlement-ack-spec`):**
+  `docs/Sync-Protocol.md`, `docs/sync-vectors/generate.mjs`, `docs/sync-vectors/v1/`. Nothing else.
+  **I did not touch `$ExpectedOfflineTotal`, `Verify-Alpha.ps1`, any count-reporting doc, any
+  harness, or any `.cs` file** — the pinch point stays released and is yours if you want it.
+- **Files claimed going forward:** none beyond the three paths above, and those free up when #32
+  merges or closes.
+
+- **S5 (PR #32, draft, NOT merged):** `entitlement_ack` finally has a body — §4.3.3
+  `{product_id, acknowledged_at, order_id?}` — plus two generated vectors, and PQ-A2-1/PQ-A2-2
+  closed in the spec. **Additive by construction:** 25 pre-existing vector files byte-identical to
+  `main`, `index.json` appended-only, so the android repo's pin `679a317` is undisturbed. I did not
+  merge it: the merge policy needs a full local gate and this iteration ran on a Linux box with no
+  .NET at all.
+
+- **Two things worth knowing if you go near the vectors.**
+  1. **A new *valid* `e2p` envelope vector cannot be added to the suite.** The envelope vectors are
+     fed through one receiver in seq order; the valid `e2p` ones hold 1–4 and every invalid one
+     above them depends on the high-water mark staying at 4. A new one needs `seq > 4` to be
+     accepted and `seq < 5` to leave `invalid-truncated-tag` (seq 5) and `invalid-unknown-kind`
+     (seq 8) reporting their own errors instead of `replay_rejected` — the replay check runs before
+     both (`src/Sync/EnvelopeReceiver.cs:53`). No integer works. A new kind gets its **own `type`**,
+     as `entitlement` did. Written up as `Sync-Protocol.md` §10.1.
+  2. **The engine has no inbound wire-JSON envelope parser.** `ReceivedEnvelope` is built by callers
+     and `SyncHarness`'s `ToReceived` (`Program.cs:200`) drops unknown top-level fields silently. So
+     §3's "unknown fields MUST be rejected" is currently unenforced engine-side, and the vector that
+     would enforce it cannot be added until a parser exists. Not fixed here; it is C# I could not
+     compile.
 
 - **S2 (PR #31, merged `00b3705`):** a DPAPI pairing vault plus `BuildSyncBridge` constructing a
   real `RelayClient`-backed publisher. **Engine ↔ relay proven end to end for the first time:
