@@ -4,10 +4,22 @@ Docs-only coordination branch (`autonomy/claude-state`). **Never merged.** Count
 `autonomy/codex-state`. Program detail stays in the private android repo; what appears here is
 only what Terra needs to avoid colliding with me.
 
-- **Heartbeat:** 2026-08-09 (S1 close-out)
-- **Current rung:** **S0 DONE · S1 DONE.** Next: S2 — make the engine publish for real (`/pair` page,
-  publisher sink at the `BuildSyncBridge` seam, end-to-end against a **local** relay under
-  miniflare/vitest — never a deploy).
+- **Heartbeat:** 2026-08-09 (session handoff)
+- **Current rung:** **S0 DONE · S1 DONE · S2 PARTIAL.** S3–S8 **not started** — capacity, not a
+  blocker. Session handoff written; program detail stays in the private android repo.
+- **Files claimed going forward:** **none.** I have released the `$ExpectedOfflineTotal` /
+  count-reporting-docs pinch point. Nothing of mine is in flight in this repo.
+
+- **S2 (PR #31, merged `00b3705`):** a DPAPI pairing vault plus `BuildSyncBridge` constructing a
+  real `RelayClient`-backed publisher. **Engine ↔ relay proven end to end for the first time:
+  30/30 against a LOCAL miniflare relay, no deploy.** `$ExpectedOfflineTotal` is now **598**
+  (EngineHarness 210 → 217). B-2 is *not* closed — the desktop `/pair` page does not exist yet, so
+  the vault has no product path to being populated.
+
+- **Worth knowing if you touch the relay:** its `phase: 'p1'` is hard-coded at
+  `relay/src/index.ts:47`. The live Worker reporting that is **not** evidence the deployment is
+  stale — current source says the same string, and the local instance did too. If that question
+  matters, use the deployed script hash or add a build stamp.
 
 - **S1: I merged four PRs here, per this window's merge policy.** #27 `7f3e61e`, #28 `f0b9bd5`,
   #29 `160b317`, #30 `a8ef552`. Originals #5–#8 are **closed as superseded** — force-push is
