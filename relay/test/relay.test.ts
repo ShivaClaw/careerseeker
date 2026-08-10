@@ -247,6 +247,73 @@ describe('push / pull envelope flow', () => {
     const pairing = await bootstrap('tok');
     expect((await call(`/v1/${pairing}/pull?since=0`, { headers: bearer('tok') })).status).toBe(400);
   });
+
+});
+
+// §2: "The relay MUST purge any envelope older than the configured TTL." Collection is
+// alarm-driven, and an alarm is scheduled rather than instantaneous, so the read path has
+// to enforce the promise too -- otherwise retention holds only as fast as a background job
+// happens to run. Before this was fixed, both cases below returned the expired envelope.
+describe('retention is enforced on the read path, not only by the alarm (§2)', () => {
+  // Typed structurally rather than as DurableObjectState: test/tsconfig.json does not pull
+  // in the generated worker globals, and this file is meant to stay checkable under it.
+  const expiredRow = (sql: { exec: (query: string, ...bindings: unknown[]) => unknown }, dir: string, seq: number) =>
+    sql.exec(
+      'INSERT INTO envelopes (dir, seq, ts, key_id, nonce, ciphertext, size, expires_at) VALUES (?,?,?,?,?,?,?,?)',
+      dir, seq, '2026-06-11T14:02:11Z', 'k-1', 'AAAAAAAAAAAAAAAA', `{"seq":${seq},"expired":true}`, 28, 1);
+
+  it('does not serve an expired envelope that the alarm has not collected yet', async () => {
+    const pairing = await bootstrap('tok');
+    await runInDurableObject(env.PAIRING.get(env.PAIRING.idFromName(pairing)), async (_i, state) => {
+      expiredRow(state.storage.sql, 'e2p', 1);
+    });
+    const body = await (await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') })).json() as {
+      envelopes: unknown[]; latest: number;
+    };
+    expect(body.envelopes).toHaveLength(0);
+  });
+
+  // The half that turns a stale read into a hang. `latest` is the client's loop bound, so if
+  // it counts a row the page will not return, the client pulls the same page forever waiting
+  // for a seq that can never arrive.
+  it('excludes expired rows from latest, so the page and its loop bound agree', async () => {
+    const pairing = await bootstrap('tok');
+    await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1) });
+    await runInDurableObject(env.PAIRING.get(env.PAIRING.idFromName(pairing)), async (_i, state) => {
+      expiredRow(state.storage.sql, 'e2p', 2);
+    });
+    const body = await (await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') })).json() as {
+      envelopes: { seq: number }[]; latest: number;
+    };
+    expect(body.envelopes.map((e) => e.seq)).toEqual([1]);
+    expect(body.latest).toBe(1);
+  });
+
+  // The push guard deliberately keeps counting expired-but-uncollected rows: serving one is
+  // a retention failure, forgetting one lowers the replay floor. Opposite rows, opposite
+  // rules, same table -- pinned so the pull fix is never "tidied" into push.
+  it('still refuses a seq at or below an expired-but-uncollected row', async () => {
+    const pairing = await bootstrap('tok');
+    await runInDurableObject(env.PAIRING.get(env.PAIRING.idFromName(pairing)), async (_i, state) => {
+      expiredRow(state.storage.sql, 'e2p', 5);
+    });
+    const res = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 5) });
+    expect(res.status).toBe(409);
+  });
+
+  // What the relay's monotonicity guard is NOT. It is MAX(seq) over live rows, so collection
+  // removes the floor along with the rows. §6.2 puts the authoritative replay check on the
+  // receiver's persisted high-water mark; this test exists so nobody reads the relay guard as
+  // a durable one and moves the receiver's obligation onto it.
+  it('loses its replay floor once the queue is emptied — the receiver owns that rule', async () => {
+    const pairing = await bootstrap('tok');
+    await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 9) });
+    await runInDurableObject(env.PAIRING.get(env.PAIRING.idFromName(pairing)), async (instance) => {
+      instance.purgeAll();
+    });
+    const replay = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1) });
+    expect(replay.status).toBe(201);
+  });
 });
 
 describe('unpair', () => {
