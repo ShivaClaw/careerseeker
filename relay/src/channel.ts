@@ -165,6 +165,17 @@ export class PairingChannel extends DurableObject<Env> {
 
     // Relay-side monotonicity: duplicates and regressions are refused at the door, so a
     // compromised sender cannot fill the queue with replays for the receiver to reject.
+    //
+    // This deliberately counts expired-but-uncollected rows, unlike `pull` below. The two
+    // want opposite things from the same rows: serving one is a retention failure, while
+    // forgetting one lowers the replay floor. Keeping them here is strictly the more
+    // conservative reading, and it costs nothing — a sender's next seq is above them anyway.
+    //
+    // What this guard is NOT is a durable replay authority. It is `MAX(seq)` over live rows,
+    // so once the TTL purge empties a direction the floor is gone and seq 1 is accepted
+    // again (pinned in test/relay.test.ts). §6.2 puts the authoritative check on the
+    // receiver, which persists its own high-water mark; this is defence in depth with a
+    // TTL-shaped lifetime, and reading it as more than that would misplace the guarantee.
     const last = this.sql
       .exec<{ m: number | null }>('SELECT MAX(seq) AS m FROM envelopes WHERE dir = ?', dir)
       .one().m;
@@ -196,15 +207,30 @@ export class PairingChannel extends DurableObject<Env> {
     const since = Number(url.searchParams.get('since') ?? '0');
     if (!Number.isInteger(since) || since < 0) return this.json({ error: 'bad_request' }, 400);
 
+    // Retention is enforced HERE as well as in the alarm, and the two are not redundant.
+    // The alarm is the collector; this is the promise. §2 says the relay MUST purge anything
+    // past its TTL, and purging is driven by `alarm()`, which Cloudflare schedules but does
+    // not guarantee to run the instant a row expires. Between expiry and collection the rows
+    // are still in SQLite, and a read path without this predicate hands expired ciphertext
+    // back to a caller — retention that holds only as fast as a background job is not the
+    // retention §2 describes.
+    //
+    // `latest` MUST use the same predicate as the page, not merely a similar one. It is the
+    // client's loop bound ("pull until you have seen `latest`"), so a `latest` counting a row
+    // the page cannot return is a bound the client can never reach: it re-pulls the same page
+    // forever, and the stall lasts until the alarm collects the row. The disagreement, not the
+    // stale row, is what turns this from an untidiness into a hang.
+    const now = Math.floor(Date.now() / 1000);
+
     const rows = this.sql
       .exec<{ ciphertext: string; seq: number }>(
-        'SELECT ciphertext, seq FROM envelopes WHERE dir = ? AND seq > ? ORDER BY seq LIMIT ?',
-        dir, since, PULL_PAGE_SIZE,
+        'SELECT ciphertext, seq FROM envelopes WHERE dir = ? AND seq > ? AND expires_at > ? ORDER BY seq LIMIT ?',
+        dir, since, now, PULL_PAGE_SIZE,
       )
       .toArray();
 
     const latest = this.sql
-      .exec<{ m: number | null }>('SELECT MAX(seq) AS m FROM envelopes WHERE dir = ?', dir)
+      .exec<{ m: number | null }>('SELECT MAX(seq) AS m FROM envelopes WHERE dir = ? AND expires_at > ?', dir, now)
       .one().m ?? 0;
 
     return new Response(
