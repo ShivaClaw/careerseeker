@@ -248,6 +248,35 @@ describe('push / pull envelope flow', () => {
     expect((await call(`/v1/${pairing}/pull?since=0`, { headers: bearer('tok') })).status).toBe(400);
   });
 
+  // The 409 body, not just its status. `latest` is the relay's high-water mark for the
+  // direction, and it is the input §6.1's counter reconciliation needs: a sender whose
+  // persisted counter has fallen behind can only retry an envelope the relay refuses
+  // forever unless it is told the floor. The android :core RelayClient parses this field
+  // into RelayResult.Conflict, so it is a cross-repo contract with nothing pinning it here.
+  it('reports its high-water mark in the refusal, not just the status', async () => {
+    const pairing = await bootstrap('tok');
+    await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 7) });
+    const dup = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 7) });
+    expect(dup.status).toBe(409);
+    expect(await dup.json()).toEqual({ error: 'replay_rejected', latest: 7 });
+  });
+
+  // The relay is a pipe, and §3's "unknown top-level fields MUST be rejected" binds the
+  // RECEIVERS, not the relay: a relay that stripped fields it did not recognise would
+  // silently repair envelopes the receivers are required to reject, and the rule would stop
+  // being testable end to end. Pinned because it is the wire behaviour PQ-A2-3's
+  // invalid-unknown-field vector depends on -- the field has to survive the trip to be
+  // rejected at the far end.
+  it('carries an unknown top-level field through to the receiver verbatim', async () => {
+    const pairing = await bootstrap('tok');
+    await call(`/v1/${pairing}/push`, {
+      method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1, { future_field: 'surprise' }),
+    });
+    const body = await (await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') })).json() as {
+      envelopes: Record<string, unknown>[];
+    };
+    expect(body.envelopes[0]!.future_field).toBe('surprise');
+  });
 });
 
 // §2: "The relay MUST purge any envelope older than the configured TTL." Collection is
