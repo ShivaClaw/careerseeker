@@ -206,7 +206,7 @@ Phone → engine:
 | `doc_edit` | `{app_id, doc_kind, base_rev, new_text, device_sig}`. See §5.4 and §8. |
 | `outcome` | Pro: `{app_id, outcome, at}`. `outcome` ∈ `sent` \| `replied` \| `interview` \| `offer` \| `rejected`. |
 | `entitlement` | `{original_json, signature}` — Google Play's signed purchase payload. Body in §4.3.2. State-changing: the envelope MUST carry `sig` (§5.4). |
-| `pull_request` | `{since_seq}` — ask the engine to re-publish from a sequence point. |
+| `pull_request` | `{since_seq}` — ask the engine to re-publish the whole dashboard as a fresh `snapshot`. `since_seq` is **reserved in v1** and carries no meaning: senders MUST send `0`, receivers MUST ignore it. Body in §4.3.4. |
 | `error` | §7.2. |
 
 **Reserved, not implemented in v1.** These names are claimed so a future L2 cannot collide
@@ -351,6 +351,67 @@ reachable only through an ack — and never through a locally-computed verdict o
 is a phone-side design boundary recorded as PQ-A2-4 in the android repo, and it is
 load-bearing: a device that could self-certify its own entitlement would be a device with
 an incentive to.
+
+### 4.3.4 Pull request body (`pull_request`)
+
+**Decided 2026-08-10 (PQ-S4-1, option (a)).** A `pull_request` means exactly one thing in
+v1: *send me the current dashboard state as a fresh `snapshot`*. It is **not** resumable.
+
+```
+pull_request body = {
+  "since_seq": <long>   // RESERVED in v1 — MUST be 0, MUST be ignored by the receiver
+}
+```
+
+- A sender MUST set `since_seq` to `0`.
+- A receiver MUST answer with a full `snapshot` — never a `delta`, and never a replay of
+  the envelopes above some sequence point.
+- A receiver MUST NOT reject a `pull_request` whose `since_seq` is non-zero. The field is
+  reserved, not validated: a sender that fills it in honestly is asking for something v1
+  cannot express, and a full snapshot is the correct answer to that question anyway.
+  Rejecting it would turn a forward-compatible request into a stalled stream.
+
+This replaces the earlier one-line description, "ask the engine to re-publish **from a
+sequence point**", which described an intent that no implementation has ever had. What
+ships on both sides today, measured rather than recalled:
+
+- **Engine.** `InboundDispatcher` (`src/Sync/InboundDispatcher.cs:105-111`) parses the
+  field — `ReadSinceSeq`, defaulting to `0` on any parse failure — and hands it to
+  `ISnapshotRepublisher.RepublishSnapshotAsync(since, ct)`. **Every implementation of that
+  interface ignores the argument.** `LiveRepublisher`
+  (`tests/SyncLiveSmoke/Program.cs:311-312`) calls `PublishSnapshotAsync(...)`
+  unconditionally; `RecordingRepublisher` (`tests/SyncHarness/Program.cs:756-758`) only
+  records the value so the harness can assert it round-tripped. No shipping code path lets
+  `since_seq` change what is sent.
+- **Phone.** `PullPolicy` always sends `0`, for every reason it asks — cold start, a
+  `delta` refused for want of a snapshot, or a §6.2 gap.
+
+**Why the spec moves to the code rather than the code to the spec.** Resumption is not
+merely unimplemented here; it conflicts with §6.2. A large gap is defined as a signal to
+request *a fresh `snapshot`*, and a resumable pull cannot express "start over" — the two
+features want the same kind to mean opposite things. Reporting a real high-water mark
+would also encode a request the current engine ignores but a future one might honour, and
+on the exact path where honouring it is wrong: the gap case would come back as deltas
+resuming after N, which is what §6.2 says not to do. `0` is the only value that means "I
+hold nothing usable, send everything" under both the engine that exists and the engine
+that might.
+
+**A v2 that wants resumption needs a different shape, not this field.** It needs a way to
+ask for a snapshot *specifically* — a distinct kind, or an explicit discriminator — because
+once a pull can resume, §6.2's "ask for a fresh snapshot" has no wire form left. Widening
+`since_seq` in place would silently change what every v1 sender's `0` means.
+
+**Note the field-name collision, because it is confusing on first read.** §4.3.1's `delta`
+body also has a `since_seq`, and *that* one is live: it is the last envelope the publisher
+sent, and the receiver applies latest-wins over what it holds. Same name, two fields, two
+directions, and only one of them carries meaning. A reader who has seen `delta.since_seq`
+work should not infer this one does.
+
+This is a reserved **field**, which is a different thing from the reserved **kinds** listed
+under §4.3: a reserved kind MUST be rejected as `unknown_kind`, while this field MUST be
+accepted and ignored. The asymmetry is deliberate — rejecting an unknown kind refuses
+traffic v1 cannot understand, whereas rejecting this field would refuse a request v1
+understands perfectly.
 
 ### 4.4 Chunking
 
@@ -567,7 +628,16 @@ A receiver tracks the highest `seq` it has accepted per direction. It MUST:
 - **reject** `seq <= highest_accepted` with `replay_rejected` (§7.2), before decryption;
 - **accept** `seq > highest_accepted`, including gaps — the relay's TTL purge creates
   legitimate gaps and a gap MUST NOT stall the stream;
-- treat a large gap as a signal to request a fresh `snapshot`, not as an error.
+- treat a large gap as a signal to request a fresh `snapshot` (via `pull_request`, §4.3.4),
+  not as an error.
+
+**What counts as "large" is receiver policy, and v1 deliberately pins no number.** The
+threshold cannot be a wire-level constant because only one side ever has an opinion: the
+engine answers a `pull_request` but never sends one, so the number lives entirely in the
+asking implementation and no third implementation can observe another's choice. A receiver
+SHOULD document the value it picked and whether it was measured or chosen. The phone's is
+a constructor parameter defaulting to **32**, labelled in its own source as chosen rather
+than measured — there is no deployment to derive it from yet.
 
 Rejection happens on the header, before any decryption attempt, so a replayed envelope
 costs a comparison rather than a crypto operation.
@@ -656,6 +726,8 @@ auditable rather than silent:
 | This doc (P0/§3.1) | "An envelope MUST NOT exceed **1 MiB** total" | the cap is on the **decoded ciphertext**, which is what both shipping receivers always measured; the relay's own limits are stated separately and are stricter (§3.1, S5 / PQ-A2-1) |
 | This doc (§3) | structural rejection had no named error code | structural rejection reports `decrypt_failed`; no `malformed` code is added, so the observable set does not grow (§3, §7.2, S5 / PQ-A2-2) |
 | This doc (§4.3) | `entitlement_ack` listed with no body | body is `{product_id, acknowledged_at, order_id?}` (§4.3.3, S5 / gate PQ-A6-1, default-proceed) |
+| This doc (§4.3) | `pull_request` — "re-publish **from a sequence point**" | v1 `pull_request` is a whole-snapshot request; `since_seq` is **reserved**, MUST be `0`, MUST be ignored, and MUST NOT be a rejection reason (§4.3.4, S4 / PQ-S4-1 option (a)) |
+| This doc (§6.2) | "treat a large gap as a signal to request a fresh `snapshot`" — no threshold | unchanged in substance; §6.2 now states explicitly that the threshold is **receiver policy** and that v1 pins no number, since only the asking side ever has an opinion (§6.2, S4 / PQ-S4-1) |
 
 `CareerSeeker-Spec.md` §7.2 is amended in the same commit that introduces this file. Two
 documents disagreeing about a wire format is precisely the drift `CLAUDE.md` exists to
