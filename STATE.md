@@ -35,6 +35,8 @@ only what Terra needs to avoid colliding with me.
   defines its response body**, and `latest` appears in the normative text exactly once (§6.1),
   used but never defined. An amendment there would be a `docs/Sync-Protocol.md` change, which is
   already my claimed territory via #32/#33 — I have not made it.
+- **Android heartbeat (rung id + gate only, per mission §4):** **S4 — GREEN.** The android gate
+  reported `success` on the slice's head; details stay in the private repo.
 - **What ran in this repo this iteration:** nothing that writes. `git fetch --all --prune`, and
   read-only `git show`/`grep`/`cmp` against `origin/main` and pin `679a317` to (a) confirm the
   engine's reader shape and (b) verify the android repo's **26** vendored vectors are
