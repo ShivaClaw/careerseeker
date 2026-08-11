@@ -165,10 +165,94 @@ exchanged between engine and phone and invisible to the relay. The bodies above 
 payload at all. Two names appear in both vocabularies with the same meaning
 (`replay_rejected`, `too_large`), which is exactly why the split is easy to miss;
 `bad_request` appears in neither §7.2 nor anywhere else in this document, and nor do
-`unauthorized`, `not_found`, `method_not_allowed` or `upgrade_required`, all of which the
-relay also emits. **Read `{"error": …}` as transport and `{"code": …}` as payload.** v1
-pins the push mapping above and **no other route's**; the remaining transport bodies are
-observed rather than normative, and are recorded as **PQ-S2-3** rather than invented here.
+`unauthorized`, `not_found`, `method_not_allowed`, `upgrade_required` or `exists`, all of
+which the relay also emits. **Read `{"error": …}` as transport and `{"code": …}` as
+payload.** The remaining routes are pinned in §2.3.
+
+### 2.3 Transport responses for the remaining routes
+
+**Decided 2026-08-11 (PQ-S2-3, option (a)).** §2.2 pinned `push` and said in terms that v1
+pinned "no other route's". This pins the rest. Every line below was **measured under
+miniflare against the Worker source and written down second** — this section is
+descriptive, and it changes no relay behaviour. That direction is deliberate: §3.1's
+amendment forbids the relay refusing what this document declares legal, and a transport
+section written from the spec downwards is how that bug got in the first time.
+
+**The vocabulary is nine codes, not eight.** PQ-S2-3's table listed eight and dropped
+`exists`; §2.2's prose inherited the omission. The full set, measured
+(`relay/test/relay.test.ts`, "emits exactly nine transport codes"):
+
+`bad_request`, `exists`, `method_not_allowed`, `not_found`, `pairing_unknown`,
+`replay_rejected`, `too_large`, `unauthorized`, `upgrade_required`.
+
+| Route | Status | Body |
+| --- | --- | --- |
+| `POST /create` | 201 | `{"ok": true}` — channel bootstrapped |
+| | 200 | `{"ok": true, "rotated": true}` — provisional → final (§5.2.3) |
+| | 409 | `{"error": "exists"}` — channel exists and no `rotate_to` was sent |
+| | 400 | `{"error": "bad_request"}` — `rotate_to` was not 64 hex chars |
+| | 401 | `{"error": "unauthorized"}` — bearer absent, empty, or not the channel's |
+| `POST /pair` | 201 | `{"ok": true}` — completion stored |
+| | 409 | `{"error": "exists"}` — a completion is already stored |
+| | 400 | `{"error": "bad_request"}` — unparseable, or a required field missing |
+| | 413 | `{"error": "too_large"}` — body over 16 KiB |
+| `GET /pair` | 200 | **the stored completion document, raw** — not wrapped in `{"ok": …}` |
+| | 404 | `{"error": "not_found"}` — nothing waiting (see below) |
+| `GET /pull` | 200 | §2.1's body |
+| | 400 | `{"error": "bad_request"}` — `dir` absent/unknown, or `since` not a non-negative integer |
+| `GET /live` | 101 | WebSocket upgrade |
+| | 426 | `{"error": "upgrade_required"}` — no `Upgrade: websocket` header |
+| | 400 | `{"error": "bad_request"}` — `dir` absent or unknown |
+| `DELETE /v1/{pairing}` | 200 | `{"ok": true, "purged": <integer>}` — `purged` counts **envelopes**, not storage keys |
+| `GET /v1/health` | 200 | `{"ok": true, "protocol": 1, "phase": …}` — no credential, no pairing information |
+| any | 404 | `{"error": "not_found"}` — path shape wrong, or unknown route under a valid credential |
+| | 404 | `{"error": "pairing_unknown"}` — pairing id **malformed** (see below) |
+| | 401 | `{"error": "unauthorized"}` — bearer absent/empty, or not this channel's |
+| | 405 | `{"error": "method_not_allowed"}` — known route, wrong method |
+
+Three rules a client may rely on:
+
+- **Key off the HTTP status.** Every transport error body is exactly `{"error": …}`; the
+  **only** one carrying a second field is push's 409 `latest` (§2.2). A client that needs
+  to act on something other than a status has exactly one case to special-case.
+- **`{"error": …}` is transport and `{"code": …}` is payload**, always. Measured, the two
+  vocabularies share exactly **three** names out of nine transport and ten payload codes:
+  `replay_rejected` and `too_large` mean the same thing in each, and **`pairing_unknown`
+  means something different in each** — which is the worse of the two cases, and the
+  subject of the last note in this section. §2.2 states why the overlap is the dangerous
+  half rather than the gap.
+- **409 is three different answers.** `create` and `pair` answer `{"error": "exists"}`,
+  meaning "already done, nothing to reconcile"; `push` answers
+  `{"error": "replay_rejected", "latest": N}`, meaning "your counter is behind, and here is
+  the number". A client MUST NOT read one as the other.
+
+**`GET /pair`'s 404 is an ordinary state, not a statement about the pairing.** It is the
+answer both before the phone posts a completion and after the engine's one-shot read has
+taken it. A client MUST NOT infer from it that the pairing has been purged.
+
+**`pairing_unknown` on the transport means the id is MALFORMED — never that the pairing is
+unknown.** This is the one place where a transport code's name actively misleads, and it is
+worth reading twice. Measured: a well-formed pairing id that was never created answers
+**401**, and a pairing that has been purged by `DELETE` answers **401 on every route** —
+`pull`, `push`, `pair` and `DELETE` alike. The only way to see `pairing_unknown` is to send
+an id that fails the `p_` + 16-base64url-char shape check, which the relay rejects
+**before** it authenticates anything.
+
+**So §7.2's `pairing_unknown` condition — "the relay has no Durable Object for this
+pairing" — has no transport code at all.** It is reported as `unauthorized`, exactly like a
+wrong token. That is defensible as a privacy property rather than an oversight: a purged
+pairing is indistinguishable from one that never existed, so the relay never answers "did
+this pairing ever exist?" to a caller holding the wrong credential — and measured, the same
+pairing id re-bootstraps with `POST /create` afterwards, so there is no tombstone to
+disclose. **v1 pins the 401, and does not add a code.**
+
+**Conformance note, stated because neither client currently gets this right.** A receiver
+that treats 401 as "fetch a fresher bearer and retry" and 404 as "the pairing is gone" has
+the two conditions exactly backwards for the unpair case: it will retry a credential path
+that cannot succeed, and its terminal state will never be reached. **The cost, and which
+implementation is affected, is recorded as PQ-S2-4 in the android repo** — the fix touches
+two codebases and a product decision about what a phone should show when it has been
+unpaired remotely, so it is not made here.
 
 ---
 
