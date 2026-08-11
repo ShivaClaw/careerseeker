@@ -727,16 +727,56 @@ unchanged, which is why it is built now rather than when L2 needs it.
 ### 6.1 Sequence numbers
 
 Each direction has an independent counter starting at 1, incremented per envelope, and
-**persisted by the sender across restarts**. This is load-bearing on the engine side: the phone
-persists its highest-accepted e2p seq — it survives a process restart (a fresh in-memory receiver
-would otherwise re-accept an old seq) — so an engine that resumed its counter at 1 after its own
-restart would have every envelope, *including the recovery `snapshot`*, rejected as
-`replay_rejected`: a silent, total, one-sided sync death. The engine MUST therefore resume its
-e2p counter above `max(persisted_seq, relay_latest_e2p_seq)` — the value from its pairing store,
-reconciled on startup against the relay's current `latest` for the direction
-(`GET /pull?dir=e2p&since=0` returns it — the field is defined in §2.1) as a
-belt-and-suspenders should the store lag. The
-pairing store is the device-session deliverable; this rule is what it must satisfy.
+**persisted by the sender across restarts**.
+
+**The resume rule, and it binds whichever side is sending.** A sender MUST resume its
+counter above `max(persisted_seq, relay_latest_seq_for_that_direction)` — the value from
+its own store, reconciled against the relay's current high-water mark for the direction as
+a belt-and-suspenders should the store lag. **Two sources carry the relay's number and a
+sender MAY use either**: `GET /pull?dir=…&since=0` returns it as `latest` (§2.1), and a
+refused `POST /push` returns the same number as `latest` in its 409 body (§2.2), at the
+moment the sender is proved to need it.
+
+**The engine's e2p case is the worked example, and it is the severe one.** The phone
+persists its highest-accepted e2p seq, so the mark survives a process restart — a fresh
+in-memory receiver would otherwise re-accept an old seq. An engine that resumed its counter
+at 1 after its own restart would therefore have every envelope it sends, *including the
+recovery `snapshot`*, rejected as `replay_rejected`: a silent, total, one-sided sync death.
+
+**The phone owes the identical obligation on `p2e`, and until 2026-08-11 this section asked
+only the engine** (PQ-S6-2). The relay does not care who is sending: `POST /push` refuses
+`seq <= last` per direction (§2.2) whichever end pushed it. A phone whose persisted p2e
+counter has fallen behind — a restore from backup, a rolled-back store, a counter persisted
+only after a push whose response was lost — builds envelopes the relay refuses at the door
+until the counter climbs back. **The consequence is smaller than the engine's, and that is
+why the asymmetry was easy to write rather than why it is optional**: marks and entitlements
+stall rather than the dashboard dying. A second phone implementation reading the old text
+had no rule to follow at all.
+
+Note that the first sentence of this section already bound **both** senders to persist;
+what was engine-only was the *recovery* rule above. The pairing store on each side is the
+device-session deliverable; this rule is what it must satisfy.
+
+> **Conformance note, measured 2026-08-11, and stated because a spec that quietly outruns
+> its implementations is a defect in the spec** (the §2.1 precedent). Neither shipping
+> sender fully satisfies the rule as written, and this note is not a grant of exemption —
+> both gaps are unblocked implementation work.
+>
+> - **Engine.** `src/Engine/Program.cs:288` constructs the publisher with
+>   `startSeq: paired.LastE2pSeq` — the persisted term **only**, with no reconciliation
+>   against the relay — although the comment block ten lines above it states the `max(…)`
+>   rule verbatim. Compounding it, `RelayClient.PushAsync` (`src/Sync/RelayClient.cs:51-60`)
+>   returns `bool` from `res.StatusCode is HttpStatusCode.Created`, so the 409's `latest` is
+>   discarded unread and a replay refusal is indistinguishable from a timeout. Recorded as
+>   **PQ-S6-3**.
+> - **Phone.** It reads the number (`RelayClient.conflictLatest`) and reconciles through
+>   `OutboundQueue.reconciled()`, but nothing persists its p2e counter yet: `SeqSource` is
+>   a `fun interface` whose **only implementation in the tree is a test double**
+>   (`OutboundQueueTest.kt:30`) — there is no production counter to persist, in memory or
+>   otherwise. Recorded as the android tree's **B-8**.
+>
+> The rule is stated for both senders regardless, because it is a safety property rather
+> than a matter of style, and because it was already normative for one of the two.
 
 ### 6.2 Receiver rules
 
