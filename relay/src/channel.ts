@@ -5,6 +5,7 @@ import {
   ENVELOPE_TABLE_DDL,
   MAX_CIPHERTEXT_B64U_CHARS,
   MAX_PUSH_BODY_CHARS,
+  MAX_SEQ,
   MAX_TTL_SECONDS,
   PULL_PAGE_SIZE,
   type Direction,
@@ -149,7 +150,12 @@ export class PairingChannel extends DurableObject<Env> {
     if (
       env.v !== 1
       || !DIRECTIONS.includes(dir as Direction)
-      || !Number.isInteger(seq) || seq < 1
+      // `Number.isInteger` alone is NOT a range check: it is true for every finite double,
+      // including 1e300, so the old guard admitted everything up to ~1.8e308 and refused
+      // only Infinity. §3.2 caps `seq` at 2^53 - 1; above that this relay's own arithmetic
+      // stops agreeing with the receivers' 64-bit integers, and the `latest` it reports
+      // back becomes either silently rounded or unparseable to them.
+      || !Number.isInteger(seq) || seq < 1 || seq > MAX_SEQ
       || typeof env.ts !== 'string'
       || typeof env.key_id !== 'string'
       || typeof env.nonce !== 'string'
