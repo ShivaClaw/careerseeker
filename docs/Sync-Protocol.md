@@ -81,9 +81,15 @@ without ever being defined. This section defines it.
   `relay/src/protocol.ts:64`), so a full page does not mean the stream is drained. A
   client MUST decide whether more remains by comparing its cursor against `latest`, and
   MUST NOT infer "caught up" from a short or empty `envelopes` array.
-- A body that cannot be read under these rules is a **transport failure**, not an empty
-  page. A receiver MUST surface it as an unavailability and MUST NOT let it reach the
-  caller as a successful pull of zero envelopes.
+- A body that cannot be read under these rules MUST NOT be treated as an empty page: a
+  receiver MUST NOT let it reach the caller as a successful pull of zero envelopes. It
+  SHOULD be reported as a transport failure. The distinction is deliberate — the MUST is
+  the safety property, and the SHOULD is reporting style, which the two receivers can
+  reasonably differ on: the phone returns `RelayResult.Unavailable` because the failure
+  lands in a background sync coroutine, while the engine's `PullAsync`
+  (`src/Sync/RelayClient.cs`) lets the parse throw to its caller. Both refuse the silent
+  empty page, which is the half that matters; neither is required to adopt the other's
+  error type.
 
 **Why both fields are required rather than defaulted, which is the load-bearing part.**
 `latest` is the client's loop bound: it drives "is the relay still ahead of me" and §6.2's
