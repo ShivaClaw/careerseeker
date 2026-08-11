@@ -195,7 +195,7 @@ section written from the spec downwards is how that bug got in the first time.
 | `POST /pair` | 201 | `{"ok": true}` — completion stored |
 | | 409 | `{"error": "exists"}` — a completion is already stored |
 | | 400 | `{"error": "bad_request"}` — unparseable, or a required field missing |
-| | 413 | `{"error": "too_large"}` — body over 16 KiB |
+| | 413 | `{"error": "too_large"}` — body over **16,384 characters** (not bytes — see below) |
 | `GET /pair` | 200 | **the stored completion document, raw** — not wrapped in `{"ok": …}` |
 | | 404 | `{"error": "not_found"}` — nothing waiting (see below) |
 | `GET /pull` | 200 | §2.1's body |
@@ -225,6 +225,22 @@ Three rules a client may rely on:
   meaning "already done, nothing to reconcile"; `push` answers
   `{"error": "replay_rejected", "latest": N}`, meaning "your counter is behind, and here is
   the number". A client MUST NOT read one as the other.
+
+**`POST /pair`'s cap counts CHARACTERS, and §3.1's lesson had not reached it.** The check is
+`raw.length > 16 * 1024` on the decoded string, so the unit is UTF-16 code units, not bytes.
+Measured: a body of 16,384 three-byte characters — **49,152 bytes** — passes the cap and
+falls through to `bad_request`, while 16,385 ASCII characters is refused with `too_large`.
+So the effective byte ceiling is up to **3× the number the constant looks like**, and this
+is the same character-versus-byte conflation §3.1 was amended to fix, in a second place
+nobody had written down.
+
+**v1 pins the measured behaviour rather than correcting it**, for the reason §3.1 itself
+gives: tightening the relay to a byte count would refuse completions this document has
+never declared illegal, and the completion body is a small pairing document whose
+worst case is a bounded over-allocation rather than a security property. The cap is
+therefore stated in the unit it actually uses. **A future amendment that wants a byte
+budget must state the byte budget and derive the character constant from it — never the
+other way round**, which is exactly what §3.1's `MAX_CIPHERTEXT_B64U_CHARS` does.
 
 **`GET /pair`'s 404 is an ordinary state, not a statement about the pairing.** It is the
 answer both before the phone posts a completion and after the engine's one-shot read has

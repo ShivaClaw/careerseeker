@@ -255,6 +255,25 @@ describe('transport response bodies, every route (§2.3)', () => {
     expect(await badDir.json()).toMatchObject({ error: 'bad_request' });
   });
 
+  it('POST /pair\'s 413 cap counts characters, not bytes (§3.1\'s lesson had not reached it)', async () => {
+    // `raw.length > 16 * 1024` on the decoded string, so the unit is UTF-16 code units. A body
+    // of 16,384 three-byte characters is 49,152 BYTES and passes the cap — it fails later, on
+    // JSON.parse, which is why the assertion below is `bad_request` rather than 201. This is the
+    // same character-vs-byte conflation §3.1 was amended to fix. Pinned in the unit the relay
+    // actually uses; correcting it to a byte budget would refuse bodies v1 declares legal.
+    const p = await bootstrap('tok');
+    const post = (body: string) =>
+      call(`/v1/${p}/pair`, { method: 'POST', headers: bearer('tok'), body });
+
+    expect((await post('a'.repeat(16_385))).status).toBe(413);
+    expect((await post('a'.repeat(16_384))).status).toBe(400);
+
+    const wide = '한'.repeat(16_384); // 16,384 chars, 49,152 bytes in UTF-8
+    expect(new TextEncoder().encode(wide).length).toBe(49_152);
+    expect((await post(wide)).status).toBe(400); // under the cap despite being 3x the bytes
+    expect((await post('한'.repeat(16_385))).status).toBe(413);
+  });
+
   it('every transport error body is exactly {error} — only push\'s 409 carries a second field', async () => {
     // The rule a client can rely on: read the status, and read `latest` only on a 409 from
     // push. Nothing else in the transport namespace carries actionable data.
