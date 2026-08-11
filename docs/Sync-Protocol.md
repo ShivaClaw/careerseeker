@@ -702,12 +702,62 @@ than measured — there is no deployment to derive it from yet.
 Rejection happens on the header, before any decryption attempt, so a replayed envelope
 costs a comparison rather than a crypto operation.
 
+The mark this section governs is **not** the same number as the pulling receiver's
+transport cursor. See §6.4.
+
 ### 6.3 Clocks are not security inputs
 
 `ts` is advisory: it drives "last seen 2m ago" in the UI and nothing else. A phone with a
 wrong clock, or a relay that delays an envelope, MUST NOT be able to cause a security
 decision to go the wrong way. Freshness comes from sequence numbers and the pairing
 lifetime, never from comparing timestamps.
+
+### 6.4 The transport cursor
+
+**Decided 2026-08-11 (PQ-S4-3).** §6.2 governs `highest_accepted`: the authenticated,
+persisted mark that drives replay rejection. A pulling receiver keeps a *second* number —
+the **transport cursor**, the `since` it sends on its next pull — and this document has
+never said anything about it. The two are deliberately different, and the gap between them
+is where an untrusted relay gets to act.
+
+A receiver MAY advance its transport cursor past envelopes it did not accept and did not
+apply. It has to: an envelope that is re-fetched forever is a page the receiver pulls,
+refuses, and pulls again, and §6.2 already forbids letting one unreadable envelope stall
+the direction.
+
+- The cursor MUST NOT move backwards.
+- The cursor MUST advance only to a `seq` **recovered from the sealed bytes** (§4.1) —
+  except under the bound below. That number is authenticated by the AEAD tag; every other
+  per-element number in the body is a claim, not a fact (§2.1).
+- When an element fails the §3 parse there is no authenticated `seq` to use. The receiver
+  MAY advance the cursor using the element's claimed top-level `seq`, but **MUST NOT
+  advance it beyond the page's `latest`** (§2.1).
+
+**Why bounded, rather than free or refused.** The relay controls this body (§1: blind, but
+not trusted). Left free, one unparseable element carrying `"seq": 1000000` walks the cursor
+past every envelope between the receiver's position and that value — and since the cursor
+never moves backwards, those envelopes are never requested again. That is **history
+truncation performed without decrypting anything**, by a party that cannot read a byte of
+what it just removed from the receiver's view.
+
+Refusing to advance at all is the other wrong answer, and it is wrong for a reason this
+document already states: one corrupt byte would then stall the direction permanently, which
+§6.2 forbids in as many words.
+
+The bound settles it because **the two failure modes are not symmetric**. A stall is
+recoverable and loud: the cursor stays put, `latest` still exceeds it, the receiver still
+reports more available, and the moment the relay serves a readable page the stream resumes
+exactly where it stopped. Truncation is neither — it is silent, it presents as a healthy
+fully-caught-up sync, and it is permanent. **When a receiver must choose between the two,
+it stalls.**
+
+Bounding by `latest` specifically — rather than by some new constant — is what denies the
+relay a *second*, independent lever. `latest` is already the number that decides "am I
+caught up" (§2.1) and already the one §6.1 reconciles a restarted counter against. Capping
+the unauthenticated path there means a malformed element gains the relay no reach it did
+not already have through a field this document **requires** it to publish, and an honest
+relay never notices the rule at all: its `latest` covers every row it serves, so the bound
+is a no-op on every conforming page.
 
 ---
 
@@ -788,6 +838,7 @@ auditable rather than silent:
 | This doc (§4.3) | `entitlement_ack` listed with no body | body is `{product_id, acknowledged_at, order_id?}` (§4.3.3, S5 / gate PQ-A6-1, default-proceed) |
 | This doc (§4.3) | `pull_request` — "re-publish **from a sequence point**" | v1 `pull_request` is a whole-snapshot request; `since_seq` is **reserved**, MUST be `0`, MUST be ignored, and MUST NOT be a rejection reason (§4.3.4, S4 / PQ-S4-1 option (a)) |
 | This doc (§6.2) | "treat a large gap as a signal to request a fresh `snapshot`" — no threshold | unchanged in substance; §6.2 now states explicitly that the threshold is **receiver policy** and that v1 pins no number, since only the asking side ever has an opinion (§6.2, S4 / PQ-S4-1) |
+| This doc (§6) | the **transport cursor** was not described at all — §6.2 governs `highest_accepted` only, so how far an *unparseable* element may move a receiver's `since` was unstated | new **§6.4**: the cursor advances only on a `seq` recovered from the sealed bytes, except that an element failing the §3 parse MAY advance it by its claimed `seq` **bounded by the page's `latest`** — a stall is recoverable, truncation is not (§6.4, S4 / PQ-S4-3) |
 
 `CareerSeeker-Spec.md` §7.2 is amended in the same commit that introduces this file. Two
 documents disagreeing about a wire format is precisely the drift `CLAUDE.md` exists to
