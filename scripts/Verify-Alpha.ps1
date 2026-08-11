@@ -159,6 +159,71 @@ Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
 }
 
+Invoke-Step "Dependency SBOM drift smoke" {
+    & (Join-Path $PSScriptRoot "New-DependencySbom.ps1") -NoRestore -ValidateOnly
+    if ($LASTEXITCODE -ne 0) {
+        throw "Dependency SBOM validation failed."
+    }
+
+    $sbomPath = "docs/Dependency-SBOM.spdx.json"
+    $sbomRaw = Get-Content -LiteralPath $sbomPath -Raw
+    $sbom = $sbomRaw | ConvertFrom-Json
+    if ($sbom.spdxVersion -ne "SPDX-2.3" -or
+        $sbom.dataLicense -ne "CC0-1.0" -or
+        @($sbom.packages).Count -ne 9 -or
+        @($sbom.relationships).Count -ne 9) {
+        throw "Dependency SPDX identity or measured package count drifted."
+    }
+
+    $packageNames = @($sbom.packages | ForEach-Object { $_.name })
+    foreach ($expectedPackage in @(
+        "Microsoft.Data.Sqlite",
+        "Microsoft.Data.Sqlite.Core",
+        "Microsoft.Windows.SDK.BuildTools",
+        "PdfPig",
+        "SQLitePCLRaw.bundle_e_sqlite3",
+        "SQLitePCLRaw.core",
+        "SQLitePCLRaw.lib.e_sqlite3",
+        "SQLitePCLRaw.provider.e_sqlite3",
+        "System.Memory"
+    )) {
+        if ($packageNames -notcontains $expectedPackage) {
+            throw "Dependency SPDX is missing $expectedPackage."
+        }
+    }
+
+    if (@($sbom.packages | Where-Object primaryPackagePurpose -eq "BUILD_TOOL").Count -ne 1 -or
+        @($sbom.packages | Where-Object licenseDeclared -eq "NOASSERTION").Count -ne 2 -or
+        @($sbom.packages | Where-Object { $_.comment -like "CareerSeeker scope: direct-runtime.*" }).Count -ne 3 -or
+        @($sbom.packages | Where-Object { $_.comment -like "CareerSeeker scope: transitive-runtime.*" }).Count -ne 5) {
+        throw "Dependency SPDX scope, purpose, or license boundary drifted."
+    }
+
+    $sbomHash = (Get-FileHash -LiteralPath $sbomPath -Algorithm SHA256).Hash
+    if ($sbomHash -ne "A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E") {
+        throw "Dependency SPDX snapshot SHA-256 drifted: $sbomHash"
+    }
+
+    $inventory = Get-Content -LiteralPath "docs/Dependency-SBOM-Inventory.md" -Raw
+    Assert-Contains $inventory @(
+        "9 unique packages",
+        "3 direct runtime",
+        "5 transitive runtime",
+        "1 build-only",
+        "zero known NuGet advisories were reported for this snapshot",
+        'application projects do not currently commit `packages.lock.json`',
+        "D08 remains **UNPROVEN**",
+        "A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E"
+    ) "docs/Dependency-SBOM-Inventory.md"
+
+    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw
+    Assert-Contains $positioning @(
+        "**UNPROVEN (SBOM evidence prepared)**",
+        "Package identity is not runtime network evidence",
+        "still needed: binary/network audit + deployed-site scan"
+    ) "docs/Positioning.md D08"
+}
+
 Invoke-Step "Alpha workspace initializer dry run" {
     & (Join-Path $PSScriptRoot "Initialize-AlphaWorkspace.ps1") `
         -DryRun `

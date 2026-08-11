@@ -91,13 +91,20 @@ already-configured local credentials and are not part of the default gate:
 - `-IncludePublish`: self-contained `win-x64` executable smoke.
 - `-IncludePackage`: the Beta MSIX build and non-installing self-check.
 
-Never put keys, OAuth client files, resumes, `.appdata`, or `output` in source control. Current package
-dependencies are locked; audit them with:
+Never put keys, OAuth client files, resumes, `.appdata`, or `output` in source control. The complete NuGet
+snapshot is committed as SPDX 2.3 JSON and drift-checked by the default verifier. Application direct
+versions are exact but their transitive graph is not lockfile-enforced; the Windows SDK build tool is
+locked. Regenerate/validate the inventory and query current NuGet advisories with:
 
 ```powershell
+scripts\New-DependencySbom.ps1
+scripts\New-DependencySbom.ps1 -NoRestore -ValidateOnly
 dotnet list CareerSeeker.sln package --vulnerable --include-transitive
 dotnet list tools\WindowsSdkTools\WindowsSdkTools.csproj package --vulnerable --include-transitive
 ```
+
+See `docs/Dependency-SBOM-Inventory.md` for the nine-package snapshot, license/lock boundaries, and the
+explicit reason this package inventory alone does not prove an absence of runtime or site tracking.
 
 ## Engine behavior
 
