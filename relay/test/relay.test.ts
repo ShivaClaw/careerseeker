@@ -255,6 +255,30 @@ describe('transport response bodies, every route (§2.3)', () => {
     expect(await badDir.json()).toMatchObject({ error: 'bad_request' });
   });
 
+  it('rotate_to is LOWERCASE hex only, and uppercase is refused with a bare 400', async () => {
+    // `/^[0-9a-f]{64}$/` — case-sensitive. This is a live interop trap rather than a
+    // curiosity: C#'s `Convert.ToHexString` returns UPPERCASE, and the engine's only caller
+    // (tests/SyncLiveSmoke/Program.cs:84) gets it right solely by an explicit
+    // `.ToLowerInvariant()`. Drop that call and rotation 400s — and `RotateTokenAsync`
+    // returns a bare bool (src/Sync/RelayClient.cs:30-38), so the failure is indistinguishable
+    // from a network error. Pinned so the requirement is a test rather than a habit.
+    const p = await bootstrap('provisional');
+    const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('final')))]
+      .map((b) => b.toString(16).padStart(2, '0')).join('');
+
+    const upper = await call(`/v1/${p}/create`, {
+      method: 'POST', headers: bearer('provisional'), body: JSON.stringify({ rotate_to: digest.toUpperCase() }),
+    });
+    expect(upper.status).toBe(400);
+    expect(await upper.json()).toEqual({ error: 'bad_request' });
+
+    // …and the lowercase form of the same digest rotates, so the only difference is case.
+    const lower = await call(`/v1/${p}/create`, {
+      method: 'POST', headers: bearer('provisional'), body: JSON.stringify({ rotate_to: digest }),
+    });
+    expect(lower.status).toBe(200);
+  });
+
   it('POST /pair\'s 413 cap counts characters, not bytes (§3.1\'s lesson had not reached it)', async () => {
     // `raw.length > 16 * 1024` on the decoded string, so the unit is UTF-16 code units. A body
     // of 16,384 three-byte characters is 49,152 BYTES and passes the cap — it fails later, on

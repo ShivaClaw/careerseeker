@@ -190,7 +190,7 @@ section written from the spec downwards is how that bug got in the first time.
 | `POST /create` | 201 | `{"ok": true}` — channel bootstrapped |
 | | 200 | `{"ok": true, "rotated": true}` — provisional → final (§5.2.3) |
 | | 409 | `{"error": "exists"}` — channel exists and no `rotate_to` was sent |
-| | 400 | `{"error": "bad_request"}` — `rotate_to` was not 64 hex chars |
+| | 400 | `{"error": "bad_request"}` — `rotate_to` was not 64 **lowercase** hex chars (see below) |
 | | 401 | `{"error": "unauthorized"}` — bearer absent, empty, or not the channel's |
 | `POST /pair` | 201 | `{"ok": true}` — completion stored |
 | | 409 | `{"error": "exists"}` — a completion is already stored |
@@ -225,6 +225,16 @@ Three rules a client may rely on:
   meaning "already done, nothing to reconcile"; `push` answers
   `{"error": "replay_rejected", "latest": N}`, meaning "your counter is behind, and here is
   the number". A client MUST NOT read one as the other.
+
+**`rotate_to` is lowercase hex, and this is a live interop trap rather than a curiosity.** The
+relay tests `/^[0-9a-f]{64}$/`, which is case-**sensitive**. C#'s `Convert.ToHexString`
+returns **uppercase**, and the engine's only rotation caller
+(`tests/SyncLiveSmoke/Program.cs:84`) is correct solely because it appends an explicit
+`.ToLowerInvariant()`. Drop that call and rotation is refused with a bare `400` — and
+`RelayClient.RotateTokenAsync` returns a bare `bool` (`src/Sync/RelayClient.cs:30-38`), so
+the failure is indistinguishable from a network error, on the one call that is **one-way and
+locks the engine out of the channel if it half-succeeds**. Senders MUST emit lowercase;
+receivers of this document should not assume a hex string is case-normalised anywhere.
 
 **`POST /pair`'s cap counts CHARACTERS, and §3.1's lesson had not reached it.** The check is
 `raw.length > 16 * 1024` on the decoded string, so the unit is UTF-16 code units, not bytes.
