@@ -37,7 +37,7 @@ its own, and no envelope from anyone creates a path to sending email — see §8
 | `/v1/{pairing}/pair` | POST | Phone submits the pairing completion (§5.2.2) |
 | `/v1/{pairing}/pair` | GET | Engine collects the completion; one-shot (§5.2.2) |
 | `/v1/{pairing}/push` | POST | Append one envelope to the recipient's queue |
-| `/v1/{pairing}/pull?since={seq}&dir={dir}` | GET | Fetch envelopes for direction `dir` with `seq > since` |
+| `/v1/{pairing}/pull?since={seq}&dir={dir}` | GET | Fetch envelopes for direction `dir` with `seq > since`. Response body in §2.1 |
 | `/v1/{pairing}/live` | WSS | Live fan-out while a client is connected |
 | `/v1/{pairing}` | DELETE | Unpair — purge the Durable Object and all queued envelopes |
 | `/v1/health` | GET | Liveness. Returns no pairing information. |
@@ -53,6 +53,59 @@ Transport is HTTPS/WSS only. Clients MUST reject cleartext. Envelopes are JSON, 
 
 **Retention.** The relay MUST purge any envelope older than the configured TTL, which MUST
 NOT exceed 30 days (`CareerSeeker-Spec.md` §8.3). The relay MUST NOT log envelope bodies.
+
+### 2.1 Pull response body
+
+**Decided 2026-08-11 (PQ-S4-2).** The route table above defines the pull *request* and
+stopped there, so each of the three implementations invented its own reading of the
+*response* — and `latest`, which §6.1 already depends on, was used by the normative text
+without ever being defined. This section defines it.
+
+```
+200 body = {
+  "envelopes": [ <envelope>, … ],   // REQUIRED — §3 envelopes, bare, ascending seq
+  "latest": <integer>               // REQUIRED — highest seq the relay holds for dir
+}
+```
+
+- Both fields are **REQUIRED**. A receiver MUST reject a 200 body that omits either one,
+  and MUST NOT substitute a default for a missing field.
+- `envelopes` is a JSON array of **bare §3 envelope objects**, spliced verbatim, in
+  ascending `seq`, every one of them matching the requested `dir` and having
+  `seq > since`. An empty array is legal and means "nothing above your cursor *in this
+  page*" — see the truncation rule below. A receiver MUST NOT accept any other element
+  shape; in particular it MUST NOT accept a `{"seq": N, "envelope": …}` wrapper.
+- `latest` is a JSON **integer** — never a quoted number — and is the highest `seq` the
+  relay currently holds for that direction, or `0` if it holds none.
+- **The page MAY be truncated.** The relay bounds it (`PULL_PAGE_SIZE`, currently 100 —
+  `relay/src/protocol.ts:64`), so a full page does not mean the stream is drained. A
+  client MUST decide whether more remains by comparing its cursor against `latest`, and
+  MUST NOT infer "caught up" from a short or empty `envelopes` array.
+- A body that cannot be read under these rules is a **transport failure**, not an empty
+  page. A receiver MUST surface it as an unavailability and MUST NOT let it reach the
+  caller as a successful pull of zero envelopes.
+
+**Why both fields are required rather than defaulted, which is the load-bearing part.**
+`latest` is the client's loop bound: it drives "is the relay still ahead of me" and §6.2's
+gap check. A receiver that defaults an absent `latest` to `0` computes `cursor < 0`, which
+is false, and therefore reports a healthy, fully-caught-up, permanently empty sync. **The
+relay is the party that controls this body** (§1: blind, but not trusted), so that is one
+deleted field standing between a working sync and a silent stall with no error anywhere.
+Rejecting the body is loud; defaulting it is not. The same argument applies to `envelopes`
+in mirror image — absent, defaulted to `[]`, it asserts "nothing to do" and "the relay is
+ahead of you" in the same breath.
+
+**Why the wrapper shape is refused.** No implementation emits it. The relay splices bare
+envelope JSON (`relay/src/channel.ts`, `pull`: `rows.map((r) => r.ciphertext).join(',')`),
+the engine's reader has no branch for it (`src/Sync/RelayClient.cs`, `PullAsync`), no test
+vector contains a page at all, and this document never described one. It was accepted by
+exactly one client and produced by none. Beyond being dead, it is **harmful**: the `seq` it
+carries is the relay's own unauthenticated number, and it can disagree with the
+authenticated `seq` inside the envelope that the AAD covers (§4.1). A client that advanced
+a cursor on the wrapper's number could be walked past envelopes it never read by a relay
+that cannot decrypt a byte of them. Any per-envelope sequence a client reads before
+decryption is a **claim**; only the `seq` recovered from the sealed bytes is a fact, and
+§6.2's rules run on the latter.
 
 ---
 
@@ -618,7 +671,8 @@ restart would have every envelope, *including the recovery `snapshot`*, rejected
 `replay_rejected`: a silent, total, one-sided sync death. The engine MUST therefore resume its
 e2p counter above `max(persisted_seq, relay_latest_e2p_seq)` — the value from its pairing store,
 reconciled on startup against the relay's current `latest` for the direction
-(`GET /pull?dir=e2p&since=0` returns it) as a belt-and-suspenders should the store lag. The
+(`GET /pull?dir=e2p&since=0` returns it — the field is defined in §2.1) as a
+belt-and-suspenders should the store lag. The
 pairing store is the device-session deliverable; this rule is what it must satisfy.
 
 ### 6.2 Receiver rules
