@@ -78,7 +78,7 @@ The envelope is the only structure the relay parses.
 | `v` | int | Protocol version. MUST be `1`. See §7. |
 | `pairing` | string | Pairing id, `p_` + 16 base64url chars. Opaque; not derived from anything personal. |
 | `dir` | string | `e2p` (engine→phone) or `p2e` (phone→engine). |
-| `seq` | int | Per-direction monotonic counter, starts at 1. See §6. |
+| `seq` | int | Per-direction monotonic counter, starts at 1, maximum `2^53 - 1`. See §3.2 and §6. |
 | `ts` | string | RFC 3339 UTC, sender's clock. **Advisory only** — never used for security decisions (§6.3). |
 | `key_id` | string | Which derived key encrypted this. See §5.3. |
 | `nonce` | string | base64url, 12 bytes, unpadded. Fresh CSPRNG value per envelope. |
@@ -152,6 +152,78 @@ count to a byte budget, which capped the decoded payload at 786,432 bytes and le
 relay now derives its cap from this section's, and `relay/test/relay.test.ts` pins the
 derivation, the maximum legal envelope surviving a push/pull round trip, and the first
 character beyond it.
+
+### 3.2 Sequence number range
+
+`seq` starts at 1 (§6.1) and **MUST NOT exceed 9,007,199,254,740,991** — `2^53 - 1`.
+
+- A **sender** MUST NOT emit a larger value.
+- The **relay** MUST reject one with HTTP 400 `bad_request`, alongside its other header-shape
+  checks and before the monotonicity comparison. It carries no counter evidence: a rejected
+  envelope was never appended, so there is nothing for `latest` to report.
+- A **receiver** SHOULD treat a larger value as a structural rejection (`decrypt_failed`, §3).
+  SHOULD rather than MUST because the relay is the only ingress, so this is defence in depth
+  rather than the property being protected — see the conformance note below.
+
+**Why this number and not `2^63 - 1`.** The three implementations do not agree above it. Both
+receivers type `seq` as a 64-bit integer (`src/Sync/EnvelopeCodec.cs:7` `long Seq`; the Kotlin
+header likewise). The relay is JavaScript: it reads `seq` through `JSON.parse` into an IEEE-754
+double and writes it back into `latest` the same way. `2^53 - 1` is the largest integer all
+three represent **exactly**, so it is the largest value at which "the counter the sender wrote"
+and "the counter the relay reports" are guaranteed to be the same number. A cap chosen for the
+relay's convenience would be the §3.1 mistake again; this one is chosen at the point where the
+wire stops being unambiguous, which is a property of the protocol rather than of one party.
+
+**What went wrong above it, measured.** The previous text stated no maximum at all, and
+`relay/src/channel.ts` checked only `Number.isInteger(seq) && seq >= 1`. `Number.isInteger` is
+true for every finite double, including `1e300`, so the reachable range ran to ~1.8e308 and only
+`Infinity` was refused. Measured under miniflare against the real Worker, in three bands:
+
+| pushed `seq` | relay reported `latest` as | consequence |
+| --- | --- | --- |
+| `4611686018427387904` (`2^62`) | `4611686018427388000` | **silently rounded** — the relay's counter and the sender's differ by 96, and both receivers parse it happily |
+| `10000000000000000000` (`1e19`) | `10000000000000000000` | above `Long.MaxValue`; plain decimal, and **neither receiver can parse it** |
+| `1e300` | `1e+300` | exponent notation; **neither receiver can parse it** |
+
+Two distinct wire values also collide: pushing `9007199254740992` then `9007199254740993`
+answered `201` and then `409 {"error":"replay_rejected","latest":9007199254740992}` — the second
+envelope carries a strictly larger integer and is refused as a **replay**, because both land on
+the same double.
+
+**The read path is the severe half, and it is why this is worth a rule rather than a note.** A
+single out-of-range envelope was already known to refuse every later push in that direction
+(`seq <= MAX(seq)` → 409, for the life of the row). What was not recorded is that it also breaks
+`GET /pull` for that direction: `latest` is emitted from the same double, and both receivers
+parse it strictly — `RelayClient.PullAsync` reads `GetProperty("latest").GetInt64()`
+(`src/Sync/RelayClient.cs:74`) with no catch on the path, and the phone's `strictLong` falls
+through `toLongOrNull()` to a rejected page (`core/.../RelayClient.kt:258-262`, reported as
+`Unavailable`). **So the envelope does not merely wedge the direction; it disables the recovery
+§6.1 prescribes for exactly this situation**, which reconciles by reading `latest` from
+`GET /pull?dir=…&since=0`. One garbage counter from one buggy sender takes out both the write
+path and the instrument used to diagnose it.
+
+**Spec first, then the relay — deliberately.** Refusing an envelope this document declares legal
+is the one thing §3.1's amendment forbids, so the bound had to be stated here before
+`relay/src/channel.ts` could enforce it. `MAX_SEQ` in `relay/src/protocol.ts` is
+`Number.MAX_SAFE_INTEGER`, which *is* `2^53 - 1` — spelled as the derivation and not as a
+literal, for the reason §3.1 gives about round numbers.
+
+**The bound is not a constraint any real sender can feel.** At one envelope per second per
+direction, `2^53 - 1` is roughly 285 million years.
+
+**Conformance, measured rather than assumed.** Both senders already conform and neither needed a
+change: the engine assigns `seq` by `Interlocked.Increment` from its persisted vault mark
+(`src/Sync/SyncPublisher.cs:90`), and the phone's counter starts at 1. The relay conforms as of
+this change. **Neither receiver implements the SHOULD** — both accept any 64-bit value — which is
+stated here rather than quietly tightened, per the rule that a spec running ahead of its
+implementations is the same defect as an implementation running ahead of its spec.
+
+**What this does not fix, and it is the half a reader should not assume closed.** The bound stops
+a channel being wedged *out of range*; it does nothing for a channel wedged *in* range. A sender
+that emits `9007199254740991` legitimately-shaped still refuses every later envelope in that
+direction until the row expires or the pairing is deleted, and the relay still exposes no
+channel-level reset short of `DELETE /v1/{pairing}`. Whether it should is a product question,
+recorded as the open half of PQ-S2-2 and not decided here.
 
 ---
 
