@@ -36,7 +36,7 @@ its own, and no envelope from anyone creates a path to sending email — see §8
 | `/v1/{pairing}/create` | POST | Engine bootstraps the pairing channel (§5.2.1) |
 | `/v1/{pairing}/pair` | POST | Phone submits the pairing completion (§5.2.2) |
 | `/v1/{pairing}/pair` | GET | Engine collects the completion; one-shot (§5.2.2) |
-| `/v1/{pairing}/push` | POST | Append one envelope to the recipient's queue |
+| `/v1/{pairing}/push` | POST | Append one envelope to the recipient's queue. Response bodies in §2.2 |
 | `/v1/{pairing}/pull?since={seq}&dir={dir}` | GET | Fetch envelopes for direction `dir` with `seq > since`. Response body in §2.1 |
 | `/v1/{pairing}/live` | WSS | Live fan-out while a client is connected |
 | `/v1/{pairing}` | DELETE | Unpair — purge the Durable Object and all queued envelopes |
@@ -112,6 +112,63 @@ a cursor on the wrapper's number could be walked past envelopes it never read by
 that cannot decrypt a byte of them. Any per-envelope sequence a client reads before
 decryption is a **claim**; only the `seq` recovered from the sealed bytes is a fact, and
 §6.2's rules run on the latter.
+
+### 2.2 Push response body
+
+**Decided 2026-08-11 (PQ-S6-2).** §2.1 defined the pull response because three
+implementations had each invented one. The push route has the same hole, and here it is
+load-bearing in a way pull's was not: **§6.1 tells a sender to reconcile its counter
+against the relay's high-water mark, and the relay already returns that number on the very
+response that reports the counter is wrong** — in a body this document never described.
+
+Measured under miniflare against the deployed Worker source, not read off it:
+
+```
+201 body = {"ok": true, "seq": <integer>}     // appended; seq echoes the envelope's
+409 body = {"error": "replay_rejected",       // seq <= the relay's high-water mark …
+            "latest": <integer>}              // … for THIS direction
+400 body = {"error": "bad_request"}           // unparseable body, or header shape invalid
+413 body = {"error": "too_large"}             // §3.1 cap (measured on the ciphertext)
+```
+
+- **201 means appended, and nothing more.** It is not an acknowledgement that the
+  *receiver* accepted, decrypted or applied anything. The relay is blind (§1) and has no
+  opinion about the payload; §6.2's receiver rules run later and independently. A sender
+  MUST NOT report a delivered envelope as an applied one.
+- **The 409 carries `latest`, and it is REQUIRED on that status.** It is the relay's
+  high-water `seq` **for the direction the refused envelope named**, not across the
+  pairing. Measured: with `e2p` at 90 and `p2e` at 4, a replayed `p2e` seq 4 answers
+  `latest: 4`. A sender MUST NOT read it as a position for the other direction.
+- `latest` is a JSON **integer**, never a quoted number — the same field and the same
+  rule as §2.1's.
+- **400 and 413 carry no `latest`**, and a sender MUST NOT treat either as evidence about
+  its counter. They say nothing about the sender's position.
+- A sender MUST treat 409 as **neither success nor a transport failure**. Retrying the
+  same bytes cannot fix it, and §6.1 says what to do instead.
+- **A direction holding nothing accepts any `seq >= 1`** — measured: the first push on a
+  fresh direction answers 201 even at seq 1, because the monotonicity check has no prior
+  value to compare against. `GET /pull?dir=…&since=0` on that direction answers
+  `{"envelopes":[],"latest":0}`.
+
+**Why the 409's `latest` is more than a convenience.** §6.1 requires a sender to resume
+above `max(persisted_seq, relay_latest)` and points at `GET /pull?dir=…&since=0` for the
+second term. That works, but it is a round trip the sender must make *before* it knows it
+needs one — so in practice it is made at startup or never. The 409 delivers the same
+number at the exact moment the sender is proved wrong, which lets a sender recover inside
+the push loop it is already in. That is the difference between a counter gap that heals
+itself and one that needs a restart to notice.
+
+**The relay's HTTP error codes are a different namespace from §7.2's, and the overlap is
+the trap.** §7.2 defines the sealed `error` *payload* — `{code, detail?, ref_seq?}` —
+exchanged between engine and phone and invisible to the relay. The bodies above are
+**transport** errors, shaped `{"error": …}`, produced by a party that cannot read a
+payload at all. Two names appear in both vocabularies with the same meaning
+(`replay_rejected`, `too_large`), which is exactly why the split is easy to miss;
+`bad_request` appears in neither §7.2 nor anywhere else in this document, and nor do
+`unauthorized`, `not_found`, `method_not_allowed` or `upgrade_required`, all of which the
+relay also emits. **Read `{"error": …}` as transport and `{"code": …}` as payload.** v1
+pins the push mapping above and **no other route's**; the remaining transport bodies are
+observed rather than normative, and are recorded as **PQ-S2-3** rather than invented here.
 
 ---
 
