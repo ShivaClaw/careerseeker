@@ -759,6 +759,19 @@ not already have through a field this document **requires** it to publish, and a
 relay never notices the rule at all: its `latest` covers every row it serves, so the bound
 is a no-op on every conforming page.
 
+**What the bound does and does not buy, stated precisely, because the difference is the
+whole value.** It does **not** stop a hostile relay from skipping a receiver past envelopes
+the relay *currently holds*: `latest` is its own claim, and a relay willing to lie about an
+element's `seq` can serve a page whose `latest` already covers what it wants withheld. It
+did not need a malformed element for that — it could simply not serve those rows. What the
+bound stops is the part that outlives the attack: an **unbounded** claim pushes the cursor
+into the *future*, past sequence numbers that have not been issued yet, so every envelope
+the engine publishes from now until that number is discarded on arrival by a receiver that
+believes it is ahead of them. One malformed element becomes permanent, silent, forward-going
+data loss against an engine and a relay that are both behaving. The bound confines the
+damage to envelopes that exist at the moment of the attack, which is the same set the relay
+could already withhold, and leaves the stream correct for everything issued afterwards.
+
 ---
 
 ## 7. Versioning and errors
