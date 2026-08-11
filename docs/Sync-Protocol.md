@@ -175,9 +175,12 @@ relay's convenience would be the §3.1 mistake again; this one is chosen at the 
 wire stops being unambiguous, which is a property of the protocol rather than of one party.
 
 **What went wrong above it, measured.** The previous text stated no maximum at all, and
-`relay/src/channel.ts` checked only `Number.isInteger(seq) && seq >= 1`. `Number.isInteger` is
-true for every finite double, including `1e300`, so the reachable range ran to ~1.8e308 and only
-`Infinity` was refused. Measured under miniflare against the real Worker, in three bands:
+`relay/src/channel.ts` checked only `Number.isInteger(seq) && seq >= 1`. `Number.isInteger` rejects
+a fractional value but **cannot reject a large one**: every double at or above `2^53` is
+necessarily integral, because the format has no bits left for a fraction there. So the predicate
+is vacuously true across the entire range this rule cares about, `1e300` included, the reachable
+range ran to ~1.8e308, and `Infinity` was refused only because `Number.isInteger(Infinity)` is
+`false` — not by any bound. Measured under miniflare against the real Worker, in three bands:
 
 | pushed `seq` | relay reported `latest` as | consequence |
 | --- | --- | --- |

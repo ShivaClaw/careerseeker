@@ -150,9 +150,11 @@ export class PairingChannel extends DurableObject<Env> {
     if (
       env.v !== 1
       || !DIRECTIONS.includes(dir as Direction)
-      // `Number.isInteger` alone is NOT a range check: it is true for every finite double,
-      // including 1e300, so the old guard admitted everything up to ~1.8e308 and refused
-      // only Infinity. §3.2 caps `seq` at 2^53 - 1; above that this relay's own arithmetic
+      // `Number.isInteger` alone is NOT a range check. It rejects a fractional value, but every
+      // double at or above 2^53 is necessarily integral — the format has no bits left for a
+      // fraction — so the predicate is vacuously true across exactly the range this cares about.
+      // The old guard admitted everything to ~1.8e308 and refused only Infinity, and that for an
+      // unrelated reason (Number.isInteger(Infinity) === false). §3.2 caps `seq` at 2^53 - 1; above that this relay's own arithmetic
       // stops agreeing with the receivers' 64-bit integers, and the `latest` it reports
       // back becomes either silently rounded or unparseable to them.
       || !Number.isInteger(seq) || seq < 1 || seq > MAX_SEQ
