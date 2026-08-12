@@ -701,7 +701,10 @@ Invalid vectors set `"valid": false` and name the required rejection in `expect_
 The suite MUST include at least: sequence regression (`replay_rejected`), truncated tag
 (`decrypt_failed`), flipped AAD field (`decrypt_failed`), unknown key id, unknown payload
 kind (`unknown_kind`), reserved-kind-in-v1 (`unknown_kind`), version mismatch
-(`version_unsupported`), padded base64 (rejected), and an oversized envelope (`too_large`).
+(`version_unsupported`), padded base64 (rejected), an oversized envelope (`too_large`), and
+an **unknown top-level field** (`decrypt_failed`, §3). Added in S5 (PQ-A2-3): the
+unknown-field rule had been normative since P1 with no vector behind it, because a vector
+can only be added once *both* consumers can reject one — see §10.3.
 
 A conforming implementation decrypts every `valid` vector to the stated plaintext, and
 rejects every invalid one **with the stated code**. Rejecting for the wrong reason is a
@@ -738,3 +741,30 @@ rung; until they do, these files are a fixed target for those appliers to be wri
 against, and are *not* evidence that either implementation handles `entitlement_ack`. The
 pair exists so that `order_id`'s optionality is pinned by an artifact rather than by prose:
 one vector carries it, one does not, and both are valid.
+
+#### 10.3 The wire-parse layer, and why `invalid-unknown-field` could not exist before S5
+
+§3's "unknown top-level fields MUST be rejected" was normative from P1 and enforced on
+**one side only**. The phone parses wire JSON strictly (`core/.../EnvelopeJson.kt`); the
+engine had no inbound wire parser at all — `ReceivedEnvelope` was a record that callers
+built field-by-field from already-parsed JSON, reading the nine names it wanted and
+dropping the rest. An envelope carrying a tenth field therefore **decrypted and was
+accepted** by the engine and rejected by the phone.
+
+That asymmetry is why the vector could not simply be added: a shared vector is only
+enforceable if both consumers can fail it, and one of them would have gone green by
+accepting the envelope the vector exists to refuse. S5 closes it with
+`src/Sync/EnvelopeJson.cs`, the C# counterpart of the phone's parser, and routes
+`SyncHarness`'s envelope loops through it as wire text rather than field-by-field.
+
+Two consequences worth stating, because both are observable:
+
+1. **Structural rejection happens before the version check** in both implementations, so a
+   v2 sender that bumps `v` *and* adds a field is told `decrypt_failed` and cannot learn
+   that the version is the problem. That is a diagnosability cost, not a safety one; the
+   two implementations agree, which is the property that matters here.
+2. **A permissive parser would not merely admit one envelope.** Accepting it also commits
+   its sequence number, and §10.1 explains what that does to a suite whose `seq` space is
+   packed by design: the high-water mark moves and later invalid vectors start reporting
+   `replay_rejected` instead of their own codes. Removing the check makes
+   `invalid-unknown-field` report "accepted" and takes two further assertions with it.

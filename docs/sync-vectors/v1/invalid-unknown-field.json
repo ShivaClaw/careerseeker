@@ -1,0 +1,42 @@
+{
+  "type": "envelope",
+  "name": "invalid-unknown-field",
+  "valid": false,
+  "notes": "Section 3: \"Other unknown top-level fields MUST be rejected, not ignored.\" Everything else about this envelope is VALID -- it is a well-formed delta at an unused seq, sealed with the real e2p key, and a receiver that dropped the rule would ACCEPT it rather than fail it some other way. That is what makes this a pin rather than a shape: the only reason to reject it is the rule itself. The field is injected post-seal, so it is NOT covered by the AAD -- which is precisely why a permissive parser is an injection point: anyone on the path can add it, and no authentication step would notice.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=12|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "bn_-KaBkBv8LaUcN",
+  "plaintext_json": {
+    "kind": "delta",
+    "body": {
+      "since_seq": 48210,
+      "applications": [
+        {
+          "id": "app_01H8XK",
+          "state": "READY",
+          "company": "Northwind Labs",
+          "title": "Senior Platform Engineer",
+          "score": 82
+        }
+      ],
+      "counters": {
+        "discovered": 3,
+        "drafted": 1,
+        "blocked": 0
+      }
+    }
+  },
+  "ciphertext_b64u": "r9Q1nfdQHwSIMo_SxTKGc-QRXx8YfvtOaC_L9guZanqMBCR1Gw0l58fy8cE_PYGKeWXEE8K9ykYGohYK15ZYKF61y1NrvS5eqgqoLIbLjJoLCXVeQyZgaadraDv0JqCzb0eH6YdWJm_zMGurz5Rh66NNewehWeefUbfnyyyvI8Q6ImPtUqn-64SrINFuKAUBis3cmQUycsNzZzRo674l3ARg0CNQVxF53zFyHI8Z2yl4y61zuwKk_TfzMDaK56pViMzY4fReI9V5X3IyYEYlc9gPDk4skm3cliFchu-qeY_plrt2Nz2ehNK1G438",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 12,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "bn_-KaBkBv8LaUcN",
+    "ciphertext": "r9Q1nfdQHwSIMo_SxTKGc-QRXx8YfvtOaC_L9guZanqMBCR1Gw0l58fy8cE_PYGKeWXEE8K9ykYGohYK15ZYKF61y1NrvS5eqgqoLIbLjJoLCXVeQyZgaadraDv0JqCzb0eH6YdWJm_zMGurz5Rh66NNewehWeefUbfnyyyvI8Q6ImPtUqn-64SrINFuKAUBis3cmQUycsNzZzRo674l3ARg0CNQVxF53zFyHI8Z2yl4y61zuwKk_TfzMDaK56pViMzY4fReI9V5X3IyYEYlc9gPDk4skm3cliFchu-qeY_plrt2Nz2ehNK1G438",
+    "next_seq": 99
+  },
+  "expect_error": "decrypt_failed"
+}
