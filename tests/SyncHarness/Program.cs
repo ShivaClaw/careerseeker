@@ -195,9 +195,21 @@ byte[] KeyFor(string dir) => dir == "e2p"
     ? Convert.FromHexString("a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")
     : Convert.FromHexString("0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0");
 
+// Vectors are fed as WIRE TEXT through the strict §3 parser, not field-by-field. That is the
+// point of routing them this way: the old ToReceived read the nine names it wanted and dropped
+// everything else, so a vector carrying a tenth field was accepted here and rejected on the
+// phone, and no vector could express the difference (B-6 / PQ-A2-3).
+ReceiveResult ReceiveWire(JsonObject envelopeJson)
+{
+    var parsed = EnvelopeJson.Parse(envelopeJson.ToJsonString());
+    return parsed.Error is { } err
+        ? new ReceiveResult(err, null, null)
+        : receiver.Receive(parsed.Envelope!, KeyFor);
+}
+
 foreach (var v in validEnv.OrderBy(v => (long)v["envelope_json"]!["seq"]!))
 {
-    var result = receiver.Receive(ToReceived(v["envelope_json"]!.AsObject()), KeyFor);
+    var result = ReceiveWire(v["envelope_json"]!.AsObject());
     Check($"receiver accepts {(string)v["name"]!}", result.Accepted, result.Error?.ToWire());
 }
 
@@ -217,7 +229,7 @@ foreach (var v in invalidEnv)
     }
     else
     {
-        result = receiver.Receive(ToReceived(v["envelope_json"]!.AsObject()), KeyFor);
+        result = ReceiveWire(v["envelope_json"]!.AsObject());
     }
 
     Check($"{name} -> {expectedCode}", result.Error?.ToWire() == expectedCode,
@@ -227,6 +239,61 @@ foreach (var v in invalidEnv)
 Check("rejections never advanced the sequence tracker",
     receiver.HighestAccepted("e2p") == 4 && receiver.HighestAccepted("p2e") == 1,
     $"e2p={receiver.HighestAccepted("e2p")} p2e={receiver.HighestAccepted("p2e")}");
+
+// ---------------------------------------------------------------- strict section-3 parser
+//
+// invalid-unknown-field pins the rule end-to-end through the vectors. These pin the parser
+// directly, and cover the cases no vector file can carry: a vector IS json, so it cannot
+// express "the wire bytes were not JSON at all" or "the root was not an object", and
+// index.json gives each vector exactly one expect_error, so a case whose whole interest is
+// *which check fired first* has nowhere to live in the shared suite.
+
+Console.WriteLine("\n[ the strict section-3 wire parser ]");
+
+var goodWire = envelopeVectors.Single(v => (string)v["name"]! == "delta-basic")["envelope_json"]!.AsObject();
+string WireWith(Action<JsonObject> edit)
+{
+    var o = JsonNode.Parse(goodWire.ToJsonString())!.AsObject();
+    edit(o);
+    return o.ToJsonString();
+}
+
+Check("parser accepts an envelope carrying exactly the nine section-3 fields",
+    EnvelopeJson.Parse(goodWire.ToJsonString()).Ok);
+
+Check("an unknown top-level field is rejected as decrypt_failed",
+    EnvelopeJson.Parse(WireWith(o => o["next_seq"] = 99)).Error == SyncError.DecryptFailed);
+
+// PQ-ER-1, pinned rather than argued: the unknown-field check runs BEFORE the version check,
+// so a v2 sender that also adds a field cannot learn that the version is the problem. The
+// pair of assertions is the point -- the second shows the first is about the field, not the
+// version, which a single assertion could not distinguish.
+Check("unknown-field rejection precedes the version check (PQ-ER-1)",
+    EnvelopeJson.Parse(WireWith(o => { o["v"] = 2; o["next_seq"] = 99; })).Error == SyncError.DecryptFailed);
+Check("the same envelope WITHOUT the extra field is told version_unsupported instead",
+    new EnvelopeReceiver(activeKeyId, devicePub)
+        .Receive(EnvelopeJson.Parse(WireWith(o => o["v"] = 2)).Envelope!, KeyFor)
+        .Error == SyncError.VersionUnsupported);
+
+// A present-but-non-string sig must not silently degrade into "unsigned": that would turn a
+// malformed signature into a missing one, and the two are reported by different checks at
+// different times (decrypt_failed before decryption, bad_signature after).
+Check("a present-but-non-string sig is rejected, not read as unsigned",
+    EnvelopeJson.Parse(WireWith(o => o["sig"] = 42)).Error == SyncError.DecryptFailed);
+Check("an explicit JSON null sig parses as absent",
+    EnvelopeJson.Parse(WireWith(o => o["sig"] = null)) is { Ok: true, Envelope.Sig: null });
+
+Check("seq as a quoted string is rejected (types are not coerced)",
+    EnvelopeJson.Parse(WireWith(o => o["seq"] = "12")).Error == SyncError.DecryptFailed);
+Check("v as a quoted string is rejected (types are not coerced)",
+    EnvelopeJson.Parse(WireWith(o => o["v"] = "1")).Error == SyncError.DecryptFailed);
+Check("a malformed pairing id is rejected before it can reach the AAD",
+    EnvelopeJson.Parse(WireWith(o => o["pairing"] = "not-a-pairing-id")).Error == SyncError.DecryptFailed);
+
+Check("a JSON root that is not an object is rejected",
+    EnvelopeJson.Parse("[1,2,3]").Error == SyncError.DecryptFailed);
+Check("wire bytes that are not JSON at all are rejected",
+    EnvelopeJson.Parse("{not json").Error == SyncError.DecryptFailed);
 
 // ---------------------------------------------------------------- pairing manager
 //
