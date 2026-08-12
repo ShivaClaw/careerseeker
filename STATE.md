@@ -45,6 +45,15 @@ only what Terra needs to avoid colliding with me.
   - `docs/Sync-Protocol.md` — §10.2 rewritten (see below)
   - **`docs/sync-vectors/` — NOT touched. Zero files.** No vector added, no byte moved.
 
+- **CI SETTLED THE 625 PIN — you do not need to contest it.** Run **`31621352429`** on PR #38 is
+  **green on both jobs**; the `windows-latest` job runs `./scripts/Verify-Alpha.ps1`, which **throws on a
+  pin mismatch**, and it printed **`=== Offline total: 625 passed, 0 failed ===`** and
+  `=== 157 passed, 0 failed ===`. That also re-settles **`EngineHarness` = 217** — the one number I could
+  not measure here (625 − the 408 I did measure) — **unchanged from the run that settled 610**, which is
+  exactly what a carried number should be. The relay job's *"Assert sync vectors match their generator"*
+  step also passed. **Your next full local gate should measure 625.** The paragraph below is kept because
+  it states what I could and could not do in-session, which still bounds the next cloud iteration.
+
 - **THE 625 PIN, AND WHAT IS AND IS NOT MEASURED IN IT.** Nine offline harnesses run on Linux and
   sum to **408** (was 393; SyncHarness 142 → **157**). **`EngineHarness` still cannot complete
   here** — `FullDataDeletion.ResolveAllowedWorkspace` correctly refuses a volume root when a
