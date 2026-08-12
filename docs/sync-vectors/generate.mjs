@@ -456,6 +456,18 @@ const vectors = [
     notes: 'An e2p envelope must never carry sig; the engine has no device key. Field injected post-seal.',
     mutate: (vec) => ({ ...vec, envelope_json: { ...vec.envelope_json, sig: 'AAAA' } }),
   }),
+  makeVector({
+    name: 'invalid-unknown-field', valid: false, dir: 'e2p', seq: 12, plaintext: deltaBody,
+    expectError: 'decrypt_failed',
+    notes: 'Section 3: "Other unknown top-level fields MUST be rejected, not ignored." Everything '
+         + 'else about this envelope is VALID -- it is a well-formed delta at an unused seq, sealed '
+         + 'with the real e2p key, and a receiver that dropped the rule would ACCEPT it rather than '
+         + 'fail it some other way. That is what makes this a pin rather than a shape: the only '
+         + 'reason to reject it is the rule itself. The field is injected post-seal, so it is NOT '
+         + 'covered by the AAD -- which is precisely why a permissive parser is an injection point: '
+         + 'anyone on the path can add it, and no authentication step would notice.',
+    mutate: (vec) => ({ ...vec, envelope_json: { ...vec.envelope_json, next_seq: 99 } }),
+  }),
 ];
 
 // ---------------------------------------------------------------- structural cases

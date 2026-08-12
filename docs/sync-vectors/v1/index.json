@@ -106,6 +106,12 @@
       "expect_error": "bad_signature"
     },
     {
+      "name": "invalid-unknown-field",
+      "type": "envelope",
+      "valid": false,
+      "expect_error": "decrypt_failed"
+    },
+    {
       "name": "invalid-padded-base64",
       "type": "envelope",
       "valid": false,
