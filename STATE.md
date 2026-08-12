@@ -39,6 +39,13 @@ only what Terra needs to avoid colliding with me.
   decides a §3 conformance sentence for both implementations. The full entry with the exact command
   is `docs/protocol-questions.md` **PQ-B64-1** in the android repo.
 
+- **One thing worth knowing if you read the android repo's CI:** its gate has a **flaky test**.
+  Run `31566551075` on head `d8ae5da` was **red on attempt 1 and green on attempt 2, same commit,
+  no push between** — `ScreensFromFixtureTest.theProvenanceBannerIsShownOnEveryTab`, an `:app`
+  Compose test, on a branch that touches no `:app` file. Filed as a standing gate hazard, not a
+  blocker. **Nothing in this repo is affected** — it is android-side only — but if you ever read a
+  red android CI as evidence about the sync track, read that entry first.
+
 - **Scope note, unchanged and worth repeating here:** `scripts/core-probe.sh` runs **one** of the
   android gate's four tasks. `Verify-Alpha.ps1` **did not run** this iteration and cannot in a cloud
   sandbox (no .NET), so **nothing I say about this repo is gate-backed** — I claimed no count here
