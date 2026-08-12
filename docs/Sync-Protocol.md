@@ -733,14 +733,29 @@ So a new payload kind is introduced under its **own `type`**, consumed by a dedi
 section, exactly as `entitlement` was. Renumbering existing vectors is not an option: their
 bytes are a published wire artifact that a second repository vendors at a pinned commit.
 
-#### 10.2 `entitlement-ack` is specified and pinned, not yet asserted
+#### 10.2 `entitlement-ack`: asserted by the engine, transcribed by the phone
 
-The `entitlement-ack` and `entitlement-ack-no-order-id` vectors (S5) pin §4.3.3's body.
-**No consumer asserts against them yet.** The C# and Kotlin appliers arrive in the same
-rung; until they do, these files are a fixed target for those appliers to be written
-against, and are *not* evidence that either implementation handles `entitlement_ack`. The
+The `entitlement-ack` and `entitlement-ack-no-order-id` vectors (S5) pin §4.3.3's body. The
 pair exists so that `order_id`'s optionality is pinned by an artifact rather than by prose:
 one vector carries it, one does not, and both are valid.
+
+**The engine asserts against these files directly** (S5, `tests/SyncHarness/Program.cs`).
+`SyncPayloads.EntitlementAck` must reproduce each vector's plaintext **byte for byte**, and
+re-sealing that plaintext under the vector's own key and nonce must reproduce
+`ciphertext_b64u` exactly — so an ack this engine emits is not merely field-compatible with
+the published artifact, it *is* those bytes. Byte equality is the assertion deliberately:
+a field-by-field check passes while the two implementations disagree about field order, or
+about whether an absent `order_id` is an omitted key or a literal `null`, which is precisely
+what the second vector exists to catch.
+
+**The phone does not yet read these files.** `EntitlementAckApplier` is implemented and
+tested, but `EntitlementAckTest` **transcribes** the two bodies verbatim into the test rather
+than loading the vectors: the android repo vendors this directory pinned at a main-repo
+commit, and the ack vectors postdate that pin. That is a real asymmetry and is recorded here
+rather than glossed — the engine's conformance is vector-driven, the phone's is a
+transcription that a future re-vendor must convert into the same vector-driven form. Until
+it does, these vectors are evidence about **one** implementation, not two, and the
+cross-implementation property the rest of §10 relies on does not yet hold for this kind.
 
 #### 10.3 The wire-parse layer, and why `invalid-unknown-field` could not exist before S5
 

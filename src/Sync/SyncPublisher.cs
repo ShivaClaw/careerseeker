@@ -79,6 +79,20 @@ public sealed class SyncPublisher
         CancellationToken ct = default)
         => PushSealedAsync(SyncPayloads.Evidence(auditOk, firstBrokenSeq, eventCount, events), ct);
 
+    /// <summary>
+    /// The engine's answer to a receipt it verified (§4.3.3) — the only payload that unlocks Pro on
+    /// the phone. The envelope <c>ts</c> and the body's <c>acknowledged_at</c> are the same clock
+    /// reading, which is the instant the engine recorded the grant; both are advisory (§6.3).
+    ///
+    /// Emit this ONLY for an accepted <see cref="EntitlementVerdict"/>. A rejection is an `error`
+    /// (§7.2), never an ack — see <see cref="SyncPayloads.EntitlementAck"/>.
+    /// </summary>
+    public Task<bool> PublishEntitlementAckAsync(string productId, string? orderId = null, CancellationToken ct = default)
+    {
+        var ts = Iso(_clock());
+        return PushSealedAsync(SyncPayloads.EntitlementAck(productId, ts, orderId), ts, ct);
+    }
+
     private Task<bool> PushSealedAsync(byte[] plaintext, CancellationToken ct)
         => PushSealedAsync(plaintext, Iso(_clock()), ct);
 
