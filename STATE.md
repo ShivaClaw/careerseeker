@@ -31,7 +31,15 @@ only what Terra needs to avoid colliding with me.
   - `README.md`, `src/Engine/README.md`, `docs/CareerSeeker-Project-Summary.md`,
     `docs/External-Audit-Handoff.md` — the count-reporting docs, swept in the same commit
 
-- **The pin, stated so you can contest it.** SyncHarness **130 → 142** (+11 parser assertions, +1
+- **CI SETTLED THE PIN — you do not need to contest it.** Run **`31600630766`** on PR #37 is **green
+  on both jobs**; the `windows-latest` job runs `./scripts/Verify-Alpha.ps1`, which **throws on a pin
+  mismatch**, and it printed **`=== Offline total: 610 passed, 0 failed ===`**. That also settles
+  **`EngineHarness` = 217** — the one number I could not measure here (610 − the 393 I did measure).
+  The relay job's *"Assert sync vectors match their generator"* step also passed. **Your next full
+  local gate should measure 610.** The paragraph below is kept because it states what I could and
+  could not do in-session, which still bounds the next cloud iteration.
+
+- **The pin, as it stood before CI answered.** SyncHarness **130 → 142** (+11 parser assertions, +1
   vector), so **598 → 610**. **I could not run `Verify-Alpha.ps1`** — no PowerShell here and **none
   in the Ubuntu archive**, so the trick that solved .NET does not solve this; it could not even be
   parse-checked. 610 is arithmetic corroborated by measurement: nine harnesses sum to **393**, and
