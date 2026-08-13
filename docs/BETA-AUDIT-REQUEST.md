@@ -6,6 +6,29 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## R7 - Empty-profile scorer boundary
+
+Branch: `codex/r7-empty-profile-audit`, based on fresh `origin/main` at
+`60a2df16a3c7eed0775415e0a09df62f54851d1e`.
+
+| Claim | Exact reviewer command | Observed 2026-08-12 |
+|---|---|---|
+| The previous empty-profile behavior could autonomously act without profile evidence. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release` with the two R7 assertions present and the pre-fix scorer branch | The controlled empty profile plus high-growth, above-stretch-compensation fixture reported CV 2.50, fit 4.12, total 4.12, and `Dispatch.Act`: `228 passed, 2 failed`. |
+| An empty/non-rankable profile contributes no positive CV evidence. | Inspect `LexicalSemanticScorer.ScoreAsync`; run EngineHarness | The branch now returns CV 0.0 and an explicit unavailable-evidence rationale when `profileTerms.Count == 0`; the assertion passed. |
+| Posting-side quality cannot turn no profile evidence into an autonomous action. | `dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release` | The same maximum-growth, high-compensation, exact-preference fixture remained show-only; the second R7 assertion passed. The existing 10/50/200-term calibration distributions and healthy-demo Act decision also passed unchanged. |
+| Count-reporting documents and the verifier moved together. | `scripts\Verify-Alpha.ps1` | Build completed 0 warnings/0 errors; EngineHarness measured 230/0 and the repository-wide offline total measured 611/0. README, Engine README, project summary, external audit handoff, calibration report, Positioning P03, and verifier expectations are aligned. |
+
+### Verification boundary
+
+This slice used only deterministic in-memory fixtures and the ordinary offline
+gate. It did not access any `.appdata` original, public ATS board, provider,
+Gmail account, OAuth material, or secret.
+
+No deploy, console mutation, email, purchase, signing, install, secret access,
+certificate/store mutation, reboot, scheduled-task registration, off-repo
+site edit, Android/relay/sync change, force-push, history rewrite, or live
+provider/Gmail action occurred.
+
 ## R6(d) - Ordered hardening backlog regression audit
 
 Branch: `codex/r6-ordered-backlog-audit-v2`, rebased onto `d1bc698` after the

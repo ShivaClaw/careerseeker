@@ -2,6 +2,60 @@
 
 Updated: 2026-08-12
 
+## 2026-08-12 (Terra R7) - Final ladder handoff: empty-profile scorer boundary
+
+Branch: `codex/r7-empty-profile-audit`, based on fresh `origin/main` at
+`60a2df16a3c7eed0775415e0a09df62f54851d1e`. This is the final candidate
+handoff entry for the R0-R7 ladder: R0, R1, R4, R5, R6(a), R6(c), R6(d), and
+R7 are DONE; R2, R3, and R6(b) are BLOCKED with their smallest human unblocks
+in `docs/autonomy/HUMAN-QUEUE.md`.
+
+The smallest R7 scorer-edge-case audit found a real autonomous-action defect.
+With an empty profile, `LexicalSemanticScorer` returned a neutral CV match of
+2.5. The harness combined that with a deliberately high-growth,
+above-stretch-compensation, exact-preference, legitimate posting and observed
+`fit=4.12`, `total=4.12`, and `Dispatch.Act` without local profile evidence.
+The initial pinned run therefore ended `228 passed, 2 failed`.
+
+The no-profile branch now returns CV match 0.0 and states that CV evidence is
+unavailable. Two assertions prove that empty profile evidence is not positive
+and that the same fixture remains show-only. The populated-profile formula is
+unchanged: the 10/50/200 nested calibration remains 8/120 Act-eligible at
+each size, and the healthy demo still acts. `docs/Scoring-Calibration.md`
+records both the defect and the fixed result; P03's references now include the
+empty-profile boundary.
+
+Executed evidence before integration:
+
+```text
+> dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release
+Pre-fix: cv=2.50; fit=4.12; total=4.12; Dispatch.Act.
+=== 228 passed, 2 failed ===
+
+Post-fix:
+PASS empty profile has no positive CV-match evidence
+PASS empty profile cannot make a posting act-eligible
+=== 230 passed, 0 failed ===
+
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+=== EngineHarness: 230 passed, 0 failed ===
+=== Offline total: 611 passed, 0 failed ===
+```
+
+Human queue summary: Q01 requires a non-empty engineering ATS board or
+approved captured corpus to unblock R2; Q02 remains waiting on Q01 before the
+sole Gmail draft cycle; Q03-Q05 are the human signing, VM, and publish gates;
+Q06 requires signed-runtime/site/license review; Q07 is the single diagnostic
+workflow authorization to resolve R6(b)'s cross-host SPDX byte drift. No
+other agent work is required to classify the ladder.
+
+Boundary: no deploy, console mutation, email, purchase, signing, install,
+secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, public ATS read, or live provider/Gmail action occurred. No
+`.appdata` original was accessed or mutated.
+
 ## 2026-08-12 (Terra R6d) - Ordered hardening backlog re-audited
 
 Branch: `codex/r6-ordered-backlog-audit-v2`, originally based on fresh

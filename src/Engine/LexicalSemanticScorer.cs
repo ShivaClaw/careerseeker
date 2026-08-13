@@ -45,8 +45,8 @@ public sealed partial class LexicalSemanticScorer : ISemanticScorer
         var descriptionTerms = Tokenize(posting.DescriptionText);
 
         if (profileTerms.Count == 0)
-            return new SemanticScores(2.5, GrowthScore(titleTerms, descriptionTerms), "lexical-v2",
-                "No rankable local profile terms; CV match held neutral.");
+            return new SemanticScores(0.0, GrowthScore(titleTerms, descriptionTerms), "lexical-v2",
+                "No rankable local profile terms; CV match unavailable (0.0).");
 
         var jobTerms = titleTerms.Union(descriptionTerms).ToArray();
         var totalJobWeight = 0.0;

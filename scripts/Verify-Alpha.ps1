@@ -126,6 +126,8 @@ $offlineProjects = @(
 # monotonicity, a 120-posting eligibility band, targeted separation at the derived 4.0 threshold, and
 # honest job-side rationale/versioning plus the healthy demo's Act decision. One store-parity assertion
 # positively pins score detail reads.
+# Two empty-profile assertions pin zero CV-match evidence and prevent a high-growth, high-compensation
+# posting from becoming act-eligible without any rankable local profile evidence.
 # Four engine assertions pin persisted cycle counters/reasons across the engine, dashboard, and audit
 # export; one store-parity assertion pins the new telemetry table in memory and SQLite.
 # Twelve engine assertions pin adaptive backoff and its board-failure input, clean pause/resume,
@@ -158,8 +160,8 @@ $offlineProjects = @(
 # out a secret, so it must not be a weaker gate than the others), the invite payload being HTML-escaped,
 # the absent-QR statement, and the confirmation code. That last one caught a real defect: the code was
 # rendered only on the pre-completion screen, so the human had nothing to compare after pairing -- which
-# is the entire MITM check. 609.
-$ExpectedOfflineTotal = 609
+# is the entire MITM check. R7 adds two empty-profile scorer assertions: 611.
+$ExpectedOfflineTotal = 611
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -468,12 +470,12 @@ Invoke-Step "Public README and harness count smoke" {
         'Alpha `.cmd` helpers',
         'no open-source license',
         'all rights are reserved',
-        '| EngineHarness | 228 |',
+        '| EngineHarness | 230 |',
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
         '| SyncHarness | 130 |',
-        '| **Total** | **609** |',
+        '| **Total** | **611** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -487,7 +489,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **609** |',
+        '| **Total** | **611** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -495,7 +497,7 @@ Invoke-Step "Public README and harness count smoke" {
         '## Human-only work remaining'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| EngineHarness | 228 |',
+        '| EngineHarness | 230 |',
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| StoreParityHarness | 28 |',
@@ -507,7 +509,7 @@ Invoke-Step "Public README and harness count smoke" {
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
         '| SyncHarness | 130 |',
-        '| **Total** | **609** |',
+        '| **Total** | **611** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -541,7 +543,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **609 passed, 0 failed**',
+        'Pinned offline verifier: **611 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
@@ -560,7 +562,7 @@ Invoke-Step "Public README and harness count smoke" {
         '`lexical-v2` formula',
         '| 200 | 1.50–3.88 | 2.99–4.20 | 2.99 | 4.20 | 4.20 | 3.20 | 8/120 (6.7%) |',
         'existing default Act threshold of 4.0 remains inside that gap',
-        '228 passed, 0 failed'
+        '230 passed, 0 failed'
     ) "docs/Scoring-Calibration.md"
 
     $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw
