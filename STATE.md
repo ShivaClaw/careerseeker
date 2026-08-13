@@ -1,14 +1,14 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-12T20:13:40-06:00
-- **Current rung:** R6 is BLOCKED solely on R6(b)'s recorded PowerShell 7
-  SPDX byte drift after R6(d) completed and merged. R7 is PENDING and is the
-  next eligible rung.
+- **Heartbeat:** 2026-08-12T20:28:36-06:00
+- **Current rung:** COMPLETE. R0, R1, R4, R5, R6(a), R6(c), R6(d), and R7
+  are DONE; R2, R3, and R6(b) are BLOCKED with documented smallest human
+  unblocks. The final handoff is merged on main.
 - **Current worktree / branch:** no active implementation worktree or branch
-  is claimed. The completed R6(d) worktree remains at
-  `C:\Users\bkirk\Documents\CareerSeeker-r6-backlog` for evidence only.
-- **Files claimed:** none. The next iteration must fetch and re-read Claude's
-  state before selecting its R7 scorer-edge-case slice.
+  is claimed. `C:\Users\bkirk\Documents\CareerSeeker-r7-scorer` remains only
+  as the merged R7 evidence worktree.
+- **Files claimed:** none. Do not begin another R7 theme: the ladder is
+  exhausted and the goal is complete.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -17,7 +17,7 @@
   point. R6(c) did not edit that file; Codex merged first under its declared
   right-of-way, and Claude will re-derive its pending count on rebase.
 - **Fresh integration base:** `origin/main` =
-  `60a2df16a3c7eed0775415e0a09df62f54851d1e`.
+  `aac05f3f93f0ca06cbc9dfa7884f74a126f078dc`.
 - **Measured R2 evidence:** retained copy integrity/idempotence passed and the
   source remained 172,032 bytes with SHA-256 `0A5605…E18192`. The imported
   fixture has 31 claims / 321 rankable terms. Remote.com measured 58
@@ -152,10 +152,21 @@
   calls or drafts, and produced a 33,731,394-byte unsigned candidate with
   SHA-256 `2EFA93A1BE6D2A0B341D08134575138A9C5913DBEA2AFF7D9E2A282817CB76EA`.
   PR #43 merged normally as `60a2df16a3c7eed0775415e0a09df62f54851d1e`.
-- **Next intent:** execute one R7 slice, smallest-first: fetch, read both state
-  branches, create a fresh worktree from `origin/main`, and audit scorer
-  fixture edge cases beginning with empty-profile behavior. Do not begin that
-  slice as part of this completed R6(d) iteration.
+- **R7 empty-profile evidence:** The pre-fix harness pinned an empty profile
+  plus high-growth/high-compensation/exact-preference legitimate posting at CV
+  2.50, fit/total 4.12, and `Dispatch.Act` (`228 passed, 2 failed`). The R7
+  fix returns CV 0.0 with unavailable-evidence rationale when no rankable
+  local terms exist. Post-fix EngineHarness passed 230/0; the ordinary and
+  full gates passed build 0/0 and offline 611/0, with one executable and zero
+  provider/Gmail calls or drafts. PR #44 initial push/PR runs `31660717812`
+  and `31660720126` passed both jobs. Main remained `60a2df1` at the final
+  rebase, which was a no-op; the exact head re-passed full local validation.
+  PR #44 merged normally as `aac05f3f93f0ca06cbc9dfa7884f74a126f078dc`.
+- **Final handoff / human queue:** `docs/Codex-Resume-Handoff.md` contains
+  the final ladder entry. Q01/Q02 cover R2 and the gated unused R3 live-draft
+  allowance; Q03-Q05 cover signing, VM, and publish; Q06 covers runtime/site
+  D08 review; Q07 is the only R6(b) SPDX diagnostic unblock.
+- **Next intent:** none. The R0-R7 ladder is exhausted.
 - **Boundary:** only the explicitly authorized current-user NuGet provider
   2.8.5.208 and PSScriptAnalyzer 1.25.0 were installed. No deploy, console,
   email, purchase, signing, application/MSIX or machine-global tooling install,
