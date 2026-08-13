@@ -366,23 +366,41 @@ InboundPump? BuildInboundPump(
         republisher: null,      // S2/S4's; same rule
         ackPublisher: new SyncAckPublisher(publisher));
 
+    // Said once, not once per tick: the two conditions below are ones retrying cannot clear, and a
+    // per-tick line on a loop this size buries the signal it exists to raise. The pump is documented
+    // "not thread-safe: drive it from one caller", so a plain captured flag is the right amount of
+    // machinery here.
+    var reportedTerminalPullFailure = false;
+
     return new InboundPump(
         pull: async (since, ct) =>
         {
-            try
+            // No catch block. PullAsync now carries its failure channel in its signature, so an
+            // unreachable relay, a refusal, or a 200 carrying an HTML error page arrives here as a
+            // value. It still propagates the caller's own cancellation, which is not a relay
+            // condition and must not be laundered into "the relay did not answer".
+            var result = await relay.PullAsync(paired.RelayToken, Protocol.PhoneToEngine, since, ct)
+                .ConfigureAwait(false);
+
+            switch (result)
             {
-                var (envelopes, latest) = await relay.PullAsync(paired.RelayToken, Protocol.PhoneToEngine, since, ct)
-                    .ConfigureAwait(false);
-                return new InboundPage(envelopes, latest);
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
-            {
-                // Containment, not a fix. RelayClient.PullAsync is partial — EnsureSuccessStatusCode,
-                // GetProperty and GetInt64 all throw — and it has no failure channel in its signature,
-                // so an unreachable relay or a 200 carrying an HTML error page would otherwise escape
-                // past the pump and take the engine's tick with it. The phone hit exactly this and
-                // fixed it in its own client; the engine's client still needs the same treatment.
-                return null;
+                case RelayPullResult.Ok ok:
+                    return new InboundPage(ok.Envelopes, ok.Latest);
+
+                case RelayPullResult.Unauthorised when !reportedTerminalPullFailure:
+                    reportedTerminalPullFailure = true;
+                    Console.WriteLine("      Inbound: the relay refused this pairing's bearer (401). Re-pairing is the recovery.");
+                    return null;
+
+                case RelayPullResult.Misconfigured misconfigured when !reportedTerminalPullFailure:
+                    reportedTerminalPullFailure = true;
+                    Console.WriteLine($"      Inbound is not pulling: {misconfigured.Detail}");
+                    return null;
+
+                // Unavailable is deliberately silent: it is the transient case, expected on any flaky
+                // link, and the pump's own report already carries the empty drain.
+                default:
+                    return null;
             }
         },
         dispatcher: dispatcher,
