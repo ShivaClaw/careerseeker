@@ -83,6 +83,15 @@ therefore re-executed at the new base. All passed with the counts and package
 measurement above. Because force-push is prohibited, the rebased work moves
 to a successor branch/PR rather than rewriting PR #41's remote history.
 
+Successor PR #43's initial push run `31659672314` and pull-request run
+`31659687482` both passed both jobs. The following fetch still found main at
+`d1bc698`; rebase was a no-op. PSScriptAnalyzer again reported 0 enforced
+findings, and the exact successor head passed the full publish/package gate at
+609/0. That final local unsigned candidate measured 33,731,433 bytes with
+SHA-256 `AAF9B965FF4DE458D772D832925081953F0044676BDA026A26245509C6BB9FBF`.
+This later exact-head measurement supersedes the earlier per-build package
+measurement above for PR #43's merge preparation.
+
 Boundary: no deploy, console mutation, email, purchase, signing, install,
 secret access, certificate/store mutation, reboot, scheduled-task
 registration, off-repo site edit, Android/relay/sync change, force-push,
