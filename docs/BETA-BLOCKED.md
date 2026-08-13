@@ -1,6 +1,38 @@
 # CareerSeeker Beta Blocked Items
 
-Updated: 2026-08-07
+Updated: 2026-08-12
+
+## R6(b) dependency/SBOM inventory — PowerShell 7 CI byte drift
+
+Scope: R6(b) prepared a source-dependency SPDX snapshot, byte-for-byte drift
+validation, license/lock boundaries, and D08 evidence backstops. Local Windows
+PowerShell 5.1 gates are green, but the PR cannot merge until both required CI
+runs are green.
+
+Two real CI attempts were made on PR #26:
+
+1. Push run `31236649674` and pull-request run `31236667575` built with zero
+   warnings/errors, then failed at the SPDX byte comparison under PowerShell 7.
+   The first generator used PowerShell's compact `ConvertTo-Json` output.
+2. The generator was changed to a deterministic serializer for its restricted
+   string/boolean/array/ordered-map data model. The local artifact remained
+   byte-identical at SHA-256
+   `A82CE684EC660FC1FBB93FF0553F38D12722223E77A90243FBE071AC5C01D71E`,
+   and offline verification again passed 418/0. Push run `31236744839` and
+   pull-request run `31236746674` again built 0/0 and failed at the same byte
+   comparison.
+
+The two-attempt limit is reached. No third runner experiment was started and
+PR #26 remains open and unmerged. The local graph is still evidenced as nine
+packages, the post-publish Windows PowerShell 5.1 check is green, and D08
+remains UNPROVEN; cross-host byte reproducibility is the blocked claim.
+
+Smallest human unblock: authorize one diagnostic CI run that writes only the
+generated SPDX SHA-256, byte length, and first differing byte offset (or uploads
+the generated SPDX as a short-lived workflow artifact), compare it with the
+committed 14,897-byte file, then fix the identified environment-dependent
+field. Do not weaken validation to a semantic-only comparison and do not merge
+PR #26 until both push and pull-request CI runs pass.
 
 ## R3 sole live Gmail drafting cycle — prerequisite R2 is not DONE
 

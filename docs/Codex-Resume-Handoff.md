@@ -2,6 +2,71 @@
 
 Updated: 2026-08-12
 
+## 2026-08-12 (Terra R6d) - Ordered hardening backlog re-audited
+
+Branch: `codex/r6-ordered-backlog-audit`, based on fresh `origin/main` at
+`efb9cd64d9e6b2ffb34c485695d9e6d18aac426f`.
+
+The authoritative ordered backlog is the six-item post-B8 list merged through
+PR #18 at `e95b1b3`. This slice re-executed its current-tree evidence rather
+than treating the historical completion entry as proof. Both retained Alpha
+databases passed the read-only backup/migration-copy matrix at 2/0 with source
+identity preserved. The ordinary gate built 0/0 and passed EngineHarness
+217/0 and offline 598/0, including the import-path safety, dashboard
+accessibility, and service-host lease assertions. Ten consecutive standalone
+EngineHarness runs each passed 217/0 in 4.532-4.769 seconds.
+
+The audit found one executable regression. `Test-PowerShellScripts.ps1` used
+`Join-Path $PSScriptRoot` as a parameter default, which Windows PowerShell 5.1
+evaluated while `$PSScriptRoot` was still empty. Path resolution now happens
+after `param`. An absolute invocation from outside the repository then scanned
+the repository's `scripts/` directory with PSScriptAnalyzer 1.25.0 and reported
+0 enforced findings. The latest .NET analyzer build also passed 0/0, analyzer
+formatting exited 0, and the removed historical Alpha ZIP gate still has zero
+matching dead-gate markers.
+
+The audit also found that main referenced Q07 without containing it: the
+R6(b) blocked entry and Q06-Q07 existed only on open draft PR #26. Their
+evidence-only text is now carried into `BETA-BLOCKED.md` and the merged human
+queue. PR #26 remains untouched, open, and draft; no third SBOM diagnostic was
+run. R6(d) is DONE. R6 as a whole is BLOCKED solely on R6(b)'s already-recorded
+PowerShell 7 SPDX byte drift; R6(a) and R6(c) remain DONE.
+
+Executed focused evidence before the pull request:
+
+```text
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+=== EngineHarness: 217 passed, 0 failed ===
+=== Offline total: 598 passed, 0 failed ===
+
+> StoreParityHarness --migration-copy <candidate-1> --migration-copy <candidate-2>
+=== 2 passed, 0 failed ===
+
+> EngineHarness timing sweep, ten consecutive runs
+Runs 1-10: exit 0; each 217 passed, 0 failed.
+Seconds: 4.769, 4.582, 4.532, 4.624, 4.664, 4.698, 4.716, 4.749, 4.681, 4.686.
+
+> powershell -File <absolute-path>\scripts\Test-PowerShellScripts.ps1
+PSScriptAnalyzer 1.25.0 passed; enforced findings: 0.
+
+> dotnet build ... EnableNETAnalyzers=true AnalysisLevel=latest
+Build succeeded. 0 warnings, 0 errors.
+
+> dotnet format ... analyzers --verify-no-changes
+Exit code: 0; no output.
+
+> rg historical dead-gate markers
+0 matches; expected rg exit 1.
+```
+
+Boundary: no deploy, console mutation, email, purchase, signing, install,
+secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, public ATS read, or live provider/Gmail action occurred. The
+two `.appdata` originals were read only through the backup-copy API and were
+verified unchanged; no original was mutated.
+
 ## 2026-08-12 (Terra R6c) - PowerShell static-analysis pass completed
 
 Branch: `codex/r6-psscriptanalyzer`, based on fresh `origin/main` at
