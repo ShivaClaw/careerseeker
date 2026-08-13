@@ -78,7 +78,7 @@ try {
         )
     }
 
-    $args = $prefixArgs + @(
+    $commandArgs = $prefixArgs + @(
         "scout-boards",
         "--db", $DbPath,
         "--jd-dir", $JobDescriptionDirectory,
@@ -86,7 +86,7 @@ try {
     )
     foreach ($boardName in $Board) {
         if (-not [string]::IsNullOrWhiteSpace($boardName)) {
-            $args += @("--board", $boardName)
+            $commandArgs += @("--board", $boardName)
         }
     }
 
@@ -104,7 +104,7 @@ try {
         return
     }
 
-    Invoke-Checked $command $args
+    Invoke-Checked $command $commandArgs
 
     Write-Host ""
     Write-Host "CareerSeeker Alpha Scout ingest complete."

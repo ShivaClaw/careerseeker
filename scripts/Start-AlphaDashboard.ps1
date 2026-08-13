@@ -152,10 +152,9 @@ try {
 
     if (-not $NoOpen) {
         Start-Job -ScriptBlock {
-            param([string] $Url)
             Start-Sleep -Seconds 1
-            Start-Process $Url
-        } -ArgumentList $url | Out-Null
+            Start-Process $using:url
+        } | Out-Null
     }
 
     Invoke-Checked $command ($prefixArgs + $engineArgs)

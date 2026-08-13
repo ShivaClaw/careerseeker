@@ -121,7 +121,7 @@ try {
         )
     }
 
-    $args = $prefixArgs + @(
+    $commandArgs = $prefixArgs + @(
         "research-company",
         "--company", $Company,
         "--llm", "byok",
@@ -131,7 +131,7 @@ try {
         "--http-timeout-seconds", $HttpTimeoutSeconds.ToString()
     )
     if (-not [string]::IsNullOrWhiteSpace($Domain)) {
-        $args += @("--domain", $Domain)
+        $commandArgs += @("--domain", $Domain)
     }
 
     Write-Host "CareerSeeker Alpha company research"
@@ -168,7 +168,7 @@ try {
         throw "Brave Search was not found in '$SecretsPath' or the process environment. Add BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_API, or CAREERSEEKER_BRAVE_SEARCH_API_KEY."
     }
 
-    Invoke-Checked $command $args
+    Invoke-Checked $command $commandArgs
 
     Write-Host ""
     Write-Host "CareerSeeker Alpha company research complete."

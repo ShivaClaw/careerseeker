@@ -82,7 +82,7 @@ try {
         )
     }
 
-    $args = $prefixArgs + @(
+    $commandArgs = $prefixArgs + @(
         "export-alpha-package",
         "--db", $DbPath,
         "--artifacts", $ArtifactsPath,
@@ -90,14 +90,14 @@ try {
         "--out", $OutputPath
     )
     if ($IncludePayloads) {
-        $args += "--include-payloads"
+        $commandArgs += "--include-payloads"
     }
 
     Write-Host "Exporting CareerSeeker Alpha evidence package..."
     Write-Host "Secret-looking paths are filtered by the alpha exporter."
     Write-Host ""
 
-    Invoke-Checked $command $args
+    Invoke-Checked $command $commandArgs
 
     Write-Host ""
     Write-Host "CareerSeeker Alpha evidence package exported."

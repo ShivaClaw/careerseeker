@@ -80,20 +80,20 @@ try {
         )
     }
 
-    $args = $prefixArgs + @(
+    $commandArgs = $prefixArgs + @(
         "export-audit",
         "--db", $DbPath,
         "--out", $OutputPath
     )
     if ($IncludePayloads) {
-        $args += "--include-payloads"
+        $commandArgs += "--include-payloads"
     }
 
     Write-Host "Exporting CareerSeeker Alpha audit JSON..."
     Write-Host "Payloads are hashes only unless explicitly included."
     Write-Host ""
 
-    Invoke-Checked $command $args
+    Invoke-Checked $command $commandArgs
 
     Write-Host ""
     Write-Host "CareerSeeker Alpha audit JSON exported."

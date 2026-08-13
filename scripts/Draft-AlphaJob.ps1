@@ -126,7 +126,7 @@ try {
         )
     }
 
-    $args = $prefixArgs + @(
+    $commandArgs = $prefixArgs + @(
         "draft-job",
         "--job-id", $JobId.ToString(),
         "--llm", $LlmMode,
@@ -138,16 +138,16 @@ try {
         "--key-vault", $ByokVaultPath
     )
     if (-not $Live) {
-        $args += "--dry-run"
+        $commandArgs += "--dry-run"
     }
     else {
-        $args += @("--client", $GmailClientPath, "--vault", $GmailVaultPath)
+        $commandArgs += @("--client", $GmailClientPath, "--vault", $GmailVaultPath)
     }
     if (-not [string]::IsNullOrWhiteSpace($Email)) {
-        $args += @("--email", $Email)
+        $commandArgs += @("--email", $Email)
     }
     if ($AllowInjected) {
-        $args += "--allow-injected"
+        $commandArgs += "--allow-injected"
     }
 
     Write-Host "CareerSeeker Alpha selected-job draft"
@@ -184,7 +184,7 @@ try {
         throw "Gmail OAuth client JSON not found at '$GmailClientPath'. Run Connect-CareerSeeker-Gmail.cmd first."
     }
 
-    Invoke-Checked $command $args
+    Invoke-Checked $command $commandArgs
 
     Write-Host ""
     Write-Host "CareerSeeker Alpha selected-job draft complete."
