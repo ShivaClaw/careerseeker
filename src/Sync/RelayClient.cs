@@ -171,6 +171,22 @@ public sealed class RelayClient(HttpClient http, string relayBaseUrl, string pai
                 || latestElement.ValueKind != JsonValueKind.Number
                 || !latestElement.TryGetInt64(out var latest))
                 return new RelayPullResult.Unavailable("the pull page carries no integer latest");
+            // ...and being an integer is not the same as being a seq. `TryGetInt64` fixes the type
+            // and the width, so it already refuses 1e19 and 1e300 (measured), but it accepts the
+            // whole of Int64 -- and `latest` is not an Int64, it is `MAX(seq)` over the rows the
+            // relay holds. Every one of those rows passed the relay's own seq check, so `latest`
+            // inherits seq's domain: >= 0 (0 meaning "this direction holds nothing") and never
+            // above Protocol.MaxSeq. A page saying otherwise is a page no conforming relay can
+            // produce, which is the same class as the three checks above and gets the same answer.
+            //
+            // Refuse the page rather than clamp the value. Clamping would accept a page while
+            // silently disagreeing with it about the one number the caller uses to bound its
+            // cursor, and the asymmetry decides it: refusing keeps the cursor where it is, reports
+            // PullFailed and retries next tick -- loud and recoverable -- while clamping advances
+            // a cursor on a number this client has already judged untrustworthy.
+            if (latest < 0 || latest > Protocol.MaxSeq)
+                return new RelayPullResult.Unavailable(
+                    $"the pull page's latest is outside the legal seq range (§3.2): {latest}");
 
             return new RelayPullResult.Ok(
                 envelopes.EnumerateArray().Select(e => e.Clone()).ToList(), latest);
