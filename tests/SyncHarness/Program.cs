@@ -1371,6 +1371,93 @@ try { await Push((_, _) => Answer(HttpStatusCode.Created, """{"ok":true}"""), pu
 catch (OperationCanceledException) { pushCancellationEscaped = true; }
 Check("caller cancellation propagates rather than becoming a result", pushCancellationEscaped);
 
+// ---------------------------------------------------------------- counter reconciliation (§6.1)
+//
+// PQ-S6-3's second bullet. The two previous slices gave the transport a vocabulary -- a typed pull
+// result, then a typed push result carrying the 409's `latest` -- and NOTHING CONSUMED EITHER. §6.1
+// says an engine resumes its e2p counter above max(persisted_seq, relay_latest_e2p_seq); the first
+// term was wired, the second was read, range-checked, logged, and thrown away.
+//
+// Two halves, and only one of them can be executed here. The RULE is pure and is tested below. The
+// COMPOSITION that feeds it -- BuildSyncBridge reading a DPAPI vault and a live relay -- is
+// compile-checked only, which is why the rule was extracted to SyncPublisher.ResumeSeq rather than
+// left inline in the host where nothing could reach it.
+
+Console.WriteLine("\n[ counter reconciliation (§6.1) ]");
+
+// -- the startup rule: max(persisted, relay latest) -------------------------------------------
+static RelayPullResult OkPage(long latest) => new RelayPullResult.Ok(Array.Empty<JsonElement>(), latest);
+
+Check("§6.1 startup takes the relay's mark when it leads the store",
+    SyncPublisher.ResumeSeq(41, OkPage(57)) == 57);
+Check("§6.1 startup keeps the store's mark when it leads the relay",
+    SyncPublisher.ResumeSeq(57, OkPage(41)) == 57);
+Check("§6.1 startup is max(), not last-writer -- equal terms resolve to the same value",
+    SyncPublisher.ResumeSeq(41, OkPage(41)) == 41);
+// The case that motivates the second term at all: RecordE2pSeq runs AFTER the relay's 201, so a
+// crash in between leaves the store behind. Store-only resume would 409 on the recovery snapshot.
+Check("a store that lags a successful push is repaired by the relay term",
+    SyncPublisher.ResumeSeq(0, OkPage(12)) == 12);
+// An empty direction reports latest 0 (channel.ts:206-208 `?? 0`), which must not drag anything down.
+Check("an empty relay direction (latest 0) does not lower the store's mark",
+    SyncPublisher.ResumeSeq(41, OkPage(0)) == 41);
+
+// A relay that did not answer must NOT stop publishing: §6.1 makes the relay read
+// belt-and-suspenders and the store the value. Each non-Ok case falls back to the store.
+Check("an unreachable relay falls back to the store rather than refusing to publish",
+    SyncPublisher.ResumeSeq(41, new RelayPullResult.Unavailable("no route")) == 41);
+Check("a 401 falls back to the store too -- the push path reports a dead token where it can act",
+    SyncPublisher.ResumeSeq(41, new RelayPullResult.Unauthorised()) == 41);
+Check("a misconfigured relay falls back to the store",
+    SyncPublisher.ResumeSeq(41, new RelayPullResult.Misconfigured("404")) == 41);
+// A corrupt store is not a position. Floored at 0 and left for the relay term to repair.
+Check("a negative persisted seq is floored, not trusted as a position",
+    SyncPublisher.ResumeSeq(-9, OkPage(0)) == 0);
+Check("a negative persisted seq is repaired by the relay term",
+    SyncPublisher.ResumeSeq(-9, OkPage(12)) == 12);
+
+// -- the running rule: a 409 moves the counter, and only upward ------------------------------
+{
+    // The counter is what is under test here, not the sealing -- so the key and pairing are local
+    // literals rather than vector reads, and the sink always succeeds.
+    var reconcileKey = Convert.FromHexString(
+        "1122334455667788990011223344556677889900112233445566778899001122");
+    var reconcileCounters = new Counters(
+        Discovered: 3, Acted: 1, Drafted: 1, Blocked: 0, Rejected: 1, Errors: 0, Cycles: 7);
+    var reconciled = new SyncPublisher(
+        reconcileKey, (string)index["pairing_id"]!, activeKeyId,
+        (_, _) => Task.FromResult(true), startSeq: 5);
+
+    Check("ReconcileTo raises the counter and says it moved", reconciled.ReconcileTo(41));
+    Check("the counter is now the relay's mark", reconciled.HighestSeq == 41);
+    // The point of the whole slice: the NEXT envelope resumes above the relay's mark instead of
+    // walking up one at a time into the same 409 forever.
+    Check("the next push resumes ABOVE the reconciled mark",
+        reconciled.PublishHeartbeatAsync(1, reconcileCounters).GetAwaiter().GetResult()
+        && reconciled.HighestSeq == 42);
+
+    // THE INVARIANT. A relay reporting a mark below this counter is not evidence the counter ran
+    // ahead -- the seqs in between may sit in the phone's accepted history, which §6.2 says it
+    // refuses on sight and forever. Rewinding onto them is the one-sided sync death §6.1 prevents.
+    Check("ReconcileTo REFUSES to lower the counter and says it did nothing",
+        !reconciled.ReconcileTo(7));
+    Check("the counter survived the attempt to lower it", reconciled.HighestSeq == 42);
+    Check("an equal mark is not a move either", !reconciled.ReconcileTo(42) && reconciled.HighestSeq == 42);
+
+    // The guard is an assertion against a future caller, not a clamp: RelayClient range-checks both
+    // numbers that reach here, so a shipped call site cannot trigger it. Clamping would write a
+    // number this side already judged untrustworthy into the counter that goes on the wire.
+    var negativeRefused = false;
+    try { reconciled.ReconcileTo(-1); } catch (ArgumentOutOfRangeException) { negativeRefused = true; }
+    Check("ReconcileTo refuses a negative seq rather than clamping it", negativeRefused);
+    var overMaxRefused = false;
+    try { reconciled.ReconcileTo(Protocol.MaxSeq + 1); }
+    catch (ArgumentOutOfRangeException) { overMaxRefused = true; }
+    Check("ReconcileTo refuses a seq past §3.2's cap rather than clamping it", overMaxRefused);
+    Check("a seq exactly at §3.2's cap is still accepted",
+        reconciled.ReconcileTo(Protocol.MaxSeq) && reconciled.HighestSeq == Protocol.MaxSeq);
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 

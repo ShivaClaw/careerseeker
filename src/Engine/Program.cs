@@ -171,7 +171,7 @@ async Task<int> RunDemoAsync()
         }
 
         var evidence = LocalDashboardEvidence.FromStore(store);
-        var syncBridge = BuildSyncBridge(counters, evidence, syncEnabled, store);
+        var syncBridge = await BuildSyncBridge(counters, evidence, syncEnabled, store).ConfigureAwait(false);
         await using var host = new EngineHost(
             cycle,
             counters,
@@ -250,7 +250,10 @@ EngineCycle BuildDemoCycle(ISeekerStore store, EngineCounters counters, long pro
 // already-applied entitlement/outcome. Dispatch is narrow: entitlement → verify + enable + ack;
 // pull_request → re-publish snapshot; outcome → apply; doc_edit → reply `unimplemented` (P3's
 // surface, never stubbed). No inbound kind is a send path.
-EngineSyncBridge? BuildSyncBridge(
+// Async since the §6.1 startup reconciliation below reads the relay. The one network call this adds
+// is on the startup path only, is bounded by the client's own 20s timeout, and cannot throw for a
+// relay condition — PullAsync returns those as values.
+async Task<EngineSyncBridge?> BuildSyncBridge(
     EngineCounters counters, LocalDashboardEvidence evidence, bool enabled, ISeekerStore store)
 {
     if (!enabled)
@@ -270,6 +273,26 @@ EngineSyncBridge? BuildSyncBridge(
     // would silently stop updating while the engine reported success locally.
     var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
     var relay = new RelayClient(http, paired.RelayUrl, paired.Pairing);
+
+    // ...and the store is only the FIRST term. §6.1 says max(persisted_seq, relay_latest_e2p_seq),
+    // reconciled on startup against the relay, "as a belt-and-suspenders should the store lag" — and
+    // it can lag for an ordinary reason: RecordE2pSeq runs after a push succeeds, so a crash between
+    // the relay's 201 and that write leaves the store one or more behind what the relay holds.
+    // Resuming from the store alone then walks straight into a 409 on the recovery snapshot.
+    //
+    // since=0 asks for the whole direction and we read only `latest` off the page; the envelopes it
+    // returns are this engine's own and are discarded. That is one wasted page at startup, once, in
+    // exchange for the one number that makes the resume correct.
+    var relayAnswer = await relay.PullAsync(paired.RelayToken, "e2p", since: 0).ConfigureAwait(false);
+    var resumeSeq = SyncPublisher.ResumeSeq(paired.LastE2pSeq, relayAnswer);
+    if (relayAnswer is RelayPullResult.Ok okPage)
+        Console.WriteLine(
+            $"Sync: resuming the e2p counter above {resumeSeq} (store {paired.LastE2pSeq}, relay {okPage.Latest}).");
+    else
+        // Named, not swallowed. Publishing continues on the store's value — see ResumeSeq — but an
+        // operator reading a later replay refusal deserves to know the reconciliation never ran.
+        Console.WriteLine(
+            $"Sync: could not read the relay's e2p high-water mark ({relayAnswer.GetType().Name}); resuming above the stored {resumeSeq} alone (§6.1).");
 
     // The sink persists the high-water mark itself rather than EngineSyncBridge growing a callback:
     // the bridge is shared with the harnesses and has no business knowing about DPAPI. `publisherRef`
@@ -297,12 +320,25 @@ EngineSyncBridge? BuildSyncBridge(
                     return true;
 
                 case RelayPushResult.Conflict conflict:
-                    // §6.1's reconciliation input, arriving at the exact moment the counter is
-                    // proved wrong. Logged rather than applied, and the log says which so a reader
-                    // does not mistake "reported" for "handled".
-                    Console.WriteLine(conflict.Latest is { } latest
-                        ? $"Sync: the relay refused seq {publisherRef?.HighestSeq} as a replay; its e2p high-water mark is {latest}. Not yet reconciled (§6.1)."
-                        : "Sync: the relay refused the envelope as a replay and reported no usable high-water mark.");
+                    // §6.1's reconciliation input, arriving at the exact moment the counter is proved
+                    // wrong — and now APPLIED rather than logged. These bytes are still dead (the
+                    // refusal is about the number they carry, and re-sending them cannot change it),
+                    // so this still returns false; what changes is that the NEXT push assigns a seq
+                    // above the relay's mark instead of walking up one at a time into the same 409.
+                    if (conflict.Latest is { } latest && publisherRef is not null)
+                    {
+                        var refused = publisherRef.HighestSeq;
+                        // The log distinguishes reconciled from reported, because ReconcileTo refuses
+                        // to move the counter DOWN and an operator needs to see which happened.
+                        Console.WriteLine(publisherRef.ReconcileTo(latest)
+                            ? $"Sync: the relay refused seq {refused} as a replay; reconciled the e2p counter up to its high-water mark {latest} (§6.1). The next envelope resumes above it."
+                            : $"Sync: the relay refused seq {refused} as a replay but reported a high-water mark of {latest}, at or below this engine's counter. NOT applied -- rewinding would re-issue seqs the phone may already have accepted (§6.2).");
+                    }
+                    else
+                    {
+                        Console.WriteLine(
+                            "Sync: the relay refused the envelope as a replay and reported no usable high-water mark. Nothing to reconcile (§6.1).");
+                    }
                     return false;
 
                 case RelayPushResult.TooLarge:
@@ -330,7 +366,7 @@ EngineSyncBridge? BuildSyncBridge(
                     return false;
             }
         },
-        startSeq: paired.LastE2pSeq);
+        startSeq: resumeSeq);
     publisherRef = publisher;
 
     Console.WriteLine($"Sync: publishing to {SyncPairingVault.Describe(paired)}.");
