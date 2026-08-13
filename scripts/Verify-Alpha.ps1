@@ -230,7 +230,25 @@ $offlineProjects = @(
 # PullAsync, which refuses the whole page on a bad `latest`: there the number governs a cursor about
 # to advance, here it is an optional aid to a decision already made. Proven by mutation: nine applied,
 # nine caught. 704.
-$ExpectedOfflineTotal = 704
+#
+# Twenty more SyncHarness assertions (236 -> 256) make the three blocks above DO something. Each
+# gave the transport a vocabulary and nothing consumed it: §6.1 says an engine resumes its e2p
+# counter above max(persisted_seq, relay_latest_e2p_seq), and the second term was read, range-checked,
+# logged and thrown away (PQ-S6-3's second bullet). Now `SyncPublisher.ResumeSeq` is that max() as a
+# pure function -- extracted deliberately, because the composition that feeds it needs a DPAPI vault
+# and a live relay and can only ever be compile-checked, so extracting the rule is what makes §6.1
+# testable at all -- and `SyncPublisher.ReconcileTo` moves the counter when a 409 proves it wrong.
+# The load-bearing property is that ReconcileTo RAISES AND NEVER LOWERS: a relay mark below this
+# counter is not evidence the counter ran ahead, and rewinding onto seqs the phone may already have
+# accepted is refused by §6.2 permanently -- the one-sided sync death §6.1 exists to prevent. The
+# assertions also pin that a relay which did not answer falls back to the store rather than stopping
+# publishing (§6.1 makes the store the value and the relay read belt-and-suspenders), and that an
+# out-of-range seq throws rather than clamping. Proven by mutation: nine applied, seven caught first
+# pass, NINE after two real gaps were closed -- one where the floor on a corrupt store was invisible
+# because the relay term rescued every case that tested it, and one where the boundary mutation took
+# the harness down with an unhandled exception INSTEAD of printing a FAIL, which reads as a survivor
+# to anything counting FAIL lines. 724.
+$ExpectedOfflineTotal = 724
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -543,8 +561,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 236 |',
-        '| **Total** | **704** |',
+        '| SyncHarness | 256 |',
+        '| **Total** | **724** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -558,7 +576,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **704** |',
+        '| **Total** | **724** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -572,13 +590,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 236 |'
+        '| SyncHarness | 256 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 236 |',
-        '| **Total** | **704** |',
+        '| SyncHarness | 256 |',
+        '| **Total** | **724** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -612,7 +630,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **704 passed, 0 failed**',
+        'Pinned offline verifier: **724 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
