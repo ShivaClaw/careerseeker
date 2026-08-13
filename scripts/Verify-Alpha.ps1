@@ -213,7 +213,24 @@ $offlineProjects = @(
 # lowers that ceiling to 2^53-1 and does NOT close it (PQ-LAT-2); if a later slice closes it, those
 # two assertions SHOULD fail. Proven by mutation: seven applied, seven caught, tree byte-identical
 # after. 673.
-$ExpectedOfflineTotal = 673
+#
+# Thirty-one more SyncHarness assertions (205 -> 236) do for RelayClient.PushAsync what the previous
+# two blocks did for PullAsync: it returned `res.StatusCode is Created` -- a bare bool -- so a 409
+# replay_rejected, a 400, a 413, a timeout and a DNS failure were the SAME VALUE, three of them
+# permanent for the bytes in hand and two worth retrying, and no caller could tell which it had.
+# Worse, the 409 carries `latest`, which is the second term of §6.1's max(persisted, relay_latest),
+# and bool discarded it unread (PQ-S6-3). The assertions pin seven cases (Ok / Conflict / Unauthorised
+# / Misconfigured / Rejected / TooLarge / Unavailable) and three properties that are easy to get
+# wrong: that a 409 with an unusable `latest` stays Conflict(null) and is NEVER downgraded to
+# Unavailable -- downgrading tells the caller to retry the one thing that provably cannot work, which
+# §2.2 forbids in as many words; that the 409's `latest` gets the SAME range check as a pull page's,
+# because a sender resumes ABOVE it and so this number reaches the wire where the pull cursor's never
+# does; and that a 201 with an unreadable body is still Ok, since parsing it would invent a failure on
+# top of a success and make the sender retry bytes the relay already holds. Note the asymmetry with
+# PullAsync, which refuses the whole page on a bad `latest`: there the number governs a cursor about
+# to advance, here it is an optional aid to a decision already made. Proven by mutation: nine applied,
+# nine caught. 704.
+$ExpectedOfflineTotal = 704
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -526,8 +543,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 205 |',
-        '| **Total** | **673** |',
+        '| SyncHarness | 236 |',
+        '| **Total** | **704** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -541,7 +558,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **673** |',
+        '| **Total** | **704** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -555,13 +572,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 205 |'
+        '| SyncHarness | 236 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 205 |',
-        '| **Total** | **673** |',
+        '| SyncHarness | 236 |',
+        '| **Total** | **704** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -595,7 +612,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **673 passed, 0 failed**',
+        'Pinned offline verifier: **704 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
