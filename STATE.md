@@ -1,13 +1,17 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-12T19:33:39-06:00
-- **Current rung:** R6 remains IN PROGRESS: R6(a) and R6(c) are DONE; R6(b)
-  is BLOCKED on draft PR #26/Q07; R6(d) remains.
-- **Current worktree / branch:** completed R6(c) worktree
-  `C:\Users\bkirk\Documents\CareerSeeker-r6-pssa` / `codex/r6-psscriptanalyzer`;
-  PR #40 is merged.
-- **Files claimed:** none. R6(c) is complete and the next iteration has not
-  started.
+- **Heartbeat:** 2026-08-12T19:36:40-06:00
+- **Current rung:** R6(d) ordered-hardening-backlog regression audit in
+  progress from fresh `origin/main` at
+  `efb9cd64d9e6b2ffb34c485695d9e6d18aac426f`.
+- **Current worktree / branch:**
+  `C:\Users\bkirk\Documents\CareerSeeker-r6-backlog` /
+  `codex/r6-ordered-backlog-audit`.
+- **Files claimed:** `docs/BETA-AUDIT-REQUEST.md`,
+  `docs/Codex-Resume-Handoff.md`, `docs/CareerSeeker-Project-Summary.md`, and
+  `docs/autonomy/CODEX-STATE.md`. No source, sync, relay, harness, verifier, or
+  count-reporting README file is claimed unless the executed audit exposes a
+  real regression that requires it.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -126,8 +130,9 @@
   the full local gate repeated green. Final runs `31657806693` and
   `31657809486` passed both jobs; PR #40 merged normally as
   `efb9cd64d9e6b2ffb34c485695d9e6d18aac426f`.
-- **Next intent:** take exactly one R6(d) ordered-backlog review slice from a
-  fresh `origin/main`, after fetching and re-reading both coordination states.
+- **Next intent:** re-execute current-tree evidence for all six items in the
+  authoritative post-B8 ordered backlog, record any gap, and close R6(d) only
+  if the audit proves no remaining work.
 - **Boundary:** only the explicitly authorized current-user NuGet provider
   2.8.5.208 and PSScriptAnalyzer 1.25.0 were installed. No deploy, console,
   email, purchase, signing, application/MSIX or machine-global tooling install,
