@@ -36,8 +36,8 @@ its own, and no envelope from anyone creates a path to sending email — see §8
 | `/v1/{pairing}/create` | POST | Engine bootstraps the pairing channel (§5.2.1) |
 | `/v1/{pairing}/pair` | POST | Phone submits the pairing completion (§5.2.2) |
 | `/v1/{pairing}/pair` | GET | Engine collects the completion; one-shot (§5.2.2) |
-| `/v1/{pairing}/push` | POST | Append one envelope to the recipient's queue |
-| `/v1/{pairing}/pull?since={seq}&dir={dir}` | GET | Fetch envelopes for direction `dir` with `seq > since` |
+| `/v1/{pairing}/push` | POST | Append one envelope to the recipient's queue. Response bodies in §2.2 |
+| `/v1/{pairing}/pull?since={seq}&dir={dir}` | GET | Fetch envelopes for direction `dir` with `seq > since`. Response body in §2.1 |
 | `/v1/{pairing}/live` | WSS | Live fan-out while a client is connected |
 | `/v1/{pairing}` | DELETE | Unpair — purge the Durable Object and all queued envelopes |
 | `/v1/health` | GET | Liveness. Returns no pairing information. |
@@ -53,6 +53,122 @@ Transport is HTTPS/WSS only. Clients MUST reject cleartext. Envelopes are JSON, 
 
 **Retention.** The relay MUST purge any envelope older than the configured TTL, which MUST
 NOT exceed 30 days (`CareerSeeker-Spec.md` §8.3). The relay MUST NOT log envelope bodies.
+
+### 2.1 Pull response body
+
+**Decided 2026-08-11 (PQ-S4-2).** The route table above defines the pull *request* and
+stopped there, so each of the three implementations invented its own reading of the
+*response* — and `latest`, which §6.1 already depends on, was used by the normative text
+without ever being defined. This section defines it.
+
+```
+200 body = {
+  "envelopes": [ <envelope>, … ],   // REQUIRED — §3 envelopes, bare, ascending seq
+  "latest": <integer>               // REQUIRED — highest seq the relay holds for dir
+}
+```
+
+- Both fields are **REQUIRED**. A receiver MUST reject a 200 body that omits either one,
+  and MUST NOT substitute a default for a missing field.
+- `envelopes` is a JSON array of **bare §3 envelope objects**, spliced verbatim, in
+  ascending `seq`, every one of them matching the requested `dir` and having
+  `seq > since`. An empty array is legal and means "nothing above your cursor *in this
+  page*" — see the truncation rule below. A receiver MUST NOT accept any other element
+  shape; in particular it MUST NOT accept a `{"seq": N, "envelope": …}` wrapper.
+- `latest` is a JSON **integer** — never a quoted number — and is the highest `seq` the
+  relay currently holds for that direction, or `0` if it holds none.
+- **The page MAY be truncated.** The relay bounds it (`PULL_PAGE_SIZE`, currently 100 —
+  `relay/src/protocol.ts:64`), so a full page does not mean the stream is drained. A
+  client MUST decide whether more remains by comparing its cursor against `latest`, and
+  MUST NOT infer "caught up" from a short or empty `envelopes` array.
+- A body that cannot be read under these rules MUST NOT be treated as an empty page: a
+  receiver MUST NOT let it reach the caller as a successful pull of zero envelopes. It
+  SHOULD be reported as a transport failure. The distinction is deliberate — the MUST is
+  the safety property, and the SHOULD is reporting style, which the two receivers can
+  reasonably differ on: the phone returns `RelayResult.Unavailable` because the failure
+  lands in a background sync coroutine, while the engine's `PullAsync`
+  (`src/Sync/RelayClient.cs`) lets the parse throw to its caller. Both refuse the silent
+  empty page, which is the half that matters; neither is required to adopt the other's
+  error type.
+
+**Why both fields are required rather than defaulted, which is the load-bearing part.**
+`latest` is the client's loop bound: it drives "is the relay still ahead of me" and §6.2's
+gap check. A receiver that defaults an absent `latest` to `0` computes `cursor < 0`, which
+is false, and therefore reports a healthy, fully-caught-up, permanently empty sync. **The
+relay is the party that controls this body** (§1: blind, but not trusted), so that is one
+deleted field standing between a working sync and a silent stall with no error anywhere.
+Rejecting the body is loud; defaulting it is not. The same argument applies to `envelopes`
+in mirror image — absent, defaulted to `[]`, it asserts "nothing to do" and "the relay is
+ahead of you" in the same breath.
+
+**Why the wrapper shape is refused.** No implementation emits it. The relay splices bare
+envelope JSON (`relay/src/channel.ts`, `pull`: `rows.map((r) => r.ciphertext).join(',')`),
+the engine's reader has no branch for it (`src/Sync/RelayClient.cs`, `PullAsync`), no test
+vector contains a page at all, and this document never described one. It was accepted by
+exactly one client and produced by none. Beyond being dead, it is **harmful**: the `seq` it
+carries is the relay's own unauthenticated number, and it can disagree with the
+authenticated `seq` inside the envelope that the AAD covers (§4.1). A client that advanced
+a cursor on the wrapper's number could be walked past envelopes it never read by a relay
+that cannot decrypt a byte of them. Any per-envelope sequence a client reads before
+decryption is a **claim**; only the `seq` recovered from the sealed bytes is a fact, and
+§6.2's rules run on the latter.
+
+### 2.2 Push response body
+
+**Decided 2026-08-11 (PQ-S6-2).** §2.1 defined the pull response because three
+implementations had each invented one. The push route has the same hole, and here it is
+load-bearing in a way pull's was not: **§6.1 tells a sender to reconcile its counter
+against the relay's high-water mark, and the relay already returns that number on the very
+response that reports the counter is wrong** — in a body this document never described.
+
+Measured under miniflare against the deployed Worker source, not read off it:
+
+```
+201 body = {"ok": true, "seq": <integer>}     // appended; seq echoes the envelope's
+409 body = {"error": "replay_rejected",       // seq <= the relay's high-water mark …
+            "latest": <integer>}              // … for THIS direction
+400 body = {"error": "bad_request"}           // unparseable body, or header shape invalid
+413 body = {"error": "too_large"}             // §3.1 cap (measured on the ciphertext)
+```
+
+- **201 means appended, and nothing more.** It is not an acknowledgement that the
+  *receiver* accepted, decrypted or applied anything. The relay is blind (§1) and has no
+  opinion about the payload; §6.2's receiver rules run later and independently. A sender
+  MUST NOT report a delivered envelope as an applied one.
+- **The 409 carries `latest`, and it is REQUIRED on that status.** It is the relay's
+  high-water `seq` **for the direction the refused envelope named**, not across the
+  pairing. Measured: with `e2p` at 90 and `p2e` at 4, a replayed `p2e` seq 4 answers
+  `latest: 4`. A sender MUST NOT read it as a position for the other direction.
+- `latest` is a JSON **integer**, never a quoted number — the same field and the same
+  rule as §2.1's.
+- **400 and 413 carry no `latest`**, and a sender MUST NOT treat either as evidence about
+  its counter. They say nothing about the sender's position.
+- A sender MUST treat 409 as **neither success nor a transport failure**. Retrying the
+  same bytes cannot fix it, and §6.1 says what to do instead.
+- **A direction holding nothing accepts any `seq >= 1`** — measured: the first push on a
+  fresh direction answers 201 even at seq 1, because the monotonicity check has no prior
+  value to compare against. `GET /pull?dir=…&since=0` on that direction answers
+  `{"envelopes":[],"latest":0}`.
+
+**Why the 409's `latest` is more than a convenience.** §6.1 requires a sender to resume
+above `max(persisted_seq, relay_latest)` and points at `GET /pull?dir=…&since=0` for the
+second term. That works, but it is a round trip the sender must make *before* it knows it
+needs one — so in practice it is made at startup or never. The 409 delivers the same
+number at the exact moment the sender is proved wrong, which lets a sender recover inside
+the push loop it is already in. That is the difference between a counter gap that heals
+itself and one that needs a restart to notice.
+
+**The relay's HTTP error codes are a different namespace from §7.2's, and the overlap is
+the trap.** §7.2 defines the sealed `error` *payload* — `{code, detail?, ref_seq?}` —
+exchanged between engine and phone and invisible to the relay. The bodies above are
+**transport** errors, shaped `{"error": …}`, produced by a party that cannot read a
+payload at all. Two names appear in both vocabularies with the same meaning
+(`replay_rejected`, `too_large`), which is exactly why the split is easy to miss;
+`bad_request` appears in neither §7.2 nor anywhere else in this document, and nor do
+`unauthorized`, `not_found`, `method_not_allowed` or `upgrade_required`, all of which the
+relay also emits. **Read `{"error": …}` as transport and `{"code": …}` as payload.** v1
+pins the push mapping above and **no other route's**; the remaining transport bodies are
+observed rather than normative, and are recorded as **PQ-S2-3** rather than invented here.
 
 ---
 
@@ -206,7 +322,7 @@ Phone → engine:
 | `doc_edit` | `{app_id, doc_kind, base_rev, new_text, device_sig}`. See §5.4 and §8. |
 | `outcome` | Pro: `{app_id, outcome, at}`. `outcome` ∈ `sent` \| `replied` \| `interview` \| `offer` \| `rejected`. |
 | `entitlement` | `{original_json, signature}` — Google Play's signed purchase payload. Body in §4.3.2. State-changing: the envelope MUST carry `sig` (§5.4). |
-| `pull_request` | `{since_seq}` — ask the engine to re-publish from a sequence point. |
+| `pull_request` | `{since_seq}` — ask the engine to re-publish the whole dashboard as a fresh `snapshot`. `since_seq` is **reserved in v1** and carries no meaning: senders MUST send `0`, receivers MUST ignore it. Body in §4.3.4. |
 | `error` | §7.2. |
 
 **Reserved, not implemented in v1.** These names are claimed so a future L2 cannot collide
@@ -351,6 +467,67 @@ reachable only through an ack — and never through a locally-computed verdict o
 is a phone-side design boundary recorded as PQ-A2-4 in the android repo, and it is
 load-bearing: a device that could self-certify its own entitlement would be a device with
 an incentive to.
+
+### 4.3.4 Pull request body (`pull_request`)
+
+**Decided 2026-08-10 (PQ-S4-1, option (a)).** A `pull_request` means exactly one thing in
+v1: *send me the current dashboard state as a fresh `snapshot`*. It is **not** resumable.
+
+```
+pull_request body = {
+  "since_seq": <long>   // RESERVED in v1 — MUST be 0, MUST be ignored by the receiver
+}
+```
+
+- A sender MUST set `since_seq` to `0`.
+- A receiver MUST answer with a full `snapshot` — never a `delta`, and never a replay of
+  the envelopes above some sequence point.
+- A receiver MUST NOT reject a `pull_request` whose `since_seq` is non-zero. The field is
+  reserved, not validated: a sender that fills it in honestly is asking for something v1
+  cannot express, and a full snapshot is the correct answer to that question anyway.
+  Rejecting it would turn a forward-compatible request into a stalled stream.
+
+This replaces the earlier one-line description, "ask the engine to re-publish **from a
+sequence point**", which described an intent that no implementation has ever had. What
+ships on both sides today, measured rather than recalled:
+
+- **Engine.** `InboundDispatcher` (`src/Sync/InboundDispatcher.cs:105-111`) parses the
+  field — `ReadSinceSeq`, defaulting to `0` on any parse failure — and hands it to
+  `ISnapshotRepublisher.RepublishSnapshotAsync(since, ct)`. **Every implementation of that
+  interface ignores the argument.** `LiveRepublisher`
+  (`tests/SyncLiveSmoke/Program.cs:311-312`) calls `PublishSnapshotAsync(...)`
+  unconditionally; `RecordingRepublisher` (`tests/SyncHarness/Program.cs:756-758`) only
+  records the value so the harness can assert it round-tripped. No shipping code path lets
+  `since_seq` change what is sent.
+- **Phone.** `PullPolicy` always sends `0`, for every reason it asks — cold start, a
+  `delta` refused for want of a snapshot, or a §6.2 gap.
+
+**Why the spec moves to the code rather than the code to the spec.** Resumption is not
+merely unimplemented here; it conflicts with §6.2. A large gap is defined as a signal to
+request *a fresh `snapshot`*, and a resumable pull cannot express "start over" — the two
+features want the same kind to mean opposite things. Reporting a real high-water mark
+would also encode a request the current engine ignores but a future one might honour, and
+on the exact path where honouring it is wrong: the gap case would come back as deltas
+resuming after N, which is what §6.2 says not to do. `0` is the only value that means "I
+hold nothing usable, send everything" under both the engine that exists and the engine
+that might.
+
+**A v2 that wants resumption needs a different shape, not this field.** It needs a way to
+ask for a snapshot *specifically* — a distinct kind, or an explicit discriminator — because
+once a pull can resume, §6.2's "ask for a fresh snapshot" has no wire form left. Widening
+`since_seq` in place would silently change what every v1 sender's `0` means.
+
+**Note the field-name collision, because it is confusing on first read.** §4.3.1's `delta`
+body also has a `since_seq`, and *that* one is live: it is the last envelope the publisher
+sent, and the receiver applies latest-wins over what it holds. Same name, two fields, two
+directions, and only one of them carries meaning. A reader who has seen `delta.since_seq`
+work should not infer this one does.
+
+This is a reserved **field**, which is a different thing from the reserved **kinds** listed
+under §4.3: a reserved kind MUST be rejected as `unknown_kind`, while this field MUST be
+accepted and ignored. The asymmetry is deliberate — rejecting an unknown kind refuses
+traffic v1 cannot understand, whereas rejecting this field would refuse a request v1
+understands perfectly.
 
 ### 4.4 Chunking
 
@@ -550,15 +727,56 @@ unchanged, which is why it is built now rather than when L2 needs it.
 ### 6.1 Sequence numbers
 
 Each direction has an independent counter starting at 1, incremented per envelope, and
-**persisted by the sender across restarts**. This is load-bearing on the engine side: the phone
-persists its highest-accepted e2p seq — it survives a process restart (a fresh in-memory receiver
-would otherwise re-accept an old seq) — so an engine that resumed its counter at 1 after its own
-restart would have every envelope, *including the recovery `snapshot`*, rejected as
-`replay_rejected`: a silent, total, one-sided sync death. The engine MUST therefore resume its
-e2p counter above `max(persisted_seq, relay_latest_e2p_seq)` — the value from its pairing store,
-reconciled on startup against the relay's current `latest` for the direction
-(`GET /pull?dir=e2p&since=0` returns it) as a belt-and-suspenders should the store lag. The
-pairing store is the device-session deliverable; this rule is what it must satisfy.
+**persisted by the sender across restarts**.
+
+**The resume rule, and it binds whichever side is sending.** A sender MUST resume its
+counter above `max(persisted_seq, relay_latest_seq_for_that_direction)` — the value from
+its own store, reconciled against the relay's current high-water mark for the direction as
+a belt-and-suspenders should the store lag. **Two sources carry the relay's number and a
+sender MAY use either**: `GET /pull?dir=…&since=0` returns it as `latest` (§2.1), and a
+refused `POST /push` returns the same number as `latest` in its 409 body (§2.2), at the
+moment the sender is proved to need it.
+
+**The engine's e2p case is the worked example, and it is the severe one.** The phone
+persists its highest-accepted e2p seq, so the mark survives a process restart — a fresh
+in-memory receiver would otherwise re-accept an old seq. An engine that resumed its counter
+at 1 after its own restart would therefore have every envelope it sends, *including the
+recovery `snapshot`*, rejected as `replay_rejected`: a silent, total, one-sided sync death.
+
+**The phone owes the identical obligation on `p2e`, and until 2026-08-11 this section asked
+only the engine** (PQ-S6-2). The relay does not care who is sending: `POST /push` refuses
+`seq <= last` per direction (§2.2) whichever end pushed it. A phone whose persisted p2e
+counter has fallen behind — a restore from backup, a rolled-back store, a counter persisted
+only after a push whose response was lost — builds envelopes the relay refuses at the door
+until the counter climbs back. **The consequence is smaller than the engine's, and that is
+why the asymmetry was easy to write rather than why it is optional**: marks and entitlements
+stall rather than the dashboard dying. A second phone implementation reading the old text
+had no rule to follow at all.
+
+Note that the first sentence of this section already bound **both** senders to persist;
+what was engine-only was the *recovery* rule above. The pairing store on each side is the
+device-session deliverable; this rule is what it must satisfy.
+
+> **Conformance note, measured 2026-08-11, and stated because a spec that quietly outruns
+> its implementations is a defect in the spec** (the §2.1 precedent). Neither shipping
+> sender fully satisfies the rule as written, and this note is not a grant of exemption —
+> both gaps are unblocked implementation work.
+>
+> - **Engine.** `src/Engine/Program.cs:288` constructs the publisher with
+>   `startSeq: paired.LastE2pSeq` — the persisted term **only**, with no reconciliation
+>   against the relay — although the comment block ten lines above it states the `max(…)`
+>   rule verbatim. Compounding it, `RelayClient.PushAsync` (`src/Sync/RelayClient.cs:51-60`)
+>   returns `bool` from `res.StatusCode is HttpStatusCode.Created`, so the 409's `latest` is
+>   discarded unread and a replay refusal is indistinguishable from a timeout. Recorded as
+>   **PQ-S6-3**.
+> - **Phone.** It reads the number (`RelayClient.conflictLatest`) and reconciles through
+>   `OutboundQueue.reconciled()`, but nothing persists its p2e counter yet: `SeqSource` is
+>   a `fun interface` whose **only implementation in the tree is a test double**
+>   (`OutboundQueueTest.kt:30`) — there is no production counter to persist, in memory or
+>   otherwise. Recorded as the android tree's **B-8**.
+>
+> The rule is stated for both senders regardless, because it is a safety property rather
+> than a matter of style, and because it was already normative for one of the two.
 
 ### 6.2 Receiver rules
 
@@ -567,10 +785,22 @@ A receiver tracks the highest `seq` it has accepted per direction. It MUST:
 - **reject** `seq <= highest_accepted` with `replay_rejected` (§7.2), before decryption;
 - **accept** `seq > highest_accepted`, including gaps — the relay's TTL purge creates
   legitimate gaps and a gap MUST NOT stall the stream;
-- treat a large gap as a signal to request a fresh `snapshot`, not as an error.
+- treat a large gap as a signal to request a fresh `snapshot` (via `pull_request`, §4.3.4),
+  not as an error.
+
+**What counts as "large" is receiver policy, and v1 deliberately pins no number.** The
+threshold cannot be a wire-level constant because only one side ever has an opinion: the
+engine answers a `pull_request` but never sends one, so the number lives entirely in the
+asking implementation and no third implementation can observe another's choice. A receiver
+SHOULD document the value it picked and whether it was measured or chosen. The phone's is
+a constructor parameter defaulting to **32**, labelled in its own source as chosen rather
+than measured — there is no deployment to derive it from yet.
 
 Rejection happens on the header, before any decryption attempt, so a replayed envelope
 costs a comparison rather than a crypto operation.
+
+The mark this section governs is **not** the same number as the pulling receiver's
+transport cursor. See §6.4.
 
 ### 6.3 Clocks are not security inputs
 
@@ -578,6 +808,91 @@ costs a comparison rather than a crypto operation.
 wrong clock, or a relay that delays an envelope, MUST NOT be able to cause a security
 decision to go the wrong way. Freshness comes from sequence numbers and the pairing
 lifetime, never from comparing timestamps.
+
+### 6.4 The transport cursor
+
+**Decided 2026-08-11 (PQ-S4-3). Amended 2026-08-13 (PQ-CUR-1)** — the carve-out below was
+first drawn for elements that fail the §3 parse, and a parseable element whose AEAD tag
+does not verify fell through the gap between the two rules. See "Parsing is not
+authenticating", below.
+
+§6.2 governs `highest_accepted`: the authenticated,
+persisted mark that drives replay rejection. A pulling receiver keeps a *second* number —
+the **transport cursor**, the `since` it sends on its next pull — and this document has
+never said anything about it. The two are deliberately different, and the gap between them
+is where an untrusted relay gets to act.
+
+A receiver MAY advance its transport cursor past envelopes it did not accept and did not
+apply. It has to: an envelope that is re-fetched forever is a page the receiver pulls,
+refuses, and pulls again, and §6.2 already forbids letting one unreadable envelope stall
+the direction.
+
+- The cursor MUST NOT move backwards.
+- The cursor MUST advance **without a bound** only to a `seq` **recovered from the sealed
+  bytes** (§4.1) — that is, only for an element the receiver **accepted**. That number is
+  authenticated by the AEAD tag; every other per-element number in the body is a claim, not
+  a fact (§2.1).
+- For **every other element** — one that fails the §3 parse, *and* one that parses and is
+  then rejected for any reason, **the AEAD tag included** — no authenticated `seq` exists.
+  The receiver MAY advance the cursor using the `seq` the element *claims* (the element's
+  top-level `seq` when the parse failed; the parsed header's `seq` when it did not), but
+  **MUST NOT advance it beyond the page's `latest`** (§2.1).
+
+**Parsing is not authenticating, and that is where the line falls.** A `seq` is recovered
+from the sealed bytes only when the **AEAD tag verifies** — the `seq` lives in the AAD
+(§4.1), and the tag is what turns it from a claim into a fact. An element can pass the §3
+parse completely — well-formed JSON, exactly the known fields, a valid pairing id, a typed
+`seq`, a 12-byte nonce, a base64url ciphertext — and still be bytes the relay invented. It
+parses. Its header `seq` is authenticated by nothing at all.
+
+So the boundary is **accepted vs. not accepted**, not *parsed vs. not parsed*. A failed
+parse and a failed tag are the same case for this rule, and a receiver MUST treat them
+identically: both may advance the cursor, and both are bounded by `latest`. Drawing the
+carve-out at the parse instead left a parseable-but-unopenable element covered by neither
+rule — no authenticated `seq`, so the MUST forbade advancing; not a parse failure, so the
+carve-out did not reach it — which read literally is the permanent stall §6.2 forbids in as
+many words, reachable by serving one crafted element. That was a defect in this section,
+not in the receivers, and this is its correction.
+
+**Why bounded, rather than free or refused.** The relay controls this body (§1: blind, but
+not trusted). Left free, one element with no authenticated `seq` carrying `"seq": 1000000`
+walks the cursor
+past every envelope between the receiver's position and that value — and since the cursor
+never moves backwards, those envelopes are never requested again. That is **history
+truncation performed without decrypting anything**, by a party that cannot read a byte of
+what it just removed from the receiver's view.
+
+Refusing to advance at all is the other wrong answer, and it is wrong for a reason this
+document already states: one corrupt byte would then stall the direction permanently, which
+§6.2 forbids in as many words.
+
+The bound settles it because **the two failure modes are not symmetric**. A stall is
+recoverable and loud: the cursor stays put, `latest` still exceeds it, the receiver still
+reports more available, and the moment the relay serves a readable page the stream resumes
+exactly where it stopped. Truncation is neither — it is silent, it presents as a healthy
+fully-caught-up sync, and it is permanent. **When a receiver must choose between the two,
+it stalls.**
+
+Bounding by `latest` specifically — rather than by some new constant — is what denies the
+relay a *second*, independent lever. `latest` is already the number that decides "am I
+caught up" (§2.1) and already the one §6.1 reconciles a restarted counter against. Capping
+the unauthenticated path there means an unauthenticated element gains the relay no reach it did
+not already have through a field this document **requires** it to publish, and an honest
+relay never notices the rule at all: its `latest` covers every row it serves, so the bound
+is a no-op on every conforming page.
+
+**What the bound does and does not buy, stated precisely, because the difference is the
+whole value.** It does **not** stop a hostile relay from skipping a receiver past envelopes
+the relay *currently holds*: `latest` is its own claim, and a relay willing to lie about an
+element's `seq` can serve a page whose `latest` already covers what it wants withheld. It
+did not need an unauthenticated element for that — it could simply not serve those rows. What the
+bound stops is the part that outlives the attack: an **unbounded** claim pushes the cursor
+into the *future*, past sequence numbers that have not been issued yet, so every envelope
+the engine publishes from now until that number is discarded on arrival by a receiver that
+believes it is ahead of them. One unauthenticated element becomes permanent, silent, forward-going
+data loss against an engine and a relay that are both behaving. The bound confines the
+damage to envelopes that exist at the moment of the attack, which is the same set the relay
+could already withhold, and leaves the stream correct for everything issued afterwards.
 
 ---
 
@@ -656,6 +971,9 @@ auditable rather than silent:
 | This doc (P0/§3.1) | "An envelope MUST NOT exceed **1 MiB** total" | the cap is on the **decoded ciphertext**, which is what both shipping receivers always measured; the relay's own limits are stated separately and are stricter (§3.1, S5 / PQ-A2-1) |
 | This doc (§3) | structural rejection had no named error code | structural rejection reports `decrypt_failed`; no `malformed` code is added, so the observable set does not grow (§3, §7.2, S5 / PQ-A2-2) |
 | This doc (§4.3) | `entitlement_ack` listed with no body | body is `{product_id, acknowledged_at, order_id?}` (§4.3.3, S5 / gate PQ-A6-1, default-proceed) |
+| This doc (§4.3) | `pull_request` — "re-publish **from a sequence point**" | v1 `pull_request` is a whole-snapshot request; `since_seq` is **reserved**, MUST be `0`, MUST be ignored, and MUST NOT be a rejection reason (§4.3.4, S4 / PQ-S4-1 option (a)) |
+| This doc (§6.2) | "treat a large gap as a signal to request a fresh `snapshot`" — no threshold | unchanged in substance; §6.2 now states explicitly that the threshold is **receiver policy** and that v1 pins no number, since only the asking side ever has an opinion (§6.2, S4 / PQ-S4-1) |
+| This doc (§6) | the **transport cursor** was not described at all — §6.2 governs `highest_accepted` only, so how far an *unparseable* element may move a receiver's `since` was unstated | new **§6.4**: the cursor advances only on a `seq` recovered from the sealed bytes, except that an element failing the §3 parse MAY advance it by its claimed `seq` **bounded by the page's `latest`** — a stall is recoverable, truncation is not (§6.4, S4 / PQ-S4-3) |
 
 `CareerSeeker-Spec.md` §7.2 is amended in the same commit that introduces this file. Two
 documents disagreeing about a wire format is precisely the drift `CLAUDE.md` exists to
