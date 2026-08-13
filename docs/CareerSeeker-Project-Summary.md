@@ -1,6 +1,6 @@
 # CareerSeeker Project Summary
 
-Updated: 2026-08-07
+Updated: 2026-08-12
 Audience: implementation, audit, and planning agents
 Primary branch: `main`
 Status: Windows L1 Drafts Beta implementation complete; human launch work pending
@@ -41,13 +41,15 @@ The B0-B8 Windows ladder is implemented:
   that implementation.
 - **R6(a) deletion:** the app resolves only the installed per-user workspace, requires a second exact
   path-bound confirmation, refuses broad roots/links, and verifies absence before reporting completion.
+- **R7 scorer edge case:** an empty local profile has zero CV-match evidence and cannot make an otherwise
+  attractive posting act-eligible solely through compensation, growth, and preferences.
 
-The pinned offline verifier is **609 passed, 0 failed**:
+The pinned offline verifier is **611 passed, 0 failed**:
 
 | Harness | Assertions |
 |---|---:|
 | Slice | 28 |
-| EngineHarness | 228 |
+| EngineHarness | 230 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
 | StoreParityHarness | 28 |
@@ -56,7 +58,7 @@ The pinned offline verifier is **609 passed, 0 failed**:
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
 | SyncHarness | 130 |
-| **Total** | **609** |
+| **Total** | **611** |
 
 ## Current product path
 

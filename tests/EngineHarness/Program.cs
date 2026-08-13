@@ -1049,6 +1049,29 @@ Console.WriteLine("\n[ deterministic lexical ranking ]");
     await dashboard.DisposeAsync();
 }
 
+Console.WriteLine("\n[ empty-profile lexical scoring ]");
+{
+    var emptyStore = new InMemorySeekerStore();
+    var emptyProfileId = await emptyStore.UpsertProfileAsync("{}");
+    var lexical = new LexicalSemanticScorer(emptyStore, emptyProfileId);
+    var posting = CalibrationPosting(0) with
+    {
+        Compensation = new Compensation(220000m, 260000m, "USD", CompInterval.Year, CompSource.Structured),
+        DescriptionText = new string('x', 700) +
+            " Architecture build coach design greenfield improve influence lead leadership learn mentor modernize own ownership scale strategy strategic transform.",
+    };
+    var semantic = await lexical.ScoreAsync(posting);
+    var composed = SeekerSvc.Scorer.Scorer.Score(posting, prefs, semantic);
+
+    Check("empty profile has no positive CV-match evidence",
+        semantic.CvMatch == 0.0 &&
+        semantic.Rationale?.Contains("No rankable local profile terms", StringComparison.Ordinal) == true,
+        $"cv={semantic.CvMatch:0.00} {semantic.Rationale}");
+    Check("empty profile cannot make a posting act-eligible",
+        composed.Dispatch != Dispatch.Act,
+        $"fit={composed.Fit:0.00} total={composed.Total:0.00} {composed.Rationale}");
+}
+
 Console.WriteLine("\n[ lexical scoring calibration ]");
 {
     var corpus = Enumerable.Range(0, 120).Select(CalibrationPosting).ToArray();

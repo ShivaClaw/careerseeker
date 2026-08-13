@@ -1,6 +1,6 @@
 # Lexical scoring calibration
 
-Updated: 2026-08-07
+Updated: 2026-08-12
 
 ## Question
 
@@ -66,6 +66,31 @@ term's maximum evidence weight, it cannot reduce the same posting's score.
 Rationales now report `job coverage` and `title coverage`, and persisted rows
 identify the ranker as `lexical-v2`.
 
+## R7 empty-profile boundary
+
+An absent or non-rankable profile is not neutral evidence. Before this R7
+slice, the empty-profile branch returned CV match 2.5. The harness constructed
+a fresh empty profile plus a legitimate posting with maximum growth terms,
+above-stretch compensation, and exact preferences. It produced `fit=4.12`,
+`total=4.12`, and `Dispatch.Act` despite no profile evidence:
+
+```text
+FAIL empty profile has no positive CV-match evidence -- cv=2.50
+FAIL empty profile cannot make a posting act-eligible -- fit=4.12 total=4.12
+=== 228 passed, 2 failed ===
+```
+
+`lexical-v2` now returns CV match 0.0 with an explicit unavailable-evidence
+rationale when no rankable local terms exist. The same fixture is show-only,
+while the 10/50/200-term calibration distribution remains unchanged. The two
+new assertions passed in the executed post-fix EngineHarness run:
+
+```text
+PASS empty profile has no positive CV-match evidence
+PASS empty profile cannot make a posting act-eligible
+=== 230 passed, 0 failed ===
+```
+
 ## Post-fix distribution and Act threshold
 
 The executed post-fix EngineHarness run produced identical distributions for
@@ -90,5 +115,5 @@ dotnet run --project tests\EngineHarness\EngineHarness.csproj -c Release
 scripts\Verify-Alpha.ps1
 ```
 
-The first command must report `228 passed, 0 failed`; the second command pins
+The first command must report `230 passed, 0 failed`; the second command pins
 the repository-wide measured total and count-reporting documentation.
