@@ -1,22 +1,14 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-12T20:02:51-06:00
-- **Current rung:** R6(d) ordered-hardening-backlog regression audit in
-  progress after PR #42 moved `origin/main` to
-  `d1bc698bd9784687b88e3ff471c03fe7cfb537d2` during the first PR's final
-  pre-merge check.
-- **Current worktree / branch:**
-  `C:\Users\bkirk\Documents\CareerSeeker-r6-backlog` /
-  `codex/r6-ordered-backlog-audit-v2`. PR #41's remote history was not
-  rewritten; this successor branch holds the rebased work.
-- **Files claimed:** `docs/BETA-AUDIT-REQUEST.md`,
-  `docs/BETA-BLOCKED.md`, `docs/Codex-Resume-Handoff.md`,
-  `docs/autonomy/CODEX-STATE.md`, and `docs/autonomy/HUMAN-QUEUE.md`, plus
-  `scripts/Test-PowerShellScripts.ps1`.
-  The audit exposed a Windows PowerShell 5.1 path-resolution defect in that
-  wrapper and found the R6(b) blocked/human-queue entries stranded only on
-  draft PR #26. No source, sync, relay, harness, shared verifier, or
-  count-reporting README file is claimed.
+- **Heartbeat:** 2026-08-12T20:13:40-06:00
+- **Current rung:** R6 is BLOCKED solely on R6(b)'s recorded PowerShell 7
+  SPDX byte drift after R6(d) completed and merged. R7 is PENDING and is the
+  next eligible rung.
+- **Current worktree / branch:** no active implementation worktree or branch
+  is claimed. The completed R6(d) worktree remains at
+  `C:\Users\bkirk\Documents\CareerSeeker-r6-backlog` for evidence only.
+- **Files claimed:** none. The next iteration must fetch and re-read Claude's
+  state before selecting its R7 scorer-edge-case slice.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -25,7 +17,7 @@
   point. R6(c) did not edit that file; Codex merged first under its declared
   right-of-way, and Claude will re-derive its pending count on rebase.
 - **Fresh integration base:** `origin/main` =
-  `d1bc698bd9784687b88e3ff471c03fe7cfb537d2`.
+  `60a2df16a3c7eed0775415e0a09df62f54851d1e`.
 - **Measured R2 evidence:** retained copy integrity/idempotence passed and the
   source remained 172,032 bytes with SHA-256 `0A5605…E18192`. The imported
   fixture has 31 claims / 321 rankable terms. Remote.com measured 58
@@ -150,9 +142,20 @@
   offline 609/0, one executable, and zero provider/Gmail calls; the candidate
   was 33,731,462 bytes, SHA-256
   `981B1DA4E2A4336D150B05B4B5963D1BBFD33ECB72E01426B9CE9AE39F69DA55`.
-- **Next intent:** publish the successor branch without force-pushing, close
-  superseded PR #41, obtain both CI runs on the rebased head, recheck main,
-  merge if valid, and release all claims. R7 is the next separate slice.
+- **R6(d) successor/merge evidence:** PR #41 was closed as superseded without
+  rewriting its history. Successor PR #43 initial runs `31659672314` and
+  `31659687482` passed both jobs. After a fresh fetch and no-op rebase, the
+  exact successor head passed the full gate at 609/0. Final runs
+  `31659966267` and `31659969250` passed both jobs. A final fresh fetch left
+  main at `d1bc698`, the branch was clean and mergeable, and the exact final
+  head passed build 0/0, offline 609/0, one executable, zero provider/Gmail
+  calls or drafts, and produced a 33,731,394-byte unsigned candidate with
+  SHA-256 `2EFA93A1BE6D2A0B341D08134575138A9C5913DBEA2AFF7D9E2A282817CB76EA`.
+  PR #43 merged normally as `60a2df16a3c7eed0775415e0a09df62f54851d1e`.
+- **Next intent:** execute one R7 slice, smallest-first: fetch, read both state
+  branches, create a fresh worktree from `origin/main`, and audit scorer
+  fixture edge cases beginning with empty-profile behavior. Do not begin that
+  slice as part of this completed R6(d) iteration.
 - **Boundary:** only the explicitly authorized current-user NuGet provider
   2.8.5.208 and PSScriptAnalyzer 1.25.0 were installed. No deploy, console,
   email, purchase, signing, application/MSIX or machine-global tooling install,
