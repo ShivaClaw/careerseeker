@@ -1,23 +1,22 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-12T19:12:01-06:00
-- **Current rung:** R6(c) PSScriptAnalyzer pass in progress from fresh
-  `origin/main` at `00b3705f892976cb91e41bb3584856d4d9de2ae1`.
-- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r6-pssa` /
-  `codex/r6-psscriptanalyzer` (being created from the fresh base above).
-- **Files claimed:** `scripts/` PowerShell sources and analyzer configuration,
-  plus merge-tracked R6 evidence in `docs/Codex-Resume-Handoff.md`,
-  `docs/BETA-AUDIT-REQUEST.md`, `docs/autonomy/CODEX-STATE.md`, and
-  `docs/autonomy/HUMAN-QUEUE.md`. `scripts/Verify-Alpha.ps1` is a shared pinch
-  point and will move only if analyzer enforcement requires it. PR #26's R6(b)
-  paths remain untouched unless taking Q07.
+- **Heartbeat:** 2026-08-12T19:33:39-06:00
+- **Current rung:** R6 remains IN PROGRESS: R6(a) and R6(c) are DONE; R6(b)
+  is BLOCKED on draft PR #26/Q07; R6(d) remains.
+- **Current worktree / branch:** completed R6(c) worktree
+  `C:\Users\bkirk\Documents\CareerSeeker-r6-pssa` / `codex/r6-psscriptanalyzer`;
+  PR #40 is merged.
+- **Files claimed:** none. R6(c) is complete and the next iteration has not
+  started.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
-- **Claude state:** `autonomy/claude-state` remained absent after the
-  iteration's mandatory fetch.
+- **Claude state:** latest fetched heartbeat reports draft PR #39 with an
+  unmerged count-only edit to the shared `scripts/Verify-Alpha.ps1` pinch
+  point. R6(c) did not edit that file; Codex merged first under its declared
+  right-of-way, and Claude will re-derive its pending count on rebase.
 - **Fresh integration base:** `origin/main` =
-  `e874c8672eecfd0ed8f9f69e23b77f1d11458aeb`.
+  `efb9cd64d9e6b2ffb34c485695d9e6d18aac426f`.
 - **Measured R2 evidence:** retained copy integrity/idempotence passed and the
   source remained 172,032 bytes with SHA-256 `0A5605…E18192`. The imported
   fixture has 31 claims / 321 rankable terms. Remote.com measured 58
@@ -109,11 +108,30 @@
   `ConvertTo-Json` with a restricted deterministic serializer without changing
   local bytes. The two-attempt limit is reached; PR #26 is draft and unmerged.
   Q07 is the smallest diagnostic unblock. No third CI attempt was started.
-- **Next intent:** complete only R6(c): run PSScriptAnalyzer over `scripts/`,
-  fix or explicitly document findings, verify, merge if all gates are green,
-  and leave R6(b) PR #26/Q07 plus R6(d) untouched.
-- **Boundary:** no deploy, console, email, purchase, signing, install, secret
-  access, certificate/store mutation, reboot, scheduled-task registration,
-  off-repo site edit, force-push, history rewrite, `.appdata`-original
-  mutation, public ATS read, live provider/Gmail action, or confirmed deletion
-  of the real installed workspace.
+- **R6(c) measured evidence:** the initial explicit unfiltered scan found 374
+  items (307 warnings, 67 information). Seventeen automatic-variable
+  assignments and two runspace-capture findings were fixed. The post-fix
+  unfiltered inventory is 355 reviewed items in six documented rule families;
+  the checked-in PSScriptAnalyzer 1.25.0 warning/error policy reports 0. All 23
+  PowerShell scripts parse with 0 errors, five preview/dry-run wrapper paths
+  executed without live action, and audit/evidence wrapper smokes preserved
+  the audit chain, hash-only payloads, and secret-looking-path exclusions.
+- **R6(c) verification:** analyzer build 0/0; analyzer formatting exit 0; the
+  post-fetch full gate built 0/0 and passed offline 598/0, with demo 1 acted / 1
+  drafted / 2 rejected / 0 errors, one executable, and zero provider or Gmail
+  calls/drafts. The final unsigned candidate was 33,720,955 bytes, SHA-256
+  `9AB8D78299F8317273310429955932ADB2627538D08F68F04AE3F8BF473AE980`.
+- **R6(c) CI/rebase/merge evidence:** initial runs `31657569672` and
+  `31657606281` passed. Fresh main remained `00b3705`; rebase was a no-op and
+  the full local gate repeated green. Final runs `31657806693` and
+  `31657809486` passed both jobs; PR #40 merged normally as
+  `efb9cd64d9e6b2ffb34c485695d9e6d18aac426f`.
+- **Next intent:** take exactly one R6(d) ordered-backlog review slice from a
+  fresh `origin/main`, after fetching and re-reading both coordination states.
+- **Boundary:** only the explicitly authorized current-user NuGet provider
+  2.8.5.208 and PSScriptAnalyzer 1.25.0 were installed. No deploy, console,
+  email, purchase, signing, application/MSIX or machine-global tooling install,
+  secret access, certificate/store mutation, reboot, scheduled-task
+  registration, off-repo site edit, force-push, history rewrite,
+  `.appdata`-original mutation, public ATS read, live provider/Gmail action, or
+  confirmed deletion of the real installed workspace occurred.
