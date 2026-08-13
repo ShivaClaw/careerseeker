@@ -6,6 +6,35 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## R6(d) - Ordered hardening backlog regression audit
+
+Branch: `codex/r6-ordered-backlog-audit`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-08-12 |
+|---|---|---|
+| The authoritative six-item post-B8 backlog is merged history, not an open implementation list. | `gh pr view 18 --json state,mergedAt,mergeCommit,files,commits`; inspect the `Post-B8 - Ordered hardening backlog` section below | PR #18 is MERGED as `e95b1b3`; its two commits and changed files cover the migration-copy matrix, archive-entry hardening, dashboard accessibility, service-host doctor, timing sweep, analyzers, and historical-gate removal. |
+| Both retained Alpha databases still migrate only through copied databases and remain unchanged. | `dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release --no-build -- --migration-copy <candidate-1> --migration-copy <candidate-2>` | Candidate 1 and candidate 2 both passed integrity, idempotence, schema/row preservation, and source-identity checks: 2 passed, 0 failed. The command reported candidate numbers only. |
+| Import safety, dashboard accessibility, and service-host lease hardening remain covered on the current tree. | `scripts\Verify-Alpha.ps1` | Build 0 warnings/0 errors; EngineHarness 217/0 and offline total 598/0. Named assertions passed for unsafe ZIP rejection, accessible dashboard markup/controls, and required service-host single-instance checks. |
+| The current EngineHarness timing sweep has no observed intermittent failure. | Run EngineHarness ten consecutive times in Release with `--no-build`, recording exit, duration, and summary | Runs 1-10 each exited 0 at 217/0; observed duration range 4.532-4.769 seconds. This bounded sweep is not a proof that timing flakes cannot exist. |
+| Analyzer and dead-gate cleanup remain current, and the analyzer wrapper works in Windows PowerShell 5.1 from outside the repository. | `powershell -File <absolute-path>\scripts\Test-PowerShellScripts.ps1`; .NET analyzer build; analyzer-format verification; `rg` for the two historical dead-gate markers | The first Windows PowerShell invocation exposed an empty `$PSScriptRoot` parameter-default defect. After moving path resolution below `param`, the absolute wrapper invocation passed with PSScriptAnalyzer 1.25.0 and 0 enforced findings. .NET analyzers built 0/0, analyzer formatting exited 0, and historical gate markers numbered 0. |
+| The R6(b) blocker is reachable from merged handoff documents. | `gh pr view 26 --json state,isDraft,headRefOid`; compare main with PR #26's `BETA-BLOCKED.md` and `HUMAN-QUEUE.md` | PR #26 remains OPEN/DRAFT at `d1ab0d5`. Its R6(b) blocker and Q06-Q07 entries were absent from main, so this slice carries those evidence-only entries onto main without rerunning SBOM generation or weakening the two-attempt limit. |
+
+### Verification boundary
+
+The two `.appdata` source databases were accessed only through the existing
+read-only backup/migration-copy harness; it verified each source unchanged.
+No SBOM CI diagnostic or third attempt was started, and draft PR #26 was not
+modified. PowerShell 7 is not installed locally, so no local PowerShell 7
+wrapper result is claimed; GitHub's Windows job remains the cross-host check.
+
+No deploy, console mutation, email, purchase, signing, install, secret access,
+certificate/store mutation, reboot, scheduled-task registration, off-repo
+site edit, Android/relay/sync change, force-push, history rewrite,
+`.appdata`-original mutation, public ATS read, or live provider/Gmail action
+occurred.
+
 ## R6(c) - Repository-wide PowerShell static analysis
 
 Branch: `codex/r6-psscriptanalyzer`
