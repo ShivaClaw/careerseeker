@@ -71,6 +71,17 @@ MSIX SHA-256: DBF3CA3F7B0B070FF586BEFDA89F84EA1D62AE273B0775550006620F352009C1
 The package hash is a per-build unsigned-candidate measurement, not final
 release metadata.
 
+PR #41's initial push run `31658958654` and pull-request run `31658965284`
+passed both the Windows build/offline-harness job and blind-relay job. The
+mandatory fresh fetch found `origin/main` unchanged at `efb9cd6`; the rebase
+was a no-op. Claude's state claims a different analyzer-related pinch point,
+`Verify-Alpha.ps1`, plus count-reporting docs; this slice deliberately does
+not touch them. The post-fetch PSScriptAnalyzer wrapper remained at 0 enforced
+findings, and the full gate repeated build 0/0, offline 598/0, the published
+demo, and the one-executable package self-check. That unsigned candidate
+measured 33,721,038 bytes with SHA-256
+`6AC4471772C81D262DDC989C73E61308786091FEB55CD4A7680997EB1494CBFD`.
+
 Boundary: no deploy, console mutation, email, purchase, signing, install,
 secret access, certificate/store mutation, reboot, scheduled-task
 registration, off-repo site edit, Android/relay/sync change, force-push,
