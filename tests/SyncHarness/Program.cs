@@ -1415,6 +1415,13 @@ Check("a negative persisted seq is floored, not trusted as a position",
     SyncPublisher.ResumeSeq(-9, OkPage(0)) == 0);
 Check("a negative persisted seq is repaired by the relay term",
     SyncPublisher.ResumeSeq(-9, OkPage(12)) == 12);
+// ...and the case that actually PINS the floor, added because a mutation removing it survived the
+// two assertions above: both of those are rescued by the relay term, which is >= 0 and therefore
+// beats any negative store on its own. The floor is only observable when the relay does NOT answer,
+// and that is exactly when it matters -- an unfloored -9 would construct the publisher at startSeq
+// -9 and put an illegal seq on the wire (§3.2) on the very first push.
+Check("a corrupt store AND a silent relay still resume from 0, not from a negative",
+    SyncPublisher.ResumeSeq(-9, new RelayPullResult.Unavailable("no route")) == 0);
 
 // -- the running rule: a 409 moves the counter, and only upward ------------------------------
 {
@@ -1454,8 +1461,14 @@ Check("a negative persisted seq is repaired by the relay term",
     try { reconciled.ReconcileTo(Protocol.MaxSeq + 1); }
     catch (ArgumentOutOfRangeException) { overMaxRefused = true; }
     Check("ReconcileTo refuses a seq past §3.2's cap rather than clamping it", overMaxRefused);
-    Check("a seq exactly at §3.2's cap is still accepted",
-        reconciled.ReconcileTo(Protocol.MaxSeq) && reconciled.HighestSeq == Protocol.MaxSeq);
+    // Caught, not thrown. The boundary mutation (`>` -> `>=`) makes this call throw, and an
+    // uncaught throw takes the whole harness down WITHOUT printing a FAIL line -- which reads as a
+    // survivor to anything counting FAILs. The assertion was load-bearing either way; this makes it
+    // report rather than crash, so the failure is legible instead of merely fatal.
+    var capAccepted = false;
+    try { capAccepted = reconciled.ReconcileTo(Protocol.MaxSeq) && reconciled.HighestSeq == Protocol.MaxSeq; }
+    catch (ArgumentOutOfRangeException) { capAccepted = false; }
+    Check("a seq exactly at §3.2's cap is still accepted", capAccepted);
 }
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
