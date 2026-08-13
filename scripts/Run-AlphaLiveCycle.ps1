@@ -112,7 +112,7 @@ try {
         )
     }
 
-    $args = $prefixArgs + @(
+    $commandArgs = $prefixArgs + @(
         "alpha",
         "--llm", "byok",
         "--fast-smoke",
@@ -126,7 +126,7 @@ try {
         "--artifacts", $ArtifactsPath
     )
     if (-not [string]::IsNullOrWhiteSpace($Email)) {
-        $args += @("--email", $Email)
+        $commandArgs += @("--email", $Email)
     }
 
     Write-Host "CareerSeeker Alpha live L1 draft cycle"
@@ -159,7 +159,7 @@ try {
         throw "Provider keys were not found in '$SecretsPath' or '$ByokVaultPath'. Run Connect-CareerSeeker-Providers.cmd first."
     }
 
-    Invoke-Checked $command $args
+    Invoke-Checked $command $commandArgs
 
     Write-Host ""
     Write-Host "CareerSeeker Alpha live cycle complete."

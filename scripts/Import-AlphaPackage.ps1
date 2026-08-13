@@ -97,7 +97,7 @@ try {
         )
     }
 
-    $args = $prefixArgs + @(
+    $commandArgs = $prefixArgs + @(
         "import-alpha-package",
         "--package", $PackagePath,
         "--target", $TargetRoot,
@@ -106,7 +106,7 @@ try {
         "--jd-dir", $JobDescriptionDirectory
     )
     if ($Overwrite) {
-        $args += "--overwrite"
+        $commandArgs += "--overwrite"
     }
 
     Write-Host "Importing CareerSeeker Alpha evidence package..."
@@ -130,7 +130,7 @@ try {
         throw "CareerSeeker could not find package '$PackagePath'. Export evidence first, or enter the path to an existing CareerSeeker alpha package."
     }
 
-    Invoke-Checked $command $args
+    Invoke-Checked $command $commandArgs
 
     Write-Host ""
     Write-Host "CareerSeeker Alpha evidence package imported."
