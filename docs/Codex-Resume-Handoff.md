@@ -2,6 +2,103 @@
 
 Updated: 2026-08-12
 
+## 2026-08-12 (Terra R6d) - Ordered hardening backlog re-audited
+
+Branch: `codex/r6-ordered-backlog-audit-v2`, originally based on fresh
+`origin/main` at `efb9cd64d9e6b2ffb34c485695d9e6d18aac426f` and rebased onto
+`d1bc698bd9784687b88e3ff471c03fe7cfb537d2` after PR #42 moved main.
+
+The authoritative ordered backlog is the six-item post-B8 list merged through
+PR #18 at `e95b1b3`. This slice re-executed its current-tree evidence rather
+than treating the historical completion entry as proof. Both retained Alpha
+databases passed the read-only backup/migration-copy matrix at 2/0 with source
+identity preserved. The ordinary gate built 0/0 and passed EngineHarness
+228/0 and offline 609/0, including the import-path safety, dashboard
+accessibility, and service-host lease assertions. Ten consecutive standalone
+EngineHarness runs each passed 228/0 in 4.305-4.524 seconds after the rebase.
+
+The audit found one executable regression. `Test-PowerShellScripts.ps1` used
+`Join-Path $PSScriptRoot` as a parameter default, which Windows PowerShell 5.1
+evaluated while `$PSScriptRoot` was still empty. Path resolution now happens
+after `param`. An absolute invocation from outside the repository then scanned
+the repository's `scripts/` directory with PSScriptAnalyzer 1.25.0 and reported
+0 enforced findings. The latest .NET analyzer build also passed 0/0, analyzer
+formatting exited 0, and the removed historical Alpha ZIP gate still has zero
+matching dead-gate markers.
+
+The audit also found that main referenced Q07 without containing it: the
+R6(b) blocked entry and Q06-Q07 existed only on open draft PR #26. Their
+evidence-only text is now carried into `BETA-BLOCKED.md` and the merged human
+queue. PR #26 remains untouched, open, and draft; no third SBOM diagnostic was
+run. R6(d) is DONE. R6 as a whole is BLOCKED solely on R6(b)'s already-recorded
+PowerShell 7 SPDX byte drift; R6(a) and R6(c) remain DONE.
+
+Executed focused evidence before the pull request:
+
+```text
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+=== EngineHarness: 228 passed, 0 failed ===
+=== Offline total: 609 passed, 0 failed ===
+
+> StoreParityHarness --migration-copy <candidate-1> --migration-copy <candidate-2>
+=== 2 passed, 0 failed ===
+
+> EngineHarness timing sweep, ten consecutive runs
+Runs 1-10: exit 0; each 228 passed, 0 failed.
+Seconds: 4.524, 4.402, 4.342, 4.346, 4.305, 4.346, 4.326, 4.399, 4.313, 4.337.
+
+> powershell -File <absolute-path>\scripts\Test-PowerShellScripts.ps1
+PSScriptAnalyzer 1.25.0 passed; enforced findings: 0.
+
+> dotnet build ... EnableNETAnalyzers=true AnalysisLevel=latest
+Build succeeded. 0 warnings, 0 errors.
+
+> dotnet format ... analyzers --verify-no-changes
+Exit code: 0; no output.
+
+> rg historical dead-gate markers
+0 matches; expected rg exit 1.
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 609 passed, 0 failed ===
+Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+Package: one CareerSeeker.exe; provider calls 0; Gmail calls/drafts 0.
+MSIX bytes: 33,731,462
+MSIX SHA-256: 981B1DA4E2A4336D150B05B4B5963D1BBFD33ECB72E01426B9CE9AE39F69DA55
+```
+
+The package hash is a per-build unsigned-candidate measurement, not final
+release metadata.
+
+PR #41's initial runs `31658958654`/`31658965284` and final runs
+`31659193069`/`31659195032` all passed both the Windows build/offline-harness
+job and blind-relay job. The final pre-merge fetch then found PR #42 newly
+merged at `d1bc698`, so PR #41 was not merged. Its changes rebased without
+conflict, but the new `/pair` coverage moved EngineHarness 217 -> 228 and the
+offline total 598 -> 609. Both migration copies, the ten-run timing sweep,
+PSScriptAnalyzer, .NET analyzers, analyzer formatting, and the full gate were
+therefore re-executed at the new base. All passed with the counts and package
+measurement above. Because force-push is prohibited, the rebased work moves
+to a successor branch/PR rather than rewriting PR #41's remote history.
+
+Successor PR #43's initial push run `31659672314` and pull-request run
+`31659687482` both passed both jobs. The following fetch still found main at
+`d1bc698`; rebase was a no-op. PSScriptAnalyzer again reported 0 enforced
+findings, and the exact successor head passed the full publish/package gate at
+609/0. That final local unsigned candidate measured 33,731,433 bytes with
+SHA-256 `AAF9B965FF4DE458D772D832925081953F0044676BDA026A26245509C6BB9FBF`.
+This later exact-head measurement supersedes the earlier per-build package
+measurement above for PR #43's merge preparation.
+
+Boundary: no deploy, console mutation, email, purchase, signing, install,
+secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, public ATS read, or live provider/Gmail action occurred. The
+two `.appdata` originals were read only through the backup-copy API and were
+verified unchanged; no original was mutated.
+
 ## 2026-08-12 (Terra R6c) - PowerShell static-analysis pass completed
 
 Branch: `codex/r6-psscriptanalyzer`, based on fresh `origin/main` at

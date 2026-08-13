@@ -6,6 +6,38 @@ This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
 
+## R6(d) - Ordered hardening backlog regression audit
+
+Branch: `codex/r6-ordered-backlog-audit-v2`, rebased onto `d1bc698` after the
+original PR #41 integration snapshot was invalidated by PR #42 moving main.
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-08-12 |
+|---|---|---|
+| The authoritative six-item post-B8 backlog is merged history, not an open implementation list. | `gh pr view 18 --json state,mergedAt,mergeCommit,files,commits`; inspect the `Post-B8 - Ordered hardening backlog` section below | PR #18 is MERGED as `e95b1b3`; its two commits and changed files cover the migration-copy matrix, archive-entry hardening, dashboard accessibility, service-host doctor, timing sweep, analyzers, and historical-gate removal. |
+| Both retained Alpha databases still migrate only through copied databases and remain unchanged. | `dotnet run --project tests\StoreParityHarness\StoreParityHarness.csproj -c Release --no-build -- --migration-copy <candidate-1> --migration-copy <candidate-2>` | Candidate 1 and candidate 2 both passed integrity, idempotence, schema/row preservation, and source-identity checks: 2 passed, 0 failed. The command reported candidate numbers only. |
+| Import safety, dashboard accessibility, and service-host lease hardening remain covered on the current tree. | `scripts\Verify-Alpha.ps1` | After rebasing onto PR #42, build 0 warnings/0 errors; EngineHarness 228/0 and offline total 609/0. Named assertions passed for unsafe ZIP rejection, accessible dashboard markup/controls, and required service-host single-instance checks. |
+| The current EngineHarness timing sweep has no observed intermittent failure. | Run EngineHarness ten consecutive times in Release with `--no-build`, recording exit, duration, and summary | After the PR #42 rebase, runs 1-10 each exited 0 at 228/0; observed duration range 4.305-4.524 seconds. This bounded sweep is not a proof that timing flakes cannot exist. |
+| Analyzer and dead-gate cleanup remain current, and the analyzer wrapper works in Windows PowerShell 5.1 from outside the repository. | `powershell -File <absolute-path>\scripts\Test-PowerShellScripts.ps1`; .NET analyzer build; analyzer-format verification; `rg` for the two historical dead-gate markers | The first Windows PowerShell invocation exposed an empty `$PSScriptRoot` parameter-default defect. After moving path resolution below `param`, the absolute wrapper invocation passed with PSScriptAnalyzer 1.25.0 and 0 enforced findings. .NET analyzers built 0/0, analyzer formatting exited 0, and historical gate markers numbered 0. |
+| The R6(b) blocker is reachable from merged handoff documents. | `gh pr view 26 --json state,isDraft,headRefOid`; compare main with PR #26's `BETA-BLOCKED.md` and `HUMAN-QUEUE.md` | PR #26 remains OPEN/DRAFT at `d1ab0d5`. Its R6(b) blocker and Q06-Q07 entries were absent from main, so this slice carries those evidence-only entries onto main without rerunning SBOM generation or weakening the two-attempt limit. |
+| The rebased merge-grade gate remains green. | `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` after successor PR #43's initial CI pair | Build 0/0, offline 609/0, demo 1 acted/1 drafted/2 rejected/0 errors, one executable, provider calls 0, and Gmail calls/drafts 0. The exact-head unsigned candidate measured 33,731,433 bytes with SHA-256 `AAF9B965FF4DE458D772D832925081953F0044676BDA026A26245509C6BB9FBF`. |
+| Integration evidence was invalidated and re-derived when main moved. | PR #41 CI runs `31658958654`/`31658965284` and `31659193069`/`31659195032`; successor PR #43 initial runs `31659672314`/`31659687482`; repeated fetch/rebase/focused/full gates | All four PR #41 runs passed both jobs. The final pre-merge fetch then found PR #42 merged at `d1bc698`, so no merge occurred. The branch rebased without conflict and moved to successor PR #43 without force-pushing. Both initial successor runs passed both jobs. A fresh fetch still found main at `d1bc698`; the rebase was a no-op, PSScriptAnalyzer remained at 0 enforced findings, and the exact successor head passed the full gate at 609/0 with the package measurement above. |
+
+### Verification boundary
+
+The two `.appdata` source databases were accessed only through the existing
+read-only backup/migration-copy harness; it verified each source unchanged.
+No SBOM CI diagnostic or third attempt was started, and draft PR #26 was not
+modified. PowerShell 7 is not installed locally, so no local PowerShell 7
+wrapper result is claimed; GitHub's Windows job remains the cross-host check.
+
+No deploy, console mutation, email, purchase, signing, install, secret access,
+certificate/store mutation, reboot, scheduled-task registration, off-repo
+site edit, Android/relay/sync change, force-push, history rewrite,
+`.appdata`-original mutation, public ATS read, or live provider/Gmail action
+occurred.
+
 ## R6(c) - Repository-wide PowerShell static analysis
 
 Branch: `codex/r6-psscriptanalyzer`
