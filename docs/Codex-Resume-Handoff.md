@@ -63,8 +63,17 @@ MSIX SHA-256: D841CEF4E3A2E380A7DF47F40CCC0FB7F09F227BDBAFF6AA9EC74E0F8CB6DC68
 ```
 
 The package hash is a per-build unsigned-candidate measurement, not final
-release metadata. R6 remains IN PROGRESS: R6(b) is blocked on draft PR #26 and
-R6(d) ordered-backlog review remains a separate slice.
+release metadata. PR #40's initial push run `31657569672` and pull-request run
+`31657606281` passed both the Windows build/offline-harness job and the blind-
+relay job. The mandatory fresh fetch found `origin/main` unchanged at
+`00b3705`, and Claude's coordination state still claimed no repository paths;
+`git rebase origin/main` was a no-op. The post-fetch analyzer pass remained 0,
+and the full gate repeated build 0/0, offline 598/0, the published demo, and
+the one-executable package self-check. That final local candidate measured
+33,720,955 bytes with SHA-256
+`9AB8D78299F8317273310429955932ADB2627538D08F68F04AE3F8BF473AE980`.
+R6 remains IN PROGRESS: R6(b) is blocked on draft PR #26 and R6(d) ordered-
+backlog review remains a separate slice.
 
 Boundary: no deploy, console mutation, email, purchase, signing, application
 or MSIX install, secret access, certificate/store mutation, reboot,
