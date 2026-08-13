@@ -820,6 +820,200 @@ Console.WriteLine("\n[ inbound dispatcher routes each p2e kind (P4 §2.4) ]");
         rBad.Outcome == InboundOutcome.ReceiveRejected && rBad.ReceiveError == SyncError.BadSignature);
 }
 
+// ---------------------------------------------------------------- inbound pump (S5 host wiring)
+//
+// The transport loop that turns the dispatcher above from a library into something the running engine
+// does. Everything here is an ordering rule, and ordering rules are exactly what a live smoke against a
+// relay cannot pin: the smoke proves the happy path round-trips, while what actually needs proving is
+// what the cursor does when the relay is hostile or merely broken.
+//
+// The relay is faked, and that is the point — this asserts against pages a real relay would never
+// serve. §2 says the relay is blind but NOT trusted; every page below is one it is free to construct.
+
+Console.WriteLine("\n[ inbound pump: the engine's p2e transport loop (S5, §6.1/§6.2/§6.4) ]");
+
+{
+    var pairingId = (string)index["pairing_id"]!;
+    var kP2e = Convert.FromHexString("0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0");
+    var kE2p = Convert.FromHexString("1122334455667788990011223344556677889900112233445566778899001122");
+    var deviceD = Convert.FromHexString((string)pairingBasic["device_sig"]!["d_hex"]!);
+    using var deviceSigner = ECDsa.Create(new ECParameters
+    {
+        Curve = ECCurve.NamedCurves.nistP256, D = deviceD,
+        Q = new ECPoint { X = devicePub[1..33], Y = devicePub[33..] },
+    });
+    var fingerprint = DeviceSignature.Fingerprint(devicePub);
+    var entConfig = entitlementVectors.Single(v => (string)v["name"]! == "entitlement-valid")["entitlement"]!.AsObject();
+    var pumpNonce = 200;
+
+    // One sealed envelope, as the relay would serve it: a bare §3 object (§2.1), not a wrapper.
+    JsonElement Wire(string dir, long seq, byte[] key, object plaintext, bool sign, string? extraField = null)
+    {
+        var header = new EnvelopeHeader(1, pairingId, dir, seq, "2026-07-24T00:00:00Z", activeKeyId);
+        var aad = header.Aad();
+        var nonce = new byte[Protocol.NonceBytes]; nonce[0] = (byte)pumpNonce++; nonce[1] = 0x5c;
+        var ct = EnvelopeCodec.Seal(key, nonce, aad, JsonSerializer.SerializeToUtf8Bytes(plaintext));
+        var o = new JsonObject
+        {
+            ["v"] = 1, ["pairing"] = pairingId, ["dir"] = dir, ["seq"] = seq,
+            ["ts"] = "2026-07-24T00:00:00Z", ["key_id"] = activeKeyId,
+            ["nonce"] = Base64Url.Encode(nonce), ["ciphertext"] = Base64Url.Encode(ct),
+        };
+        if (sign)
+        {
+            var input = DeviceSignature.SigInput(aad, Base64Url.Encode(nonce), ct);
+            o["sig"] = Base64Url.Encode(deviceSigner.SignData(Encoding.ASCII.GetBytes(input), HashAlgorithmName.SHA256));
+        }
+        if (extraField is not null) o[extraField] = "x";
+        return JsonDocument.Parse(o.ToJsonString()).RootElement.Clone();
+    }
+
+    // A well-formed §3 envelope whose ciphertext is not openable under any key the engine holds. This is
+    // the shape the cursor rules exist for: it PARSES, so it has a header seq, and that seq is
+    // authenticated by nothing at all.
+    JsonElement Undecryptable(long seq) => Wire(Protocol.PhoneToEngine, seq, kE2p, new { kind = "outcome", body = new { } }, sign: true);
+
+    (InboundPump Pump, RecordingAckPublisher Acks, List<long> Persisted) MakePump(
+        IReadOnlyList<IReadOnlyList<JsonElement>> pages, long latest, long resumeFrom = 0)
+    {
+        var acks = new RecordingAckPublisher();
+        var persisted = new List<long>();
+        var receiver = new EnvelopeReceiver(activeKeyId, devicePub,
+            resume: resumeFrom > 0 ? new Dictionary<string, long>(StringComparer.Ordinal) { [Protocol.PhoneToEngine] = resumeFrom } : null);
+        var dispatcher = new InboundDispatcher(
+            receiver,
+            new EntitlementService(VerifierFor(entConfig), new FakeEntitlementStore(),
+                () => new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero)),
+            fingerprint,
+            dir => dir == Protocol.PhoneToEngine ? kP2e : kE2p,
+            new RecordingOutcomeApplier(), new RecordingRepublisher(), acks);
+        var served = 0;
+        var pump = new InboundPump(
+            (_, _) => Task.FromResult<InboundPage?>(
+                served < pages.Count ? new InboundPage(pages[served++], latest) : new InboundPage(Array.Empty<JsonElement>(), latest)),
+            dispatcher, Protocol.PhoneToEngine, resumeFrom, persisted.Add);
+        return (pump, acks, persisted);
+    }
+
+    // --- the happy path: a signed outcome is dispatched and its seq becomes the persisted mark
+    {
+        var outcome = Wire(Protocol.PhoneToEngine, 4, kP2e,
+            new { kind = "outcome", body = new { app_id = "app_1", outcome = "interview", at = "2026-07-24T00:00:00Z" } }, sign: true);
+        var (pump, _, persisted) = MakePump(new[] { new[] { outcome } }, latest: 4);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an accepted envelope is dispatched, moves the cursor, and persists its seq",
+            report.Outcomes.SequenceEqual(new[] { InboundOutcome.OutcomeApplied })
+            && report.Cursor == 4 && persisted.SequenceEqual(new[] { 4L }) && !report.MoreAvailable);
+    }
+
+    // --- the headline: a parseable, unauthenticated seq CANNOT walk the cursor past `latest`.
+    // Without the bound this page truncates history: the cursor jumps to 1,000,000, never moves
+    // backwards, and every real envelope below it is never requested again -- performed by a party that
+    // decrypted nothing. §6.4 permits the advance and bounds it; the bound is what this asserts.
+    {
+        var (pump, _, persisted) = MakePump(new[] { new[] { Undecryptable(1_000_000) } }, latest: 5);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: a crafted seq of 1,000,000 on an undecryptable envelope is capped at the page's latest",
+            report.Cursor == 5);
+        Check("pump: that envelope is reported as a rejection and never dispatched",
+            report.Rejections.SequenceEqual(new[] { SyncError.DecryptFailed }) && report.Outcomes.Count == 0);
+        Check("pump: an unauthenticated seq is never persisted as the replay mark",
+            persisted.Count == 0);
+    }
+
+    // --- the same rule for an element that fails the §3 parse outright (unknown top-level field)
+    {
+        var (pump, _, persisted) = MakePump(new[] { new[] { Wire(Protocol.PhoneToEngine, 999, kP2e, new { kind = "outcome", body = new { } }, sign: true, extraField: "shadow") } }, latest: 3);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an element failing the §3 parse advances the cursor only as far as latest",
+            report.Cursor == 3 && report.Rejections.SequenceEqual(new[] { SyncError.DecryptFailed }));
+        // Added after a mutation survived: the assertion above pins the cursor and said nothing about
+        // the mark, so writing a claimed seq into the persisted replay mark from this branch was caught
+        // by nothing. An unparseable element is the LEAST authenticated thing on the page.
+        Check("pump: an element failing the §3 parse persists no replay mark either", persisted.Count == 0);
+    }
+
+    // --- an ACCEPTED seq is authenticated, so it is the one number that moves the cursor unbounded.
+    // This is the other half of the rule: bounding everything would be the stall §6.2 forbids.
+    {
+        var accepted = Wire(Protocol.PhoneToEngine, 9, kP2e, new { kind = "pull_request", body = new { since_seq = 0 } }, sign: false);
+        var (pump, _, persisted) = MakePump(new[] { new[] { accepted } }, latest: 3);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an accepted envelope's AUTHENTICATED seq moves the cursor past a lying latest",
+            report.Cursor == 9 && persisted.SequenceEqual(new[] { 9L }));
+    }
+
+    // --- the cursor never moves backwards, whatever the page claims
+    {
+        var (pump, _, _) = MakePump(new[] { new[] { Undecryptable(2) } }, latest: 50, resumeFrom: 20);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: the cursor never moves backwards (seeded at 20, page claims 2)", report.Cursor == 20);
+    }
+
+    // --- the engine's own e2p traffic, served back on the p2e page.
+    // Every downstream check passes for this envelope -- no sig is required of an e2p envelope, the
+    // replay counter consulted is the *e2p* one which resume never seeds, and keyForDir hands over the
+    // e2p key so the tag verifies. Without the pump's direction guard it is ACCEPTED, and `onAccepted`
+    // writes an e2p seq into the persisted p2e mark. Push that mark past the phone's counter and every
+    // genuine phone envelope afterwards is refused as a replay: a silent, permanent, one-way outage.
+    {
+        var ownTraffic = Wire(Protocol.EngineToPhone, 900, kE2p, new { kind = "snapshot", body = new { } }, sign: false);
+        var (pump, _, persisted) = MakePump(new[] { new[] { ownTraffic } }, latest: 6);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an e2p envelope replayed onto the p2e page is refused before dispatch",
+            report.Outcomes.Count == 0 && report.Rejections.SequenceEqual(new[] { SyncError.DecryptFailed }));
+        Check("pump: and it cannot corrupt the p2e replay mark or the cursor",
+            persisted.Count == 0 && report.Cursor == 6);
+    }
+
+    // --- resumption: the persisted mark is what refuses an already-applied envelope after a restart
+    {
+        var replayed = Wire(Protocol.PhoneToEngine, 5, kP2e,
+            new { kind = "outcome", body = new { app_id = "app_1", outcome = "interview", at = "2026-07-24T00:00:00Z" } }, sign: true);
+        var (fresh, _, freshPersisted) = MakePump(new[] { new[] { replayed } }, latest: 5);
+        var freshReport = fresh.DrainAsync().GetAwaiter().GetResult();
+        var (resumed, _, resumedPersisted) = MakePump(new[] { new[] { replayed } }, latest: 5, resumeFrom: 5);
+        var resumedReport = resumed.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an unseeded receiver ACCEPTS the already-applied envelope (this is what the mark prevents)",
+            freshReport.Outcomes.SequenceEqual(new[] { InboundOutcome.OutcomeApplied }) && freshPersisted.SequenceEqual(new[] { 5L }));
+        Check("pump: a receiver resumed from the persisted mark refuses it as a replay instead",
+            resumedReport.Outcomes.Count == 0
+            && resumedReport.Rejections.SequenceEqual(new[] { SyncError.ReplayRejected })
+            && resumedPersisted.Count == 0);
+    }
+
+    // --- a transport failure arrives as data, never as an exception out of the drain
+    {
+        var dispatcher = new InboundDispatcher(
+            new EnvelopeReceiver(activeKeyId, devicePub),
+            new EntitlementService(VerifierFor(entConfig), new FakeEntitlementStore(), () => DateTimeOffset.UtcNow),
+            fingerprint, _ => kP2e);
+        var pump = new InboundPump((_, _) => Task.FromResult<InboundPage?>(null), dispatcher, Protocol.PhoneToEngine, resumeFrom: 7);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: a relay that did not answer reports PullFailed and leaves the cursor untouched",
+            report.PullFailed && report.Cursor == 7 && report.Pulled == 0 && !report.MoreAvailable);
+    }
+
+    // --- more-available is the paging signal the bridge's drain loop follows
+    {
+        var (pump, _, _) = MakePump(new[] { new[] { Undecryptable(2) } }, latest: 40);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: cursor below the page's latest reports more available", report.MoreAvailable && report.Cursor == 2);
+    }
+}
+
+Console.WriteLine("\n[ the replay mark raises only (§6.2) ]");
+
+{
+    var tracker = new SequenceTracker();
+    tracker.Resume(Protocol.PhoneToEngine, 12);
+    tracker.Resume(Protocol.PhoneToEngine, 4);
+    Check("resume raises the replay mark and refuses to lower it",
+        tracker.HighestAccepted(Protocol.PhoneToEngine) == 12 && !tracker.Accept(Protocol.PhoneToEngine, 12));
+    Check("resume is per direction: seeding p2e leaves e2p at zero",
+        tracker.HighestAccepted(Protocol.EngineToPhone) == 0);
+}
+
 // ---------------------------------------------------------------- protocol rules
 
 Console.WriteLine("\n[ protocol rules independent of any single vector ]");
