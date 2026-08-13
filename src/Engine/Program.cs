@@ -282,9 +282,53 @@ EngineSyncBridge? BuildSyncBridge(
         paired.KeyId,
         sink: async (envelopeJson, ct) =>
         {
-            var ok = await relay.PushAsync(paired.RelayToken, envelopeJson, ct).ConfigureAwait(false);
-            if (ok && publisherRef is not null) vault.RecordE2pSeq(publisherRef.HighestSeq);
-            return ok;
+            var result = await relay.PushAsync(paired.RelayToken, envelopeJson, ct).ConfigureAwait(false);
+
+            // The sink's contract is still bool, so this collapses back to one — but it collapses
+            // ONCE, here, after each case has been named. Before RelayPushResult the collapse
+            // happened inside the client and the operator's log could not tell a replay refusal
+            // from a DNS failure. Nothing below changes control flow yet: acting on Conflict means
+            // moving the publisher's counter (PQ-S6-3's second bullet), which needs a surface
+            // SyncPublisher does not have and a local gate this session cannot run.
+            switch (result)
+            {
+                case RelayPushResult.Ok:
+                    if (publisherRef is not null) vault.RecordE2pSeq(publisherRef.HighestSeq);
+                    return true;
+
+                case RelayPushResult.Conflict conflict:
+                    // §6.1's reconciliation input, arriving at the exact moment the counter is
+                    // proved wrong. Logged rather than applied, and the log says which so a reader
+                    // does not mistake "reported" for "handled".
+                    Console.WriteLine(conflict.Latest is { } latest
+                        ? $"Sync: the relay refused seq {publisherRef?.HighestSeq} as a replay; its e2p high-water mark is {latest}. Not yet reconciled (§6.1)."
+                        : "Sync: the relay refused the envelope as a replay and reported no usable high-water mark.");
+                    return false;
+
+                case RelayPushResult.TooLarge:
+                    Console.WriteLine("Sync: the relay refused the envelope as too large (§3.1); it will not be retried.");
+                    return false;
+
+                case RelayPushResult.Rejected rejected:
+                    // This side composed something the relay would not shape-check. A bug here.
+                    Console.WriteLine($"Sync: the relay rejected the envelope's shape -- {rejected.Detail}. This is an engine defect, not a relay outage.");
+                    return false;
+
+                case RelayPushResult.Unauthorised:
+                    Console.WriteLine("Sync: the relay refused the pairing's token (401/403). The pairing may have been purged.");
+                    return false;
+
+                case RelayPushResult.Misconfigured misconfigured:
+                    Console.WriteLine($"Sync: {misconfigured.Detail}. Check the paired relay URL and pairing id.");
+                    return false;
+
+                case RelayPushResult.Unavailable unavailable:
+                    Console.WriteLine($"Sync: the push did not reach the relay -- {unavailable.Detail}.");
+                    return false;
+
+                default:
+                    return false;
+            }
         },
         startSeq: paired.LastE2pSeq);
     publisherRef = publisher;

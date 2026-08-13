@@ -64,6 +64,110 @@ public abstract record RelayPullResult
 }
 
 /// <summary>
+/// What a push answered, in the only terms the caller can act on.
+///
+/// <para>This is the same defect <see cref="RelayPullResult"/> fixed, one method over.
+/// <see cref="RelayClient.PushAsync"/> returned a bare <c>bool</c> — <c>res.StatusCode is
+/// Created</c> — so a 409 <c>replay_rejected</c>, a 400, a 413, a timeout and a DNS failure were
+/// all the single value <c>false</c>. Three of those are permanent for the bytes in hand and two
+/// are worth retrying, and the caller could not tell them apart. <b>And the 409 carries a number
+/// the protocol depends on:</b> §6.1 tells a sender to resume above
+/// <c>max(persisted_seq, relay_latest)</c>, and the relay puts <c>latest</c> in the very body that
+/// reports the counter is wrong — which <c>bool</c> discarded unread (PQ-S6-3).</para>
+///
+/// <para>The cases are the ones the push route can actually produce, derived from
+/// <c>relay/src/index.ts:40-70</c> and <c>relay/src/channel.ts:138-191</c> rather than assumed, and
+/// they answer three different questions: retry these bytes, never retry these bytes, or fix the
+/// counter and send different bytes.</para>
+/// </summary>
+public abstract record RelayPushResult
+{
+    // Private ctor, as with RelayPullResult: the hierarchy is closed to the cases nested below, so a
+    // `switch` over them is exhaustive by construction.
+    private RelayPushResult() { }
+
+    /// <summary>
+    /// 201. The envelope was appended to the recipient's queue, <em>and nothing more</em> — it is
+    /// not an acknowledgement that the receiver accepted, decrypted or applied anything. The relay
+    /// is blind (§1) and has no opinion about the payload; §6.2's receiver rules run later and
+    /// independently, so a sender MUST NOT report a delivered envelope as an applied one.
+    ///
+    /// <para>The 201 body (<c>{"ok":true,"seq":N}</c>) is deliberately <b>not parsed</b>. Doing so
+    /// would invent a failure mode on top of a success: a relay that appended the envelope and then
+    /// answered with an unreadable body has still appended it, and reporting that as a failure would
+    /// make the sender retry bytes the relay already holds — which it then refuses with the 409
+    /// below, turning a cosmetic problem into a real one.</para>
+    /// </summary>
+    public sealed record Ok : RelayPushResult;
+
+    /// <summary>
+    /// 409 <c>replay_rejected</c>: the envelope's <c>seq</c> was at or below the relay's high-water
+    /// mark for its direction, so the relay refused it at the door (<c>channel.ts:171</c>).
+    /// Neither a success nor a transport failure — retrying <em>these bytes</em> can never succeed,
+    /// because the refusal is about the number they carry.
+    /// </summary>
+    /// <param name="Latest">
+    /// The relay's high-water <c>seq</c> <b>for the direction the refused envelope named</b>, which
+    /// is precisely the second term of §6.1's <c>max(persisted_seq, relay_latest)</c>. Not a
+    /// pairing-wide position: a sender that read it as one would resume far too high and skip seqs.
+    ///
+    /// <para><b>Null when the body carried no usable number</b> — absent, empty, not JSON, not an
+    /// object, no <c>latest</c> field, not an integer, or outside the legal seq range (§3.2). The
+    /// range check is the same one <see cref="RelayClient.PullAsync"/> applies to a pull page's
+    /// <c>latest</c>, and for the same reason: an integer is not a seq, and this number is one a
+    /// sender would otherwise write straight into its own counter.</para>
+    ///
+    /// <para>Note what null does <em>not</em> do: it does not downgrade the result to
+    /// <see cref="Unavailable"/>. The conflict is a fact independent of the number — the relay
+    /// refused the seq, and that is true whether or not it explained itself. Reporting an
+    /// unreadable 409 as "the relay did not answer" would tell the caller to retry the one thing
+    /// that cannot work, which is exactly what §2.2 forbids. So the conflict survives and only the
+    /// unusable number is dropped. This is the deliberate asymmetry with <c>PullAsync</c>, which
+    /// refuses the whole page on a bad <c>latest</c>: there the number governs a cursor the caller
+    /// is about to advance, here it is an optional aid to a decision already made.</para>
+    /// </param>
+    public sealed record Conflict(long? Latest) : RelayPushResult;
+
+    /// <summary>
+    /// 401/403 — the bearer was refused, or the pairing was purged, which answers 401 on every
+    /// route and is deliberately indistinguishable from a wrong token (§2.3, PQ-S2-4). Retrying
+    /// with the same bearer cannot help.
+    /// </summary>
+    public sealed record Unauthorised : RelayPushResult;
+
+    /// <summary>
+    /// 404 — as on the pull route this does <em>not</em> mean "the pairing was purged" (that is the
+    /// 401 above). Either the pairing id fails the relay's shape check (<c>index.ts:55</c>) or the
+    /// route is absent (<c>index.ts:66</c>): a configuration fault or a client/relay version skew.
+    /// </summary>
+    public sealed record Misconfigured(string Detail) : RelayPushResult;
+
+    /// <summary>
+    /// 400 <c>bad_request</c> — the relay could not parse the body, or the envelope failed its
+    /// header-shape check (<c>channel.ts:143-159</c>). Unlike every other case here this one
+    /// indicts <em>this side</em>: a conforming engine does not compose an envelope the relay
+    /// refuses to shape-check, so it is a defect in the sender, and it is permanent for these
+    /// bytes. Kept distinct from <see cref="TooLarge"/> because the remedy differs — a malformed
+    /// envelope is a bug to fix, an oversized one is a payload to split (§4.4).
+    /// </summary>
+    public sealed record Rejected(string Detail) : RelayPushResult;
+
+    /// <summary>
+    /// 413 <c>too_large</c> — the body or the ciphertext exceeded §3.1's cap, which the relay
+    /// measures in base64url characters because it cannot decode (<c>channel.ts:140,164</c>).
+    /// Permanent for these bytes; the payload needs chunking, not a retry.
+    /// </summary>
+    public sealed record TooLarge : RelayPushResult;
+
+    /// <summary>
+    /// The relay did not answer usefully and may on the next tick: a transport failure, a timeout,
+    /// a 5xx, or any other unexpected status — including a 200, which is not the 201 §2.2 pins for
+    /// an appended envelope. Transient by assumption; these bytes are worth sending again.
+    /// </summary>
+    public sealed record Unavailable(string Detail) : RelayPushResult;
+}
+
+/// <summary>
 /// The engine's HTTPS client for the blind relay (Sync-Protocol.md §2). Push/pull only;
 /// the WebSocket live feed is a P2 concern. Every call carries the bearer for the pairing,
 /// and the client never sees or holds key material — it moves ciphertext the codec sealed.
@@ -112,16 +216,101 @@ public sealed class RelayClient(HttpClient http, string relayBaseUrl, string pai
         return res.StatusCode == HttpStatusCode.OK ? await res.Content.ReadAsStringAsync(ct) : null;
     }
 
-    /// <summary>Append one sealed envelope. The body IS the envelope JSON.</summary>
-    public async Task<bool> PushAsync(string bearer, string envelopeJson, CancellationToken ct = default)
+    /// <summary>
+    /// Append one sealed envelope. The body IS the envelope JSON.
+    ///
+    /// <para>Never throws for a relay that refuses, is unreachable, or answers something
+    /// unexpected — every one of those arrives as a <see cref="RelayPushResult"/> case. As with
+    /// <see cref="PullAsync"/>, the one exception still propagated is the caller's own
+    /// cancellation, which is not a relay condition: laundering it turns a requested shutdown into
+    /// "the relay did not answer" and the loop above keeps ticking.</para>
+    /// </summary>
+    public async Task<RelayPushResult> PushAsync(
+        string bearer, string envelopeJson, CancellationToken ct = default)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, Base("push"))
+        try
         {
-            Content = new StringContent(envelopeJson, Encoding.UTF8, "application/json"),
-        };
-        req.Headers.Add("Authorization", $"Bearer {bearer}");
-        using var res = await http.SendAsync(req, ct);
-        return res.StatusCode is HttpStatusCode.Created;
+            using var req = new HttpRequestMessage(HttpMethod.Post, Base("push"))
+            {
+                Content = new StringContent(envelopeJson, Encoding.UTF8, "application/json"),
+            };
+            req.Headers.Add("Authorization", $"Bearer {bearer}");
+            using var res = await http.SendAsync(req, ct).ConfigureAwait(false);
+
+            switch (res.StatusCode)
+            {
+                // 201 and only 201. §2.2 pins it as the appended answer, so a 200 is a relay not
+                // behaving like the relay and falls to Unavailable with every other surprise --
+                // which is what the old `is HttpStatusCode.Created` did too, preserved on purpose.
+                case HttpStatusCode.Created:
+                    return new RelayPushResult.Ok();
+
+                case HttpStatusCode.Conflict:
+                    return new RelayPushResult.Conflict(
+                        ConflictLatest(await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false)));
+
+                case HttpStatusCode.Unauthorized:
+                case HttpStatusCode.Forbidden:
+                    return new RelayPushResult.Unauthorised();
+
+                case HttpStatusCode.NotFound:
+                    return new RelayPushResult.Misconfigured(
+                        "the relay does not serve push for this pairing (404)");
+
+                case HttpStatusCode.BadRequest:
+                    return new RelayPushResult.Rejected(
+                        "the relay refused the envelope's shape (400)");
+
+                case HttpStatusCode.RequestEntityTooLarge:
+                    return new RelayPushResult.TooLarge();
+
+                default:
+                    return new RelayPushResult.Unavailable($"the relay answered {(int)res.StatusCode}");
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            // HttpClient raises this for its own timeout, which IS a relay condition. Separated
+            // from the caller's cancellation by the token, because nothing else separates them.
+            return new RelayPushResult.Unavailable("the push timed out");
+        }
+        catch (HttpRequestException ex)
+        {
+            return new RelayPushResult.Unavailable($"the relay was unreachable ({ex.GetType().Name})");
+        }
+    }
+
+    /// <summary>
+    /// The <c>latest</c> a 409 body carries, or null when it carries none this client may use.
+    ///
+    /// <para>Deliberately total — it has no failure channel because a 409 with an unreadable body is
+    /// still a 409 (see <see cref="RelayPushResult.Conflict"/>). Every rejection here collapses to
+    /// "no reconciliation input", never to an exception and never to a different result case.</para>
+    /// </summary>
+    private static long? ConflictLatest(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+            if (!doc.RootElement.TryGetProperty("latest", out var element)) return null;
+            if (element.ValueKind != JsonValueKind.Number || !element.TryGetInt64(out var latest))
+                return null;
+            // Same bound, same reason as the pull page's latest: `latest` is MAX(seq) over rows the
+            // relay holds, every one of which passed its seq check, so it inherits seq's domain from
+            // §3.2. A sender would otherwise write an absurd-but-integral number into the counter
+            // §6.1 tells it to reconcile -- and unlike the pull cursor, that number goes on the wire.
+            if (latest < 0 || latest > Protocol.MaxSeq) return null;
+            return latest;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
