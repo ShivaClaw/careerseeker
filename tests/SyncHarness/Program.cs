@@ -9,6 +9,7 @@
 // was always the plan ("when the real SyncPublisher lands in P1, this harness points at
 // it instead").
 
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -1039,6 +1040,118 @@ Check("device key fingerprint is 16 lowercase hex chars",
 Check("suite string names its post-quantum successor",
     Protocol.SuiteHybridReserved.Contains("mlkem") && Protocol.SuiteHybridReserved != Protocol.Suite);
 
+// ---------------------------------------------------------------- relay pull result (§2.2)
+//
+// RelayClient had no offline coverage at all before this section: `grep -rl RelayClient tests/`
+// returned only SyncLiveSmoke, which needs a live or local relay and is excluded from the hermetic
+// suite. That is how PullAsync stayed partial -- EnsureSuccessStatusCode, GetProperty and GetInt64
+// all throw, and nothing offline ever asked what happened when they did.
+//
+// These drive the real shipping client over a stub transport. The property under test is the one the
+// pump's contract states and the signature now carries: a relay that answers badly produces a VALUE,
+// never an exception.
+
+Console.WriteLine("\n[ relay pull result ]");
+
+const string PullPairing = "p_AAAAAAAAAAAAAAAA";
+
+async Task<RelayPullResult> Pull(
+    Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> respond,
+    CancellationToken ct = default)
+{
+    using var handler = new StubTransport(respond);
+    using var httpClient = new HttpClient(handler);
+    return await new RelayClient(httpClient, "https://relay.example", PullPairing)
+        .PullAsync("bearer-token", "p2e", 7, ct);
+}
+
+static HttpResponseMessage Answer(HttpStatusCode status, string body) =>
+    new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+
+// -- the happy path, and the two things about it that are easy to get wrong ------------------
+var okResult = await Pull((_, _) => Answer(HttpStatusCode.OK,
+    """{"envelopes":[{"seq":8,"dir":"p2e"},{"seq":9,"dir":"p2e"}],"latest":9}"""));
+Check("a well-formed page is Ok", okResult is RelayPullResult.Ok, okResult.GetType().Name);
+Check("Ok carries every envelope and the latest seq",
+    okResult is RelayPullResult.Ok { Envelopes.Count: 2, Latest: 9 });
+// The elements are cloned out of a JsonDocument that PullAsync disposes on the way out. Reading one
+// after the call has returned is the assertion that the clone is real -- drop the .Clone() and this
+// throws ObjectDisposedException rather than failing quietly.
+Check("Ok envelopes outlive the JsonDocument they were parsed from",
+    okResult is RelayPullResult.Ok ok2 && ok2.Envelopes[1].GetProperty("seq").GetInt64() == 9);
+
+// -- the request itself: nothing offline had ever asserted the wire form ---------------------
+HttpRequestMessage? seen = null;
+await Pull((req, _) => { seen = req; return Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""); });
+Check("the pull carries the bearer", seen?.Headers.Authorization?.ToString() == "Bearer bearer-token"
+    || seen?.Headers.GetValues("Authorization").FirstOrDefault() == "Bearer bearer-token");
+Check("the pull addresses /v1/{pairing}/pull with dir and since",
+    seen?.RequestUri?.ToString() == $"https://relay.example/v1/{PullPairing}/pull?dir=p2e&since=7",
+    seen?.RequestUri?.ToString());
+Check("an empty page is Ok, not a failure",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""))
+        is RelayPullResult.Ok { Envelopes.Count: 0, Latest: 0 });
+
+// -- 401 vs 404: the distinction PQ-S2-4 is about --------------------------------------------
+//
+// A purged pairing answers 401 on every route (measured under miniflare; §2.3 pins it), so
+// Unauthorised covers both "wrong bearer" and "pairing is gone" and the relay refuses to say which.
+// 404 on this route means something else entirely -- the id failed the relay's shape check, or the
+// route is absent -- and it must not be laundered into the same case.
+Check("401 is Unauthorised",
+    await Pull((_, _) => Answer(HttpStatusCode.Unauthorized, """{"error":"unauthorized"}"""))
+        is RelayPullResult.Unauthorised);
+Check("403 is Unauthorised too",
+    await Pull((_, _) => Answer(HttpStatusCode.Forbidden, """{"error":"forbidden"}"""))
+        is RelayPullResult.Unauthorised);
+Check("404 is Misconfigured, NOT Unauthorised and NOT Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.NotFound, """{"error":"pairing_unknown"}"""))
+        is RelayPullResult.Misconfigured);
+
+// -- everything else the relay or the network can do -----------------------------------------
+Check("500 is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.InternalServerError, "")) is RelayPullResult.Unavailable);
+Check("429 is Unavailable",
+    await Pull((_, _) => Answer((HttpStatusCode)429, "")) is RelayPullResult.Unavailable);
+Check("a transport failure is Unavailable, not an exception",
+    await Pull((_, _) => throw new HttpRequestException("no route to host")) is RelayPullResult.Unavailable);
+// HttpClient raises TaskCanceledException for its own timeout as well as for caller cancellation.
+// With the caller's token NOT cancelled this is the timeout, and a timeout is a relay condition.
+Check("a client timeout is Unavailable",
+    await Pull((_, _) => throw new TaskCanceledException("timed out")) is RelayPullResult.Unavailable);
+
+// -- a 200 that is not a pull page. This is the class the old code could not express ----------
+Check("a 200 carrying an HTML error page is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, "<html><body>502 Bad Gateway</body></html>"))
+        is RelayPullResult.Unavailable);
+Check("a 200 whose root is not an object is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, "[]")) is RelayPullResult.Unavailable);
+Check("a 200 with no envelopes array is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"latest":3}""")) is RelayPullResult.Unavailable);
+Check("a 200 whose envelopes is not an array is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":{},"latest":3}"""))
+        is RelayPullResult.Unavailable);
+Check("a 200 with no latest is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[]}""")) is RelayPullResult.Unavailable);
+Check("a 200 whose latest is a string is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":"3"}"""))
+        is RelayPullResult.Unavailable);
+Check("a 200 whose latest is fractional is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":3.5}"""))
+        is RelayPullResult.Unavailable);
+
+// -- the one exception that must still escape -------------------------------------------------
+//
+// Cancellation is the caller's decision, not the relay's. Turning it into Unavailable would tell a
+// shutting-down host "the relay did not answer, try again", which is how a stop request becomes a
+// loop that will not stop.
+using var cancelled = new CancellationTokenSource();
+cancelled.Cancel();
+var cancellationEscaped = false;
+try { await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""), cancelled.Token); }
+catch (OperationCanceledException) { cancellationEscaped = true; }
+Check("caller cancellation propagates rather than becoming a result", cancellationEscaped);
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
@@ -1122,4 +1235,19 @@ sealed class RecordingRepublisher : SeekerSvc.Sync.ISnapshotRepublisher
     public long? LastSince;
     public Task RepublishSnapshotAsync(long sinceSeq, CancellationToken ct = default)
     { LastSince = sinceSeq; return Task.CompletedTask; }
+}
+
+/// <summary>
+/// A stub <see cref="HttpMessageHandler"/> for the pull-result tests: it answers whatever the test
+/// hands it, including by throwing, so the real shipping <see cref="SeekerSvc.Sync.RelayClient"/> is
+/// the code under test and only the socket is fake.
+/// </summary>
+sealed class StubTransport(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> respond) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        // Mirrors HttpClient: an already-cancelled token fails the send rather than being ignored.
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(respond(request, ct));
+    }
 }
