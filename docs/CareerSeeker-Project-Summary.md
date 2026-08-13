@@ -233,8 +233,10 @@ None of those external actions were executed by B8.
 - OAuth production verification/CASA pending.
 - Public trust-copy deployment pending.
 - Broad `role_reassign` false positives pending a reviewed detector change plus fixtures.
-- Dependency/SBOM inventory and the repository-wide PSScriptAnalyzer pass remain R6 work. The app now has
-  a separately confirmed exact-path `delete-all-data` workflow; app removal remains a distinct action.
+- Dependency/SBOM inventory remains blocked R6 work. The repository-wide PSScriptAnalyzer 1.25.0 pass now
+  enforces zero unreviewed warning/error findings; its reviewed exceptions and raw inventory are recorded in
+  `docs/PSScriptAnalyzer.md`. The app has a separately confirmed exact-path `delete-all-data` workflow; app
+  removal remains a distinct action.
 - No higher autonomy, Gmail send/read/modify, calendar, or ATS-submit implementation.
 - Existing loopback document-token/query-string and missing Origin/Referer residuals remain accepted only for
   the local-only threat model; revisit before any non-loopback exposure.

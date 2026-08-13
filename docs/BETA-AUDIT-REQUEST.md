@@ -1,10 +1,37 @@
 # CareerSeeker Beta Audit Request
 
-Updated: 2026-08-07
+Updated: 2026-08-12
 
 This is the adversarial review index for the Windows Beta milestone ladder.
 Each claim below is limited to evidence executed by Terra in the session that
 recorded it. Commands are written from the repository root on Windows.
+
+## R6(c) - Repository-wide PowerShell static analysis
+
+Branch: `codex/r6-psscriptanalyzer`
+
+### Claims and re-verification
+
+| Claim | Exact reviewer command | Observed 2026-08-12 |
+|---|---|---|
+| The pinned enforced analyzer policy is clean. | `scripts\Test-PowerShellScripts.ps1` | PSScriptAnalyzer 1.25.0 recursively scanned `scripts/` and reported 0 enforced warning/error findings. |
+| The policy does not hide unclassified debt. | `Invoke-ScriptAnalyzer -Path .\scripts -Recurse -Settings @{ Severity = @('Error','Warning','Information') }`, then group by severity/rule | After fixes, the explicit unfiltered scan reported 355 reviewed findings: 288 warnings and 67 informational findings, all in the six families enumerated and justified in `docs/PSScriptAnalyzer.md`. |
+| Actionable automatic-variable and runspace findings were removed without changing wrapper intent. | `rg -n '\$args\b'` over the seven changed wrappers; parser pass over all `scripts\*.ps1`; run the five documented preview/dry-run wrappers; execute both export wrappers against `tmp\verify-alpha-demo\demo.db` | No changed wrapper assigns `$args`; all 23 scripts parsed with 0 errors. Preview/dry-run paths executed no live action. Audit/evidence exports succeeded with intact chain, hash-only payloads, and secret-path exclusion. The isolated background-job capture returned the exact test URL. |
+| The merge-grade gate remains green. | `scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage` | Build 0 warnings/0 errors; offline 598/0; published demo 1 acted/1 drafted/2 rejected/0 errors; one-executable self-check passed with provider calls 0 and Gmail calls/drafts 0. The unsigned candidate measured 33,721,010 bytes with SHA-256 `D841CEF4E3A2E380A7DF47F40CCC0FB7F09F227BDBAFF6AA9EC74E0F8CB6DC68`. |
+| .NET analyzers remain clean. | `dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest`; `dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore` | Analyzer build 0 warnings/0 errors; analyzer formatting verification exited 0 with no findings. |
+
+### Verification boundary
+
+PSScriptAnalyzer and its NuGet bootstrap provider were installed only at
+current-user scope. No application package or machine-global tool was
+installed. No preview/dry-run command contacted a provider, Gmail, or a public
+ATS board.
+
+No deploy, console mutation, email, purchase, signing, application/MSIX
+install, secret access, certificate/store mutation, reboot, scheduled-task
+registration, off-repo site edit, Android/relay/sync change, force-push,
+history rewrite, `.appdata`-original mutation, public ATS read, or live
+provider/Gmail action occurred.
 
 ## R6(a) - Confirmed installed-workspace data deletion
 

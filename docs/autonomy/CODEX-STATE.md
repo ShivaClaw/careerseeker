@@ -1,6 +1,6 @@
 # Codex release-candidate rung state
 
-Updated: 2026-08-07
+Updated: 2026-08-12
 
 This file is the merge-tracked rung ledger. The live heartbeat and current
 file claims remain on `autonomy/codex-state:STATE.md`.
@@ -13,7 +13,7 @@ file claims remain on `autonomy/codex-state:STATE.md`.
 | R3 | BLOCKED | Fresh `origin/main` at `d486459` reports R2 BLOCKED, while both `R-LADDER.md` and `CODEX-MISSION.md` permit the sole live Gmail cycle only after R1/R2 are green/DONE. Two independent prerequisite reads agreed. No Gmail/token/secret access or live attempt occurred; the one-cycle allowance remains unused. See `docs/BETA-BLOCKED.md` and `docs/autonomy/HUMAN-QUEUE.md`. |
 | R4 | DONE | PR #23. Signing validation proved no certificate/password read in `-ValidateOnly`; signed-package expectations matched an exact publisher, found no unsigned OID, and rejected an unsigned control under `-RequireSigned`; VM01-VM11 validation wrote nothing. Offline/full gates passed at 412/0 with analyzer build 0/0 and one-exe package self-check. Human signing, VM execution, and publish commands are Q03-Q05. |
 | R5 | DONE | PR #24. Repository-only changelog, preservation-first migration guide, and truthful download Markdown/HTML are implemented. Import preview executed without import or overwrite. Offline/full gates are 412/0, analyzers 0/0, and the one-executable package self-check is green; both initial CI runs passed and the post-fetch rebase/full gate repeated green. |
-| R6 | IN PROGRESS | R6(a) is complete on PR #25: the installed executable now has a separately confirmed, exact-path `delete-all-data` mode; six new EngineHarness assertions cover path binding, mismatch/root refusal, complete removal, and already-absent reporting. Offline/full gates pass at 418/0 with analyzers 0/0 and a one-executable package self-check. Initial CI runs `31235635615` and `31235656763` passed; fresh main remained `e874c86`, the rebase was a no-op, and the post-fetch full gate repeated green. R6(b) dependency/SBOM inventory, R6(c) PSScriptAnalyzer, and R6(d) backlog review remain. |
+| R6 | IN PROGRESS | R6(a) is complete on PR #25. R6(b) is BLOCKED on draft PR #26. R6(c) is implemented on `codex/r6-psscriptanalyzer`: PSScriptAnalyzer 1.25.0 initially found 374 items; 19 actionable automatic-variable/runspace findings were fixed, every remaining family is counted and justified, and the enforced pass is 0. Offline/full gates pass at 598/0 with .NET analyzers 0/0 and a one-executable package self-check. R6(d) backlog review remains. |
 | R7 | PENDING | Not eligible until R0–R6 are DONE or BLOCKED. |
 
 ## Standing boundary

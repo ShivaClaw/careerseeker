@@ -1,6 +1,78 @@
 # Codex Resume Handoff
 
-Updated: 2026-08-07
+Updated: 2026-08-12
+
+## 2026-08-12 (Terra R6c) - PowerShell static-analysis pass completed
+
+Branch: `codex/r6-psscriptanalyzer`, based on fresh `origin/main` at
+`00b3705f892976cb91e41bb3584856d4d9de2ae1`.
+
+The authorized current-user tooling install first exposed the legacy
+PowerShellGet bootstrap failure (`NuGet provider is required`). Installing
+NuGet provider 2.8.5.208 at current-user scope resolved it, and
+PSScriptAnalyzer 1.25.0 installed at current-user scope. No machine-global
+tooling changed.
+
+The first explicit unfiltered recursive scan of `scripts/` reported 374
+findings: 307 warnings and 67 informational findings. Two rule families were
+actionable. Seven command wrappers no longer overwrite PowerShell's automatic
+`$args` variable (17 findings), and the dashboard opener now captures its URL
+across the background-job boundary with `$using:url` (2 findings). The
+remaining 355 raw findings belong to six reviewed rule families. The checked-
+in settings and `docs/PSScriptAnalyzer.md` record their counts and rationale;
+the repository wrapper enforces every other warning/error rule and passes at
+zero findings under the pinned analyzer version.
+
+Five dry-run/preview wrappers assembled without executing provider, Gmail, or
+public-board work. Both export wrappers executed against
+`tmp/verify-alpha-demo/demo.db`: the audit chain was intact, payloads remained
+hash-only, and the evidence package excluded secret-looking paths. All 23
+PowerShell scripts parsed with zero errors, and the isolated Start-Job capture
+returned the exact supplied test URL without opening it.
+
+Executed verification before the pull request:
+
+```text
+> scripts\Test-PowerShellScripts.ps1
+PSScriptAnalyzer 1.25.0 passed; enforced findings: 0.
+
+> explicit unfiltered Invoke-ScriptAnalyzer scan
+355 reviewed findings after fixes: 288 warnings, 67 information.
+No automatic-variable or new-runspace finding remains.
+
+> PowerShell parser over scripts\*.ps1
+PARSE_ERRORS=0
+
+> scripts\Verify-Alpha.ps1
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 598 passed, 0 failed ===
+
+> dotnet build CareerSeeker.sln -c Release --no-restore -warnaserror -p:EnableNETAnalyzers=true -p:AnalysisLevel=latest
+Build succeeded. 0 warnings, 0 errors.
+
+> dotnet format CareerSeeker.sln analyzers --verify-no-changes --severity warn --no-restore
+Exit code: 0; no output.
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 598 passed, 0 failed ===
+Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+Package: one CareerSeeker.exe; provider calls 0; Gmail calls/drafts 0.
+MSIX bytes: 33,721,010
+MSIX SHA-256: D841CEF4E3A2E380A7DF47F40CCC0FB7F09F227BDBAFF6AA9EC74E0F8CB6DC68
+```
+
+The package hash is a per-build unsigned-candidate measurement, not final
+release metadata. R6 remains IN PROGRESS: R6(b) is blocked on draft PR #26 and
+R6(d) ordered-backlog review remains a separate slice.
+
+Boundary: no deploy, console mutation, email, purchase, signing, application
+or MSIX install, secret access, certificate/store mutation, reboot,
+scheduled-task registration, off-repo site edit, Android/relay/sync change,
+force-push, history rewrite, `.appdata`-original mutation, public ATS read, or
+live provider/Gmail action occurred. The only install was the explicitly
+authorized current-user NuGet provider and PSScriptAnalyzer tooling described
+above.
 
 ## 2026-08-07 (Terra R6a) - Confirmed installed-workspace deletion implemented
 
