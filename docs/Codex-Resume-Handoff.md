@@ -58,7 +58,18 @@ Exit code: 0; no output.
 
 > rg historical dead-gate markers
 0 matches; expected rg exit 1.
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 598 passed, 0 failed ===
+Published demo: 1 acted, 1 drafted, 2 rejected, 0 errors.
+Package: one CareerSeeker.exe; provider calls 0; Gmail calls/drafts 0.
+MSIX bytes: 33,721,017
+MSIX SHA-256: DBF3CA3F7B0B070FF586BEFDA89F84EA1D62AE273B0775550006620F352009C1
 ```
+
+The package hash is a per-build unsigned-candidate measurement, not final
+release metadata.
 
 Boundary: no deploy, console mutation, email, purchase, signing, install,
 secret access, certificate/store mutation, reboot, scheduled-task
