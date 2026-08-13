@@ -1,12 +1,14 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-12T19:36:40-06:00
+- **Heartbeat:** 2026-08-12T20:02:51-06:00
 - **Current rung:** R6(d) ordered-hardening-backlog regression audit in
-  progress from fresh `origin/main` at
-  `efb9cd64d9e6b2ffb34c485695d9e6d18aac426f`.
+  progress after PR #42 moved `origin/main` to
+  `d1bc698bd9784687b88e3ff471c03fe7cfb537d2` during the first PR's final
+  pre-merge check.
 - **Current worktree / branch:**
   `C:\Users\bkirk\Documents\CareerSeeker-r6-backlog` /
-  `codex/r6-ordered-backlog-audit`.
+  `codex/r6-ordered-backlog-audit-v2`. PR #41's remote history was not
+  rewritten; this successor branch holds the rebased work.
 - **Files claimed:** `docs/BETA-AUDIT-REQUEST.md`,
   `docs/BETA-BLOCKED.md`, `docs/Codex-Resume-Handoff.md`,
   `docs/autonomy/CODEX-STATE.md`, and `docs/autonomy/HUMAN-QUEUE.md`, plus
@@ -23,7 +25,7 @@
   point. R6(c) did not edit that file; Codex merged first under its declared
   right-of-way, and Claude will re-derive its pending count on rebase.
 - **Fresh integration base:** `origin/main` =
-  `efb9cd64d9e6b2ffb34c485695d9e6d18aac426f`.
+  `d1bc698bd9784687b88e3ff471c03fe7cfb537d2`.
 - **Measured R2 evidence:** retained copy integrity/idempotence passed and the
   source remained 172,032 bytes with SHA-256 `0A5605…E18192`. The imported
   fixture has 31 claims / 321 rankable terms. Remote.com measured 58
@@ -133,13 +135,28 @@
   the full local gate repeated green. Final runs `31657806693` and
   `31657809486` passed both jobs; PR #40 merged normally as
   `efb9cd64d9e6b2ffb34c485695d9e6d18aac426f`.
-- **Next intent:** re-execute current-tree evidence for all six items in the
-  authoritative post-B8 ordered backlog, record any gap, and close R6(d) only
-  if the audit proves no remaining work.
+- **R6(d) measured evidence:** the authoritative six-item post-B8 backlog is
+  PR #18. On the PR #42 base, both retained database migration copies re-passed
+  2/0 with their sources unchanged; the offline gate passed 609/0; ten
+  consecutive EngineHarness runs each passed 228/0 in 4.305-4.524 seconds;
+  PSScriptAnalyzer enforced findings remained 0; .NET analyzers built 0/0;
+  analyzer formatting exited 0; and historical dead-gate markers remained 0.
+  The audit fixed the Windows PowerShell 5.1 wrapper path and restored R6(b)'s
+  blocker plus Q06-Q07 to the main-facing docs.
+- **R6(d) integration evidence:** all four PR #41 runs
+  (`31658958654`/`31658965284`, `31659193069`/`31659195032`) passed both jobs.
+  The final fetch found PR #42 at `d1bc698`, so no merge occurred. The work
+  rebased without conflict and the complete local gate re-passed build 0/0,
+  offline 609/0, one executable, and zero provider/Gmail calls; the candidate
+  was 33,731,462 bytes, SHA-256
+  `981B1DA4E2A4336D150B05B4B5963D1BBFD33ECB72E01426B9CE9AE39F69DA55`.
+- **Next intent:** publish the successor branch without force-pushing, close
+  superseded PR #41, obtain both CI runs on the rebased head, recheck main,
+  merge if valid, and release all claims. R7 is the next separate slice.
 - **Boundary:** only the explicitly authorized current-user NuGet provider
   2.8.5.208 and PSScriptAnalyzer 1.25.0 were installed. No deploy, console,
   email, purchase, signing, application/MSIX or machine-global tooling install,
   secret access, certificate/store mutation, reboot, scheduled-task
-  registration, off-repo site edit, force-push, history rewrite,
+  registration, off-repo site edit, force-push or remote history rewrite,
   `.appdata`-original mutation, public ATS read, live provider/Gmail action, or
   confirmed deletion of the real installed workspace occurred.
