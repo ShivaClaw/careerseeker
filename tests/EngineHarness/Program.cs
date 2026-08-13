@@ -2514,6 +2514,89 @@ Console.WriteLine("\n[ Pro outcome funnel windows 7/30/90d (P4 §2.5c) ]");
     }
 }
 
+// -- /pair page (S2): the route, its token gate, and each state it can render --
+{
+    Console.WriteLine("\n[ pair page ]");
+
+    // A stub seam: the dashboard half is what is under test. The host half (PairingManager,
+    // RelayClient, DPAPI vault) lives in Program.cs and is deliberately not reachable from a harness.
+    var beginCalls = 0; var completeCalls = 0; var unpairCalls = 0;
+    PairingPageState pairState = new(false, null, null, null, null);
+    var seam = new LocalDashboardPairing(
+        LoadAsync: _ => Task.FromResult(pairState),
+        BeginAsync: _ => { beginCalls++; pairState = new PairingPageState(false, null, "{\"v\":1,\"secret\":\"s3cr3t\"}", null, null); return Task.FromResult(pairState); },
+        CompleteAsync: _ => { completeCalls++; pairState = new PairingPageState(true, "pairing p_x via http://local", null, "CODE-42", null); return Task.FromResult(pairState); },
+        UnpairAsync: _ => { unpairCalls++; pairState = new PairingPageState(false, null, null, null, null); return Task.FromResult(pairState); });
+
+    var pairPort = FreeTcpPort();
+    var pairBase = $"http://localhost:{pairPort}";
+    var barePort = FreeTcpPort();
+    var pairDash = new LocalDashboard(new EngineCounters(), pairPort, pairing: seam);
+    var bareDash = new LocalDashboard(new EngineCounters(), barePort);
+    pairDash.Start(); bareDash.Start();
+    using var pairHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+    using var pairNoRedirect = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(5) };
+
+    try
+    {
+        var unconfigured = await pairNoRedirect.GetAsync($"http://localhost:{barePort}/pair");
+        Check("/pair is 404 when no pairing seam is configured",
+            unconfigured.StatusCode == HttpStatusCode.NotFound, $"{unconfigured.StatusCode}");
+
+        var idle = await pairHttp.GetStringAsync($"{pairBase}/pair");
+        Check("/pair offers to start when unpaired and shows no payload",
+            idle.Contains("Start pairing", StringComparison.Ordinal) && !idle.Contains("s3cr3t", StringComparison.Ordinal));
+
+        var pairToken = DashboardToken(idle);
+        Check("/pair carries a control token for its forms", pairToken.Length > 0);
+
+        // The one control that hands out a secret must not be a weaker gate than the others.
+        var forged = await pairNoRedirect.PostAsync($"{pairBase}/controls/pair/begin",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = "wrong" }));
+        Check("pair control rejects a forged token",
+            (int)forged.StatusCode >= 400 && beginCalls == 0, $"{forged.StatusCode}, calls={beginCalls}");
+
+        using var foreignHost = new HttpRequestMessage(HttpMethod.Post, $"{pairBase}/controls/pair/begin")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = pairToken }),
+        };
+        foreignHost.Headers.Host = "evil.test";
+        var foreign = await pairNoRedirect.SendAsync(foreignHost);
+        Check("pair control rejects a foreign Host header",
+            (int)foreign.StatusCode >= 400 && beginCalls == 0, $"{foreign.StatusCode}, calls={beginCalls}");
+
+        var begun = await pairNoRedirect.PostAsync($"{pairBase}/controls/pair/begin",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = pairToken }));
+        var begunHtml = await begun.Content.ReadAsStringAsync();
+        Check("begin renders the invite payload the phone must consume",
+            beginCalls == 1 && begunHtml.Contains("s3cr3t", StringComparison.Ordinal));
+        Check("the payload is HTML-escaped, not injected raw",
+            begunHtml.Contains("&quot;", StringComparison.Ordinal));
+        Check("begin states plainly that QR rendering is absent",
+            begunHtml.Contains("QR rendering is not implemented", StringComparison.Ordinal));
+
+        var completed = await pairNoRedirect.PostAsync($"{pairBase}/controls/pair/complete",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = pairToken }));
+        var completedHtml = await completed.Content.ReadAsStringAsync();
+        Check("complete shows the confirmation code the human must compare",
+            completeCalls == 1 && completedHtml.Contains("CODE-42", StringComparison.Ordinal));
+        Check("a paired page stops offering the payload and offers unpair",
+            !completedHtml.Contains("s3cr3t", StringComparison.Ordinal)
+            && completedHtml.Contains("Unpair", StringComparison.Ordinal));
+
+        var unpaired = await pairNoRedirect.PostAsync($"{pairBase}/controls/pair/unpair",
+            new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = pairToken }));
+        var unpairedHtml = await unpaired.Content.ReadAsStringAsync();
+        Check("unpair returns the page to its unpaired state",
+            unpairCalls == 1 && unpairedHtml.Contains("Start pairing", StringComparison.Ordinal));
+    }
+    finally
+    {
+        await pairDash.DisposeAsync();
+        await bareDash.DisposeAsync();
+    }
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 

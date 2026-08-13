@@ -153,7 +153,13 @@ $offlineProjects = @(
 # both §6.1 high-water marks, the monotonic rule that a lower seq is ignored rather than rewound
 # (a rewound e2p counter makes the relay reject everything the engine sends next, including the
 # recovery snapshot), and that Describe leaks neither key material nor the relay token. 598.
-$ExpectedOfflineTotal = 598
+# S2 adds eleven EngineHarness assertions (217 -> 228) for the /pair page: the route, its 404 when no
+# pairing seam is configured, the control-token and Host-header gates (this is the one control that hands
+# out a secret, so it must not be a weaker gate than the others), the invite payload being HTML-escaped,
+# the absent-QR statement, and the confirmation code. That last one caught a real defect: the code was
+# rendered only on the pre-completion screen, so the human had nothing to compare after pairing -- which
+# is the entire MITM check. 609.
+$ExpectedOfflineTotal = 609
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -462,12 +468,12 @@ Invoke-Step "Public README and harness count smoke" {
         'Alpha `.cmd` helpers',
         'no open-source license',
         'all rights are reserved',
-        '| EngineHarness | 217 |',
+        '| EngineHarness | 228 |',
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
         '| SyncHarness | 130 |',
-        '| **Total** | **598** |',
+        '| **Total** | **609** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -481,7 +487,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **598** |',
+        '| **Total** | **609** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -489,7 +495,7 @@ Invoke-Step "Public README and harness count smoke" {
         '## Human-only work remaining'
     ) "docs/CareerSeeker-Project-Summary.md"
     Assert-Contains $summaryCollapsed @(
-        '| EngineHarness | 217 |',
+        '| EngineHarness | 228 |',
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| StoreParityHarness | 28 |',
@@ -501,7 +507,7 @@ Invoke-Step "Public README and harness count smoke" {
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
         '| SyncHarness | 130 |',
-        '| **Total** | **598** |',
+        '| **Total** | **609** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -535,7 +541,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **598 passed, 0 failed**',
+        'Pinned offline verifier: **609 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
@@ -554,7 +560,7 @@ Invoke-Step "Public README and harness count smoke" {
         '`lexical-v2` formula',
         '| 200 | 1.50–3.88 | 2.99–4.20 | 2.99 | 4.20 | 4.20 | 3.20 | 8/120 (6.7%) |',
         'existing default Act threshold of 4.0 remains inside that gap',
-        '217 passed, 0 failed'
+        '228 passed, 0 failed'
     ) "docs/Scoring-Calibration.md"
 
     $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw

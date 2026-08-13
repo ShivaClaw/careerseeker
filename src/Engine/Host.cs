@@ -154,6 +154,31 @@ public sealed record ProDashboardState(bool Entitled, FunnelBoard Funnel);
 
 public sealed record LocalDashboardPro(Func<CancellationToken, Task<ProDashboardState>> LoadAsync);
 
+/// <summary>
+/// What the <c>/pair</c> page renders. Deliberately carries no key material: <see cref="InvitePayload"/>
+/// is the QR/manual payload the phone consumes (its one-time secret is single-use and burns on the first
+/// valid completion), and <see cref="ConfirmCode"/> is the short string the human compares against the
+/// phone's screen. The directional keys and relay token never reach this record, so they cannot reach a
+/// browser.
+/// </summary>
+public sealed record PairingPageState(
+    bool Paired,
+    string? Summary,
+    string? InvitePayload,
+    string? ConfirmCode,
+    string? Error);
+
+/// <summary>
+/// The <c>/pair</c> page's seam. The dashboard renders; the host owns the pairing manager, the relay
+/// client and the DPAPI vault — the same split as <see cref="LocalDashboardPro"/>, and for the same
+/// reason: <c>Host.cs</c> is exercised by harnesses that must not touch Windows-only persistence.
+/// </summary>
+public sealed record LocalDashboardPairing(
+    Func<CancellationToken, Task<PairingPageState>> LoadAsync,
+    Func<CancellationToken, Task<PairingPageState>> BeginAsync,
+    Func<CancellationToken, Task<PairingPageState>> CompleteAsync,
+    Func<CancellationToken, Task<PairingPageState>> UnpairAsync);
+
 public sealed record DashboardEvidence(
     bool AuditOk,
     long? FirstBrokenSeq,
@@ -221,6 +246,7 @@ public sealed class LocalDashboard : IAsyncDisposable
     private readonly LocalDashboardActions? _actions;
     private readonly LocalDashboardEvidence? _evidence;
     private readonly LocalDashboardPro? _pro;
+    private readonly LocalDashboardPairing? _pairing;
     private readonly IReadOnlyList<string> _documentRoots;
     private readonly string _controlToken;
     private readonly int _port;
@@ -262,7 +288,8 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         IEnumerable<string>? documentRoots = null,
         Func<SchedulerState>? engineState = null,
         Func<SchedulerRuntimeStatus>? engineRuntime = null,
-        LocalDashboardPro? pro = null)
+        LocalDashboardPro? pro = null,
+        LocalDashboardPairing? pairing = null)
     {
         _counters = counters;
         _engineState = engineState;
@@ -270,6 +297,7 @@ table{border-collapse:collapse;width:100%;min-width:64rem}th,td{text-align:left;
         _actions = actions;
         _evidence = evidence;
         _pro = pro;
+        _pairing = pairing;
         _documentRoots = NormalizeDocumentRoots(documentRoots);
         _controlToken = NewControlToken();
         _port = port;
@@ -478,6 +506,19 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
         if (ctx.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) && path == "/jobs")
         {
             await HandleJobsAsync(ctx, ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (ctx.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) && path == "/pair")
+        {
+            await HandlePairPageAsync(ctx, ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (ctx.Request.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
+            (path == "/controls/pair/begin" || path == "/controls/pair/complete" || path == "/controls/pair/unpair"))
+        {
+            await HandlePairControlAsync(ctx, path, ct).ConfigureAwait(false);
             return;
         }
 
@@ -936,6 +977,97 @@ runs. To discover and draft on a schedule, start the engine with the <code>run</
         await using var file = File.OpenRead(documentPath);
         ctx.Response.ContentLength64 = file.Length;
         await file.CopyToAsync(ctx.Response.OutputStream, ct).ConfigureAwait(false);
+    }
+
+    private async Task HandlePairPageAsync(HttpListenerContext ctx, CancellationToken ct)
+    {
+        if (_pairing is null)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8",
+                "Pairing is not configured for this dashboard.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        var state = await _pairing.LoadAsync(ct).ConfigureAwait(false);
+        await WriteAsync(ctx, "text/html; charset=utf-8", PairHtml(state), ct).ConfigureAwait(false);
+    }
+
+    private async Task HandlePairControlAsync(HttpListenerContext ctx, string path, CancellationToken ct)
+    {
+        if (_pairing is null)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteAsync(ctx, "text/plain; charset=utf-8",
+                "Pairing is not configured for this dashboard.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        // Same gate as every other mutating control: loopback-shaped Host/Origin plus the control token.
+        // Pairing is the one control that hands out a secret, so it is not a weaker check than the others.
+        if (!RequestCameFromThisDashboard(ctx) || !await HasValidControlTokenAsync(ctx).ConfigureAwait(false))
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteAsync(ctx, "text/plain; charset=utf-8", "Forbidden.", ct).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var state = path switch
+            {
+                "/controls/pair/begin" => await _pairing.BeginAsync(ct).ConfigureAwait(false),
+                "/controls/pair/complete" => await _pairing.CompleteAsync(ct).ConfigureAwait(false),
+                _ => await _pairing.UnpairAsync(ct).ConfigureAwait(false),
+            };
+            await WriteAsync(ctx, "text/html; charset=utf-8", PairHtml(state), ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+            await WriteAsync(ctx, "text/html; charset=utf-8",
+                PairHtml(new PairingPageState(false, null, null, null, ex.Message)), ct).ConfigureAwait(false);
+        }
+    }
+
+    private string PairHtml(PairingPageState s)
+    {
+        var token = _controlToken;
+        var body = new System.Text.StringBuilder();
+        body.Append(@"<section class=""hero""><div><h1>Pair a phone</h1><div class=""muted"">Read-only dashboard sync. Publishing stays off until a pairing exists.</div></div><a href=""/"">Back to status</a></section>");
+
+        if (s.Error is not null)
+            body.Append($@"<p class=""muted"" role=""alert""><strong>Could not continue:</strong> {WebUtility.HtmlEncode(s.Error)}</p>");
+
+        if (s.Paired)
+        {
+            body.Append($@"<p><strong>Paired.</strong> {WebUtility.HtmlEncode(s.Summary ?? "")}</p>");
+            // The confirm code is only meaningful right after completing, and it is the ONLY signal a
+            // human has that they paired with their phone rather than something that answered first.
+            // Rendering it exclusively on the pre-completion screen would mean it is never comparable.
+            if (s.ConfirmCode is not null)
+                body.Append($@"<p><strong>Confirmation code: {WebUtility.HtmlEncode(s.ConfirmCode)}</strong></p><p class=""muted"">Compare it with the code on the phone now. If they differ, unpair immediately — a mismatch is what a third party answering in your phone's place looks like.</p>");
+            body.Append($@"<form method=""post"" action=""/controls/pair/unpair""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><button type=""submit"">Unpair this phone</button></form>");
+            body.Append(@"<p class=""muted"">Unpairing stops publishing and clears the stored keys. The phone keeps whatever it already received.</p>");
+        }
+        else if (s.InvitePayload is null)
+        {
+            body.Append($@"<form method=""post"" action=""/controls/pair/begin""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><button type=""submit"">Start pairing</button></form>");
+            body.Append(@"<p class=""muted"">Creates a single-use invite that expires shortly. Nothing is published until pairing completes.</p>");
+        }
+        else
+        {
+            body.Append(@"<h2>1. Give this to the phone</h2>");
+            body.Append(@"<p class=""muted"">This is the exact payload the phone's scanner expects. It carries a one-time secret that burns on first use — do not share it.</p>");
+            body.Append($@"<pre class=""table-wrap"" tabindex=""0"" role=""region"" aria-label=""Pairing payload"">{WebUtility.HtmlEncode(s.InvitePayload)}</pre>");
+            body.Append(@"<p class=""muted""><strong>QR rendering is not implemented.</strong> The payload above is the QR contents verbatim; a scanner-facing image needs an encoder this build does not have.</p>");
+            body.Append(@"<h2>2. Then finish here</h2>");
+            body.Append($@"<form method=""post"" action=""/controls/pair/complete""><input type=""hidden"" name=""token"" value=""{WebUtility.HtmlEncode(token)}""><button type=""submit"">I scanned it — complete pairing</button></form>");
+            if (s.ConfirmCode is not null)
+                body.Append($@"<p><strong>Confirmation code: {WebUtility.HtmlEncode(s.ConfirmCode)}</strong></p><p class=""muted"">It must match the code on the phone. If it does not, unpair — a mismatch is the signal a third party answered instead of your phone.</p>");
+        }
+
+        return PageHtml("CareerSeeker Pairing", "pair", body.ToString());
     }
 
     private async Task HandleGmailDisconnectAsync(HttpListenerContext ctx, CancellationToken ct)
