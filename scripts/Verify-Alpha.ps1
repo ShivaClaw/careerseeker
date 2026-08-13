@@ -197,7 +197,23 @@ $offlineProjects = @(
 # seven applied, seven caught -- two of them (dropping the .Clone(), dropping the root-is-an-object
 # guard) as an unhandled exception escaping the harness rather than a FAIL line, which is the exact
 # failure mode this change exists to remove. 662.
-$ExpectedOfflineTotal = 662
+#
+# Eleven more SyncHarness assertions (194 -> 205) give `latest` a RANGE check, which being an integer
+# never established. Measured before writing any: a `latest` of -1, of 2^53 and of Int64.MaxValue all
+# returned Ok and carried the value straight through, because TryGetInt64 fixes the type and the width
+# and nothing else -- 1e19 and 1e300 were already refused, so the hole was exactly those two bands and
+# no type check can see them. `latest` is not an arbitrary Int64: it is MAX(seq) over the rows the
+# relay holds, so it inherits seq's domain from §3.2 -- by DERIVATION, since §3.2 caps what a sender
+# emits and what the relay rejects and never mentions the relay's REPORT of it (PQ-LAT-1). Two more
+# pin Protocol.MaxSeq by arithmetic rather than by re-typing the literal, including that it survives a
+# double round trip and the next integer up does not, which is the whole reason for the number. Two
+# pin an OPEN WEAKNESS rather than a fix: §6.4's bound on an unauthenticated seq is the page's own
+# `latest`, supplied by the same party in the same response, so an element claiming seq 1,000,000
+# bounded to 5 by an honest page reaches 1,000,000 when the page inflates its bound. The range check
+# lowers that ceiling to 2^53-1 and does NOT close it (PQ-LAT-2); if a later slice closes it, those
+# two assertions SHOULD fail. Proven by mutation: seven applied, seven caught, tree byte-identical
+# after. 673.
+$ExpectedOfflineTotal = 673
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -510,8 +526,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 194 |',
-        '| **Total** | **662** |',
+        '| SyncHarness | 205 |',
+        '| **Total** | **673** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -525,7 +541,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **662** |',
+        '| **Total** | **673** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -539,13 +555,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 194 |'
+        '| SyncHarness | 205 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 194 |',
-        '| **Total** | **662** |',
+        '| SyncHarness | 205 |',
+        '| **Total** | **673** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -579,7 +595,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **662 passed, 0 failed**',
+        'Pinned offline verifier: **673 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
