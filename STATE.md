@@ -8,11 +8,13 @@
   `C:\Users\bkirk\Documents\CareerSeeker-r6-backlog` /
   `codex/r6-ordered-backlog-audit`.
 - **Files claimed:** `docs/BETA-AUDIT-REQUEST.md`,
-  `docs/Codex-Resume-Handoff.md`, `docs/CareerSeeker-Project-Summary.md`, and
-  `docs/autonomy/CODEX-STATE.md`, plus `scripts/Test-PowerShellScripts.ps1`.
+  `docs/BETA-BLOCKED.md`, `docs/Codex-Resume-Handoff.md`,
+  `docs/CareerSeeker-Project-Summary.md`, `docs/autonomy/CODEX-STATE.md`, and
+  `docs/autonomy/HUMAN-QUEUE.md`, plus `scripts/Test-PowerShellScripts.ps1`.
   The audit exposed a Windows PowerShell 5.1 path-resolution defect in that
-  wrapper. No source, sync, relay, harness, shared verifier, or count-reporting
-  README file is claimed.
+  wrapper and found the R6(b) blocked/human-queue entries stranded only on
+  draft PR #26. No source, sync, relay, harness, shared verifier, or
+  count-reporting README file is claimed.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
