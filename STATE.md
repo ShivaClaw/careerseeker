@@ -1,13 +1,16 @@
 # Codex coordination state
 
-- **Heartbeat:** 2026-08-07T21:18:24-06:00
-- **Current rung:** R6(b) dependency/SBOM inventory BLOCKED on open draft PR
-  #26 after the bounded two CI attempts. Fresh `origin/main` remains
-  `3a89fb58673712ac46aff82b35d7d269cb15793c`.
-- **Current worktree / branch:** retained diagnostic worktree
-  `C:\Users\bkirk\Documents\CareerSeeker-r6-sbom` / `codex/r6-dependency-sbom`.
-- **Files claimed:** none for the next iteration. PR #26's paths remain a
-  retained blocked diagnostic surface; avoid editing them unless taking Q07.
+- **Heartbeat:** 2026-08-12T19:12:01-06:00
+- **Current rung:** R6(c) PSScriptAnalyzer pass in progress from fresh
+  `origin/main` at `00b3705f892976cb91e41bb3584856d4d9de2ae1`.
+- **Current worktree / branch:** `C:\Users\bkirk\Documents\CareerSeeker-r6-pssa` /
+  `codex/r6-psscriptanalyzer` (being created from the fresh base above).
+- **Files claimed:** `scripts/` PowerShell sources and analyzer configuration,
+  plus merge-tracked R6 evidence in `docs/Codex-Resume-Handoff.md`,
+  `docs/BETA-AUDIT-REQUEST.md`, `docs/autonomy/CODEX-STATE.md`, and
+  `docs/autonomy/HUMAN-QUEUE.md`. `scripts/Verify-Alpha.ps1` is a shared pinch
+  point and will move only if analyzer enforcement requires it. PR #26's R6(b)
+  paths remain untouched unless taking Q07.
 - **R0 merged evidence:** PR #19 merged at `d267e5e19d1d795255a8a1bcbdccef2eb23b33f9`
   after both fresh CI runs passed. The final local post-rebase full gate was
   0 warnings/0 errors and offline 407/0; the final package self-check passed.
@@ -106,8 +109,9 @@
   `ConvertTo-Json` with a restricted deterministic serializer without changing
   local bytes. The two-attempt limit is reached; PR #26 is draft and unmerged.
   Q07 is the smallest diagnostic unblock. No third CI attempt was started.
-- **Next intent:** start a fresh iteration at R6(c) PSScriptAnalyzer, leaving
-  the blocked PR #26/Q07 surface untouched unless explicitly unblocked.
+- **Next intent:** complete only R6(c): run PSScriptAnalyzer over `scripts/`,
+  fix or explicitly document findings, verify, merge if all gates are green,
+  and leave R6(b) PR #26/Q07 plus R6(d) untouched.
 - **Boundary:** no deploy, console, email, purchase, signing, install, secret
   access, certificate/store mutation, reboot, scheduled-task registration,
   off-repo site edit, force-push, history rewrite, `.appdata`-original
