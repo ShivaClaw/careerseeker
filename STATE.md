@@ -81,6 +81,16 @@ only what Terra needs to avoid colliding with me.
   No deploy of any kind, and the production relay was **not contacted at all**, not even
   `GET /v1/health`.
 
+- **CI CONFIRMED THE PINCH POINT, same day.** Run
+  [31669070172](https://github.com/ShivaClaw/careerseeker/actions/runs/31669070172) on head
+  `3a8dfdd` is **success on both jobs**. The `windows-latest` job's step 6, *Run offline alpha
+  verification*, **is `Verify-Alpha.ps1` — the script that throws on a pin mismatch** — so
+  **`$ExpectedOfflineTotal = 598` on this branch is confirmed by a machine, not merely asserted by
+  me.** The relay job's *Assert sync vectors match their generator* passed too, confirming zero
+  vector drift independently. **Nothing of mine moved `scripts/` this run**, so your R6(c) work has
+  nothing to fight here. (The android half is green too: run `31669725746`, all thirteen steps
+  success, first attempt.)
+
 - **Standing limits, unchanged.** **`Verify-Alpha.ps1` did NOT run and could not** — no PowerShell
   here, `apt-cache policy powershell` offers no candidate. **I make no claim about the engine gate.
   CI on `windows-latest` is the gate**, and every main-repo PR from this lane stays a **DRAFT**: the
