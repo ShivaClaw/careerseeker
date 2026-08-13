@@ -1001,6 +1001,29 @@ Console.WriteLine("\n[ inbound pump: the engine's p2e transport loop (S5, §6.1/
         var report = pump.DrainAsync().GetAwaiter().GetResult();
         Check("pump: cursor below the page's latest reports more available", report.MoreAvailable && report.Cursor == 2);
     }
+
+    // --- §6.4's bound is supplied by the party it defends against. This PINS the weakness.
+    //
+    // These two assertions are not a fix and must not be read as one. They are the executable form
+    // of the correction now in InboundPump's docstring, which used to claim the bound "denies a
+    // hostile relay a second, independent lever". It does not: `latest` and the crafted element
+    // arrive in the same response from the same party. The identical element bounded to 5 by an
+    // honest page walks the cursor to 1,000,000 when the page inflates its own bound.
+    //
+    // RelayClient now refuses a page whose latest exceeds Protocol.MaxSeq, which lowers the ceiling
+    // to 2^53-1 and leaves this reachable -- 2^53-1 is still past every real counter. Closing it
+    // needs a bound that does not come from the relay, which is a protocol change (PQ-LAT-2).
+    // If a later slice closes it, THIS TEST SHOULD FAIL. That is the point of writing it down.
+    {
+        var (honest, _, _) = MakePump(new[] { new[] { Undecryptable(1_000_000) } }, latest: 5);
+        var honestReport = honest.DrainAsync().GetAwaiter().GetResult();
+        var (inflated, _, _) = MakePump(new[] { new[] { Undecryptable(1_000_000) } }, latest: Protocol.MaxSeq);
+        var inflatedReport = inflated.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an honest latest bounds an unauthenticated claim to the page's own high-water mark",
+            honestReport.Cursor == 5);
+        Check("pump: an inflated latest does NOT (open weakness, pinned -- PQ-LAT-2)",
+            inflatedReport.Cursor == 1_000_000);
+    }
 }
 
 Console.WriteLine("\n[ the replay mark raises only (§6.2) ]");
@@ -1039,6 +1062,15 @@ Check("device key fingerprint is 16 lowercase hex chars",
     DeviceSignature.Fingerprint(devicePub) is { Length: 16 } fp && fp.All(c => "0123456789abcdef".Contains(c)));
 Check("suite string names its post-quantum successor",
     Protocol.SuiteHybridReserved.Contains("mlkem") && Protocol.SuiteHybridReserved != Protocol.Suite);
+// §3.2's cap is 2^53-1 because that is where the THREE implementations stop agreeing, not because
+// of anything about C#. Asserting the arithmetic rather than re-typing the literal is the point:
+// a transcribed constant can drift from the number it claims to be, and this one is shared with a
+// JavaScript relay that reaches it through a double.
+Check("the seq cap is 2^53-1, the largest integer a double represents exactly",
+    Protocol.MaxSeq == (1L << 53) - 1 && Protocol.MaxSeq == 9_007_199_254_740_991L);
+Check("the seq cap round-trips through a double unchanged, and the next integer up does not",
+    (long)(double)Protocol.MaxSeq == Protocol.MaxSeq
+    && (double)(Protocol.MaxSeq + 1) == (double)(Protocol.MaxSeq + 2));
 
 // ---------------------------------------------------------------- relay pull result (§2.2)
 //
@@ -1138,6 +1170,45 @@ Check("a 200 whose latest is a string is Unavailable",
         is RelayPullResult.Unavailable);
 Check("a 200 whose latest is fractional is Unavailable",
     await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":3.5}"""))
+        is RelayPullResult.Unavailable);
+
+// -- latest's RANGE, which being an integer never established -------------------------------
+//
+// Measured before the check existed: `latest` of -1, 2^53 and Int64.MaxValue all returned Ok and
+// carried the value straight through, because TryGetInt64 fixes the type and the width and nothing
+// else. It already refused 1e19 and 1e300 -- those overflow Int64 -- so the hole was exactly the
+// two bands below, and a type check can never see them.
+//
+// `latest` is not an arbitrary Int64: it is MAX(seq) over the rows the relay holds, and every one
+// of those rows passed the relay's seq check, so it inherits seq's domain (§3.2). Note the domain
+// is inherited by DERIVATION, not by statement -- §3.2 caps the value a sender emits and the value
+// the relay rejects, and never mentions `latest`, which is the relay's REPORT of it. PQ-LAT-1.
+Check("a 200 whose latest is negative is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":-1}"""))
+        is RelayPullResult.Unavailable);
+Check("latest exactly at §3.2's cap is still Ok -- the check is a range, not an off-by-one",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":9007199254740991}"""))
+        is RelayPullResult.Ok { Latest: 9_007_199_254_740_991L });
+Check("latest one past §3.2's cap is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":9007199254740992}"""))
+        is RelayPullResult.Unavailable);
+Check("latest at Int64.MaxValue is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":9223372036854775807}"""))
+        is RelayPullResult.Unavailable);
+Check("latest 0 is Ok -- a direction holding nothing is not a malformed page",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""))
+        is RelayPullResult.Ok { Latest: 0 });
+// The value that overflows Int64 must keep answering Unavailable and not start throwing: the range
+// check runs AFTER TryGetInt64, so an out-of-width value never reaches it. This pins the order.
+Check("latest above Int64 is still Unavailable, not an exception",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":10000000000000000000}"""))
+        is RelayPullResult.Unavailable);
+// A malformed `latest` refuses the whole page, envelopes included. Skip-the-field-and-continue
+// would hand the pump a page whose bound it cannot compute, which is the one thing the cursor
+// rules cannot cope with -- the same reasoning as "one unusable element rejects the whole page".
+Check("an out-of-range latest refuses the page even when the envelopes are fine",
+    await Pull((_, _) => Answer(HttpStatusCode.OK,
+        """{"envelopes":[{"seq":8,"dir":"p2e"}],"latest":9007199254740992}"""))
         is RelayPullResult.Unavailable);
 
 // -- the one exception that must still escape -------------------------------------------------

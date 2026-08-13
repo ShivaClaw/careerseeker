@@ -83,9 +83,24 @@ public sealed record InboundReport(
 /// healthy fully-caught-up sync. When the choice is between them, this stalls.
 ///
 /// Bounding by <c>latest</c> costs an honest relay nothing: its <c>latest</c> covers every row it
-/// serves, so the bound is a no-op on every conforming page. It denies a hostile one a second,
-/// independent lever, because <c>latest</c> is already the number it must publish to say "there is
-/// more".
+/// serves, so the bound is a no-op on every conforming page.
+///
+/// **Corrected, and this paragraph used to say the opposite.** It claimed the bound "denies a hostile
+/// relay a second, independent lever, because <c>latest</c> is already the number it must publish to
+/// say there is more". That is true of an honest relay and false of the one this bound exists for:
+/// <c>latest</c> and the crafted element arrive in the same response, from the same party, and
+/// nothing authenticates either. Measured — one unreadable element claiming <c>seq: 1000000</c>
+/// served with <c>latest: 5</c> bounds the cursor to 5; the same element served with
+/// <c>latest: Int64.MaxValue</c> puts it at 1000000. **§6.4's bound is supplied by the party it
+/// defends against**, so against a relay willing to inflate one number it is not a bound at all.
+///
+/// <see cref="RelayClient.PullAsync"/> now refuses a page whose <c>latest</c> is outside
+/// <see cref="Protocol.MaxSeq"/>, which lowers the ceiling from <c>2^63-1</c> to <c>2^53-1</c> and
+/// **does not close this**: 2^53-1 is still far past any real counter. What actually closes it is a
+/// bound that does not come from the relay — the receiver's own persisted mark plus the page size —
+/// and that is a protocol change, so it is written down as a question rather than invented here.
+/// The bound is kept because it is still the tightest number available in-band, and because against
+/// a relay that is honest about <c>latest</c> while replaying or corrupting an element it works.
 ///
 /// ## What this class deliberately does not do
 ///
