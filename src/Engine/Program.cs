@@ -282,9 +282,53 @@ EngineSyncBridge? BuildSyncBridge(
         paired.KeyId,
         sink: async (envelopeJson, ct) =>
         {
-            var ok = await relay.PushAsync(paired.RelayToken, envelopeJson, ct).ConfigureAwait(false);
-            if (ok && publisherRef is not null) vault.RecordE2pSeq(publisherRef.HighestSeq);
-            return ok;
+            var result = await relay.PushAsync(paired.RelayToken, envelopeJson, ct).ConfigureAwait(false);
+
+            // The sink's contract is still bool, so this collapses back to one — but it collapses
+            // ONCE, here, after each case has been named. Before RelayPushResult the collapse
+            // happened inside the client and the operator's log could not tell a replay refusal
+            // from a DNS failure. Nothing below changes control flow yet: acting on Conflict means
+            // moving the publisher's counter (PQ-S6-3's second bullet), which needs a surface
+            // SyncPublisher does not have and a local gate this session cannot run.
+            switch (result)
+            {
+                case RelayPushResult.Ok:
+                    if (publisherRef is not null) vault.RecordE2pSeq(publisherRef.HighestSeq);
+                    return true;
+
+                case RelayPushResult.Conflict conflict:
+                    // §6.1's reconciliation input, arriving at the exact moment the counter is
+                    // proved wrong. Logged rather than applied, and the log says which so a reader
+                    // does not mistake "reported" for "handled".
+                    Console.WriteLine(conflict.Latest is { } latest
+                        ? $"Sync: the relay refused seq {publisherRef?.HighestSeq} as a replay; its e2p high-water mark is {latest}. Not yet reconciled (§6.1)."
+                        : "Sync: the relay refused the envelope as a replay and reported no usable high-water mark.");
+                    return false;
+
+                case RelayPushResult.TooLarge:
+                    Console.WriteLine("Sync: the relay refused the envelope as too large (§3.1); it will not be retried.");
+                    return false;
+
+                case RelayPushResult.Rejected rejected:
+                    // This side composed something the relay would not shape-check. A bug here.
+                    Console.WriteLine($"Sync: the relay rejected the envelope's shape -- {rejected.Detail}. This is an engine defect, not a relay outage.");
+                    return false;
+
+                case RelayPushResult.Unauthorised:
+                    Console.WriteLine("Sync: the relay refused the pairing's token (401/403). The pairing may have been purged.");
+                    return false;
+
+                case RelayPushResult.Misconfigured misconfigured:
+                    Console.WriteLine($"Sync: {misconfigured.Detail}. Check the paired relay URL and pairing id.");
+                    return false;
+
+                case RelayPushResult.Unavailable unavailable:
+                    Console.WriteLine($"Sync: the push did not reach the relay -- {unavailable.Detail}.");
+                    return false;
+
+                default:
+                    return false;
+            }
         },
         startSeq: paired.LastE2pSeq);
     publisherRef = publisher;
@@ -366,23 +410,41 @@ InboundPump? BuildInboundPump(
         republisher: null,      // S2/S4's; same rule
         ackPublisher: new SyncAckPublisher(publisher));
 
+    // Said once, not once per tick: the two conditions below are ones retrying cannot clear, and a
+    // per-tick line on a loop this size buries the signal it exists to raise. The pump is documented
+    // "not thread-safe: drive it from one caller", so a plain captured flag is the right amount of
+    // machinery here.
+    var reportedTerminalPullFailure = false;
+
     return new InboundPump(
         pull: async (since, ct) =>
         {
-            try
+            // No catch block. PullAsync now carries its failure channel in its signature, so an
+            // unreachable relay, a refusal, or a 200 carrying an HTML error page arrives here as a
+            // value. It still propagates the caller's own cancellation, which is not a relay
+            // condition and must not be laundered into "the relay did not answer".
+            var result = await relay.PullAsync(paired.RelayToken, Protocol.PhoneToEngine, since, ct)
+                .ConfigureAwait(false);
+
+            switch (result)
             {
-                var (envelopes, latest) = await relay.PullAsync(paired.RelayToken, Protocol.PhoneToEngine, since, ct)
-                    .ConfigureAwait(false);
-                return new InboundPage(envelopes, latest);
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
-            {
-                // Containment, not a fix. RelayClient.PullAsync is partial — EnsureSuccessStatusCode,
-                // GetProperty and GetInt64 all throw — and it has no failure channel in its signature,
-                // so an unreachable relay or a 200 carrying an HTML error page would otherwise escape
-                // past the pump and take the engine's tick with it. The phone hit exactly this and
-                // fixed it in its own client; the engine's client still needs the same treatment.
-                return null;
+                case RelayPullResult.Ok ok:
+                    return new InboundPage(ok.Envelopes, ok.Latest);
+
+                case RelayPullResult.Unauthorised when !reportedTerminalPullFailure:
+                    reportedTerminalPullFailure = true;
+                    Console.WriteLine("      Inbound: the relay refused this pairing's bearer (401). Re-pairing is the recovery.");
+                    return null;
+
+                case RelayPullResult.Misconfigured misconfigured when !reportedTerminalPullFailure:
+                    reportedTerminalPullFailure = true;
+                    Console.WriteLine($"      Inbound is not pulling: {misconfigured.Detail}");
+                    return null;
+
+                // Unavailable is deliberately silent: it is the transient case, expected on any flaky
+                // link, and the pump's own report already carries the empty drain.
+                default:
+                    return null;
             }
         },
         dispatcher: dispatcher,

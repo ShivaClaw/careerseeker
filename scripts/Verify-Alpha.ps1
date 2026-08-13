@@ -183,7 +183,54 @@ $offlineProjects = @(
 # not assumed: seven mutations, and the seventh was NOT caught on the first pass -- persisting a mark
 # from the parse-failure branch went unnoticed, which was a real gap in the new tests and is why there
 # are sixteen assertions rather than fifteen. 641.
-$ExpectedOfflineTotal = 641
+#
+# Twenty-one more SyncHarness assertions (173 -> 194) give RelayClient.PullAsync its first offline
+# coverage of any kind: before this, `grep -rl RelayClient tests/` returned only SyncLiveSmoke, which
+# needs a live relay and is excluded from this suite, so the client's failure behaviour had never been
+# executed hermetically. PullAsync used to call EnsureSuccessStatusCode, GetProperty and GetInt64 --
+# three throwing calls and no failure channel in its signature -- so every bad answer left as an
+# exception and the host contained it by catching five types BY NAME. The assertions pin the four
+# cases a relay can actually produce on this route (Ok / Unauthorised / Misconfigured / Unavailable),
+# including that a purged pairing's 401 and a shape-check 404 are NOT the same condition (PQ-S2-4),
+# that a 200 carrying an HTML error page is data rather than a crash, and that caller cancellation
+# still propagates instead of being laundered into "the relay did not answer". Proven by mutation:
+# seven applied, seven caught -- two of them (dropping the .Clone(), dropping the root-is-an-object
+# guard) as an unhandled exception escaping the harness rather than a FAIL line, which is the exact
+# failure mode this change exists to remove. 662.
+#
+# Eleven more SyncHarness assertions (194 -> 205) give `latest` a RANGE check, which being an integer
+# never established. Measured before writing any: a `latest` of -1, of 2^53 and of Int64.MaxValue all
+# returned Ok and carried the value straight through, because TryGetInt64 fixes the type and the width
+# and nothing else -- 1e19 and 1e300 were already refused, so the hole was exactly those two bands and
+# no type check can see them. `latest` is not an arbitrary Int64: it is MAX(seq) over the rows the
+# relay holds, so it inherits seq's domain from §3.2 -- by DERIVATION, since §3.2 caps what a sender
+# emits and what the relay rejects and never mentions the relay's REPORT of it (PQ-LAT-1). Two more
+# pin Protocol.MaxSeq by arithmetic rather than by re-typing the literal, including that it survives a
+# double round trip and the next integer up does not, which is the whole reason for the number. Two
+# pin an OPEN WEAKNESS rather than a fix: §6.4's bound on an unauthenticated seq is the page's own
+# `latest`, supplied by the same party in the same response, so an element claiming seq 1,000,000
+# bounded to 5 by an honest page reaches 1,000,000 when the page inflates its bound. The range check
+# lowers that ceiling to 2^53-1 and does NOT close it (PQ-LAT-2); if a later slice closes it, those
+# two assertions SHOULD fail. Proven by mutation: seven applied, seven caught, tree byte-identical
+# after. 673.
+#
+# Thirty-one more SyncHarness assertions (205 -> 236) do for RelayClient.PushAsync what the previous
+# two blocks did for PullAsync: it returned `res.StatusCode is Created` -- a bare bool -- so a 409
+# replay_rejected, a 400, a 413, a timeout and a DNS failure were the SAME VALUE, three of them
+# permanent for the bytes in hand and two worth retrying, and no caller could tell which it had.
+# Worse, the 409 carries `latest`, which is the second term of §6.1's max(persisted, relay_latest),
+# and bool discarded it unread (PQ-S6-3). The assertions pin seven cases (Ok / Conflict / Unauthorised
+# / Misconfigured / Rejected / TooLarge / Unavailable) and three properties that are easy to get
+# wrong: that a 409 with an unusable `latest` stays Conflict(null) and is NEVER downgraded to
+# Unavailable -- downgrading tells the caller to retry the one thing that provably cannot work, which
+# §2.2 forbids in as many words; that the 409's `latest` gets the SAME range check as a pull page's,
+# because a sender resumes ABOVE it and so this number reaches the wire where the pull cursor's never
+# does; and that a 201 with an unreadable body is still Ok, since parsing it would invent a failure on
+# top of a success and make the sender retry bytes the relay already holds. Note the asymmetry with
+# PullAsync, which refuses the whole page on a bad `latest`: there the number governs a cursor about
+# to advance, here it is an optional aid to a decision already made. Proven by mutation: nine applied,
+# nine caught. 704.
+$ExpectedOfflineTotal = 704
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -496,8 +543,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 173 |',
-        '| **Total** | **641** |',
+        '| SyncHarness | 236 |',
+        '| **Total** | **704** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -511,7 +558,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **641** |',
+        '| **Total** | **704** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -525,13 +572,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 173 |'
+        '| SyncHarness | 236 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 173 |',
-        '| **Total** | **641** |',
+        '| SyncHarness | 236 |',
+        '| **Total** | **704** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -565,7 +612,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **641 passed, 0 failed**',
+        'Pinned offline verifier: **704 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
