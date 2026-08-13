@@ -41,6 +41,13 @@ PASS empty profile cannot make a posting act-eligible
 Build succeeded. 0 warnings, 0 errors.
 === EngineHarness: 230 passed, 0 failed ===
 === Offline total: 611 passed, 0 failed ===
+
+> scripts\Verify-Alpha.ps1 -IncludePublish -IncludePackage
+Build succeeded. 0 warnings, 0 errors.
+=== Offline total: 611 passed, 0 failed ===
+Package: one CareerSeeker.exe; provider calls 0; Gmail calls/drafts 0.
+MSIX bytes: 33,731,430
+MSIX SHA-256: C10A4D50FA7A4FA8CE5FFFCEC55C70F8A807975C019EEE3F45B8E79C07929A72
 ```
 
 Human queue summary: Q01 requires a non-empty engineering ATS board or
