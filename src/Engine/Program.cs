@@ -171,7 +171,7 @@ async Task<int> RunDemoAsync()
         }
 
         var evidence = LocalDashboardEvidence.FromStore(store);
-        var syncBridge = BuildSyncBridge(counters, evidence, syncEnabled);
+        var syncBridge = BuildSyncBridge(counters, evidence, syncEnabled, store);
         await using var host = new EngineHost(
             cycle,
             counters,
@@ -242,15 +242,16 @@ EngineCycle BuildDemoCycle(ISeekerStore store, EngineCounters counters, long pro
 // envelope (including the recovery snapshot) rejected as a replay. SyncPublisher already takes
 // startSeq for exactly this; the vault is what supplies it.
 //
-// Inbound (phone → engine, P4 §2.4) mounts at this same seam and is equally inert until the vault:
-// a pull loop (RelayClient.PullAsync("p2e", since) with a cert-pinned client) feeds each envelope to
-// an InboundDispatcher(EnvelopeReceiver, EntitlementService over StoreEntitlementStateStore, outcome
-// applier, snapshot republisher). §6.1 applies to BOTH directions, so the vault MUST persist the p2e
-// high-water mark too (last_p2e_seq) — an engine that resumed its p2e receiver at 0 after a restart
-// would re-accept an already-applied entitlement/outcome. Dispatch is narrow: entitlement → verify +
-// enable; pull_request → re-publish snapshot; outcome → apply; doc_edit → reply `unimplemented` (P3's
-// surface, never stubbed). No inbound kind is a send path. Proven now by the SyncLiveSmoke round-trip.
-EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidence evidence, bool enabled)
+// Inbound (phone → engine, P4 §2.4) mounts at this same seam: BuildInboundPump below builds the pull
+// loop (RelayClient.PullAsync("p2e", since)) feeding an InboundDispatcher over EnvelopeReceiver, an
+// EntitlementService on StoreEntitlementStateStore, and the ack publisher. §6.1 applies to BOTH
+// directions, so the vault persists the p2e high-water mark too (last_p2e_seq) and the receiver is
+// BUILT from it — an engine that resumed its p2e receiver at 0 after a restart would re-accept an
+// already-applied entitlement/outcome. Dispatch is narrow: entitlement → verify + enable + ack;
+// pull_request → re-publish snapshot; outcome → apply; doc_edit → reply `unimplemented` (P3's
+// surface, never stubbed). No inbound kind is a send path.
+EngineSyncBridge? BuildSyncBridge(
+    EngineCounters counters, LocalDashboardEvidence evidence, bool enabled, ISeekerStore store)
 {
     if (!enabled)
         return null;
@@ -289,7 +290,106 @@ EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidenc
     publisherRef = publisher;
 
     Console.WriteLine($"Sync: publishing to {SyncPairingVault.Describe(paired)}.");
-    return new EngineSyncBridge(counters, evidence, publisher);
+    return new EngineSyncBridge(
+        counters, evidence, publisher,
+        inbound: BuildInboundPump(store, paired, relay, publisher, vault));
+}
+
+/// <summary>
+/// The phone→engine half. Returns null — leaving the drain a no-op — when the engine has no way to
+/// verify a receipt, because the alternative is worse than not receiving.
+///
+/// The Play licence key is configuration, not a constant (Sync-Protocol.md §4.3.2: "the production
+/// licence key only exists once the Play app is created, and slots in then"). Until it does, there is
+/// no honest inbound path: `entitlement` is the kind that matters here and it cannot be verified, and
+/// a placeholder verifier — one that accepts, or one that rejects while looking like a real check — is
+/// exactly the hand-waving CLAUDE.md's Fabrication Gate rule forbids in the other half of this repo.
+/// So the engine says plainly that it cannot receive, and why.
+///
+/// The cost is stated rather than hidden: `outcome` and `pull_request` need no licence key and are
+/// switched off along with `entitlement`. They are seams with no engine implementation yet in any case
+/// (S6 owns the outcome applier, S2/S4 the republisher), so nothing that works today is being withheld.
+/// </summary>
+InboundPump? BuildInboundPump(
+    ISeekerStore store, SyncPairing paired, RelayClient relay, SyncPublisher publisher, SyncPairingVault vault)
+{
+    // Play Console "License Key for This Application", X.509 SPKI in standard base64.
+    const string PlayLicenceKeyVariable = "CAREERSEEKER_PLAY_LICENSE_KEY";
+    // Gate P4-APPID. PROVISIONAL until the Play app is created, per the ladder's standing note.
+    const string PlayApplicationId = "app.careerseeker.dashboard";
+    // Gate P-MONEY: the one-time Pro unlock, INAPP.
+    const string ProProductId = "pro_unlock";
+
+    var licenceKey = StringArg("--play-key")
+                     ?? Environment.GetEnvironmentVariable(PlayLicenceKeyVariable)
+                     ?? EnvFileValue(StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets"), PlayLicenceKeyVariable);
+
+    if (string.IsNullOrWhiteSpace(licenceKey))
+    {
+        Console.WriteLine("      Inbound is OFF: no Play licence key is configured, so a purchase cannot be verified.");
+        Console.WriteLine($"      Set {PlayLicenceKeyVariable} (Play Console -> Monetisation setup) to turn it on.");
+        return null;
+    }
+
+    EntitlementService entitlement;
+    try
+    {
+        // Constructed eagerly and on purpose: GoogleSignedPayloadVerifier validates the key at wiring
+        // time, so a mistyped licence key fails here, at startup, with a line naming it — rather than
+        // silently at the one moment that matters, when a real purchase arrives.
+        entitlement = new EntitlementService(
+            new GoogleSignedPayloadVerifier(licenceKey, PlayApplicationId, new HashSet<string>(StringComparer.Ordinal) { ProProductId }),
+            new StoreEntitlementStateStore(store),
+            () => DateTimeOffset.UtcNow);
+    }
+    catch (ArgumentException ex)
+    {
+        Console.WriteLine($"      Inbound is OFF: the configured Play licence key was rejected ({ex.Message})");
+        return null;
+    }
+
+    // Built FROM the persisted mark, not merely alongside it. The relay chooses what a page contains,
+    // so a receiver that starts at 0 after a restart can be handed an already-applied entitlement and
+    // will accept it (§6.2).
+    var receiver = new EnvelopeReceiver(
+        paired.KeyId, paired.DeviceSigPub,
+        resume: new Dictionary<string, long>(StringComparer.Ordinal) { [Protocol.PhoneToEngine] = paired.LastP2eSeq });
+
+    var dispatcher = new InboundDispatcher(
+        receiver,
+        entitlement,
+        DeviceSignature.Fingerprint(paired.DeviceSigPub),
+        // p2e and nothing else. The pump refuses any other direction before dispatch; this returns an
+        // empty key for one anyway, so the two guards are independent rather than one guard twice.
+        keyForDir: dir => dir == Protocol.PhoneToEngine ? paired.KeyPhoneToEngine : Array.Empty<byte>(),
+        outcomeApplier: null,   // S6's engine half; a null seam is inert, never a stub
+        republisher: null,      // S2/S4's; same rule
+        ackPublisher: new SyncAckPublisher(publisher));
+
+    return new InboundPump(
+        pull: async (since, ct) =>
+        {
+            try
+            {
+                var (envelopes, latest) = await relay.PullAsync(paired.RelayToken, Protocol.PhoneToEngine, since, ct)
+                    .ConfigureAwait(false);
+                return new InboundPage(envelopes, latest);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
+            {
+                // Containment, not a fix. RelayClient.PullAsync is partial — EnsureSuccessStatusCode,
+                // GetProperty and GetInt64 all throw — and it has no failure channel in its signature,
+                // so an unreachable relay or a 200 carrying an HTML error page would otherwise escape
+                // past the pump and take the engine's tick with it. The phone hit exactly this and
+                // fixed it in its own client; the engine's client still needs the same treatment.
+                return null;
+            }
+        },
+        dispatcher: dispatcher,
+        direction: Protocol.PhoneToEngine,
+        resumeFrom: paired.LastP2eSeq,
+        // Only ever called with an authenticated seq (see InboundPump), and the vault raises only.
+        onAccepted: vault.RecordP2eSeq);
 }
 
 string SyncVaultPath() => StringArg("--sync-vault") ?? Path.Combine(".appdata", "sync", "pairing.dpapi");

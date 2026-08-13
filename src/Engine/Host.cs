@@ -1299,11 +1299,17 @@ public sealed class EngineHost : IAsyncDisposable
         // When a pairing exists and publishing is enabled, each cycle also pushes the read-only
         // dashboard state to the phone. The publish runs AFTER the cycle and its failures are
         // swallowed by the scheduler's SafeTick, so a flaky relay never stalls the engine.
+        //
+        // The inbound drain runs BEFORE the publish, and the order is deliberate: a `pull_request` the
+        // phone sent asks for a fresh snapshot, and draining first lets this same tick answer it
+        // instead of leaving the phone a full interval behind. It is equally under SafeTick, so a
+        // relay that cannot be reached costs the cycle nothing.
         Func<CancellationToken, Task> tick = syncBridge is null
             ? cycle.TickAsync
             : async ct =>
             {
                 await cycle.TickAsync(ct).ConfigureAwait(false);
+                await syncBridge.DrainInboundAsync(ct).ConfigureAwait(false);
                 await syncBridge.PublishAsync(ct).ConfigureAwait(false);
                 await syncBridge.PublishEvidenceAsync(ct).ConfigureAwait(false);
             };
