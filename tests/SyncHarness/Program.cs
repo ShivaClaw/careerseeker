@@ -1223,6 +1223,154 @@ try { await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest"
 catch (OperationCanceledException) { cancellationEscaped = true; }
 Check("caller cancellation propagates rather than becoming a result", cancellationEscaped);
 
+// ---------------------------------------------------------------- relay push result (§2.2)
+//
+// PushAsync returned `res.StatusCode is HttpStatusCode.Created` -- a bare bool -- so a 409
+// replay_rejected, a 400, a 413, a timeout and a DNS failure were the same value. Three of those
+// are permanent for the bytes in hand and two are worth retrying, and no caller could tell which
+// it had. The 409 also carries `latest`, the second term of §6.1's max(persisted, relay_latest),
+// and bool discarded it unread (PQ-S6-3).
+//
+// Driven over the same stub transport as the pull tests: the real shipping client, fake socket.
+
+Console.WriteLine("\n[ relay push result ]");
+
+async Task<RelayPushResult> Push(
+    Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> respond,
+    CancellationToken ct = default)
+{
+    using var handler = new StubTransport(respond);
+    using var httpClient = new HttpClient(handler);
+    return await new RelayClient(httpClient, "https://relay.example", PullPairing)
+        .PushAsync("bearer-token", """{"v":1,"seq":8}""", ct);
+}
+
+// -- the happy path, and the wire form nothing offline had asserted --------------------------
+Check("201 is Ok", await Push((_, _) => Answer(HttpStatusCode.Created, """{"ok":true,"seq":8}"""))
+    is RelayPushResult.Ok);
+// §2.2 pins 201 as THE appended answer. A 200 is a relay not behaving like the relay, and the old
+// bool said the same thing (`is Created`) -- preserved deliberately, pinned so a later "surely 200
+// is fine too" cannot slip in unmeasured.
+Check("200 is NOT Ok -- §2.2 pins 201 for an appended envelope",
+    await Push((_, _) => Answer(HttpStatusCode.OK, """{"ok":true,"seq":8}""")) is RelayPushResult.Unavailable);
+// A 201 whose body is unreadable still appended the envelope. Parsing it would invent a failure on
+// top of a success and make the sender retry bytes the relay already holds -- which then answers
+// 409, turning a cosmetic problem into a real one.
+Check("a 201 with an unreadable body is still Ok -- the body is not parsed",
+    await Push((_, _) => Answer(HttpStatusCode.Created, "<html>not json</html>")) is RelayPushResult.Ok);
+
+HttpRequestMessage? pushSeen = null;
+string? pushBody = null;
+await Push((req, _) =>
+{
+    pushSeen = req;
+    pushBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+    return Answer(HttpStatusCode.Created, """{"ok":true,"seq":8}""");
+});
+Check("the push carries the bearer",
+    pushSeen?.Headers.GetValues("Authorization").FirstOrDefault() == "Bearer bearer-token");
+Check("the push POSTs to /v1/{pairing}/push",
+    pushSeen?.Method == HttpMethod.Post
+    && pushSeen.RequestUri?.ToString() == $"https://relay.example/v1/{PullPairing}/push",
+    pushSeen?.RequestUri?.ToString());
+// The body IS the envelope, byte for byte. A client that re-serialised it would change the bytes
+// the AAD was computed over, and the receiver's tag check is what would notice -- far downstream.
+Check("the body is the envelope JSON, unmodified", pushBody == """{"v":1,"seq":8}""", pushBody);
+
+// -- 409: the case the bool could not name, and the number it threw away ----------------------
+Check("409 is Conflict, not a failure and not a success",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":41}"""))
+        is RelayPushResult.Conflict);
+Check("Conflict carries the relay's high-water mark (§6.1's second term)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":41}"""))
+        is RelayPushResult.Conflict { Latest: 41 });
+// A 409 with no usable number is still a 409. Every one of these must stay Conflict: downgrading
+// to Unavailable would tell the caller to retry the one thing that provably cannot work.
+Check("a 409 with no latest is Conflict(null), NOT Unavailable",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected"}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("a 409 with an empty body is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, "")) is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose body is not JSON is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, "<html>502</html>"))
+        is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose root is not an object is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, "[41]")) is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose latest is a quoted number is Conflict(null) -- §2.2 says integer",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":"41"}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose latest is fractional is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":41.5}"""))
+        is RelayPushResult.Conflict { Latest: null });
+
+// -- the 409's latest gets the SAME range check as a pull page's ------------------------------
+//
+// This is the trap the pull slice found, one method over: TryGetInt64 fixes the type and the width
+// and nothing else, so -1, 2^53 and Int64.MaxValue would arrive typed and unbounded. And this
+// number is worse than the pull cursor's -- §6.1 says a sender resumes ABOVE it, so it goes on the
+// wire as the seq of the next envelope, where an absurd value burns the direction's whole domain.
+Check("a 409 whose latest is negative is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":-1}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("latest exactly at §3.2's cap survives -- a range, not an off-by-one",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":9007199254740991}"""))
+        is RelayPushResult.Conflict { Latest: 9_007_199_254_740_991L });
+Check("latest one past §3.2's cap is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":9007199254740992}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("latest at Int64.MaxValue is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":9223372036854775807}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("latest above Int64 is Conflict(null), not an exception -- the range check runs after the width check",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":10000000000000000000}"""))
+        is RelayPushResult.Conflict { Latest: null });
+// latest 0 is reachable and legal: §2.2 measured that a direction holding nothing accepts seq 1
+// rather than answering 409 with latest 0 -- but a relay MAY report 0, and 0 is in seq's domain.
+// Mapping it to null would lose the difference between "reported nothing" and "reported zero".
+Check("latest 0 survives as 0, not null",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":0}"""))
+        is RelayPushResult.Conflict { Latest: 0 });
+
+// -- the three terminal 4xx, each of which the bool flattened into "false" ---------------------
+Check("401 is Unauthorised",
+    await Push((_, _) => Answer(HttpStatusCode.Unauthorized, """{"error":"unauthorized"}"""))
+        is RelayPushResult.Unauthorised);
+Check("403 is Unauthorised too",
+    await Push((_, _) => Answer(HttpStatusCode.Forbidden, "")) is RelayPushResult.Unauthorised);
+Check("404 is Misconfigured, NOT Unauthorised -- a purge answers 401 on every route (§2.3)",
+    await Push((_, _) => Answer(HttpStatusCode.NotFound, """{"error":"pairing_unknown"}"""))
+        is RelayPushResult.Misconfigured);
+// 400 and 413 are both permanent for these bytes and are NOT the same fault: 400 says this engine
+// composed something malformed (a defect here), 413 says the payload needs chunking (§4.4). The
+// phone conflates neither, but it does route 400 into its RETRY path -- see PQ-S6C-1.
+Check("400 is Rejected -- this side composed something the relay would not shape-check",
+    await Push((_, _) => Answer(HttpStatusCode.BadRequest, """{"error":"bad_request"}"""))
+        is RelayPushResult.Rejected);
+Check("413 is TooLarge, distinct from Rejected",
+    await Push((_, _) => Answer(HttpStatusCode.RequestEntityTooLarge, """{"error":"too_large"}"""))
+        is RelayPushResult.TooLarge);
+
+// -- and everything that is genuinely worth retrying ------------------------------------------
+Check("500 is Unavailable",
+    await Push((_, _) => Answer(HttpStatusCode.InternalServerError, "")) is RelayPushResult.Unavailable);
+Check("429 is Unavailable",
+    await Push((_, _) => Answer((HttpStatusCode)429, "")) is RelayPushResult.Unavailable);
+Check("405 is Unavailable",
+    await Push((_, _) => Answer(HttpStatusCode.MethodNotAllowed, """{"error":"method_not_allowed"}"""))
+        is RelayPushResult.Unavailable);
+Check("a transport failure is Unavailable, not an exception",
+    await Push((_, _) => throw new HttpRequestException("no route to host")) is RelayPushResult.Unavailable);
+Check("a client timeout is Unavailable",
+    await Push((_, _) => throw new TaskCanceledException("timed out")) is RelayPushResult.Unavailable);
+
+// -- and the one exception that must still escape ---------------------------------------------
+using var pushCancelled = new CancellationTokenSource();
+pushCancelled.Cancel();
+var pushCancellationEscaped = false;
+try { await Push((_, _) => Answer(HttpStatusCode.Created, """{"ok":true}"""), pushCancelled.Token); }
+catch (OperationCanceledException) { pushCancellationEscaped = true; }
+Check("caller cancellation propagates rather than becoming a result", pushCancellationEscaped);
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
