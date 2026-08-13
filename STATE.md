@@ -9,8 +9,8 @@
   `codex/r6-ordered-backlog-audit`.
 - **Files claimed:** `docs/BETA-AUDIT-REQUEST.md`,
   `docs/BETA-BLOCKED.md`, `docs/Codex-Resume-Handoff.md`,
-  `docs/CareerSeeker-Project-Summary.md`, `docs/autonomy/CODEX-STATE.md`, and
-  `docs/autonomy/HUMAN-QUEUE.md`, plus `scripts/Test-PowerShellScripts.ps1`.
+  `docs/autonomy/CODEX-STATE.md`, and `docs/autonomy/HUMAN-QUEUE.md`, plus
+  `scripts/Test-PowerShellScripts.ps1`.
   The audit exposed a Windows PowerShell 5.1 path-resolution defect in that
   wrapper and found the R6(b) blocked/human-queue entries stranded only on
   draft PR #26. No source, sync, relay, harness, shared verifier, or
