@@ -1,10 +1,13 @@
 [CmdletBinding()]
 param(
-    [string] $SettingsPath = (Join-Path $PSScriptRoot 'PSScriptAnalyzerSettings.psd1')
+    [string] $SettingsPath
 )
 
 $ErrorActionPreference = 'Stop'
 $requiredVersion = [Version] '1.25.0'
+if ([string]::IsNullOrWhiteSpace($SettingsPath)) {
+    $SettingsPath = Join-Path $PSScriptRoot 'PSScriptAnalyzerSettings.psd1'
+}
 $module = Get-Module -ListAvailable -Name PSScriptAnalyzer |
     Where-Object Version -eq $requiredVersion |
     Select-Object -First 1
