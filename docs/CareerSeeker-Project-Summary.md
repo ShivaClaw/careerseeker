@@ -42,12 +42,12 @@ The B0-B8 Windows ladder is implemented:
 - **R6(a) deletion:** the app resolves only the installed per-user workspace, requires a second exact
   path-bound confirmation, refuses broad roots/links, and verifies absence before reporting completion.
 
-The pinned offline verifier is **598 passed, 0 failed**:
+The pinned offline verifier is **609 passed, 0 failed**:
 
 | Harness | Assertions |
 |---|---:|
 | Slice | 28 |
-| EngineHarness | 217 |
+| EngineHarness | 228 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
 | StoreParityHarness | 28 |
@@ -56,7 +56,7 @@ The pinned offline verifier is **598 passed, 0 failed**:
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
 | SyncHarness | 130 |
-| **Total** | **598** |
+| **Total** | **609** |
 
 ## Current product path
 

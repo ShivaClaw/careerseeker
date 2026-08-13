@@ -294,6 +294,98 @@ EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidenc
 
 string SyncVaultPath() => StringArg("--sync-vault") ?? Path.Combine(".appdata", "sync", "pairing.dpapi");
 
+string SyncRelayUrl() => StringArg("--relay") ?? "https://relay.careerseeker.app";
+
+// The /pair page's host side (Sync-Protocol.md section 5.2). The dashboard renders; everything that
+// touches a key, the relay or the vault lives here, so Host.cs stays harness-testable and free of
+// Windows-only persistence.
+//
+// The manager is deliberately held across two requests: it owns the ephemeral engine keypair and the
+// one-time secret, and it is single-use -- it burns the secret on the first valid completion, so a
+// second completion is refused even if it is otherwise valid. Re-pressing "Start pairing" therefore
+// discards the previous invite rather than running two live invites at once.
+LocalDashboardPairing BuildPairingSeam()
+{
+    var vault = new SyncPairingVault(SyncVaultPath());
+    var relayUrl = SyncRelayUrl();
+    PairingManager? pending = null;
+    var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+
+    PairingPageState Current(string? error = null)
+    {
+        var paired = vault.Load();
+        if (paired is not null)
+            return new PairingPageState(true, SyncPairingVault.Describe(paired), null, null, error);
+        return pending is null
+            ? new PairingPageState(false, null, null, null, error)
+            : new PairingPageState(false, null, pending.CreateInvite().ToQrJson(), null, error);
+    }
+
+    return new LocalDashboardPairing(
+        LoadAsync: _ => Task.FromResult(Current()),
+
+        BeginAsync: async ct =>
+        {
+            if (vault.Load() is not null)
+                return Current("Already paired. Unpair first if you want to pair a different phone.");
+
+            pending?.Dispose();
+            pending = new PairingManager(relayUrl, ttl: TimeSpan.FromMinutes(2));
+            var relay = new RelayClient(http, relayUrl, pending.Pairing);
+            if (!await relay.CreateAsync(pending.ProvisionalRelayToken(), ct).ConfigureAwait(false))
+            {
+                pending.Dispose();
+                pending = null;
+                return Current("The relay would not open a channel for this pairing.");
+            }
+            return Current();
+        },
+
+        CompleteAsync: async ct =>
+        {
+            if (pending is null) return Current("Start pairing first.");
+
+            var relay = new RelayClient(http, relayUrl, pending.Pairing);
+            var provisional = pending.ProvisionalRelayToken();
+            var completion = await relay.TakeCompletionAsync(provisional, ct).ConfigureAwait(false);
+            if (completion is null)
+                return Current("The phone has not submitted its half yet. Scan the payload, then try again.");
+
+            var paired = pending.CompletePairing(completion, out var error);
+            if (paired is null)
+                return Current(error ?? "The completion did not verify.");
+
+            // Persist BEFORE rotating: the final token is derived from the pairing and is recoverable
+            // from the stored keys, but a rotation whose result was never written would lock this
+            // engine out of a channel the phone believes is live.
+            vault.Save(new SyncPairing(
+                paired.Pairing, paired.Suite, relayUrl,
+                paired.KeyEngineToPhone, paired.KeyPhoneToEngine, paired.DeviceSigPub,
+                paired.RelayToken, SyncPairingVault.DefaultKeyId,
+                LastE2pSeq: 0, LastP2eSeq: 0));
+
+            pending.Dispose();
+            pending = null;
+            return new PairingPageState(true, SyncPairingVault.Describe(vault.Load()!), null, paired.ConfirmCode, null);
+        },
+
+        UnpairAsync: async ct =>
+        {
+            var paired = vault.Load();
+            if (paired is not null)
+            {
+                var relay = new RelayClient(http, paired.RelayUrl, paired.Pairing);
+                // Best effort: the local keys are what actually authorise publishing, so clearing them
+                // is the part that must not be skipped if the relay is unreachable.
+                try { await relay.UnpairAsync(paired.RelayToken, ct).ConfigureAwait(false); } catch { }
+            }
+            vault.Delete();
+            pending?.Dispose();
+            pending = null;
+            return Current();
+        });
+}
+
 async Task<int> RunAlphaAsync()
 {
     var envFilePath = StringArg("--secrets") ?? Path.Combine("secrets", "env.secrets");
@@ -778,7 +870,8 @@ async Task<int> RunDashboardAsync()
 
     // Named, not positional: main added engineState/engineRuntime ahead of `pro` while this branch was
     // unmerged, so the sixth argument is no longer the Pro seam.
-    await using var dashboard = new LocalDashboard(counters, port, actions, evidence, new[] { artifactsPath }, pro: pro);
+    await using var dashboard = new LocalDashboard(counters, port, actions, evidence, new[] { artifactsPath },
+        pro: pro, pairing: BuildPairingSeam());
     using var stop = new CancellationTokenSource();
     var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
