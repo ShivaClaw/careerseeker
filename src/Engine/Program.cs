@@ -295,26 +295,22 @@ async Task<EngineSyncBridge?> BuildSyncBridge(
             $"Sync: could not read the relay's e2p high-water mark ({relayAnswer.GetType().Name}); resuming above the stored {resumeSeq} alone (§6.1).");
 
     // The sink persists the high-water mark itself rather than EngineSyncBridge growing a callback:
-    // the bridge is shared with the harnesses and has no business knowing about DPAPI. `publisherRef`
-    // exists because the sink needs the publisher's seq and the publisher needs the sink — the seq is
-    // assigned before the sink runs, so reading HighestSeq here reports the seq being pushed.
-    SyncPublisher? publisherRef = null;
-    var publisher = new SyncPublisher(
+    // the bridge is shared with the harnesses and has no business knowing about DPAPI.
+    //
+    // Both the decision rule (RelaySink.Create) and the WIRING that attaches it to a publisher and a
+    // store (SyncPushPath.Create) are reachable from SyncHarness. What stays here is only the four
+    // argument identities a sandbox genuinely cannot check — which vault, which relay token, which
+    // log, which resume value — and those are recorded as local-gate-only claims rather than treated
+    // as covered. Before the wiring moved, replacing `persistSeq` with a no-op built 0/0 and left the
+    // harness at 277/0; it is now an assertion instead of a line held in place by nothing.
+    var publisher = SyncPushPath.Create(
         paired.KeyEngineToPhone,
         paired.Pairing,
         paired.KeyId,
-        // The decision rule lives in RelaySink.Create, which is reachable from SyncHarness; what
-        // stays here is only the composition — which relay, which vault, which publisher — and that
-        // is the part a sandbox cannot execute anyway. The extraction is what makes "the sink calls
-        // ReconcileTo on a Conflict" an assertion rather than a line held in place by nothing.
-        sink: RelaySink.Create(
-            push: (envelopeJson, ct) => relay.PushAsync(paired.RelayToken, envelopeJson, ct),
-            pushedSeq: () => publisherRef?.HighestSeq,
-            persistSeq: seq => vault.RecordE2pSeq(seq),
-            reconcileTo: seq => publisherRef?.ReconcileTo(seq) ?? false,
-            log: Console.WriteLine),
+        push: (envelopeJson, ct) => relay.PushAsync(paired.RelayToken, envelopeJson, ct),
+        seqStore: vault,
+        log: Console.WriteLine,
         startSeq: resumeSeq);
-    publisherRef = publisher;
 
     Console.WriteLine($"Sync: publishing to {SyncPairingVault.Describe(paired)}.");
     return new EngineSyncBridge(
