@@ -314,7 +314,28 @@ $offlineProjects = @(
 # ratified above it (the 2026-07-24 snapshot finding) and permanence is an assumption about the
 # relay's answer rather than a fact -- a 401 from a relay deploy blip would turn a self-imposed halt
 # into the outage it was meant to prevent. The policy is left to the layer that owns it. 781.
-$ExpectedOfflineTotal = 781
+#
+# Twelve more SyncHarness assertions (313 -> 325) answer the argument FOR that halt, which was
+# recorded nowhere while both arguments against it sat in RelaySink's remarks. Its three clauses
+# measure out very differently. The per-cycle cost is real and is now a number: ten cycles on a dead
+# pairing, driven through the real SyncPushPath composition, cost ten push attempts and ten burnt
+# seqs for zero deliveries. The "forever" is NOT a resource risk -- MaxSeq outlasts a per-SECOND
+# burn by over 100 million years, pinned as an assertion so that lowering the constant re-opens the
+# question. The operator half was already fixed by the previous slice: those ten cycles produce one
+# line, not ten. And the finding, which inverts the cheapest remedy: a bounded backoff was recorded
+# as the option needing no product decision, but it would be keyed on PushDisposition, and
+# PayloadDead is a fact about the BYTES just pushed rather than about the pairing. One oversized
+# snapshot -- refused by §3.1's cap measured on the ciphertext, per PQ-A2-1 -- puts the shared sink
+# in PayloadDead, and the ratified snapshot retry keeps it there; the very next payload can be the
+# entitlement_ack, which is small and which §4.3.3 makes the only thing that unlocks Pro. Measured:
+# today that ack gets through, decrypted off the wire to prove it is the ack and not merely a
+# success. Under PairingDead it does not get through anyway, so a backoff THERE withholds nothing.
+# The two dispositions therefore do not take the same policy, and the remedy as stated would have
+# shipped a defect. Proven by mutation: nine applied, nine caught -- including the naive backoff
+# itself, which this block now catches by name. One of the nine first CRASHED the harness through an
+# unguarded index in this slice's own new assertion, the fifth time this repo has met that
+# false-negative family; the assertion was rewritten to survive its own target mutation. 793.
+$ExpectedOfflineTotal = 793
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -627,8 +648,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 313 |',
-        '| **Total** | **781** |',
+        '| SyncHarness | 325 |',
+        '| **Total** | **793** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -642,7 +663,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **781** |',
+        '| **Total** | **793** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -656,13 +677,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 313 |'
+        '| SyncHarness | 325 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 313 |',
-        '| **Total** | **781** |',
+        '| SyncHarness | 325 |',
+        '| **Total** | **793** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -696,7 +717,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **781 passed, 0 failed**',
+        'Pinned offline verifier: **793 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
