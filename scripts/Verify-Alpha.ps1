@@ -265,7 +265,30 @@ $offlineProjects = @(
 # mutation: ten applied, ten caught. One assertion was rewritten first: an unguarded index threw
 # under the very mutation it existed to catch, taking the harness down AFTER one FAIL line, which
 # reads as a tidy "1 caught" to a fail-counting reader while the rest of the suite never ran. 745.
-$ExpectedOfflineTotal = 745
+#
+# Seventeen more SyncHarness assertions (277 -> 294) cover the WIRING rather than the rule or its
+# call site. The previous two blocks made the sink's decision testable and proved the rule is
+# applied; which collaborator each delegate was attached to stayed in `BuildSyncBridge`, which has
+# never executed in a harness or on a CI runner because it returns null without a DPAPI pairing
+# vault. Measured, not suspected: replacing `persistSeq: seq => vault.RecordE2pSeq(seq)` with
+# `persistSeq: _ => { }` built 0/0 and left this harness at 277/0, so an engine that had silently
+# stopped persisting its e2p high-water mark failed no test in this repo. `SyncPushPath.Create` now
+# ties the publisher to its sink and store and `IE2pSeqStore` names the one thing that path needs
+# from the vault -- in src/Sync, which is platform-free by design, since an interface declared next
+# to the DPAPI type would drag the composition back out of reach. This does NOT make the composition
+# executable; it shrinks the unexecuted remainder from five delegate bodies to four argument
+# identities at one call site, and those four are recorded as local-gate-only rather than counted as
+# covered. The assertions pin that a 201 persists through the CALLER's store, that the seq persisted
+# is the seq sent (read back out of the sealed envelope's own header, since `recorded is [8]` alone
+# would pass for a path persisting a counter unrelated to the envelope it emitted), that startSeq
+# reaches the counter, and that after a 409 the NEXT mark persisted is the reconciled one -- which is
+# what shows reconcile and persist share a counter rather than two. Proven by mutation: eight
+# applied, eight caught, and the eighth (removing the vault's interface) DOES NOT COMPILE, so one of
+# the four remaining argument identities is now statically enforced instead of merely conventional.
+# One helper was rewritten first: `Throws<T>` let a wrong exception type escape by design, and the
+# null-store mutation then raised a NullReferenceException that killed the harness after ZERO FAIL
+# lines -- the same false-negative family as the three blocks above, reached a fourth time. 762.
+$ExpectedOfflineTotal = 762
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -578,8 +601,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 277 |',
-        '| **Total** | **745** |',
+        '| SyncHarness | 294 |',
+        '| **Total** | **762** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -593,7 +616,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **745** |',
+        '| **Total** | **762** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -607,13 +630,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 277 |'
+        '| SyncHarness | 294 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 277 |',
-        '| **Total** | **745** |',
+        '| SyncHarness | 294 |',
+        '| **Total** | **762** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -647,7 +670,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **745 passed, 0 failed**',
+        'Pinned offline verifier: **762 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
