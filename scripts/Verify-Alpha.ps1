@@ -288,7 +288,54 @@ $offlineProjects = @(
 # One helper was rewritten first: `Throws<T>` let a wrong exception type escape by design, and the
 # null-store mutation then raised a NullReferenceException that killed the harness after ZERO FAIL
 # lines -- the same false-negative family as the three blocks above, reached a fourth time. 762.
-$ExpectedOfflineTotal = 762
+#
+# Nineteen more SyncHarness assertions (294 -> 313) give the push result's PERMANENCE a consumer.
+# RelayPushResult exists because a bare bool could not tell a replay refusal from a DNS failure, and
+# its own summary names the three questions its cases answer: retry these bytes, never retry these
+# bytes, or fix the counter and send different bytes. RelaySink then named each case for the operator
+# and returned `false` for all of them -- so one layer above the fix the conflation was exactly as it
+# had been, and the permanence lived only in doc comments. Measured, not suspected: driven through
+# the real SyncPushPath composition for five engine cycles, a 400 bad_request and a DNS failure
+# produced the same push count (5), the same burnt seqs (5) and the same delivered count (0).
+# `RelaySink.Classify` is now that permanence as a pure, total, public function
+# (Delivered/RetryLater/ResendAbove/PayloadDead/PairingDead), and the sink's bool is DERIVED from it
+# rather than written per case, so a case classifying as PayloadDead while reporting success is no
+# longer expressible. Two further defects the reproduction surfaced: the 413 line asserted the
+# envelope "will not be retried" when nothing prevents that retry and EngineSyncBridge's ratified
+# snapshot policy guarantees it (four retries in five cycles, measured) -- corrected; and every
+# failing cycle emitted a byte-identical line, so a permanent fault filled the log with one sentence
+# and buried the transitions -- a repeat is now counted rather than repeated, and the return to
+# Delivered is announced WITH that count, so nothing is hidden. The assertions pin the full mapping,
+# that permanent and transient are distinguishable at all (the defect), that 413/400 share a
+# disposition while keeping different words, that suppression is by LINE and never touches the
+# EFFECTS (an identical 409 still reaches ReconcileTo both times), and that a first successful push
+# announces no phantom recovery. Proven by mutation: ten applied, ten caught, tree byte-identical
+# after. NOT done, and deliberately: the sink does not HALT on a permanent disposition. The retry is
+# ratified above it (the 2026-07-24 snapshot finding) and permanence is an assumption about the
+# relay's answer rather than a fact -- a 401 from a relay deploy blip would turn a self-imposed halt
+# into the outage it was meant to prevent. The policy is left to the layer that owns it. 781.
+#
+# Twelve more SyncHarness assertions (313 -> 325) answer the argument FOR that halt, which was
+# recorded nowhere while both arguments against it sat in RelaySink's remarks. Its three clauses
+# measure out very differently. The per-cycle cost is real and is now a number: ten cycles on a dead
+# pairing, driven through the real SyncPushPath composition, cost ten push attempts and ten burnt
+# seqs for zero deliveries. The "forever" is NOT a resource risk -- MaxSeq outlasts a per-SECOND
+# burn by over 100 million years, pinned as an assertion so that lowering the constant re-opens the
+# question. The operator half was already fixed by the previous slice: those ten cycles produce one
+# line, not ten. And the finding, which inverts the cheapest remedy: a bounded backoff was recorded
+# as the option needing no product decision, but it would be keyed on PushDisposition, and
+# PayloadDead is a fact about the BYTES just pushed rather than about the pairing. One oversized
+# snapshot -- refused by §3.1's cap measured on the ciphertext, per PQ-A2-1 -- puts the shared sink
+# in PayloadDead, and the ratified snapshot retry keeps it there; the very next payload can be the
+# entitlement_ack, which is small and which §4.3.3 makes the only thing that unlocks Pro. Measured:
+# today that ack gets through, decrypted off the wire to prove it is the ack and not merely a
+# success. Under PairingDead it does not get through anyway, so a backoff THERE withholds nothing.
+# The two dispositions therefore do not take the same policy, and the remedy as stated would have
+# shipped a defect. Proven by mutation: nine applied, nine caught -- including the naive backoff
+# itself, which this block now catches by name. One of the nine first CRASHED the harness through an
+# unguarded index in this slice's own new assertion, the fifth time this repo has met that
+# false-negative family; the assertion was rewritten to survive its own target mutation. 793.
+$ExpectedOfflineTotal = 793
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -601,8 +648,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 294 |',
-        '| **Total** | **762** |',
+        '| SyncHarness | 325 |',
+        '| **Total** | **793** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -616,7 +663,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **762** |',
+        '| **Total** | **793** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -630,13 +677,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 294 |'
+        '| SyncHarness | 325 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 294 |',
-        '| **Total** | **762** |',
+        '| SyncHarness | 325 |',
+        '| **Total** | **793** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -670,7 +717,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **762 passed, 0 failed**',
+        'Pinned offline verifier: **793 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',

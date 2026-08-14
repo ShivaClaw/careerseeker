@@ -1709,6 +1709,333 @@ Check("a corrupt store AND a silent relay still resume from 0, not from a negati
             store, null!, 0), out var nullLogDetail), nullLogDetail);
 }
 
+// -- the push DISPOSITION: permanence as a value, not as prose ---------------------------------
+// The gap this closes was measured, not assumed. RelayPushResult exists because a bare bool could
+// not tell a replay refusal from a DNS failure -- and RelaySink named each case for the operator
+// and then returned `false` for all of them, so one layer up the conflation was exactly as it had
+// been. Driven through the REAL SyncPushPath composition for five engine cycles (mimicking
+// EngineSyncBridge's ratified snapshot retry), a 400 bad_request and a DNS failure produced the
+// same push count, the same burnt seqs and the same delivered count. The permanence was written
+// down in doc comments and expressible nowhere in code.
+{
+    var allResults = new (RelayPushResult Result, PushDisposition ExpectedDisposition, string Name)[]
+    {
+        (new RelayPushResult.Ok(), PushDisposition.Delivered, "201"),
+        (new RelayPushResult.Conflict(41), PushDisposition.ResendAbove, "409 with a mark"),
+        (new RelayPushResult.Conflict(null), PushDisposition.ResendAbove, "409 without a mark"),
+        (new RelayPushResult.TooLarge(), PushDisposition.PayloadDead, "413"),
+        (new RelayPushResult.Rejected("bad shape"), PushDisposition.PayloadDead, "400"),
+        (new RelayPushResult.Unauthorised(), PushDisposition.PairingDead, "401/403"),
+        (new RelayPushResult.Misconfigured("404 on /push"), PushDisposition.PairingDead, "404"),
+        (new RelayPushResult.Unavailable("dns"), PushDisposition.RetryLater, "transport failure"),
+    };
+
+    var mapped = true;
+    foreach (var (result, expectedDisposition, _) in allResults)
+        if (RelaySink.Classify(result) != expectedDisposition) mapped = false;
+    Check("CLASSIFY maps every push result to its documented disposition", mapped);
+
+    // THE ASSERTION THIS SLICE EXISTS FOR. Before it, nothing in shipping code could tell these two
+    // apart; the reproduction measured them as identical through the real composition.
+    Check("A PERMANENT FAILURE IS DISTINGUISHABLE FROM A TRANSIENT ONE -- the defect, closed",
+        RelaySink.Classify(new RelayPushResult.Rejected("x")) != RelaySink.Classify(new RelayPushResult.Unavailable("dns")));
+    Check("...and a dead pairing is distinguishable from dead bytes",
+        RelaySink.Classify(new RelayPushResult.Unauthorised()) != RelaySink.Classify(new RelayPushResult.TooLarge()));
+    // 413 and 400 SHARE a disposition while keeping different words: the remedy differs (split vs
+    // fix) but the answer to "resend these bytes?" is the same, which is what a disposition answers.
+    Check("413 and 400 share PayloadDead -- a disposition is not a status code",
+        RelaySink.Classify(new RelayPushResult.TooLarge()) == RelaySink.Classify(new RelayPushResult.Rejected("x")));
+    Check("401/403 and 404 share PairingDead for the same reason",
+        RelaySink.Classify(new RelayPushResult.Unauthorised()) == RelaySink.Classify(new RelayPushResult.Misconfigured("x")));
+    Check("Classify refuses a null result rather than classifying it",
+        Throws<ArgumentNullException>(() => RelaySink.Classify(null!), out var nullClassifyDetail), nullClassifyDetail);
+
+    // --- The bool is DERIVED from the disposition. Asserting the mapping alone would leave the
+    // sink free to classify PayloadDead and still report success; this pins that it cannot.
+    {
+        var dispLog = new List<string>();
+        RelayPushResult dispAnswer = new RelayPushResult.Ok();
+        var dispSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(dispAnswer),
+            pushedSeq: () => 3,
+            persistSeq: _ => { },
+            reconcileTo: _ => true,
+            log: dispLog.Add);
+
+        var derived = true;
+        foreach (var (result, expectedDisposition, _) in allResults)
+        {
+            dispAnswer = result;
+            if (dispSink("{}", default).GetAwaiter().GetResult() != (expectedDisposition == PushDisposition.Delivered))
+                derived = false;
+        }
+        Check("the sink's bool is exactly 'disposition == Delivered', for every case", derived);
+    }
+
+    // --- The corrected claim. The old line asserted the envelope "will not be retried"; nothing in
+    // this repo prevents that retry and the ratified snapshot policy guarantees it (C-DSP-2).
+    {
+        var tlLog = new List<string>();
+        var tlSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.TooLarge()),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: tlLog.Add);
+        tlSink("{}", default).GetAwaiter().GetResult();
+        Check("the 413 line no longer claims the envelope will not be retried",
+            tlLog is [var tl] && !tl.Contains("will not be retried"));
+        Check("...and says what is actually true: it recurs every cycle until the payload is split",
+            tlLog.Count == 1 && tlLog[0].Contains("every cycle") && tlLog[0].Contains("§4.4"));
+    }
+
+    // --- Repetition is counted, not repeated. A permanent condition used to emit a byte-identical
+    // line on every cycle (C-DSP-4), burying the two transitions that carry information.
+    {
+        var repLog = new List<string>();
+        RelayPushResult repAnswer = new RelayPushResult.Unauthorised();
+        var repSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(repAnswer),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: repLog.Add);
+
+        for (var i = 0; i < 5; i++) repSink("{}", default).GetAwaiter().GetResult();
+        Check("FIVE identical permanent failures produce ONE operator line, not five",
+            repLog.Count == 1 && repLog[0].Contains("401/403"));
+
+        // The recovery is the other half: suppressing without announcing the end would hide the
+        // transition entirely, which is worse than the repetition it replaced.
+        repAnswer = new RelayPushResult.Ok();
+        repSink("{}", default).GetAwaiter().GetResult();
+        Check("the return to Delivered is ANNOUNCED, naming what recovered",
+            repLog.Count == 2 && repLog[1].Contains("recovered") && repLog[1].Contains("PairingDead"));
+        Check("...and names how many repeats were suppressed, so nothing is hidden",
+            repLog.Count == 2 && repLog[1].Contains("4"));
+
+        // A steady healthy engine must stay quiet: a recovery line on every push would be the same
+        // noise defect wearing the opposite sign.
+        repSink("{}", default).GetAwaiter().GetResult();
+        Check("a second consecutive success announces nothing", repLog.Count == 2);
+    }
+
+    // --- Suppression is by LINE, not by disposition: a changing detail is news and must survive.
+    {
+        var varyLog = new List<string>();
+        var detail = "dns";
+        var varySink = RelaySink.Create(
+            push: (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Unavailable(detail)),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: varyLog.Add);
+        varySink("{}", default).GetAwaiter().GetResult();
+        detail = "connection reset";
+        varySink("{}", default).GetAwaiter().GetResult();
+        Check("a failure whose DETAIL changed is logged again, not suppressed",
+            varyLog.Count == 2 && varyLog[1].Contains("connection reset"));
+    }
+
+    // --- And a recovery from a run with no suppressed repeats still announces, without a count it
+    // would have to invent.
+    {
+        var oneLog = new List<string>();
+        RelayPushResult oneAnswer = new RelayPushResult.Unavailable("dns");
+        var oneSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(oneAnswer),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: oneLog.Add);
+        oneSink("{}", default).GetAwaiter().GetResult();
+        oneAnswer = new RelayPushResult.Ok();
+        oneSink("{}", default).GetAwaiter().GetResult();
+        Check("a single failure then success announces recovery with no repeat count",
+            oneLog.Count == 2 && oneLog[1].Contains("recovered") && !oneLog[1].Contains("suppressed"));
+    }
+
+    // --- The very first push must not announce a recovery it did not have. The dedupe state starts
+    // at Delivered, and a naive implementation that treated "no previous state" as a failed one
+    // would greet every engine start with a phantom recovery line.
+    {
+        var freshLog = new List<string>();
+        var freshSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: freshLog.Add);
+        freshSink("{}", default).GetAwaiter().GetResult();
+        Check("a first push that succeeds logs nothing at all", freshLog.Count == 0);
+    }
+
+    // --- Suppression must never touch the EFFECTS. Persisting the mark and reconciling the counter
+    // are what the sink is for; a dedupe that skipped them because the words repeated would trade a
+    // log defect for a protocol one.
+    {
+        var effLog = new List<string>();
+        var effPersisted = new List<long>();
+        var effReconciled = new List<long>();
+        RelayPushResult effAnswer = new RelayPushResult.Conflict(41);
+        var effSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(effAnswer),
+            pushedSeq: () => 12,
+            persistSeq: effPersisted.Add,
+            reconcileTo: seq => { effReconciled.Add(seq); return true; },
+            log: effLog.Add);
+
+        effSink("{}", default).GetAwaiter().GetResult();
+        effSink("{}", default).GetAwaiter().GetResult();
+        Check("an identical 409 still reaches ReconcileTo BOTH times -- suppression is words only",
+            effReconciled is [41, 41]);
+        Check("...while the operator sees that line once", effLog.Count == 1);
+
+        effAnswer = new RelayPushResult.Ok();
+        effSink("{}", default).GetAwaiter().GetResult();
+        Check("and a 201 after suppression still persists the mark", effPersisted is [12]);
+    }
+}
+
+// -- the halt policy: the argument FOR halting, answered with measurements ----------------------
+// RelaySink.Classify names PairingDead and PayloadDead, and nothing consumes either for anything
+// but words. RelaySink's remarks record two arguments AGAINST halting; the argument FOR it was
+// answered nowhere: "on a pairing that can never accept, the engine burns one seq per cycle
+// forever, and the operator's only signal is a single line that scrolls away."
+//
+// This block answers that claim clause by clause, because the cheapest remedy on the table -- a
+// bounded backoff, recorded as the option needing no product decision -- turns out to need one for
+// half its domain. The FOR argument's three clauses measure out very differently: the per-cycle
+// cost is real, the "forever" is not a resource risk, the operator half is already fixed, and a
+// backoff keyed on PushDisposition would suppress the one payload that unlocks Pro.
+{
+    var haltKey = Convert.FromHexString(
+        "0F1E2D3C4B5A69788796A5B4C3D2E1F00F1E2D3C4B5A69788796A5B4C3D2E1F0");
+    var haltCounters = new Counters(
+        Discovered: 5, Acted: 1, Drafted: 1, Blocked: 0, Rejected: 0, Errors: 0, Cycles: 9);
+    var haltPairing = (string)index["pairing_id"]!;
+
+    // §3.1's cap as PQ-A2-1 decided it is measured -- on the CIPHERTEXT, not on the envelope JSON.
+    // The stand-in enforces the real constant rather than a threshold invented for the test, so an
+    // envelope refused here is refused for the reason the shipping relay refuses one.
+    static bool OverCap(string envelopeJson)
+    {
+        var ct = (string)JsonNode.Parse(envelopeJson)!["ciphertext"]!;
+        return Base64Url.TryDecode(ct, out var raw) && raw.Length > Protocol.MaxEnvelopeBytes;
+    }
+
+    // --- Clause one: the per-cycle cost of never halting, driven through the REAL SyncPushPath
+    // composition rather than through the sink alone, so the numbers are the engine's own.
+    {
+        var attempts = 0;
+        var deadLog = new List<string>();
+        var deadPersisted = new List<long>();
+        var deadPath = SyncPushPath.Create(
+            haltKey, haltPairing, activeKeyId,
+            push: (_, _) => { attempts++; return Task.FromResult<RelayPushResult>(new RelayPushResult.Unauthorised()); },
+            seqStore: new RecordingE2pSeqStore(deadPersisted.Add),
+            log: deadLog.Add,
+            startSeq: 100);
+
+        const int cycles = 10;
+        var delivered = 0;
+        for (var cycle = 1; cycle <= cycles; cycle++)
+            if (deadPath.PublishHeartbeatAsync(cycle, haltCounters).GetAwaiter().GetResult()) delivered++;
+
+        Check("halt: a permanently dead pairing costs ONE push attempt per cycle, indefinitely",
+            attempts == cycles);
+        Check("halt: ...and burns one seq per cycle -- the counter advanced by exactly the cycle count",
+            deadPath.HighestSeq == 100 + cycles);
+        Check("halt: ...delivering nothing and persisting nothing", delivered == 0 && deadPersisted.Count == 0);
+        Check("halt: ...while the operator sees ONE line, not ten -- that clause is ALREADY answered",
+            deadLog.Count == 1);
+    }
+
+    // --- Clause two, retired arithmetically. "Burns one seq per cycle FOREVER" reads as a resource
+    // exhaustion argument and is not one: §3.2's domain is 2^53-1, and an engine burning a seq every
+    // SECOND -- orders of magnitude faster than any cycle this engine runs -- needs geological time
+    // to reach it. Pinned as an assertion rather than as a sentence so that lowering MaxSeq re-opens
+    // the question instead of silently invalidating the answer given here.
+    {
+        const long secondsPerYear = 31_557_600L;
+        Check("halt: seq exhaustion is NOT the harm -- MaxSeq outlasts a per-SECOND burn by >100M years",
+            Protocol.MaxSeq / secondsPerYear > 100_000_000L);
+    }
+
+    // --- Clause three, and THE FINDING this block exists for. A bounded backoff would be keyed on
+    // PushDisposition, and PushDisposition puts 413 and 400 in one bucket by design -- "resend these
+    // bytes?" has the same answer for both. But the sink is shared by EVERY payload one publisher
+    // sends, and PayloadDead is a fact about the bytes just pushed, not about the pairing. One
+    // oversized snapshot puts the sink there, and the ratified snapshot retry re-sends that same
+    // snapshot every cycle, so it stays there. The next payload need not be another snapshot: it can
+    // be the entitlement_ack, which is small, which §4.3.3 makes the only thing that unlocks Pro,
+    // and which -- measured here -- gets through today.
+    {
+        var bigApps = Enumerable.Range(0, 12_000)
+            .Select(i => new AppSummary($"app_{i:D6}", "READY", "Northwind Labs", "Senior Platform Engineer", 82))
+            .ToArray();
+
+        var capPushed = new List<string>();
+        var capLog = new List<string>();
+        var capPersisted = new List<long>();
+        var capPath = SyncPushPath.Create(
+            haltKey, haltPairing, activeKeyId,
+            push: (envelope, _) =>
+            {
+                capPushed.Add(envelope);
+                return Task.FromResult<RelayPushResult>(
+                    OverCap(envelope) ? new RelayPushResult.TooLarge() : new RelayPushResult.Ok());
+            },
+            seqStore: new RecordingE2pSeqStore(capPersisted.Add),
+            log: capLog.Add,
+            startSeq: 0);
+
+        var snapshotDelivered = capPath
+            .PublishSnapshotAsync(haltCounters, bigApps, Array.Empty<JobSummary>()).GetAwaiter().GetResult();
+        Check("halt: an oversized snapshot is refused by §3.1's cap, measured on the CIPHERTEXT (PQ-A2-1)",
+            !snapshotDelivered && capPushed.Count == 1 && OverCap(capPushed[0]));
+        Check("halt: ...and that refusal classifies PayloadDead, which is what a backoff would key on",
+            RelaySink.Classify(new RelayPushResult.TooLarge()) == PushDisposition.PayloadDead);
+
+        var ackDelivered = capPath
+            .PublishEntitlementAckAsync("pro_unlock", "GPA.3311-4455-6677-88990").GetAwaiter().GetResult();
+        Check("halt: THE ACK STILL REACHES THE RELAY on the very next push -- what a PayloadDead backoff would suppress",
+            ackDelivered && capPushed.Count == 2);
+
+        // Read back off the wire rather than trusting the call that produced it: asserting the
+        // return value alone would pass for a path that delivered the wrong bytes successfully.
+        //
+        // Indexed defensively, and that is not fussiness -- it is this repo's own lesson applied to
+        // the assertion above. The mutation this block exists to catch is a backoff that SKIPS the
+        // push, and under it `capPushed` has one element; a bare `capPushed[1]` threw, took the whole
+        // harness down after that FAIL line, and every assertion below it silently never ran. An
+        // assertion has to survive its own target mutation.
+        JsonNode? ackPlain = null;
+        if (capPushed.Count == 2 && JsonNode.Parse(capPushed[1]) is { } ackEnvelope)
+        {
+            var ackHeader = new EnvelopeHeader(
+                (int)ackEnvelope["v"]!, (string)ackEnvelope["pairing"]!, (string)ackEnvelope["dir"]!,
+                (long)ackEnvelope["seq"]!, (string)ackEnvelope["ts"]!, (string)ackEnvelope["key_id"]!);
+            ackPlain = JsonNode.Parse(EnvelopeCodec.Open(
+                haltKey, B64u((string)ackEnvelope["nonce"]!), ackHeader.Aad(),
+                B64u((string)ackEnvelope["ciphertext"]!)));
+        }
+        Check("halt: ...and the bytes that got through ARE the entitlement_ack, decrypted from the wire",
+            ackPlain is not null
+            && (string?)ackPlain["kind"] == "entitlement_ack"
+            && (string?)ackPlain["body"]?["product_id"] == "pro_unlock");
+        Check("halt: ...and its mark was persisted, so the delivery is a real one and not a reported one",
+            capPersisted is [2]);
+    }
+
+    // --- Clause four: the contrast that gives the remedy its shape. Under PairingDead nothing on the
+    // pairing is accepted, so the ack fails there whether or not anything suppresses it -- a bounded,
+    // self-clearing backoff on THAT disposition withholds nothing that would have succeeded. The two
+    // dispositions therefore do not take the same policy, and a backoff written against "permanent"
+    // as one bucket is a defect, not a simplification.
+    {
+        var pdPushed = new List<string>();
+        var pdPath = SyncPushPath.Create(
+            haltKey, haltPairing, activeKeyId,
+            push: (envelope, _) => { pdPushed.Add(envelope); return Task.FromResult<RelayPushResult>(new RelayPushResult.Unauthorised()); },
+            seqStore: new RecordingE2pSeqStore(_ => { }),
+            log: _ => { },
+            startSeq: 0);
+
+        var pdAck = pdPath.PublishEntitlementAckAsync("pro_unlock").GetAwaiter().GetResult();
+        Check("halt: under PairingDead the ack fails ANYWAY -- a backoff there withholds nothing that would have succeeded",
+            !pdAck && pdPushed.Count == 1);
+        Check("halt: ...so PairingDead and PayloadDead do NOT take the same policy, though they share a permanence",
+            RelaySink.Classify(new RelayPushResult.Unauthorised())
+            != RelaySink.Classify(new RelayPushResult.TooLarge()));
+    }
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
