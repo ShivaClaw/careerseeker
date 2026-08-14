@@ -1471,6 +1471,128 @@ Check("a corrupt store AND a silent relay still resume from 0, not from a negati
     Check("a seq exactly at §3.2's cap is still accepted", capAccepted);
 }
 
+// -- the sink APPLIES the rule: the call site, not just the rule it calls ---------------------
+// The gap this closes was measured, not assumed: before RelaySink existed, deleting the
+// ReconcileTo call from BuildSyncBridge's sink failed no test in this repo. ReconcileTo itself was
+// well covered (above); the line that INVOKES it was covered by nothing, because it sat in a
+// closure inside a host method that returns null without a DPAPI vault. These assertions are about
+// the call site.
+{
+    // A recording double for each collaborator. `pushed` is what the sink was handed, which also
+    // pins that the envelope reaches the transport unmodified.
+    string? pushed = null;
+    var persisted = new List<long>();
+    var reconciledTo = new List<long>();
+    var logged = new List<string>();
+    RelayPushResult answer = new RelayPushResult.Ok();
+    long? seqInFlight = 12;
+    var reconcileMoves = true;
+
+    var sink = RelaySink.Create(
+        push: (envelope, _) => { pushed = envelope; return Task.FromResult(answer); },
+        pushedSeq: () => seqInFlight,
+        persistSeq: seq => persisted.Add(seq),
+        reconcileTo: seq => { reconciledTo.Add(seq); return reconcileMoves; },
+        log: line => logged.Add(line));
+
+    // --- 201: persist the mark, report success, and do NOT touch the counter.
+    Check("the sink reports a 201 as success", sink("{\"envelope\":1}", default).GetAwaiter().GetResult());
+    Check("the envelope reaches the transport byte for byte", pushed == "{\"envelope\":1}");
+    Check("a 201 persists the seq that was pushed", persisted is [12]);
+    Check("a 201 does NOT reconcile -- there is nothing to repair", reconciledTo.Count == 0);
+
+    // --- 201 with no publisher attached yet. The publisher and its sink are mutually referential,
+    // so this "not yet" case is real; persisting a 0 here would write a false high-water mark.
+    persisted.Clear();
+    seqInFlight = null;
+    Check("a 201 with no publisher attached persists nothing rather than 0",
+        sink("{}", default).GetAwaiter().GetResult() && persisted.Count == 0);
+    seqInFlight = 12;
+
+    // --- THE ASSERTION THIS SLICE EXISTS FOR. A 409 carrying the relay's high-water mark must
+    // reach ReconcileTo, with THAT number. Reverting the call site now fails here.
+    persisted.Clear(); logged.Clear();
+    answer = new RelayPushResult.Conflict(41);
+    Check("the sink reports a 409 as failure -- these bytes are dead",
+        !sink("{}", default).GetAwaiter().GetResult());
+    Check("A 409 CALLS ReconcileTo -- the call site, not just the rule", reconciledTo is [41]);
+    Check("it reconciles to the RELAY's mark, not to the refused seq", reconciledTo[0] == 41);
+    Check("a 409 persists nothing -- the envelope was never appended", persisted.Count == 0);
+    Check("a reconciled 409 is logged as reconciled", logged is [var l1] && l1.Contains("reconciled the e2p counter"));
+
+    // --- A 409 whose mark ReconcileTo refuses (at or below the counter) must still be reported,
+    // and reported DIFFERENTLY -- an operator has to be able to tell applied from not applied.
+    reconciledTo.Clear(); logged.Clear();
+    reconcileMoves = false;
+    Check("a refused reconciliation is still attempted", !sink("{}", default).GetAwaiter().GetResult() && reconciledTo is [41]);
+    Check("a refused reconciliation says NOT applied, and cites §6.2",
+        logged is [var l2] && l2.Contains("NOT applied") && l2.Contains("§6.2"));
+    reconcileMoves = true;
+
+    // --- A 409 with no usable number must NOT call ReconcileTo at all. Passing a null-substitute
+    // (0, say) would move the counter on the strength of a number the client already refused.
+    reconciledTo.Clear(); logged.Clear();
+    answer = new RelayPushResult.Conflict(null);
+    Check("a 409 with no usable mark does not call ReconcileTo at all",
+        !sink("{}", default).GetAwaiter().GetResult() && reconciledTo.Count == 0);
+    Check("...and says so rather than failing silently",
+        logged is [var l3] && l3.Contains("Nothing to reconcile"));
+
+    // --- Every remaining case: failure, no persist, no reconcile, and named distinctly. The
+    // distinctness matters -- collapsing these back into one bool is the defect RelayPushResult
+    // was introduced to fix, and nothing else asserts the sink kept them apart.
+    var others = new (RelayPushResult Result, string Fragment)[]
+    {
+        (new RelayPushResult.TooLarge(), "too large"),
+        (new RelayPushResult.Rejected("bad envelope"), "engine defect"),
+        (new RelayPushResult.Unauthorised(), "401/403"),
+        (new RelayPushResult.Misconfigured("404 on /push"), "Check the paired relay URL"),
+        (new RelayPushResult.Unavailable("dns"), "did not reach the relay"),
+    };
+    var allFailed = true; var allNamed = true;
+    persisted.Clear(); reconciledTo.Clear();
+    foreach (var (result, fragment) in others)
+    {
+        logged.Clear();
+        answer = result;
+        if (sink("{}", default).GetAwaiter().GetResult()) allFailed = false;
+        if (logged is not [var line] || !line.Contains(fragment)) allNamed = false;
+    }
+    Check("every non-201, non-409 case reports failure", allFailed);
+    Check("every non-201, non-409 case is named distinctly for the operator", allNamed);
+    Check("no failure case persists a high-water mark", persisted.Count == 0);
+    Check("no failure case moves the counter", reconciledTo.Count == 0);
+
+    // --- Composed against a REAL SyncPublisher, which is what proves the two halves fit: a 409
+    // from the relay must move the publisher's own counter, so the next envelope resumes above the
+    // relay's mark instead of walking into the same 409 forever. Everything above tests the sink
+    // against doubles; this tests that the doubles were standing in for something that matches.
+    var composedKey = Convert.FromHexString(
+        "1122334455667788990011223344556677889900112233445566778899001122");
+    var composedCounters = new Counters(
+        Discovered: 1, Acted: 0, Drafted: 0, Blocked: 0, Rejected: 0, Errors: 0, Cycles: 1);
+    SyncPublisher? composedRef = null;
+    RelayPushResult composedAnswer = new RelayPushResult.Conflict(41);
+    var composed = new SyncPublisher(
+        composedKey, (string)index["pairing_id"]!, activeKeyId,
+        sink: RelaySink.Create(
+            push: (_, _) => Task.FromResult(composedAnswer),
+            pushedSeq: () => composedRef?.HighestSeq,
+            persistSeq: _ => { },
+            reconcileTo: seq => composedRef?.ReconcileTo(seq) ?? false,
+            log: _ => { }),
+        startSeq: 5);
+    composedRef = composed;
+
+    Check("composed: the 409'd publish reports failure",
+        !composed.PublishHeartbeatAsync(1, composedCounters).GetAwaiter().GetResult());
+    Check("composed: the relay's 409 moved the REAL publisher's counter", composed.HighestSeq == 41);
+    composedAnswer = new RelayPushResult.Ok();
+    Check("composed: the next envelope resumes ABOVE the relay's mark",
+        composed.PublishHeartbeatAsync(2, composedCounters).GetAwaiter().GetResult()
+        && composed.HighestSeq == 42);
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
