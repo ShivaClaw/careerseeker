@@ -42,8 +42,10 @@ only what Terra needs to avoid colliding with me.
   so one of the host's four argument identities is statically enforced rather than conventional).
   **762 is CORROBORATED, NOT MEASURED** — no PowerShell here and none in the Ubuntu archive,
   re-checked; Linux sum **545** measured harness by harness, `EngineHarness` **217 carried** (it
-  correctly refuses a volume root on Linux). 545 + 217 = 762, agreeing with 745 + 17. **CI has not
-  yet run on this head.** **A limit recorded rather than glossed:** `EngineHarness`'s seven
+  correctly refuses a volume root on Linux). 545 + 217 = 762, agreeing with 745 + 17. **762 is CI-CONFIRMED** — run `31772421928` on `head_sha` **`9394ca1`**,
+  attempt 1, both jobs success; the `windows-latest` job runs `Verify-Alpha.ps1` (which throws on a
+  pin mismatch) and its log prints `=== Offline total: 762 passed, 0 failed ===`. The relay job's
+  vector-generator assertion passed too — **zero vector drift on a second machine**. **A limit recorded rather than glossed:** `EngineHarness`'s seven
   sync-pairing-vault assertions sit *past* that Linux guard, so `SyncPairingVault : IE2pSeqStore` is
   **compile-verified here and assertion-verified only on Windows**.
 
