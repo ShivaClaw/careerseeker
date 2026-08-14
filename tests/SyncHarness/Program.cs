@@ -1882,6 +1882,160 @@ Check("a corrupt store AND a silent relay still resume from 0, not from a negati
     }
 }
 
+// -- the halt policy: the argument FOR halting, answered with measurements ----------------------
+// RelaySink.Classify names PairingDead and PayloadDead, and nothing consumes either for anything
+// but words. RelaySink's remarks record two arguments AGAINST halting; the argument FOR it was
+// answered nowhere: "on a pairing that can never accept, the engine burns one seq per cycle
+// forever, and the operator's only signal is a single line that scrolls away."
+//
+// This block answers that claim clause by clause, because the cheapest remedy on the table -- a
+// bounded backoff, recorded as the option needing no product decision -- turns out to need one for
+// half its domain. The FOR argument's three clauses measure out very differently: the per-cycle
+// cost is real, the "forever" is not a resource risk, the operator half is already fixed, and a
+// backoff keyed on PushDisposition would suppress the one payload that unlocks Pro.
+{
+    var haltKey = Convert.FromHexString(
+        "0F1E2D3C4B5A69788796A5B4C3D2E1F00F1E2D3C4B5A69788796A5B4C3D2E1F0");
+    var haltCounters = new Counters(
+        Discovered: 5, Acted: 1, Drafted: 1, Blocked: 0, Rejected: 0, Errors: 0, Cycles: 9);
+    var haltPairing = (string)index["pairing_id"]!;
+
+    // §3.1's cap as PQ-A2-1 decided it is measured -- on the CIPHERTEXT, not on the envelope JSON.
+    // The stand-in enforces the real constant rather than a threshold invented for the test, so an
+    // envelope refused here is refused for the reason the shipping relay refuses one.
+    static bool OverCap(string envelopeJson)
+    {
+        var ct = (string)JsonNode.Parse(envelopeJson)!["ciphertext"]!;
+        return Base64Url.TryDecode(ct, out var raw) && raw.Length > Protocol.MaxEnvelopeBytes;
+    }
+
+    // --- Clause one: the per-cycle cost of never halting, driven through the REAL SyncPushPath
+    // composition rather than through the sink alone, so the numbers are the engine's own.
+    {
+        var attempts = 0;
+        var deadLog = new List<string>();
+        var deadPersisted = new List<long>();
+        var deadPath = SyncPushPath.Create(
+            haltKey, haltPairing, activeKeyId,
+            push: (_, _) => { attempts++; return Task.FromResult<RelayPushResult>(new RelayPushResult.Unauthorised()); },
+            seqStore: new RecordingE2pSeqStore(deadPersisted.Add),
+            log: deadLog.Add,
+            startSeq: 100);
+
+        const int cycles = 10;
+        var delivered = 0;
+        for (var cycle = 1; cycle <= cycles; cycle++)
+            if (deadPath.PublishHeartbeatAsync(cycle, haltCounters).GetAwaiter().GetResult()) delivered++;
+
+        Check("halt: a permanently dead pairing costs ONE push attempt per cycle, indefinitely",
+            attempts == cycles);
+        Check("halt: ...and burns one seq per cycle -- the counter advanced by exactly the cycle count",
+            deadPath.HighestSeq == 100 + cycles);
+        Check("halt: ...delivering nothing and persisting nothing", delivered == 0 && deadPersisted.Count == 0);
+        Check("halt: ...while the operator sees ONE line, not ten -- that clause is ALREADY answered",
+            deadLog.Count == 1);
+    }
+
+    // --- Clause two, retired arithmetically. "Burns one seq per cycle FOREVER" reads as a resource
+    // exhaustion argument and is not one: §3.2's domain is 2^53-1, and an engine burning a seq every
+    // SECOND -- orders of magnitude faster than any cycle this engine runs -- needs geological time
+    // to reach it. Pinned as an assertion rather than as a sentence so that lowering MaxSeq re-opens
+    // the question instead of silently invalidating the answer given here.
+    {
+        const long secondsPerYear = 31_557_600L;
+        Check("halt: seq exhaustion is NOT the harm -- MaxSeq outlasts a per-SECOND burn by >100M years",
+            Protocol.MaxSeq / secondsPerYear > 100_000_000L);
+    }
+
+    // --- Clause three, and THE FINDING this block exists for. A bounded backoff would be keyed on
+    // PushDisposition, and PushDisposition puts 413 and 400 in one bucket by design -- "resend these
+    // bytes?" has the same answer for both. But the sink is shared by EVERY payload one publisher
+    // sends, and PayloadDead is a fact about the bytes just pushed, not about the pairing. One
+    // oversized snapshot puts the sink there, and the ratified snapshot retry re-sends that same
+    // snapshot every cycle, so it stays there. The next payload need not be another snapshot: it can
+    // be the entitlement_ack, which is small, which §4.3.3 makes the only thing that unlocks Pro,
+    // and which -- measured here -- gets through today.
+    {
+        var bigApps = Enumerable.Range(0, 12_000)
+            .Select(i => new AppSummary($"app_{i:D6}", "READY", "Northwind Labs", "Senior Platform Engineer", 82))
+            .ToArray();
+
+        var capPushed = new List<string>();
+        var capLog = new List<string>();
+        var capPersisted = new List<long>();
+        var capPath = SyncPushPath.Create(
+            haltKey, haltPairing, activeKeyId,
+            push: (envelope, _) =>
+            {
+                capPushed.Add(envelope);
+                return Task.FromResult<RelayPushResult>(
+                    OverCap(envelope) ? new RelayPushResult.TooLarge() : new RelayPushResult.Ok());
+            },
+            seqStore: new RecordingE2pSeqStore(capPersisted.Add),
+            log: capLog.Add,
+            startSeq: 0);
+
+        var snapshotDelivered = capPath
+            .PublishSnapshotAsync(haltCounters, bigApps, Array.Empty<JobSummary>()).GetAwaiter().GetResult();
+        Check("halt: an oversized snapshot is refused by §3.1's cap, measured on the CIPHERTEXT (PQ-A2-1)",
+            !snapshotDelivered && capPushed.Count == 1 && OverCap(capPushed[0]));
+        Check("halt: ...and that refusal classifies PayloadDead, which is what a backoff would key on",
+            RelaySink.Classify(new RelayPushResult.TooLarge()) == PushDisposition.PayloadDead);
+
+        var ackDelivered = capPath
+            .PublishEntitlementAckAsync("pro_unlock", "GPA.3311-4455-6677-88990").GetAwaiter().GetResult();
+        Check("halt: THE ACK STILL REACHES THE RELAY on the very next push -- what a PayloadDead backoff would suppress",
+            ackDelivered && capPushed.Count == 2);
+
+        // Read back off the wire rather than trusting the call that produced it: asserting the
+        // return value alone would pass for a path that delivered the wrong bytes successfully.
+        //
+        // Indexed defensively, and that is not fussiness -- it is this repo's own lesson applied to
+        // the assertion above. The mutation this block exists to catch is a backoff that SKIPS the
+        // push, and under it `capPushed` has one element; a bare `capPushed[1]` threw, took the whole
+        // harness down after that FAIL line, and every assertion below it silently never ran. An
+        // assertion has to survive its own target mutation.
+        JsonNode? ackPlain = null;
+        if (capPushed.Count == 2 && JsonNode.Parse(capPushed[1]) is { } ackEnvelope)
+        {
+            var ackHeader = new EnvelopeHeader(
+                (int)ackEnvelope["v"]!, (string)ackEnvelope["pairing"]!, (string)ackEnvelope["dir"]!,
+                (long)ackEnvelope["seq"]!, (string)ackEnvelope["ts"]!, (string)ackEnvelope["key_id"]!);
+            ackPlain = JsonNode.Parse(EnvelopeCodec.Open(
+                haltKey, B64u((string)ackEnvelope["nonce"]!), ackHeader.Aad(),
+                B64u((string)ackEnvelope["ciphertext"]!)));
+        }
+        Check("halt: ...and the bytes that got through ARE the entitlement_ack, decrypted from the wire",
+            ackPlain is not null
+            && (string?)ackPlain["kind"] == "entitlement_ack"
+            && (string?)ackPlain["body"]?["product_id"] == "pro_unlock");
+        Check("halt: ...and its mark was persisted, so the delivery is a real one and not a reported one",
+            capPersisted is [2]);
+    }
+
+    // --- Clause four: the contrast that gives the remedy its shape. Under PairingDead nothing on the
+    // pairing is accepted, so the ack fails there whether or not anything suppresses it -- a bounded,
+    // self-clearing backoff on THAT disposition withholds nothing that would have succeeded. The two
+    // dispositions therefore do not take the same policy, and a backoff written against "permanent"
+    // as one bucket is a defect, not a simplification.
+    {
+        var pdPushed = new List<string>();
+        var pdPath = SyncPushPath.Create(
+            haltKey, haltPairing, activeKeyId,
+            push: (envelope, _) => { pdPushed.Add(envelope); return Task.FromResult<RelayPushResult>(new RelayPushResult.Unauthorised()); },
+            seqStore: new RecordingE2pSeqStore(_ => { }),
+            log: _ => { },
+            startSeq: 0);
+
+        var pdAck = pdPath.PublishEntitlementAckAsync("pro_unlock").GetAwaiter().GetResult();
+        Check("halt: under PairingDead the ack fails ANYWAY -- a backoff there withholds nothing that would have succeeded",
+            !pdAck && pdPushed.Count == 1);
+        Check("halt: ...so PairingDead and PayloadDead do NOT take the same policy, though they share a permanence",
+            RelaySink.Classify(new RelayPushResult.Unauthorised())
+            != RelaySink.Classify(new RelayPushResult.TooLarge()));
+    }
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
