@@ -1709,6 +1709,179 @@ Check("a corrupt store AND a silent relay still resume from 0, not from a negati
             store, null!, 0), out var nullLogDetail), nullLogDetail);
 }
 
+// -- the push DISPOSITION: permanence as a value, not as prose ---------------------------------
+// The gap this closes was measured, not assumed. RelayPushResult exists because a bare bool could
+// not tell a replay refusal from a DNS failure -- and RelaySink named each case for the operator
+// and then returned `false` for all of them, so one layer up the conflation was exactly as it had
+// been. Driven through the REAL SyncPushPath composition for five engine cycles (mimicking
+// EngineSyncBridge's ratified snapshot retry), a 400 bad_request and a DNS failure produced the
+// same push count, the same burnt seqs and the same delivered count. The permanence was written
+// down in doc comments and expressible nowhere in code.
+{
+    var allResults = new (RelayPushResult Result, PushDisposition ExpectedDisposition, string Name)[]
+    {
+        (new RelayPushResult.Ok(), PushDisposition.Delivered, "201"),
+        (new RelayPushResult.Conflict(41), PushDisposition.ResendAbove, "409 with a mark"),
+        (new RelayPushResult.Conflict(null), PushDisposition.ResendAbove, "409 without a mark"),
+        (new RelayPushResult.TooLarge(), PushDisposition.PayloadDead, "413"),
+        (new RelayPushResult.Rejected("bad shape"), PushDisposition.PayloadDead, "400"),
+        (new RelayPushResult.Unauthorised(), PushDisposition.PairingDead, "401/403"),
+        (new RelayPushResult.Misconfigured("404 on /push"), PushDisposition.PairingDead, "404"),
+        (new RelayPushResult.Unavailable("dns"), PushDisposition.RetryLater, "transport failure"),
+    };
+
+    var mapped = true;
+    foreach (var (result, expectedDisposition, _) in allResults)
+        if (RelaySink.Classify(result) != expectedDisposition) mapped = false;
+    Check("CLASSIFY maps every push result to its documented disposition", mapped);
+
+    // THE ASSERTION THIS SLICE EXISTS FOR. Before it, nothing in shipping code could tell these two
+    // apart; the reproduction measured them as identical through the real composition.
+    Check("A PERMANENT FAILURE IS DISTINGUISHABLE FROM A TRANSIENT ONE -- the defect, closed",
+        RelaySink.Classify(new RelayPushResult.Rejected("x")) != RelaySink.Classify(new RelayPushResult.Unavailable("dns")));
+    Check("...and a dead pairing is distinguishable from dead bytes",
+        RelaySink.Classify(new RelayPushResult.Unauthorised()) != RelaySink.Classify(new RelayPushResult.TooLarge()));
+    // 413 and 400 SHARE a disposition while keeping different words: the remedy differs (split vs
+    // fix) but the answer to "resend these bytes?" is the same, which is what a disposition answers.
+    Check("413 and 400 share PayloadDead -- a disposition is not a status code",
+        RelaySink.Classify(new RelayPushResult.TooLarge()) == RelaySink.Classify(new RelayPushResult.Rejected("x")));
+    Check("401/403 and 404 share PairingDead for the same reason",
+        RelaySink.Classify(new RelayPushResult.Unauthorised()) == RelaySink.Classify(new RelayPushResult.Misconfigured("x")));
+    Check("Classify refuses a null result rather than classifying it",
+        Throws<ArgumentNullException>(() => RelaySink.Classify(null!), out var nullClassifyDetail), nullClassifyDetail);
+
+    // --- The bool is DERIVED from the disposition. Asserting the mapping alone would leave the
+    // sink free to classify PayloadDead and still report success; this pins that it cannot.
+    {
+        var dispLog = new List<string>();
+        RelayPushResult dispAnswer = new RelayPushResult.Ok();
+        var dispSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(dispAnswer),
+            pushedSeq: () => 3,
+            persistSeq: _ => { },
+            reconcileTo: _ => true,
+            log: dispLog.Add);
+
+        var derived = true;
+        foreach (var (result, expectedDisposition, _) in allResults)
+        {
+            dispAnswer = result;
+            if (dispSink("{}", default).GetAwaiter().GetResult() != (expectedDisposition == PushDisposition.Delivered))
+                derived = false;
+        }
+        Check("the sink's bool is exactly 'disposition == Delivered', for every case", derived);
+    }
+
+    // --- The corrected claim. The old line asserted the envelope "will not be retried"; nothing in
+    // this repo prevents that retry and the ratified snapshot policy guarantees it (C-DSP-2).
+    {
+        var tlLog = new List<string>();
+        var tlSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.TooLarge()),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: tlLog.Add);
+        tlSink("{}", default).GetAwaiter().GetResult();
+        Check("the 413 line no longer claims the envelope will not be retried",
+            tlLog is [var tl] && !tl.Contains("will not be retried"));
+        Check("...and says what is actually true: it recurs every cycle until the payload is split",
+            tlLog.Count == 1 && tlLog[0].Contains("every cycle") && tlLog[0].Contains("§4.4"));
+    }
+
+    // --- Repetition is counted, not repeated. A permanent condition used to emit a byte-identical
+    // line on every cycle (C-DSP-4), burying the two transitions that carry information.
+    {
+        var repLog = new List<string>();
+        RelayPushResult repAnswer = new RelayPushResult.Unauthorised();
+        var repSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(repAnswer),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: repLog.Add);
+
+        for (var i = 0; i < 5; i++) repSink("{}", default).GetAwaiter().GetResult();
+        Check("FIVE identical permanent failures produce ONE operator line, not five",
+            repLog.Count == 1 && repLog[0].Contains("401/403"));
+
+        // The recovery is the other half: suppressing without announcing the end would hide the
+        // transition entirely, which is worse than the repetition it replaced.
+        repAnswer = new RelayPushResult.Ok();
+        repSink("{}", default).GetAwaiter().GetResult();
+        Check("the return to Delivered is ANNOUNCED, naming what recovered",
+            repLog.Count == 2 && repLog[1].Contains("recovered") && repLog[1].Contains("PairingDead"));
+        Check("...and names how many repeats were suppressed, so nothing is hidden",
+            repLog.Count == 2 && repLog[1].Contains("4"));
+
+        // A steady healthy engine must stay quiet: a recovery line on every push would be the same
+        // noise defect wearing the opposite sign.
+        repSink("{}", default).GetAwaiter().GetResult();
+        Check("a second consecutive success announces nothing", repLog.Count == 2);
+    }
+
+    // --- Suppression is by LINE, not by disposition: a changing detail is news and must survive.
+    {
+        var varyLog = new List<string>();
+        var detail = "dns";
+        var varySink = RelaySink.Create(
+            push: (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Unavailable(detail)),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: varyLog.Add);
+        varySink("{}", default).GetAwaiter().GetResult();
+        detail = "connection reset";
+        varySink("{}", default).GetAwaiter().GetResult();
+        Check("a failure whose DETAIL changed is logged again, not suppressed",
+            varyLog.Count == 2 && varyLog[1].Contains("connection reset"));
+    }
+
+    // --- And a recovery from a run with no suppressed repeats still announces, without a count it
+    // would have to invent.
+    {
+        var oneLog = new List<string>();
+        RelayPushResult oneAnswer = new RelayPushResult.Unavailable("dns");
+        var oneSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(oneAnswer),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: oneLog.Add);
+        oneSink("{}", default).GetAwaiter().GetResult();
+        oneAnswer = new RelayPushResult.Ok();
+        oneSink("{}", default).GetAwaiter().GetResult();
+        Check("a single failure then success announces recovery with no repeat count",
+            oneLog.Count == 2 && oneLog[1].Contains("recovered") && !oneLog[1].Contains("suppressed"));
+    }
+
+    // --- The very first push must not announce a recovery it did not have. The dedupe state starts
+    // at Delivered, and a naive implementation that treated "no previous state" as a failed one
+    // would greet every engine start with a phantom recovery line.
+    {
+        var freshLog = new List<string>();
+        var freshSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: freshLog.Add);
+        freshSink("{}", default).GetAwaiter().GetResult();
+        Check("a first push that succeeds logs nothing at all", freshLog.Count == 0);
+    }
+
+    // --- Suppression must never touch the EFFECTS. Persisting the mark and reconciling the counter
+    // are what the sink is for; a dedupe that skipped them because the words repeated would trade a
+    // log defect for a protocol one.
+    {
+        var effLog = new List<string>();
+        var effPersisted = new List<long>();
+        var effReconciled = new List<long>();
+        RelayPushResult effAnswer = new RelayPushResult.Conflict(41);
+        var effSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(effAnswer),
+            pushedSeq: () => 12,
+            persistSeq: effPersisted.Add,
+            reconcileTo: seq => { effReconciled.Add(seq); return true; },
+            log: effLog.Add);
+
+        effSink("{}", default).GetAwaiter().GetResult();
+        effSink("{}", default).GetAwaiter().GetResult();
+        Check("an identical 409 still reaches ReconcileTo BOTH times -- suppression is words only",
+            effReconciled is [41, 41]);
+        Check("...while the operator sees that line once", effLog.Count == 1);
+
+        effAnswer = new RelayPushResult.Ok();
+        effSink("{}", default).GetAwaiter().GetResult();
+        Check("and a 201 after suppression still persists the mark", effPersisted is [12]);
+    }
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
