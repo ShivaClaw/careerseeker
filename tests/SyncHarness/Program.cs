@@ -1699,14 +1699,14 @@ Check("a corrupt store AND a silent relay still resume from 0, not from a negati
     Check("push path: a null store is refused at construction",
         Throws<ArgumentNullException>(() => SyncPushPath.Create(
             pathKey, "p", activeKeyId, (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
-            null!, _ => { }, 0)));
+            null!, _ => { }, 0), out var nullStoreDetail), nullStoreDetail);
     Check("push path: a null push delegate is refused at construction",
         Throws<ArgumentNullException>(() => SyncPushPath.Create(
-            pathKey, "p", activeKeyId, null!, store, _ => { }, 0)));
+            pathKey, "p", activeKeyId, null!, store, _ => { }, 0), out var nullPushDetail), nullPushDetail);
     Check("push path: a null log is refused at construction",
         Throws<ArgumentNullException>(() => SyncPushPath.Create(
             pathKey, "p", activeKeyId, (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
-            store, null!, 0)));
+            store, null!, 0), out var nullLogDetail), nullLogDetail);
 }
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
@@ -1718,15 +1718,25 @@ static byte[] B64u(string s) => Base64Url.TryDecode(s, out var b)
     ? b : throw new FormatException($"vector value is not strict base64url: {s[..Math.Min(16, s.Length)]}…");
 
 /// <summary>
-/// True when <paramref name="act"/> throws exactly <typeparamref name="T"/>. Any other exception is
-/// allowed to escape rather than being swallowed into a `false`: a guard that throws the WRONG type
-/// is a different defect from a guard that does not throw, and collapsing the two would report the
-/// second when the first happened.
+/// True when <paramref name="act"/> throws exactly <typeparamref name="T"/>. The three outcomes are
+/// kept distinct — threw the right type, threw the wrong one, did not throw — and
+/// <paramref name="detail"/> names which, because a guard that throws the wrong type is a different
+/// defect from a guard that does not throw and a bare `false` would report the second when the first
+/// happened.
+///
+/// <para><b>Nothing is allowed to escape, and that is a correction.</b> This helper's first version
+/// let a wrong exception type propagate on the reasoning above. Measured, that reasoning produced the
+/// wrong behaviour: dropping the null-store guard makes the delegate construction raise a
+/// <see cref="NullReferenceException"/>, which took the whole harness down <em>after zero FAIL
+/// lines</em>, so every assertion below it silently never ran. That is the same false-negative shape
+/// this repo has now met four times by four routes. Distinguishing the defects does not require
+/// letting one of them kill the run.</para>
 /// </summary>
-static bool Throws<T>(Action act) where T : Exception
+static bool Throws<T>(Action act, out string detail) where T : Exception
 {
-    try { act(); return false; }
-    catch (T) { return true; }
+    try { act(); detail = $"did not throw at all; expected {typeof(T).Name}"; return false; }
+    catch (T) { detail = ""; return true; }
+    catch (Exception ex) { detail = $"threw {ex.GetType().Name}, not {typeof(T).Name}"; return false; }
 }
 
 static string ToHex(JsonNode n) => Convert.ToHexString(Base64Url.TryDecode((string)n!, out var b) ? b : throw new FormatException());
