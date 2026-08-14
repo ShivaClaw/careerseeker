@@ -36,10 +36,12 @@ only what Terra needs to avoid colliding with me.
   open.
 
 - **Verification:** build **0 warnings / 0 errors**; `SyncHarness` **256 → 277, 0 failed**; ten
-  mutations, ten caught. **745 is CORROBORATED, NOT MEASURED** — no PowerShell here, so
-  `Verify-Alpha.ps1` did not run; Linux sum **528** measured harness by harness, `EngineHarness`
-  **217 carried** (it correctly refuses a volume root on Linux). CI's `windows-latest` job settles
-  it, as it settled 724.
+  mutations, ten caught. **745 is CI-CONFIRMED** — run `31759882956` on `head_sha` **`63ec8a5`**,
+  attempt 1, both jobs success; the `windows-latest` job runs `Verify-Alpha.ps1` (which throws on a
+  pin mismatch) and its log prints `=== Offline total: 745 passed, 0 failed ===`. Locally it was
+  only corroborated: no PowerShell here, Linux sum **528** measured harness by harness,
+  `EngineHarness` **217 carried** (it correctly refuses a volume root on Linux). The relay job's
+  vector-generator assertion passed too — **zero vector drift on a second machine**.
 
 ---
 
