@@ -299,10 +299,14 @@ async Task<EngineSyncBridge?> BuildSyncBridge(
     //
     // Both the decision rule (RelaySink.Create) and the WIRING that attaches it to a publisher and a
     // store (SyncPushPath.Create) are reachable from SyncHarness. What stays here is only the four
-    // argument identities a sandbox genuinely cannot check — which vault, which relay token, which
-    // log, which resume value — and those are recorded as local-gate-only claims rather than treated
-    // as covered. Before the wiring moved, replacing `persistSeq` with a no-op built 0/0 and left the
-    // harness at 277/0; it is now an assertion instead of a line held in place by nothing.
+    // argument identities — which vault, which relay token, which log, which resume value.
+    //
+    // ONE of those four is statically enforced rather than merely conventional: `seqStore: vault`
+    // compiles only because SyncPairingVault implements IE2pSeqStore, and removing that interface is
+    // a build error, not a silent no-op (measured as mutation M8). The other THREE are local-gate-only
+    // claims and are recorded as such rather than treated as covered. Before the wiring moved,
+    // replacing `persistSeq` with a no-op built 0/0 and left the harness at 277/0; it is now an
+    // assertion instead of a line held in place by nothing.
     var publisher = SyncPushPath.Create(
         paired.KeyEngineToPhone,
         paired.Pairing,
