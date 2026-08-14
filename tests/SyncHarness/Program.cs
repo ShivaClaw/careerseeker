@@ -1516,7 +1516,14 @@ Check("a corrupt store AND a silent relay still resume from 0, not from a negati
     Check("the sink reports a 409 as failure -- these bytes are dead",
         !sink("{}", default).GetAwaiter().GetResult());
     Check("A 409 CALLS ReconcileTo -- the call site, not just the rule", reconciledTo is [41]);
-    Check("it reconciles to the RELAY's mark, not to the refused seq", reconciledTo[0] == 41);
+    // Count-guarded before indexing. An unguarded reconciledTo[0] throws when the call site is
+    // deleted -- which is the exact mutation this block exists to catch -- and the throw takes the
+    // harness down mid-run, after one FAIL line, so a fail-counting reader records a tidy
+    // "1 caught" and never sees that the run died. Same false-negative shape the thirtieth run hit
+    // from the other direction; an assertion that cannot survive its own target mutation is not an
+    // assertion.
+    Check("it reconciles to the RELAY's mark, not to the refused seq",
+        reconciledTo.Count == 1 && reconciledTo[0] == 41 && reconciledTo[0] != 12);
     Check("a 409 persists nothing -- the envelope was never appended", persisted.Count == 0);
     Check("a reconciled 409 is logged as reconciled", logged is [var l1] && l1.Contains("reconciled the e2p counter"));
 
