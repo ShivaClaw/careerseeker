@@ -1600,6 +1600,115 @@ Check("a corrupt store AND a silent relay still resume from 0, not from a negati
         && composed.HighestSeq == 42);
 }
 
+// -- the push path's WIRING, not just its rule ------------------------------------------------
+// The gap this closes was measured, not assumed. RelaySink made the sink's DECISION testable and
+// the previous slice proved the rule is applied — but which collaborator each delegate was attached
+// to stayed in BuildSyncBridge, which returns null without a DPAPI vault and has therefore never
+// executed in a harness or on a CI runner. Replacing `persistSeq: seq => vault.RecordE2pSeq(seq)`
+// with `persistSeq: _ => { }` built 0 warnings / 0 errors and left this harness at 277/0: an engine
+// that had silently stopped persisting its high-water mark failed no test in this repo.
+//
+// SyncPushPath.Create now owns that wiring, so these assertions run against the SHIPPING
+// composition rather than a copy of it — which is the whole point of tying the mutual reference in
+// one place. What remains unexecuted here is only the four argument identities at the host's single
+// call site (which vault, which token, which log, which resume value); those are recorded as
+// local-gate-only claims in the PR's self-audit rather than counted as covered.
+{
+    var pathKey = Convert.FromHexString(
+        "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF");
+    var pathCounters = new Counters(
+        Discovered: 3, Acted: 0, Drafted: 0, Blocked: 0, Rejected: 0, Errors: 0, Cycles: 2);
+
+    // A recording store standing in for the DPAPI vault, with the vault's own monotonic contract so
+    // the double behaves like the thing it replaces rather than like a list.
+    var recorded = new List<long>();
+    long highWater = 0;
+    var store = new RecordingE2pSeqStore(seq =>
+    {
+        recorded.Add(seq);
+        if (seq > highWater) highWater = seq;
+    });
+
+    var pushedEnvelopes = new List<string>();
+    var pathLog = new List<string>();
+    RelayPushResult pathAnswer = new RelayPushResult.Ok();
+
+    // startSeq 7 is §6.1's resume value arriving through the real parameter: the first envelope this
+    // publisher sends must be seq 8, not seq 1.
+    var path = SyncPushPath.Create(
+        pathKey, (string)index["pairing_id"]!, activeKeyId,
+        push: (envelope, _) => { pushedEnvelopes.Add(envelope); return Task.FromResult(pathAnswer); },
+        seqStore: store,
+        log: line => pathLog.Add(line),
+        startSeq: 7);
+
+    // --- 201 through the real wiring. THE ASSERTION THIS SLICE EXISTS FOR: emptying persistSeq now
+    // fails here, because the store the caller supplied is the one the sink reaches.
+    Check("push path: a 201 publish reports success",
+        path.PublishHeartbeatAsync(1, pathCounters).GetAwaiter().GetResult());
+    Check("PUSH PATH PERSISTS THE MARK -- the wiring, not just the sink's rule", recorded is [8]);
+
+    // --- ...and persists the seq that actually went on the wire. Asserting `recorded is [8]` alone
+    // would pass for a path that persisted a counter unrelated to the envelope it sent, so the
+    // number is read back out of the sealed envelope's own header rather than assumed.
+    var sentSeq = pushedEnvelopes.Count == 1
+        ? (long?)JsonNode.Parse(pushedEnvelopes[0])!["seq"]!.GetValue<long>()
+        : null;
+    Check("push path: §6.1's startSeq reaches the counter -- the first envelope is startSeq+1", sentSeq == 8);
+    Check("push path: the seq PERSISTED is the seq SENT, read from the envelope header",
+        recorded.Count == 1 && sentSeq is { } s && recorded[0] == s);
+
+    // --- The store is the caller's, by identity. This is what `seqStore: vault` buys at the host's
+    // call site: the path cannot quietly persist into a store of its own.
+    Check("push path: the mark lands in the store the CALLER supplied", store.Calls == 1 && highWater == 8);
+
+    // --- Successive pushes advance the mark rather than rewriting one. A path that persisted only
+    // the first seq, or re-persisted a stale one, is a store that lags the relay by construction.
+    Check("push path: a second 201 publish reports success",
+        path.PublishHeartbeatAsync(2, pathCounters).GetAwaiter().GetResult());
+    Check("push path: successive marks advance", recorded is [8, 9] && highWater == 9);
+
+    // --- 409 through the real wiring: the mutual reference must be tied, or ReconcileTo is reached
+    // through a null publisher and the counter never moves. Deleting `publisherRef = publisher`
+    // fails here and at the persist assertions above.
+    recorded.Clear(); pathLog.Clear();
+    pathAnswer = new RelayPushResult.Conflict(56);
+    Check("push path: a 409'd publish reports failure",
+        !path.PublishHeartbeatAsync(3, pathCounters).GetAwaiter().GetResult());
+    Check("push path: the 409 moved the REAL publisher's counter -- the mutual reference is tied",
+        path.HighestSeq == 56);
+    Check("push path: a 409 persists NOTHING -- the envelope was never appended", recorded.Count == 0);
+    Check("push path: the reconciliation reaches the operator's log",
+        pathLog is [var pl] && pl.Contains("reconciled the e2p counter"));
+
+    // --- ...and the next envelope resumes above the relay's mark, persisting THAT. This is the pair
+    // that shows reconcile and persist are wired to the same counter rather than to two.
+    pathAnswer = new RelayPushResult.Ok();
+    pushedEnvelopes.Clear();
+    Check("push path: the next envelope resumes above the relay's mark",
+        path.PublishHeartbeatAsync(4, pathCounters).GetAwaiter().GetResult() && path.HighestSeq == 57);
+    Check("push path: and persists the RECONCILED mark, not the pre-409 one", recorded is [57]);
+
+    // --- The envelope reaches the transport unmodified. Nothing else asserts the wiring did not
+    // wrap or re-serialise the sealed bytes on their way out.
+    Check("push path: the sealed envelope reaches the transport byte for byte",
+        pushedEnvelopes is [var wire] && JsonNode.Parse(wire)!["seq"]!.GetValue<long>() == 57);
+
+    // --- Null collaborators fail at wiring time, not at the first push. A path constructed without
+    // a store would otherwise look healthy until the moment persistence mattered.
+    Check("push path: a null store is refused at construction",
+        Throws<ArgumentNullException>(() => SyncPushPath.Create(
+            pathKey, "p", activeKeyId, (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
+            null!, _ => { }, 0)));
+    Check("push path: a null push delegate is refused at construction",
+        Throws<ArgumentNullException>(() => SyncPushPath.Create(
+            pathKey, "p", activeKeyId, null!, store, _ => { }, 0)));
+    Check("push path: a null log is refused at construction",
+        Throws<ArgumentNullException>(() => SyncPushPath.Create(
+            pathKey, "p", activeKeyId, (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
+            store, null!, 0)));
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
@@ -1607,6 +1716,18 @@ return failed == 0 ? 0 : 1;
 
 static byte[] B64u(string s) => Base64Url.TryDecode(s, out var b)
     ? b : throw new FormatException($"vector value is not strict base64url: {s[..Math.Min(16, s.Length)]}…");
+
+/// <summary>
+/// True when <paramref name="act"/> throws exactly <typeparamref name="T"/>. Any other exception is
+/// allowed to escape rather than being swallowed into a `false`: a guard that throws the WRONG type
+/// is a different defect from a guard that does not throw, and collapsing the two would report the
+/// second when the first happened.
+/// </summary>
+static bool Throws<T>(Action act) where T : Exception
+{
+    try { act(); return false; }
+    catch (T) { return true; }
+}
 
 static string ToHex(JsonNode n) => Convert.ToHexString(Base64Url.TryDecode((string)n!, out var b) ? b : throw new FormatException());
 
@@ -1675,6 +1796,17 @@ sealed class RecordingAckPublisher : SeekerSvc.Sync.IEntitlementAckPublisher
     public readonly List<(string ProductId, string? OrderId)> Published = new();
     public Task PublishEntitlementAckAsync(string productId, string? orderId, CancellationToken ct = default)
     { Published.Add((productId, orderId)); return Task.CompletedTask; }
+}
+
+/// <summary>
+/// Recording <see cref="SeekerSvc.Sync.IE2pSeqStore"/> — stands in for the DPAPI pairing vault, which
+/// cannot be constructed off Windows. <see cref="Calls"/> is counted separately from the recorded
+/// values so an assertion can tell "persisted the right number" from "persisted it exactly once".
+/// </summary>
+sealed class RecordingE2pSeqStore(Action<long> onRecord) : SeekerSvc.Sync.IE2pSeqStore
+{
+    public int Calls { get; private set; }
+    public void RecordE2pSeq(long seq) { Calls++; onRecord(seq); }
 }
 
 /// <summary>Recording <see cref="SeekerSvc.Sync.ISnapshotRepublisher"/> — captures the since_seq a pull_request asked to resume from.</summary>
