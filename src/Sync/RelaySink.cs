@@ -103,6 +103,40 @@ public enum PushDisposition
 /// question — halt, back off, or keep trying — is left to the layer that owns it. <b>This is a
 /// deliberate decision, not an oversight.</b></para>
 ///
+/// <para><b>The argument FOR halting, now answered rather than merely unrecorded.</b> Both arguments
+/// above are against; the case for was stated nowhere, which left the decision looking one-sided when
+/// it is not. It runs: on a pairing that can never accept, the engine burns one seq per cycle forever
+/// and the operator's only signal is a single line that scrolls away. Measured clause by clause, the
+/// three parts are not equally true. <em>The per-cycle cost is real</em> — ten cycles on a dead
+/// pairing, through the real <see cref="SyncPushPath"/> composition, cost ten push attempts and ten
+/// burnt seqs for zero deliveries. <em>The "forever" is not a resource risk</em>: <c>Protocol.MaxSeq</c>
+/// outlasts a burn of one seq per <em>second</em> by over a hundred million years, and that arithmetic
+/// is pinned as an assertion so lowering the constant re-opens the question rather than silently
+/// invalidating this paragraph. <em>The operator clause is already answered</em> — those ten cycles
+/// produce one line, not ten, which is what the dedupe above bought.</para>
+///
+/// <para><b>And the finding that reshapes the cheapest remedy.</b> A bounded backoff was the option on
+/// record as needing no product decision. It does need one, for half its domain, and the reason is
+/// visible from <see cref="PushDisposition"/>'s own definition: <see cref="PushDisposition.PayloadDead"/>
+/// is a fact about <em>the bytes just pushed</em>, not about the pairing, while this sink is shared by
+/// <em>every</em> payload one publisher sends. A single oversized snapshot — refused by §3.1's cap,
+/// which PQ-A2-1 settled is measured on the ciphertext — puts the sink in <c>PayloadDead</c>, and the
+/// ratified snapshot retry re-sends that same snapshot every cycle, so it stays there. The next payload
+/// need not be another snapshot: it can be the <c>entitlement_ack</c>, which is small, and which §4.3.3
+/// makes the only thing that unlocks Pro. Today that ack gets through — measured, and decrypted off the
+/// wire rather than inferred from a success flag. A backoff keyed on "permanent" as one bucket would
+/// suppress it, trading a traffic defect for a paid-feature one. Under
+/// <see cref="PushDisposition.PairingDead"/> the ack fails anyway, so a bounded, self-clearing backoff
+/// <em>there</em> withholds nothing that would have succeeded.</para>
+///
+/// <para><b>So the decision, written down rather than left implicit.</b> The sink still does not halt
+/// and still does not back off, and this remains the layer that will not take that decision — but the
+/// question is no longer open in the shape it was recorded in. A backoff on <c>PairingDead</c> alone is
+/// the shape that needs no product decision; the same backoff on <c>PayloadDead</c> needs one, because
+/// it delays the Pro unlock. What is still not decidable here is the <em>window</em>: it is a function
+/// of the engine's cycle cadence, which lives in <c>EngineSyncBridge</c> and which no harness in this
+/// repo can observe. That, and not the policy's shape, is what the next local session has to supply.</para>
+///
 /// <para><b>What it does instead.</b> It stops lying and it stops repeating itself. The old
 /// <c>TooLarge</c> line asserted the envelope "will not be retried"; nothing in this repo prevented
 /// that retry, and the reproduction measured four of them in five cycles (C-DSP-2). And because every
