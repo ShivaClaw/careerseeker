@@ -248,7 +248,24 @@ $offlineProjects = @(
 # because the relay term rescued every case that tested it, and one where the boundary mutation took
 # the harness down with an unhandled exception INSTEAD of printing a FAIL, which reads as a survivor
 # to anything counting FAIL lines. 724.
-$ExpectedOfflineTotal = 724
+#
+# Twenty-one more SyncHarness assertions (256 -> 277) cover the CALL SITE rather than the rule. The
+# previous block tested `ReconcileTo` thoroughly and left the line that invokes it untested: the sink
+# was a closure inside `BuildSyncBridge`, which returns null without a DPAPI pairing vault, so
+# deleting `publisherRef.ReconcileTo(latest)` failed no test in this repo. The rule was pinned and
+# its only caller was held in place by nothing. `RelaySink.Create` takes its collaborators as
+# delegates -- push, pushedSeq, persistSeq, reconcileTo, log -- rather than returning a decision
+# record, deliberately: a pure Decide() would answer "does the engine know what a 409 means", which
+# was never the open question, and only an observable call site answers the one that was. The
+# assertions pin that a 409 reaches ReconcileTo with the RELAY's mark and not the refused seq, that a
+# 409 carrying no usable number does not call it at all (passing a 0 substitute would move the
+# counter on a number the client already refused), that no failure case persists a high-water mark,
+# that the six non-201 cases stay named distinctly, and -- composed against a real SyncPublisher --
+# that a 409 moves the actual counter so the next envelope resumes above the relay's mark. Proven by
+# mutation: ten applied, ten caught. One assertion was rewritten first: an unguarded index threw
+# under the very mutation it existed to catch, taking the harness down AFTER one FAIL line, which
+# reads as a tidy "1 caught" to a fail-counting reader while the rest of the suite never ran. 745.
+$ExpectedOfflineTotal = 745
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -561,8 +578,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 256 |',
-        '| **Total** | **724** |',
+        '| SyncHarness | 277 |',
+        '| **Total** | **745** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -576,7 +593,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **724** |',
+        '| **Total** | **745** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -590,13 +607,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 256 |'
+        '| SyncHarness | 277 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 256 |',
-        '| **Total** | **724** |',
+        '| SyncHarness | 277 |',
+        '| **Total** | **745** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -630,7 +647,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **724 passed, 0 failed**',
+        'Pinned offline verifier: **745 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
