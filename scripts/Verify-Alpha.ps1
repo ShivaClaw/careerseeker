@@ -230,7 +230,65 @@ $offlineProjects = @(
 # PullAsync, which refuses the whole page on a bad `latest`: there the number governs a cursor about
 # to advance, here it is an optional aid to a decision already made. Proven by mutation: nine applied,
 # nine caught. 704.
-$ExpectedOfflineTotal = 704
+#
+# Twenty more SyncHarness assertions (236 -> 256) make the three blocks above DO something. Each
+# gave the transport a vocabulary and nothing consumed it: §6.1 says an engine resumes its e2p
+# counter above max(persisted_seq, relay_latest_e2p_seq), and the second term was read, range-checked,
+# logged and thrown away (PQ-S6-3's second bullet). Now `SyncPublisher.ResumeSeq` is that max() as a
+# pure function -- extracted deliberately, because the composition that feeds it needs a DPAPI vault
+# and a live relay and can only ever be compile-checked, so extracting the rule is what makes §6.1
+# testable at all -- and `SyncPublisher.ReconcileTo` moves the counter when a 409 proves it wrong.
+# The load-bearing property is that ReconcileTo RAISES AND NEVER LOWERS: a relay mark below this
+# counter is not evidence the counter ran ahead, and rewinding onto seqs the phone may already have
+# accepted is refused by §6.2 permanently -- the one-sided sync death §6.1 exists to prevent. The
+# assertions also pin that a relay which did not answer falls back to the store rather than stopping
+# publishing (§6.1 makes the store the value and the relay read belt-and-suspenders), and that an
+# out-of-range seq throws rather than clamping. Proven by mutation: nine applied, seven caught first
+# pass, NINE after two real gaps were closed -- one where the floor on a corrupt store was invisible
+# because the relay term rescued every case that tested it, and one where the boundary mutation took
+# the harness down with an unhandled exception INSTEAD of printing a FAIL, which reads as a survivor
+# to anything counting FAIL lines. 724.
+#
+# Twenty-one more SyncHarness assertions (256 -> 277) cover the CALL SITE rather than the rule. The
+# previous block tested `ReconcileTo` thoroughly and left the line that invokes it untested: the sink
+# was a closure inside `BuildSyncBridge`, which returns null without a DPAPI pairing vault, so
+# deleting `publisherRef.ReconcileTo(latest)` failed no test in this repo. The rule was pinned and
+# its only caller was held in place by nothing. `RelaySink.Create` takes its collaborators as
+# delegates -- push, pushedSeq, persistSeq, reconcileTo, log -- rather than returning a decision
+# record, deliberately: a pure Decide() would answer "does the engine know what a 409 means", which
+# was never the open question, and only an observable call site answers the one that was. The
+# assertions pin that a 409 reaches ReconcileTo with the RELAY's mark and not the refused seq, that a
+# 409 carrying no usable number does not call it at all (passing a 0 substitute would move the
+# counter on a number the client already refused), that no failure case persists a high-water mark,
+# that the six non-201 cases stay named distinctly, and -- composed against a real SyncPublisher --
+# that a 409 moves the actual counter so the next envelope resumes above the relay's mark. Proven by
+# mutation: ten applied, ten caught. One assertion was rewritten first: an unguarded index threw
+# under the very mutation it existed to catch, taking the harness down AFTER one FAIL line, which
+# reads as a tidy "1 caught" to a fail-counting reader while the rest of the suite never ran. 745.
+#
+# Seventeen more SyncHarness assertions (277 -> 294) cover the WIRING rather than the rule or its
+# call site. The previous two blocks made the sink's decision testable and proved the rule is
+# applied; which collaborator each delegate was attached to stayed in `BuildSyncBridge`, which has
+# never executed in a harness or on a CI runner because it returns null without a DPAPI pairing
+# vault. Measured, not suspected: replacing `persistSeq: seq => vault.RecordE2pSeq(seq)` with
+# `persistSeq: _ => { }` built 0/0 and left this harness at 277/0, so an engine that had silently
+# stopped persisting its e2p high-water mark failed no test in this repo. `SyncPushPath.Create` now
+# ties the publisher to its sink and store and `IE2pSeqStore` names the one thing that path needs
+# from the vault -- in src/Sync, which is platform-free by design, since an interface declared next
+# to the DPAPI type would drag the composition back out of reach. This does NOT make the composition
+# executable; it shrinks the unexecuted remainder from five delegate bodies to four argument
+# identities at one call site, and those four are recorded as local-gate-only rather than counted as
+# covered. The assertions pin that a 201 persists through the CALLER's store, that the seq persisted
+# is the seq sent (read back out of the sealed envelope's own header, since `recorded is [8]` alone
+# would pass for a path persisting a counter unrelated to the envelope it emitted), that startSeq
+# reaches the counter, and that after a 409 the NEXT mark persisted is the reconciled one -- which is
+# what shows reconcile and persist share a counter rather than two. Proven by mutation: eight
+# applied, eight caught, and the eighth (removing the vault's interface) DOES NOT COMPILE, so one of
+# the four remaining argument identities is now statically enforced instead of merely conventional.
+# One helper was rewritten first: `Throws<T>` let a wrong exception type escape by design, and the
+# null-store mutation then raised a NullReferenceException that killed the harness after ZERO FAIL
+# lines -- the same false-negative family as the three blocks above, reached a fourth time. 762.
+$ExpectedOfflineTotal = 762
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -543,8 +601,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 236 |',
-        '| **Total** | **704** |',
+        '| SyncHarness | 294 |',
+        '| **Total** | **762** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -558,7 +616,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **704** |',
+        '| **Total** | **762** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -572,13 +630,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 236 |'
+        '| SyncHarness | 294 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 236 |',
-        '| **Total** | **704** |',
+        '| SyncHarness | 294 |',
+        '| **Total** | **762** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -612,7 +670,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **704 passed, 0 failed**',
+        'Pinned offline verifier: **762 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
