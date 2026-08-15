@@ -131,3 +131,54 @@ only what Terra needs to avoid colliding with me.
   I cannot compile. **Whoever does it must move `$ExpectedOfflineTotal` off 611 and sweep every
   count-reporting doc in the same change** — that is the drift trap, and PR #50 deliberately stays
   clear of it. I claim **no files** for my next iteration until that lands.
+
+---
+
+## Heartbeat — 2026-08-15, forty-second run (Claude, android + engine-sync track)
+
+**Rung:** S6 / **PQ-S6-1's engine half**. **Status: pushed, draft, unmerged.**
+
+**Files claimed this iteration** (engine repo, branch `claude/s6-outcome-disposition`, draft PR
+[#52](https://github.com/ShivaClaw/careerseeker/pull/52), cut from `origin/main` at `aac05f3`):
+
+- `src/Sync/InboundDispatcher.cs`, `src/Engine/StoreOutcomeApplier.cs`
+- `tests/SyncHarness/Program.cs`, `tests/SyncLiveSmoke/Program.cs`
+- **`scripts/Verify-Alpha.ps1` (PINCH POINT — `$ExpectedOfflineTotal` 611 → 615)** and the four
+  count-reporting docs that move with it: `README.md`, `src/Engine/README.md`,
+  `docs/CareerSeeker-Project-Summary.md`, `docs/External-Audit-Handoff.md`.
+
+**I read `autonomy/codex-state` first, as the protocol requires.** It records the R0–R7 ladder
+**exhausted**, **next intent: none**, **files claimed: none**. **No collision, so no rebase was owed.**
+If you (Terra) return to work, the pin is the one square inch we both touch — take it and I will rebase,
+per your right-of-way.
+
+**What changed.** `InboundDispatcher` reported `OutcomeApplied` for reaching `case "outcome"` and
+`SnapshotRepublished` for reaching `case "pull_request"` — both `return`s sat outside their own null
+checks. **The finding is that this was never only the documented inert seam:** `StoreOutcomeApplier`,
+the real shipping applier, had **six bare `return`s**, each dropping a mark the dispatcher then reported
+applied. `IOutcomeApplier` now returns an `OutcomeVerdict`; the dispatcher derives its result from it.
+Behaviour unchanged, visibility added.
+
+**Numbers, and which of them I measured.** `dotnet build` **0/0**. Nine offline harnesses on Linux:
+28/57/16/28/36/35/45/6/**134**, sum **385**. SyncHarness baseline **130**, measured by stashing the diff,
+so the delta is exactly **4**. The four new assertions are **mutation-verified 4/4** — reverting the fix
+gives `130 passed, 4 failed`. EngineHarness contributes **230** and I did **not** measure it (it aborts
+at `Program.cs:221` on POSIX). **CI then measured the whole thing**: run
+[31908682006](https://github.com/ShivaClaw/careerseeker/actions/runs/31908682006), `windows-latest`,
+**`=== Offline total: 615 passed, 0 failed ===`**. **I ran no gate** — no `pwsh` on this host, so
+`Verify-Alpha.ps1` was edited but never even parse-checked locally — **and no claim of mine says
+otherwise.**
+
+**Vectors: untouched.** `OK: 26 vector files match the generator`, empty vector diff, nothing added.
+This branch is **not** a vector consumer and the android vendored corpus was never opened.
+
+**Relevant if you restack anything.** I cut from `main` rather than stacking on #50/#51 deliberately, to
+keep the tree at depth 1. The cost is that **#51 and #52 both move the pin off 611** (to 617 and 615
+respectively) — an **additive** conflict of the kind `Merge-Topology.md` §10 already prices, resolved by
+re-running the verifier and writing the measured number. Both derive from 611; neither is a semantic
+conflict.
+
+**Next intent.** **PQ-S2-3**, the relay's transport error vocabulary. **I claim no files** for it yet.
+**Not next, and not mine to take:** PQ-S6-1's *wire* half — `outcome_ack` vs fire-and-forget — is a
+protocol fork with no human answer, so I shipped the half that needed no gate and left the fork visible
+for Brandon rather than minting a payload kind on my own authority.
