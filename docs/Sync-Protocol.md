@@ -921,7 +921,12 @@ lifetime, never from comparing timestamps.
 
 ### 6.4 The transport cursor
 
-**Decided 2026-08-11 (PQ-S4-3).** §6.2 governs `highest_accepted`: the authenticated,
+**Decided 2026-08-11 (PQ-S4-3). Amended 2026-08-13 (PQ-CUR-1)** — the carve-out below was
+first drawn for elements that fail the §3 parse, and a parseable element whose AEAD tag
+does not verify fell through the gap between the two rules. See "Parsing is not
+authenticating", below.
+
+§6.2 governs `highest_accepted`: the authenticated,
 persisted mark that drives replay rejection. A pulling receiver keeps a *second* number —
 the **transport cursor**, the `since` it sends on its next pull — and this document has
 never said anything about it. The two are deliberately different, and the gap between them
@@ -933,15 +938,35 @@ refuses, and pulls again, and §6.2 already forbids letting one unreadable envel
 the direction.
 
 - The cursor MUST NOT move backwards.
-- The cursor MUST advance only to a `seq` **recovered from the sealed bytes** (§4.1) —
-  except under the bound below. That number is authenticated by the AEAD tag; every other
-  per-element number in the body is a claim, not a fact (§2.1).
-- When an element fails the §3 parse there is no authenticated `seq` to use. The receiver
-  MAY advance the cursor using the element's claimed top-level `seq`, but **MUST NOT
-  advance it beyond the page's `latest`** (§2.1).
+- The cursor MUST advance **without a bound** only to a `seq` **recovered from the sealed
+  bytes** (§4.1) — that is, only for an element the receiver **accepted**. That number is
+  authenticated by the AEAD tag; every other per-element number in the body is a claim, not
+  a fact (§2.1).
+- For **every other element** — one that fails the §3 parse, *and* one that parses and is
+  then rejected for any reason, **the AEAD tag included** — no authenticated `seq` exists.
+  The receiver MAY advance the cursor using the `seq` the element *claims* (the element's
+  top-level `seq` when the parse failed; the parsed header's `seq` when it did not), but
+  **MUST NOT advance it beyond the page's `latest`** (§2.1).
+
+**Parsing is not authenticating, and that is where the line falls.** A `seq` is recovered
+from the sealed bytes only when the **AEAD tag verifies** — the `seq` lives in the AAD
+(§4.1), and the tag is what turns it from a claim into a fact. An element can pass the §3
+parse completely — well-formed JSON, exactly the known fields, a valid pairing id, a typed
+`seq`, a 12-byte nonce, a base64url ciphertext — and still be bytes the relay invented. It
+parses. Its header `seq` is authenticated by nothing at all.
+
+So the boundary is **accepted vs. not accepted**, not *parsed vs. not parsed*. A failed
+parse and a failed tag are the same case for this rule, and a receiver MUST treat them
+identically: both may advance the cursor, and both are bounded by `latest`. Drawing the
+carve-out at the parse instead left a parseable-but-unopenable element covered by neither
+rule — no authenticated `seq`, so the MUST forbade advancing; not a parse failure, so the
+carve-out did not reach it — which read literally is the permanent stall §6.2 forbids in as
+many words, reachable by serving one crafted element. That was a defect in this section,
+not in the receivers, and this is its correction.
 
 **Why bounded, rather than free or refused.** The relay controls this body (§1: blind, but
-not trusted). Left free, one unparseable element carrying `"seq": 1000000` walks the cursor
+not trusted). Left free, one element with no authenticated `seq` carrying `"seq": 1000000`
+walks the cursor
 past every envelope between the receiver's position and that value — and since the cursor
 never moves backwards, those envelopes are never requested again. That is **history
 truncation performed without decrypting anything**, by a party that cannot read a byte of
@@ -961,7 +986,7 @@ it stalls.**
 Bounding by `latest` specifically — rather than by some new constant — is what denies the
 relay a *second*, independent lever. `latest` is already the number that decides "am I
 caught up" (§2.1) and already the one §6.1 reconciles a restarted counter against. Capping
-the unauthenticated path there means a malformed element gains the relay no reach it did
+the unauthenticated path there means an unauthenticated element gains the relay no reach it did
 not already have through a field this document **requires** it to publish, and an honest
 relay never notices the rule at all: its `latest` covers every row it serves, so the bound
 is a no-op on every conforming page.
@@ -970,11 +995,11 @@ is a no-op on every conforming page.
 whole value.** It does **not** stop a hostile relay from skipping a receiver past envelopes
 the relay *currently holds*: `latest` is its own claim, and a relay willing to lie about an
 element's `seq` can serve a page whose `latest` already covers what it wants withheld. It
-did not need a malformed element for that — it could simply not serve those rows. What the
+did not need an unauthenticated element for that — it could simply not serve those rows. What the
 bound stops is the part that outlives the attack: an **unbounded** claim pushes the cursor
 into the *future*, past sequence numbers that have not been issued yet, so every envelope
 the engine publishes from now until that number is discarded on arrival by a receiver that
-believes it is ahead of them. One malformed element becomes permanent, silent, forward-going
+believes it is ahead of them. One unauthenticated element becomes permanent, silent, forward-going
 data loss against an engine and a relay that are both behaving. The bound confines the
 damage to envelopes that exist at the moment of the attack, which is the same set the relay
 could already withhold, and leaves the stream correct for everything issued afterwards.
