@@ -9,6 +9,7 @@
 // was always the plan ("when the real SyncPublisher lands in P1, this harness points at
 // it instead").
 
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -130,6 +131,65 @@ try
 catch (CryptographicException) { mitmRejected = true; }
 Check("pairing-mitm-keyswap: swapped phone_pub cannot decrypt the completion", mitmRejected,
     "a relay that substitutes keys must break the handshake, not hijack it");
+
+// ---------------------------------------------------------------- confirm code: the two failure modes
+//
+// The confirm code is the one derived value a human reads off two screens and compares, so an
+// implementation that renders it wrong is a field bug that no decrypt failure reports. Two
+// plausible slips reproduce `pairing-basic` (digest 0x5fd509b6) EXACTLY: reducing the digest as
+// a SIGNED int32, and rendering without the six-digit zero pad. `pairing-high-bit-confirm`
+// (digest 0x9010f572 -> 030514) exists to separate all three renderings, and this section is
+// what makes the engine PROVE the property rather than merely ship the vector.
+//
+// The loop is deliberately generic: it re-derives from each vector's OWN secret and scalars, so
+// a confirm code added to the corpus later cannot arrive unchecked. generate.mjs audits the same
+// property, but that runs in the relay CI job -- this runs in the offline gate.
+
+Console.WriteLine("\n[ pairing: every published confirm re-derives, and both failure modes are pinned ]");
+
+var confirmVectors = pairingVectors
+    .Where(v => (bool)v["valid"]! && v["expected"]?["confirm"] is not null)
+    .ToList();
+
+Check("the corpus publishes more than one confirm code",
+    confirmVectors.Count > 1,
+    $"one confirm cannot discriminate a signed reduction from an unsigned one; found {confirmVectors.Count}");
+
+var confirmFacts = new List<(string Name, string Published, uint Digest)>();
+foreach (var v in confirmVectors)
+{
+    var vName = (string)v["name"]!;
+    var vSecret = B64u((string)v["secret_b64u"]!);
+    using var vEngineKey = ImportEcdh((string)v["engine"]!["d_hex"]!, (string)v["engine"]!["pub_b64u"]!);
+    var vIkm = PairingCrypto.ComputeSharedSecret(vEngineKey, B64u((string)v["phone"]!["pub_b64u"]!));
+    var vPublished = (string)v["expected"]!["confirm"]!;
+
+    var vDerived = PairingCrypto.Derive(new[] { vIkm }, vSecret).ConfirmCode;
+    Check($"{vName}: confirm re-derives from that vector's own secret and scalars",
+        vDerived == vPublished, $"derived {vDerived}, vector {vPublished}");
+
+    // The raw 4-byte confirm digest, recomputed here only to build the counterfactuals below.
+    // The assertion above is what tests the shipping path; this is the witness for what the
+    // corpus can still distinguish, measured rather than quoted from the generator.
+    confirmFacts.Add((vName, vPublished, BinaryPrimitives.ReadUInt32BigEndian(
+        HKDF.DeriveKey(HashAlgorithmName.SHA256, vIkm, 4, vSecret, Encoding.ASCII.GetBytes(Protocol.InfoConfirm)))));
+}
+
+Check("a SIGNED int32 reduction is separable: some published digest exceeds 0x7fffffff",
+    confirmFacts.Any(f => f.Digest > int.MaxValue),
+    "without a high-bit digest every vector passes under a signed reduction");
+Check("a DROPPED zero-pad is separable: some published confirm has a leading zero",
+    confirmFacts.Any(f => f.Published.StartsWith('0')),
+    "without a leading-zero code every vector passes with the pad removed");
+
+// Reported, not thrown: if the witness is ever removed from the corpus the two checks above
+// already say so, and this one must still render a verdict rather than abort the harness.
+var witness = confirmFacts.FirstOrDefault(f => f.Digest > int.MaxValue);
+var signedRender = witness.Published is null ? null : ((int)witness.Digest % 1_000_000).ToString();
+var unpaddedRender = witness.Published is null ? null : (witness.Digest % 1_000_000u).ToString();
+Check($"{witness.Name ?? "(no high-bit vector)"}: both wrong renderings disagree with the vector",
+    witness.Published is not null && signedRender != witness.Published && unpaddedRender != witness.Published,
+    $"published {witness.Published ?? "(none)"}, signed {signedRender ?? "(none)"}, unpadded {unpaddedRender ?? "(none)"}");
 
 // ---------------------------------------------------------------- valid envelope vectors
 
