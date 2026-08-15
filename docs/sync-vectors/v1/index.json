@@ -130,6 +130,12 @@
       "expect_error": "decrypt_failed"
     },
     {
+      "name": "pairing-high-bit-confirm",
+      "type": "pairing",
+      "valid": true,
+      "expect_error": null
+    },
+    {
       "name": "entitlement-valid",
       "type": "entitlement",
       "valid": true,

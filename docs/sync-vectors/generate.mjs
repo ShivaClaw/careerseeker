@@ -66,6 +66,27 @@ const REVOKED_D = Buffer.from('0badc0de0badc0de0badc0de0badc0de0badc0de0badc0de0
 const PAIR_SECRET = Buffer.from('5ec1e7a2b3c4d5e6f708192a3b4c5d6e7f808192a3b4c5d6e7f8091a2b3c4d5e', 'hex');
 
 /**
+ * Second one-time secret, for `pairing-high-bit-confirm`. It exists to make two specific
+ * implementation errors impossible to ship green, neither of which `PAIR_SECRET` can catch:
+ *
+ *   1. Reducing the confirm digest as a SIGNED 32-bit integer instead of an unsigned one.
+ *   2. Dropping the zero-pad that keeps the rendered code six characters.
+ *
+ * `PAIR_SECRET` derives confirm digest 0x5fd509b6 -> code "797174": top byte 0x5f (high bit
+ * CLEAR) and six significant digits. A signed reduction and a missing pad both reproduce
+ * "797174" exactly, so that vector — the only confirm code in the corpus before this one —
+ * is blind to both. This secret derives 0x9010f572 -> code "030514": the high bit IS set
+ * (signed reduction renders "-936782") and the leading digit IS zero (an unpadded render
+ * gives "30514"). One vector, both errors caught, on both implementations.
+ *
+ * Found by deterministic search so it is reproducible rather than magic:
+ * the first i where SHA-256("careerseeker/v1/vector-search/high-bit-confirm/" + i) yields a
+ * confirm digest with the high bit set AND a reduction below 100000 is i = 31. The two
+ * properties are re-asserted at generation time below, so they cannot silently lapse.
+ */
+const PAIR_SECRET_HIGH_BIT = Buffer.from('8e422b117177961db53a4c054c9db55c547d60433fff191871fe61482cf54435', 'hex');
+
+/**
  * Fixed test RSA-2048 keypair -- the Play "License Key" analog for the entitlement vectors.
  * Google Play signs each purchase's original_json with RSASSA-PKCS1-v1_5 over SHA-1; the
  * public half is what Play Console publishes as "Your License Key for This Application"
@@ -269,6 +290,18 @@ const PAIR_AAD = `careerseeker/v1/pair|${PAIRING}|${SUITE}|${b64u(phone.pub)}`;
 const PAIR_NONCE = testNonce('pairing-completion');
 const PAIR_PAYLOAD = Buffer.from(JSON.stringify({ device_sig_pub: b64u(device.pub), ts: TS }), 'utf8');
 const PAIR_CIPHERTEXT = seal(K_P2E_DERIVED, PAIR_NONCE, PAIR_AAD, PAIR_PAYLOAD);
+
+// The high-bit confirm derivation: identical ECDH inputs, different one-time secret, so the
+// only thing that changes is the salt -- and therefore every salt-derived value.
+const HB_K_E2P = hk('careerseeker/v1/e2p', 32, IKM, PAIR_SECRET_HIGH_BIT);
+const HB_K_P2E = hk('careerseeker/v1/p2e', 32, IKM, PAIR_SECRET_HIGH_BIT);
+const HB_RELAY_TOKEN = b64u(hk('careerseeker/v1/relay-token', 32, IKM, PAIR_SECRET_HIGH_BIT));
+const HB_CONFIRM = String(hk('careerseeker/v1/confirm', 4, IKM, PAIR_SECRET_HIGH_BIT).readUInt32BE(0) % 1_000_000).padStart(6, '0');
+const HB_PROVISIONAL_TOKEN = b64u(Buffer.from(
+  hkdfSync('sha256', PAIR_SECRET_HIGH_BIT, Buffer.from('careerseeker/v1/bootstrap', 'ascii'), 'careerseeker/v1/relay-token', 32),
+));
+const HB_PAIR_NONCE = testNonce('pairing-high-bit-confirm');
+const HB_PAIR_CIPHERTEXT = seal(HB_K_P2E, HB_PAIR_NONCE, PAIR_AAD, PAIR_PAYLOAD);
 
 // ---------------------------------------------------------------- envelope vectors
 
@@ -556,10 +589,92 @@ const pairingVectors = [
       expect_error: 'decrypt_failed',
     };
   })(),
+  {
+    type: 'pairing',
+    name: 'pairing-high-bit-confirm',
+    valid: true,
+    notes: 'Same section-5.2 derivation as pairing-basic with a different one-time secret, chosen '
+         + 'so the confirm digest 0x9010f572 has its HIGH BIT SET and reduces to 30514 -- i.e. the '
+         + 'code is "030514", with a leading zero. This vector exists to separate three '
+         + 'implementations that pairing-basic cannot tell apart, because its digest 0x5fd509b6 has '
+         + 'the high bit clear and six significant digits. An implementation that reduces the digest '
+         + 'as a SIGNED int32 renders "-936782" here; one that drops the six-digit zero-pad renders '
+         + '"30514"; only the conforming unsigned, zero-padded reduction renders "030514". The '
+         + 'confirm code is what a human compares across two screens, so a sign or padding error is '
+         + 'user-visible and this is the vector that catches it.',
+    suite: SUITE,
+    secret_b64u: b64u(PAIR_SECRET_HIGH_BIT),
+    engine: { d_hex: ENGINE_D.toString('hex'), pub_b64u: b64u(engine.pub) },
+    phone: { d_hex: PHONE_D.toString('hex'), pub_b64u: b64u(phone.pub) },
+    device_sig: { d_hex: DEVICE_D.toString('hex'), pub_b64u: b64u(device.pub) },
+    expected: {
+      ss_hex: SS.toString('hex'),
+      k_e2p_hex: HB_K_E2P.toString('hex'),
+      k_p2e_hex: HB_K_P2E.toString('hex'),
+      relay_token_b64u: HB_RELAY_TOKEN,
+      provisional_token_b64u: HB_PROVISIONAL_TOKEN,
+      confirm: HB_CONFIRM,
+    },
+    completion: {
+      aad: PAIR_AAD,
+      nonce_b64u: b64u(HB_PAIR_NONCE),
+      payload_json: JSON.parse(PAIR_PAYLOAD.toString('utf8')),
+      ciphertext_b64u: b64u(HB_PAIR_CIPHERTEXT),
+    },
+    expect_error: null,
+  },
 ];
 
-// Sanity: verify the valid completion opens, so the suite can never ship self-inconsistent.
+// Sanity: verify the valid completions open, so the suite can never ship self-inconsistent.
 open(K_P2E_DERIVED, PAIR_NONCE, PAIR_AAD, PAIR_CIPHERTEXT);
+open(HB_K_P2E, HB_PAIR_NONCE, PAIR_AAD, HB_PAIR_CIPHERTEXT);
+
+/**
+ * Confirm-code corpus audit -- a property of the SUITE, not of any one vector.
+ *
+ * Recomputed from each vector's own published fields (its secret and its two scalars), not
+ * from the constants above, so this re-derives rather than restates. It enforces three
+ * things, and the generator fails if any lapses:
+ *
+ *   a. every published confirm equals the UNSIGNED big-endian reduction, zero-padded to 6;
+ *   b. at least one confirm digest has the high bit set  -> a signed reduction is detectable;
+ *   c. at least one confirm renders with a leading zero  -> a dropped zero-pad is detectable.
+ *
+ * (b) and (c) are the reason `pairing-high-bit-confirm` exists. Deleting that vector, or
+ * changing its secret to one whose digest happens to clear the high bit, breaks generation
+ * here rather than silently returning the corpus to a state where both errors ship green.
+ */
+const confirmAudit = pairingVectors
+  .filter((v) => v.expected && v.expected.confirm)
+  .map((v) => {
+    const eng = ecdhKey(Buffer.from(v.engine.d_hex, 'hex'));
+    const ph = ecdhKey(Buffer.from(v.phone.d_hex, 'hex'));
+    const ikm = Buffer.concat([eng.ecdh.computeSecret(ph.pub)]);
+    const digest = Buffer.from(hkdfSync('sha256', ikm, unb64u(v.secret_b64u), 'careerseeker/v1/confirm', 4));
+    return { name: v.name, raw: digest.readUInt32BE(0), confirm: v.expected.confirm };
+  });
+
+if (confirmAudit.length === 0) {
+  throw new Error('confirm audit: no pairing vector publishes a confirm code.');
+}
+for (const c of confirmAudit) {
+  const unsigned = String(c.raw % 1_000_000).padStart(6, '0');
+  if (c.confirm !== unsigned) {
+    throw new Error(`confirm audit: ${c.name} publishes "${c.confirm}" but the unsigned reduction is "${unsigned}".`);
+  }
+}
+if (!confirmAudit.some((c) => c.raw >= 0x8000_0000)) {
+  throw new Error(
+    'confirm audit: no vector\'s confirm digest has the high bit set, so a SIGNED int32 reduction '
+    + 'would pass the whole suite. Add or restore a vector whose digest exceeds 0x7fffffff.',
+  );
+}
+if (!confirmAudit.some((c) => c.confirm.startsWith('0'))) {
+  throw new Error(
+    'confirm audit: no vector\'s confirm code has a leading zero, so dropping the six-digit '
+    + 'zero-pad would pass the whole suite. Add or restore a vector whose reduction is < 100000.',
+  );
+}
 
 // ---------------------------------------------------------------- entitlement vectors (P4)
 //

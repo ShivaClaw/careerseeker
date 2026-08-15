@@ -322,6 +322,17 @@ confirm      = BE_uint32( HKDF-SHA256(ikm, salt, info="careerseeker/v1/confirm",
                mod 1_000_000, rendered as 6 digits, zero-padded
 ```
 
+`BE_uint32` is **unsigned**, and the six-digit rendering is **zero-padded**. Both halves of that
+sentence are load-bearing and both are user-visible: a signed reduction renders `-936782` where
+six digits belong, and a missing pad renders five characters — on the screen a human is comparing
+against the phone. Neither is a hypothetical. Conformance is pinned by
+`docs/sync-vectors/v1/pairing-high-bit-confirm.json`, whose confirm digest `0x9010f572` has the
+high bit set and reduces to `030514`: a signed reduction fails it, a dropped zero-pad fails it, and
+the conforming derivation passes. `pairing-basic` cannot make that distinction — its digest
+`0x5fd509b6` reduces to `797174`, which both errors reproduce exactly — so the two pairing vectors
+are not redundant and neither may be dropped. `generate.mjs` re-asserts both properties over the
+whole corpus at generation time and fails if either lapses.
+
 `ikm` is **always the concatenation function over the suite's shared secrets**, even while
 there is only one. Deriving from the raw ECDH output directly would make the hybrid
 migration a breaking change for every paired device; deriving through `concat` makes it a
