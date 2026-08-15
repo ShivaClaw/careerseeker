@@ -301,8 +301,8 @@ sealed class MemEntitlementStore : IEntitlementStateStore
 sealed class LiveOutcomeApplier : IOutcomeApplier
 {
     public readonly List<string> Bodies = new();
-    public Task ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default)
-    { Bodies.Add(outcomeBodyJson); return Task.CompletedTask; }
+    public Task<OutcomeVerdict> ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default)
+    { Bodies.Add(outcomeBodyJson); return Task.FromResult(OutcomeVerdict.Ok); }
 }
 
 /// <summary>Re-publishes a fresh snapshot through the shipping SyncPublisher when a pull_request arrives.</summary>
