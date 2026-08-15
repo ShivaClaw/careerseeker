@@ -631,7 +631,31 @@ Console.WriteLine("\n[ inbound dispatcher routes each p2e kind (P4 §2.4) ]");
         .GetAwaiter().GetResult();
     Check("dispatch: signed outcome -> OutcomeApplied and handed to the §2.5 applier",
         rOutcome.Outcome == InboundOutcome.OutcomeApplied && outcomeApplier.Applied.Count == 1
-        && outcomeApplier.Applied[0].Body.Contains("interview") && outcomeApplier.Applied[0].Fingerprint == fingerprint);
+        && outcomeApplier.Applied[0].Body.Contains("interview") && outcomeApplier.Applied[0].Fingerprint == fingerprint
+        && rOutcome.OutcomeReason == OutcomeReject.None);
+
+    // PQ-S6-1: the two ways an outcome can be dropped must both be visible to the caller. Before this,
+    // BOTH of the next two cases returned OutcomeApplied — a mark the engine never stored, reported stored.
+    var rNoApplier = MakeDispatcher(null, null).DispatchAsync(
+        SealP2e(1, new { kind = "outcome", body = new { app_id = "app_1", outcome = "interview", at = "2026-07-24T00:00:00Z" } }, sign: true))
+        .GetAwaiter().GetResult();
+    Check("dispatch: outcome with a null applier -> OutcomeNotApplied(NoApplier), never OutcomeApplied",
+        rNoApplier.Outcome == InboundOutcome.OutcomeNotApplied && rNoApplier.OutcomeReason == OutcomeReject.NoApplier);
+
+    var refusing = new RecordingOutcomeApplier(OutcomeVerdict.Reject(OutcomeReject.NotPhoneSettable));
+    var rRefused = MakeDispatcher(refusing, null).DispatchAsync(
+        SealP2e(1, new { kind = "outcome", body = new { app_id = "app_1", outcome = "no_reply", at = "2026-07-24T00:00:00Z" } }, sign: true))
+        .GetAwaiter().GetResult();
+    Check("dispatch: an applier that refuses the body -> OutcomeNotApplied carrying the applier's reason",
+        rRefused.Outcome == InboundOutcome.OutcomeNotApplied && rRefused.OutcomeReason == OutcomeReject.NotPhoneSettable
+        && refusing.Applied.Count == 1);
+
+    // A refusal is NOT a wire rejection: the envelope decrypted and its device sig verified, and the
+    // applier then declined the body. An auditor reading OutcomeNotApplied must be able to tell those
+    // apart, or a hostile-client refusal reads as a transport fault.
+    Check("dispatch: a refused outcome carries no ReceiveError — the wire accepted it, the applier did not",
+        rRefused.Outcome == InboundOutcome.OutcomeNotApplied && rRefused.ReceiveError is null
+        && rNoApplier.ReceiveError is null);
 
     // pull_request (not state-changing, so unsigned) -> re-publish snapshot from since_seq
     var republisher = new RecordingRepublisher();
@@ -640,6 +664,14 @@ Console.WriteLine("\n[ inbound dispatcher routes each p2e kind (P4 §2.4) ]");
         .GetAwaiter().GetResult();
     Check("dispatch: pull_request -> SnapshotRepublished(since_seq=7)",
         rPull.Outcome == InboundOutcome.SnapshotRepublished && republisher.LastSince == 7L);
+
+    // The same over-reporting shape on a second kind (PQ-S6-1 extension). Milder — an unanswered request
+    // loses nothing, since PullPolicy's latch re-asks — but it was equally indistinguishable.
+    var rPullNone = MakeDispatcher(null, null).DispatchAsync(
+        SealP2e(1, new { kind = "pull_request", body = new { since_seq = 7L } }, sign: false))
+        .GetAwaiter().GetResult();
+    Check("dispatch: pull_request with no republisher -> SnapshotNotRepublished, not a claimed republish",
+        rPullNone.Outcome == InboundOutcome.SnapshotNotRepublished);
 
     // doc_edit (signed) -> recognised but unimplemented; the apply path is NEVER touched
     var rDoc = MakeDispatcher(null, null)
@@ -742,12 +774,17 @@ sealed class FakeEntitlementStore : SeekerSvc.Sync.IEntitlementStateStore
         => Audits.Add((productId, orderId, deviceFingerprint, acknowledged));
 }
 
-/// <summary>Recording <see cref="SeekerSvc.Sync.IOutcomeApplier"/> — the §2.5 seam stubbed for the §2.4 routing tests.</summary>
-sealed class RecordingOutcomeApplier : SeekerSvc.Sync.IOutcomeApplier
+/// <summary>
+/// Recording <see cref="SeekerSvc.Sync.IOutcomeApplier"/> — the §2.5 seam stubbed for the §2.4 routing
+/// tests. The verdict is settable so the routing tests can drive the refusal branch (PQ-S6-1) without
+/// pulling the store-backed applier (and all of SeekerSvc.Engine) into this harness.
+/// </summary>
+sealed class RecordingOutcomeApplier(SeekerSvc.Sync.OutcomeVerdict? verdict = null) : SeekerSvc.Sync.IOutcomeApplier
 {
+    private readonly SeekerSvc.Sync.OutcomeVerdict _verdict = verdict ?? SeekerSvc.Sync.OutcomeVerdict.Ok;
     public readonly List<(string Body, string Fingerprint)> Applied = new();
-    public Task ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default)
-    { Applied.Add((outcomeBodyJson, deviceFingerprint)); return Task.CompletedTask; }
+    public Task<SeekerSvc.Sync.OutcomeVerdict> ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default)
+    { Applied.Add((outcomeBodyJson, deviceFingerprint)); return Task.FromResult(_verdict); }
 }
 
 /// <summary>Recording <see cref="SeekerSvc.Sync.ISnapshotRepublisher"/> — captures the since_seq a pull_request asked to resume from.</summary>
