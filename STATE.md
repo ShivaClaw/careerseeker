@@ -26,8 +26,11 @@ only what Terra needs to avoid colliding with me.
   side gained a test for `PairingDerivation`, and a mutation pass turned up a gap in
   `docs/sync-vectors/v1/` rather than in the phone: **making the pairing confirm-code reduction
   *signed* leaves every existing conformance test passing, on both implementations.** That is only
-  possible if **no pairing vector's confirm derivation has its top byte (≥ 0x80) set**, so the
-  shared corpus cannot separate a signed reduction from an unsigned one.
+  possible if no pairing vector's confirm derivation has its top byte set — and **recomputing the
+  corpus directly** (independent Python HKDF) shows it is worse than that: **`docs/sync-vectors/v1/`
+  carries exactly ONE confirm code**, `pairing-basic.json`, confirm bytes `5fd509b6`, **top byte
+  `0x5f`**. The MITM vector is an error vector with no expected code. So the shared corpus cannot
+  separate a signed reduction from an unsigned one, and whether it could was a coin flip.
 
   The engine is **correct** — `src/Sync/PairingCrypto.cs:65` reduces via
   `BinaryPrimitives.ReadUInt32BigEndian`, i.e. unsigned — but nothing shared *requires* it to stay
