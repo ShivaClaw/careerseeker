@@ -53,6 +53,25 @@ public sealed class SyncPublisher
     /// <summary>The highest e2p sequence number this publisher has assigned (0 before the first push).</summary>
     public long HighestSeq => Interlocked.Read(ref _seq);
 
+    /// <summary>
+    /// §6.1's resume rule for one direction: resume above <c>max(persisted, relay latest)</c>.
+    /// </summary>
+    /// <param name="persistedSeq">The vault's high-water mark for this direction.</param>
+    /// <param name="relayLatest">
+    /// The relay's <c>latest</c> for this direction, or null when the relay could not be consulted.
+    /// Null is <em>not</em> zero: an unreachable relay must contribute nothing to the maximum, while
+    /// a relay that answers 0 genuinely holds nothing. Collapsing the two would let a startup with
+    /// no network reset the counter and have every envelope — including the recovery snapshot —
+    /// refused as a replay, which is the catastrophe §6.1 is written to prevent.
+    /// </param>
+    /// <remarks>
+    /// A relay that is <em>behind</em> the vault does not drag the counter back down: the relay
+    /// purges on a TTL (§2.4), so "the relay holds less than we sent" is the ordinary steady state,
+    /// not evidence that our mark is wrong.
+    /// </remarks>
+    public static long ResumeFrom(long persistedSeq, long? relayLatest)
+        => relayLatest is { } latest && latest > persistedSeq ? latest : persistedSeq;
+
     /// <summary>Full dashboard state, sent on engine start and on pairing.</summary>
     public Task<bool> PublishSnapshotAsync(
         Counters counters, IReadOnlyList<AppSummary> applications, IReadOnlyList<JobSummary> jobs,

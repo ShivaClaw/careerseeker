@@ -165,6 +165,45 @@ describe('push / pull envelope flow', () => {
     expect(body.envelopes).toHaveLength(1);
   });
 
+  // The engine's §6.1 startup reconcile depends on this (PQ-S6-3). It asks the relay for its e2p
+  // high-water mark, and passes `since = the vault's mark` rather than 0 so it does not drag the
+  // whole retained direction across the wire just to read one number. That is only sound because
+  // `latest` is MAX(seq) for the direction, computed independently of `since` — which was true of
+  // the implementation but pinned by nothing, so the engine was relying on a property a refactor
+  // could have removed silently.
+  it('latest is the direction high-water mark, independent of since', async () => {
+    const pairing = await bootstrap('tok');
+    for (const s of [1, 2, 3]) await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', s) });
+
+    const at = async (since: number) =>
+      await (await call(`/v1/${pairing}/pull?dir=e2p&since=${since}`, { headers: bearer('tok') }))
+        .json() as { envelopes: unknown[]; latest: number };
+
+    // since=0 drags all three; since=3 drags none; both must report the same latest.
+    const all = await at(0);
+    const none = await at(3);
+    expect(all.envelopes).toHaveLength(3);
+    expect(none.envelopes).toHaveLength(0);
+    expect(all.latest).toBe(3);
+    expect(none.latest).toBe(3);
+
+    // And a since past the end still reports the real mark rather than clamping to it.
+    expect((await at(99)).latest).toBe(3);
+  });
+
+  // §2.2's 409 body is what the engine now reads to reconcile, so pin the number itself and not
+  // merely the status. Per direction, not per pairing.
+  it('the 409 replay body carries the direction high-water mark', async () => {
+    const pairing = await bootstrap('tok');
+    for (const s of [1, 2, 3]) await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', s) });
+    await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('p2e', 90) });
+
+    const replay = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 2) });
+    expect(replay.status).toBe(409);
+    // e2p's mark, not p2e's 90 — the value the engine resumes above.
+    expect(await replay.json()).toEqual({ error: 'replay_rejected', latest: 3 });
+  });
+
   it('directions are independent queues', async () => {
     const pairing = await bootstrap('tok');
     await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1) });
