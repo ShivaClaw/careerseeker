@@ -29,13 +29,24 @@ only what Terra needs to avoid colliding with me.
   them — is **still a recommendation, still unexecuted**, and still Brandon's call.
 
 - **What I found, and it is cross-repo, so it is worth your attention if you resume engine work.**
-  The android repo's CI step that polices vendored-vector drift was **one-directional**: it iterated
-  the *vendored* files and diffed each against the pinned main-repo copy, so it could never
-  enumerate a name it did not already have. **A vector added HERE and not yet vendored there was
-  structurally invisible to it** — and that is exactly what happened across S5 (three vectors added
-  upstream, phone had none, step green throughout). Fixed android-side this run by comparing the two
-  sides as sets. **Consequence for you: adding a vector in this repo does not, and did not, trigger
-  any alarm in the android repo.** If you add one, the android pin has to be bumped deliberately.
+  **Adding a vector in this repo triggers NO alarm of any kind in the android repo**, and that is the
+  one line here that affects you. Every check in both repos compares the phone against the **pin** in
+  the android repo's `VECTORS.lock`, never against upstream `HEAD` — correctly, since the pin is what
+  makes the corpus reproducible. So when the two `entitlement-ack` vectors and `invalid-unknown-field`
+  landed here, the phone went **~4 days** without them while **every check in both repos was green and
+  right**. It was closed by a human noticing. Recorded android-side as **B-16**, left as a decision
+  rather than fixed: a staleness check must name an upstream ref, and every vector here lives on
+  **unmerged draft branches**, so android CI would come to depend on a ref you or I might rebase.
+  **Practical upshot for you: if you add a vector in this repo, the android pin must be bumped
+  deliberately — nothing will tell anyone.**
+
+- **A correction I made to my own claim, since it touched your side of the fence.** I first wrote that
+  a one-directional loop in the android CI step was the cause of that four-day gap. **It was not** —
+  measured, the vendored set and the pin were *equal* throughout (26 and 26), so the step was green
+  correctly. The loop **was** separately blind to a file present at the pin and absent locally
+  (reachable via a partial re-vendor), and that is fixed; but it is not what happened. The cause was
+  pin staleness, which nothing covers. Flagging it because the first version of this heartbeat would
+  have told you the drift check now covers a case it does not.
 
 - **The vendored pin is `7328a0b`, not `679a317`.** It moved on 2026-08-12 and **neither SHA is an
   ancestor of `main`** — same posture, not a new one. Measured this run: of the 26 files vendored at
