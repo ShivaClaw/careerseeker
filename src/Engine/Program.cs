@@ -281,9 +281,11 @@ EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidenc
         paired.KeyId,
         sink: async (envelopeJson, ct) =>
         {
-            var ok = await relay.PushAsync(paired.RelayToken, envelopeJson, ct).ConfigureAwait(false);
-            if (ok && publisherRef is not null) vault.RecordE2pSeq(publisherRef.HighestSeq);
-            return ok;
+            // Only 201 records a mark. A 409 says our counter is behind, and recording the seq we
+            // just burned would persist a number the relay has already refused.
+            var pushed = await relay.PushAsync(paired.RelayToken, envelopeJson, ct).ConfigureAwait(false);
+            if (pushed.Accepted && publisherRef is not null) vault.RecordE2pSeq(publisherRef.HighestSeq);
+            return pushed.Accepted;
         },
         startSeq: paired.LastE2pSeq);
     publisherRef = publisher;
