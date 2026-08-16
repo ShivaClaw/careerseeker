@@ -9,6 +9,7 @@
 // was always the plan ("when the real SyncPublisher lands in P1, this harness points at
 // it instead").
 
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -430,6 +431,82 @@ Console.WriteLine("\n[ SyncPublisher seals, sequences, and pushes e2p envelopes 
     Check("publisher rejects a wrong-length k_e2p", badKey);
 }
 
+// ---------------------------------------------------------------- push responses + §6.1 resume (PQ-S6-3)
+//
+// PQ-S6-3: the engine implemented half of §6.1's resume rule and its own comment stated the other
+// half. Two things were wrong and they compounded. (1) `PushAsync` returned a bare bool, so a 409
+// `replay_rejected` -- the answer that means "your counter is behind" -- was indistinguishable from
+// a timeout, and the `latest` the relay sends for reconciliation was discarded unread. (2) The
+// startup path passed the persisted seq alone, so a vault behind the relay silently dropped one
+// envelope per burned seq, the recovery snapshot included.
+//
+// These assert the mapping and the rule, NOT that a relay exists: RelayClient takes an HttpClient,
+// so a stub handler drives every branch offline. The live half is SyncLiveSmoke's.
+
+Console.WriteLine("\n[ relay push responses + §6.1 resume ]");
+{
+    static PushOutcome Push(HttpStatusCode status, string? body)
+    {
+        var http = new HttpClient(new StubHandler(status, body));
+        var client = new RelayClient(http, "https://relay.example", "p_AAAAAAAAAAAAAAAA");
+        return client.PushAsync("tok", "{}").GetAwaiter().GetResult();
+    }
+
+    Check("201 reads as Accepted",
+        Push(HttpStatusCode.Created, "{\"ok\":true,\"seq\":7}") is { Status: PushStatus.Accepted, Latest: null });
+
+    // The one that motivated the change: 409 must be its own status AND carry the number.
+    var replayed = Push(HttpStatusCode.Conflict, "{\"error\":\"replay_rejected\",\"latest\":42}");
+    Check("409 reads as Replayed and carries the relay's latest",
+        replayed is { Status: PushStatus.Replayed, Latest: 42 }, $"got {replayed.Status}/{replayed.Latest?.ToString() ?? "null"}");
+
+    // These bodies carry a `latest` the relay would never send on these statuses (§2.2 pins it to
+    // the 409 alone). That is the point: the assertion is only load-bearing if a wrong client that
+    // read `latest` off any body would fail it. With a bare {"error":...} body it could not.
+    Check("400 reads as Rejected, and its latest is NOT read (§2.2 pins latest to 409)",
+        Push(HttpStatusCode.BadRequest, "{\"error\":\"bad_request\",\"latest\":42}") is { Status: PushStatus.Rejected, Latest: null });
+    Check("413 reads as TooLarge, and its latest is NOT read",
+        Push(HttpStatusCode.RequestEntityTooLarge, "{\"error\":\"too_large\",\"latest\":42}") is { Status: PushStatus.TooLarge, Latest: null });
+    Check("401 reads as Unauthorised, and its latest is NOT read",
+        Push(HttpStatusCode.Unauthorized, "{\"error\":\"unauthorized\",\"latest\":42}") is { Status: PushStatus.Unauthorised, Latest: null });
+    Check("503 reads as Unavailable, distinct from every 4xx above, and its latest is NOT read",
+        Push(HttpStatusCode.ServiceUnavailable, "{\"latest\":42}") is { Status: PushStatus.Unavailable, Latest: null });
+    Check("201 does not read a latest either, even when one is present",
+        Push(HttpStatusCode.Created, "{\"ok\":true,\"seq\":7,\"latest\":42}") is { Status: PushStatus.Accepted, Latest: null });
+
+    // A blind relay's body is not a contract this client can lean on. Every one of these is still a
+    // 409 -- the status is what the relay committed to -- but none of them may yield a number, and
+    // none may throw on a push path.
+    Check("a 409 whose body is not JSON is still Replayed, with no latest",
+        Push(HttpStatusCode.Conflict, "<html>502 from a proxy</html>") is { Status: PushStatus.Replayed, Latest: null });
+    Check("a 409 with an empty body is still Replayed, with no latest",
+        Push(HttpStatusCode.Conflict, "") is { Status: PushStatus.Replayed, Latest: null });
+    Check("a 409 whose latest is a STRING yields no latest, not a parsed number",
+        Push(HttpStatusCode.Conflict, "{\"error\":\"replay_rejected\",\"latest\":\"42\"}") is { Status: PushStatus.Replayed, Latest: null });
+    Check("a 409 whose latest is fractional yields no latest",
+        Push(HttpStatusCode.Conflict, "{\"error\":\"replay_rejected\",\"latest\":4.5}") is { Status: PushStatus.Replayed, Latest: null });
+
+    // §6.1's rule. The null case is the load-bearing one: an unreachable relay must contribute
+    // NOTHING to the maximum. A version that read it as 0 would reset the counter on a network
+    // blip and have the relay refuse everything the engine sent next.
+    Check("resume takes the relay's mark when the relay is ahead", SyncPublisher.ResumeFrom(5, 41) == 41);
+    Check("resume keeps the vault's mark when the relay is behind (TTL purge is normal)",
+        SyncPublisher.ResumeFrom(41, 5) == 41);
+    Check("resume with an unreachable relay keeps the vault's mark, and does NOT reset to 0",
+        SyncPublisher.ResumeFrom(41, null) == 41);
+    Check("resume with an empty relay and an empty vault is 0", SyncPublisher.ResumeFrom(0, 0) == 0);
+
+    // End to end at the seam the engine actually uses: a vault behind the relay resumes above the
+    // RELAY, so the next envelope clears the relay's high-water mark instead of being refused.
+    var resumedFromRelay = new SyncPublisher(
+        new byte[Protocol.KeyBytes], "p_AAAAAAAAAAAAAAAA", "k1",
+        (_, _) => Task.FromResult(true),
+        startSeq: SyncPublisher.ResumeFrom(persistedSeq: 3, relayLatest: 90));
+    Check("a vault behind the relay publishes its next envelope above the relay's mark",
+        resumedFromRelay.PublishHeartbeatAsync(1, new Counters(0, 0, 0, 0, 0, 0, 0)).GetAwaiter().GetResult()
+        && resumedFromRelay.HighestSeq == 91, $"HighestSeq={resumedFromRelay.HighestSeq}");
+}
+
 // ---------------------------------------------------------------- entitlement wire conformance (P4)
 //
 // `entitlement` is a state-changing p2e kind. This proves the WIRE layer (P4 §2.2): each
@@ -748,6 +825,20 @@ sealed class RecordingOutcomeApplier : SeekerSvc.Sync.IOutcomeApplier
     public readonly List<(string Body, string Fingerprint)> Applied = new();
     public Task ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default)
     { Applied.Add((outcomeBodyJson, deviceFingerprint)); return Task.CompletedTask; }
+}
+
+/// <summary>
+/// Answers every request with one canned status and body, so <see cref="SeekerSvc.Sync.RelayClient"/>'s
+/// response mapping is exercised offline. Deliberately dumb: it asserts nothing about the request,
+/// because what is under test is how the engine READS the relay, not what it sends.
+/// </summary>
+sealed class StubHandler(System.Net.HttpStatusCode status, string? body) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        => Task.FromResult(new HttpResponseMessage(status)
+        {
+            Content = new StringContent(body ?? "", System.Text.Encoding.UTF8, "application/json"),
+        });
 }
 
 /// <summary>Recording <see cref="SeekerSvc.Sync.ISnapshotRepublisher"/> — captures the since_seq a pull_request asked to resume from.</summary>
