@@ -171,7 +171,7 @@ async Task<int> RunDemoAsync()
         }
 
         var evidence = LocalDashboardEvidence.FromStore(store);
-        var syncBridge = BuildSyncBridge(counters, evidence, syncEnabled);
+        var syncBridge = await BuildSyncBridge(counters, evidence, syncEnabled).ConfigureAwait(false);
         await using var host = new EngineHost(
             cycle,
             counters,
@@ -250,7 +250,7 @@ EngineCycle BuildDemoCycle(ISeekerStore store, EngineCounters counters, long pro
 // would re-accept an already-applied entitlement/outcome. Dispatch is narrow: entitlement → verify +
 // enable; pull_request → re-publish snapshot; outcome → apply; doc_edit → reply `unimplemented` (P3's
 // surface, never stubbed). No inbound kind is a send path. Proven now by the SyncLiveSmoke round-trip.
-EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidence evidence, bool enabled)
+async Task<EngineSyncBridge?> BuildSyncBridge(EngineCounters counters, LocalDashboardEvidence evidence, bool enabled)
 {
     if (!enabled)
         return null;
@@ -270,6 +270,35 @@ EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidenc
     var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
     var relay = new RelayClient(http, paired.RelayUrl, paired.Pairing);
 
+    // §6.1's OTHER term. The vault alone is not enough: a restored backup or a run of pushes whose
+    // responses were lost leaves the vault behind the relay, and every envelope in that gap is
+    // refused and dropped. So ask the relay for its e2p high-water mark and resume above both.
+    //
+    // `since: paired.LastE2pSeq` rather than 0 on purpose — the relay computes `latest` as
+    // MAX(seq) for the direction independently of `since` (relay/src/channel.ts:202-204), so this
+    // reads the same number while transferring only the envelopes above our mark instead of the
+    // whole retained direction. Pinned by the relay suite so the engine is not relying on a
+    // property that was merely read off the source.
+    //
+    // Failure is deliberately soft: the relay is consulted for a value that can only ever raise the
+    // counter, so an unreachable relay leaves us exactly where the old code already was. Startup
+    // must not depend on the network — and null, not 0, is what reaches ResumeFrom, so a failed
+    // consult cannot pull the counter down.
+    long? relayLatest = null;
+    try
+    {
+        var (_, latest) = await relay.PullAsync(paired.RelayToken, "e2p", paired.LastE2pSeq).ConfigureAwait(false);
+        relayLatest = latest;
+    }
+    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException)
+    {
+        Console.WriteLine($"Sync: could not read the relay's e2p mark ({ex.GetType().Name}); resuming from the vault alone.");
+    }
+
+    var startSeq = SyncPublisher.ResumeFrom(paired.LastE2pSeq, relayLatest);
+    if (startSeq != paired.LastE2pSeq)
+        Console.WriteLine($"Sync: relay is ahead of the vault (e2p {paired.LastE2pSeq} -> {startSeq}); resuming above the relay.");
+
     // The sink persists the high-water mark itself rather than EngineSyncBridge growing a callback:
     // the bridge is shared with the harnesses and has no business knowing about DPAPI. `publisherRef`
     // exists because the sink needs the publisher's seq and the publisher needs the sink — the seq is
@@ -287,7 +316,7 @@ EngineSyncBridge? BuildSyncBridge(EngineCounters counters, LocalDashboardEvidenc
             if (pushed.Accepted && publisherRef is not null) vault.RecordE2pSeq(publisherRef.HighestSeq);
             return pushed.Accepted;
         },
-        startSeq: paired.LastE2pSeq);
+        startSeq: startSeq);
     publisherRef = publisher;
 
     Console.WriteLine($"Sync: publishing to {SyncPairingVault.Describe(paired)}.");
