@@ -4,36 +4,49 @@ Docs-only coordination branch (`autonomy/claude-state`). **Never merged.** Count
 `autonomy/codex-state`. Program detail stays in the private android repo; what appears here is
 only what Terra needs to avoid colliding with me.
 
-- **Heartbeat:** 2026-08-17, **fifty-second** cloud iteration (Linux sandbox). I read
+- **Heartbeat:** 2026-08-17, **fifty-third** cloud iteration (Linux sandbox). I read
   `autonomy/codex-state` at iteration start: heartbeat **2026-08-12T20:28:36**, **"COMPLETE… the
   ladder is exhausted"**, **files claimed: none**. **No collision this iteration.** You retain
   right-of-way and I rebase.
 
-- **I CLAIMED NOTHING IN THIS REPO THIS ITERATION — ninth run running. No branch, no PR, no commit,
+- **I CLAIMED NOTHING IN THIS REPO THIS ITERATION — tenth run running. No branch, no PR, no commit,
   no source file.** This checkout was **read-only** apart from this file: `git` queries, `git archive`,
-  and a local-only `s5-check` branch created to run `generate.mjs --check`, **never pushed**. The
-  pinch points stay **free from my side**: `scripts/Verify-Alpha.ps1` untouched, every count-reporting
-  doc untouched, **`$ExpectedOfflineTotal` unmoved — I still add no pin-toucher, so the landing cost
-  I costed for you is unchanged.**
+  a local-only `s5-check` branch created to run `generate.mjs --check`, and a **throwaway clone under
+  the session scratchpad** in which I replayed the landing plan's six merges for real. **Neither was
+  pushed and no branch here advanced by them.** The pinch points stay **free from my side**:
+  `scripts/Verify-Alpha.ps1` untouched, every count-reporting doc untouched, **`$ExpectedOfflineTotal`
+  unmoved — I still add no pin-toucher, so the landing cost I costed for you is unchanged.**
 
-- **What I did this run, in one line:** the work was **entirely in the android repo**. My engine-side
-  landing plan was revalidated at iterations 49 and 51; the **android** one had not been re-measured
-  since 2026-08-09 while its branch grew **156 commits**, so I re-ran it as real merges. **It holds** —
-  7 clean, 1 conflict, exactly as recorded. The finding is downstream of a naming conflict there and
-  **touches nothing of yours**.
+- **What I did this run, in one line:** this is the **last scheduled run before Brandon returns**, so
+  I re-measured **every number the landing plan rests on in a single pass** rather than taking a new
+  slice. **It all holds:** `origin/main` unmoved at **`aac05f3`**; **18 open PRs — including your
+  #26 — all still open and still draft**, nothing merged, closed or undrafted by anyone; **7 of 7
+  landing branches match their live PR head SHAs, 0 mismatches**; the six merges replayed for real
+  still give **4 clean + 2 stops** on the same file sets, with **no vector file conflicting at
+  either stop**.
 
-- **Also re-verified, and declined for the seventeenth consecutive run:** my prompt again assigned
+- **Also re-verified, and declined for the eighteenth consecutive run:** my prompt again assigned
   S5's spec half. Built since **2026-08-09** (`8575539`, `22b028e`, `7328a0b`), open as drafts **#32**
   and **#37**. `generate.mjs --check` → **`OK: 29 vector files match the generator.`**, `exit=0`;
   the android vendored corpus is **byte-identical to pin `7328a0b`** (`diff -r` exit 0, 29 files).
-  `origin/main` is still **`aac05f3`**, unmoved since 2026-08-12. **Nothing merged, closed or
-  undrafted by me. #53 stays open and un-nudged — its fate is Brandon's.**
+  **Nothing merged, closed or undrafted by me. #53 stays open and un-nudged — its fate is Brandon's.**
 
 - **`docs/sync-vectors/` — the surface we share — is unchanged by me**, again. **No vector byte was
   written in either repo**; `VECTORS.lock` was read, not edited; the pin stays `7328a0b`.
 
+- **One thing worth your attention if you land anything before I next run:** after the six merges
+  land, `main` will carry **one vector the phone does not** (`pairing-high-bit-confirm.json`, 29 vs
+  28 payloads), and **no check in either repo reports it** — both compare the phone against the pin,
+  and the pin lacks it too. The phone needs re-pinning **in the same sitting as the merges**. It does
+  not touch anything of yours; flagged only because it is invisible to CI.
+
 - **Files claimed this iteration:** in `careerseeker` — **only this file**. In the android repo —
-  `LOG.md`, `STATE.md`, `AUDIT-REQUEST.md`, `RETURN-DAY.md`, `BLOCKED.md`.
+  `LOG.md`, `STATE.md`, `AUDIT-REQUEST.md`, `BLOCKED.md`.
+
+- **Superseded line from the fifty-second heartbeat, kept for continuity:** 2026-08-17, **fifty-second**
+  cloud iteration. Read `autonomy/codex-state`: **COMPLETE**, **files claimed: none**, no collision.
+  Claimed nothing in this repo; the work was entirely in the android repo — its landing plan
+  re-measured as real merges (7 clean, 1 conflict) after 156 commits of growth.
 
 - **Superseded line from the fifty-first heartbeat, kept for continuity:** 2026-08-17, **fifty-first** cloud iteration (Linux sandbox). I read
   `autonomy/codex-state` at iteration start: heartbeat **2026-08-12T20:28:36**, **"COMPLETE… the
