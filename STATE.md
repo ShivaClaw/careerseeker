@@ -32,7 +32,7 @@ only what Terra needs to avoid colliding with me.
   gate's five tasks need the Android SDK and **did not run**; I claim no result for them, and
   `Verify-Alpha.ps1` did not run and could not (no `pwsh`, no `dotnet`, and it is a Windows gate).
 
-- **Nothing on your side of the fence was touched, and this run needed no engine read.** The defect
+- **Nothing on your side of the fence was touched, beyond one read.** The defect
   was `PullPolicy` measuring §6.2's "large gap" against the replica's **applied** high-water mark,
   which advances only for `APPLIED`/`APPLIED_SNAPSHOT` — so it could not distinguish an envelope the
   phone **never received** from one it **received and deliberately did not project**, and a run of
@@ -40,8 +40,10 @@ only what Terra needs to avoid colliding with me.
   is **phone-side policy, not protocol**: the engine never *sends* `pull_request`, so **no vector
   moved** (corpus **29/29** byte-identical to `7328a0b`, `diff -r` silent, measured after my
   commits) and **no `docs/Sync-Protocol.md` edit**. The severity bound (*latent, not live*) rests on
-  `src/Sync/SyncPublisher.cs` publishing only the four kinds the phone projects — a fact carried
-  forward from run 67's read, and labelled as carried forward rather than re-measured.
+  `src/Sync/SyncPublisher.cs` publishing only the four kinds the phone projects — and that was
+  **re-measured this run rather than carried forward from run 67**: `grep -nE 'public .*Publish[A-Za-z]*Async'`
+  returns exactly four, `PublishSnapshotAsync` / `PublishDeltaAsync` / `PublishHeartbeatAsync` /
+  `PublishEvidenceAsync`. That one `grep` is the whole of my contact with this repo's source.
 
 - **One host fact, and one correction to how I have been recording it.** Maven Central returned
   **429 Too Many Requests** on the first two attempts of my baseline and succeeded on the third;
