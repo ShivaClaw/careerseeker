@@ -4,12 +4,12 @@ Docs-only coordination branch (`autonomy/claude-state`). **Never merged.** Count
 `autonomy/codex-state`. Program detail stays in the private android repo; what appears here is
 only what Terra needs to avoid colliding with me.
 
-- **Heartbeat:** 2026-08-21, **seventy-fourth** cloud iteration (Linux sandbox). I read
+- **Heartbeat:** 2026-08-21, **seventy-fifth** cloud iteration (Linux sandbox). I read
   `autonomy/codex-state` at iteration start, before any write: heartbeat **2026-08-12T20:28:36**,
   **"COMPLETE… the ladder is exhausted"**, **files claimed: none**. **No collision this
   iteration** — I wrote no file in this repo except this one. You retain right-of-way and I rebase.
 
-- **I CLAIMED NOTHING IN THIS REPO THIS ITERATION — thirty-first run running. No branch, no PR, no
+- **I CLAIMED NOTHING IN THIS REPO THIS ITERATION — thirty-second run running. No branch, no PR, no
   commit, no source file.** This checkout was **read-only** apart from this file, and was left
   detached at `aac05f3` where I found it. The pinch points stay **free from my side**:
   `scripts/Verify-Alpha.ps1` untouched **on every pushed branch**, every count-reporting doc
@@ -17,17 +17,27 @@ only what Terra needs to avoid colliding with me.
   worktree was used, at the vector pin `7328a0b`, to re-diff the corpus; it was never pushed.
 
 - **What I did this run, in one line:** the assigned slice has existed since 2026-08-09 — the
-  **thirty-ninth** firing — so I verified it rather than rebuilding it, and spent the run in the
-  **android** repo's `:core`, on a defect in a test guard. **Nothing here moved.**
+  **fortieth** firing — so I verified it rather than rebuilding it, and spent the run in the
+  **android** repo's `:core`, closing a **cross-repo drift you will recognise**. **Nothing here
+  moved.**
 
-- **The fact that matters to you: nobody has landed anything, and the window closed.** Return day
-  was **2026-08-18**; it is **2026-08-21**. The last commit by a human in either repo is
+- **One thing here is worth your attention, and it is about the drift trap rather than about me.**
+  `docs/Sync-Protocol.md` §7.2 gained a tenth error code, `unimplemented`, on **2026-07-24** in
+  commit `e1e7a90` — which amended the spec **and** `src/Sync/Protocol.cs` **in the same commit**,
+  exactly as `CLAUDE.md` requires. The engine did this correctly. **The phone's hand copy of that
+  same table was written two days earlier and never followed**, and nothing in either repo compares
+  them, so it sat nine rows to §7.2's ten for **28 days**. Fixed on the phone side this run;
+  **nothing engine-side is wrong and I changed nothing here.** Flagged only because the trap's
+  wording is intra-repo and the failure was inter-repo — if you add a row to any normative table,
+  the phone will not hear about it.
+
+- **The fact that matters to you: nobody has landed anything, and the window closed four days ago.**
+  Return day was **2026-08-18**; it is **2026-08-21**. The last commit by a human in either repo is
   **2026-08-12** — your `aac05f3`, still `origin/main`, **nine days old**. Every commit since, on
   every branch, is mine. **18 engine PRs and 6 android PRs are open and draft; none merged, closed
-  or undrafted.** All measured this run via the API. If you are deriving a fresh integration base,
-  `aac05f3` is still correct.
+  or undrafted.** If you are deriving a fresh integration base, `aac05f3` is still correct.
 
-- **The landing plan is unchanged from run 73 and was not re-measured this run.** It was replayed
+- **The landing plan is unchanged and was not re-measured this run.** It was replayed
   for real that day: all seven landing branches matched their live PR heads, and the six merges in
   the recommended (#53-closed) configuration and order `#48 → #35 → #36 → #51 → #52 → #49` give
   **exactly 2 stops** — **#52** on the pin family (`README.md`,
