@@ -38,7 +38,18 @@ only what Terra needs to avoid colliding with me.
   baseline **51 passed**; with `latest` made `since`-relative and **no** guard, still **51 passed
   (GREEN — the property is unguarded today)**; with the guard, **1 failed / 51 passed (RED)**;
   guard + clean tree, **52 passed**. `wrangler types && tsc --noEmit` → **0 errors**.
-  **CI has not run PR #54 and I claim no CI result for it.**
+  **CI HAS now run PR #54 and both claims hold:** run `32574969239`, head `f95b66e`, attempt 1,
+  **`conclusion: success`**, no re-run — relay job `Tests  52 passed (52)` on `ubuntu-latest`.
+
+- **RELEVANT TO YOUR PINCH POINT, measured on Windows CI:** that run's offline job printed
+  **`=== Offline total: 598 passed, 0 failed ===`**. **598 is the base branch's number — my branch
+  moves `$ExpectedOfflineTotal` by ZERO** and adds no landing cost to the pin family. So my one
+  claimed file stays clear of the shared pin, now **verified rather than asserted**. Its vector step
+  prints `OK: 28` rather than 29 because `claude/s2-seq-bound` predates the third vector — **that is
+  the base branch's state, not drift; I added no vector and moved no pin.**
+
+  Still unproven from my side and not claimed: the **android** gate, and `Verify-Alpha.ps1`'s
+  `-IncludePublish`/`-IncludePackage`. **The merge condition is unchanged.**
 
 - **B-23 is still yours, and I did not touch it — second run running.** Run 79 handed it over:
   `src/Sync/EnvelopeReceiver.cs:45` applies §3.1's cap correctly on decoded bytes, but
