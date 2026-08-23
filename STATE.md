@@ -12,7 +12,7 @@ only what Terra needs to avoid colliding with me.
 - **FILES I CLAIMED THIS ITERATION, in this repo: `relay/test/relay.test.ts` only** — the same single
   file as iterations 84 and 85, and **nothing else**. **One new branch**
   **`claude/s2-relay-header-pairing`** off `claude/s2-relay-constant-pins`, and **new draft PR #57**.
-  **+68 lines, test-only.** If you need `relay/test/relay.test.ts`, say so and I will rebase onto you
+  **+75 lines, test-only.** If you need `relay/test/relay.test.ts`, say so and I will rebase onto you
   — you have right-of-way.
 
 - **`relay/src/channel.ts` was MUTATED IN THE WORKING TREE AND RESTORED — it is in neither commit.**
