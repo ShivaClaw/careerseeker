@@ -66,6 +66,31 @@ describe('routing and auth', () => {
     expect(isValidPairingId('brandon@example.com')).toBe(false);
   });
 
+  // The regex in protocol.ts is a hand-transcription of the `pairing` row of the §3 envelope
+  // field table — "`p_` + 16 base64url chars" — and nothing compared the two. The case above
+  // pins one valid id and two obviously-wrong ones, which is satisfied by a regex widened to
+  // `{16,32}` or by a charset that admits `.`; both were measured green. The prefix was covered
+  // only incidentally, by every other test happening to use a `p_` id. Length, charset and
+  // prefix are pinned against the document here, so a widened shape fails on its own account.
+  it('the pairing id shape matches §3 exactly: `p_` + 16 base64url chars', () => {
+    expect(isValidPairingId('p_7Fq2mXk9LtVbN3wR')).toBe(true); // exactly 16
+
+    expect(isValidPairingId('p_7Fq2mXk9LtVbN3w')).toBe(false); // 15
+    expect(isValidPairingId('p_7Fq2mXk9LtVbN3wRx')).toBe(false); // 17
+
+    // base64url's alphabet is [A-Za-z0-9_-]. Standard-base64 and separator characters are
+    // the plausible slips, and none of them is a pairing id.
+    for (const bad of ['.', '+', '/', '=', ' ', '@']) {
+      expect(isValidPairingId(`p_${bad}Fq2mXk9LtVbN3wR`)).toBe(false);
+    }
+    expect(isValidPairingId('p_-Fq2mXk9LtVbN3wR')).toBe(true);
+    expect(isValidPairingId('p__Fq2mXk9LtVbN3wR')).toBe(true);
+
+    // The prefix is part of the shape, not decoration.
+    expect(isValidPairingId('q_7Fq2mXk9LtVbN3wR')).toBe(false);
+    expect(isValidPairingId('7Fq2mXk9LtVbN3wR')).toBe(false);
+  });
+
   it.each(['push', 'pull', 'live'])('%s requires a bearer token', async (route) => {
     const res = await call(`/v1/${freshPairing()}/${route}`, { method: route === 'push' ? 'POST' : 'GET' });
     expect(res.status).toBe(401);
