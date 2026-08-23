@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import worker from '../src/index';
 import {
   DEFAULT_TTL_SECONDS,
+  DIRECTIONS,
   ENVELOPE_TABLE_DDL,
   MAX_CIPHERTEXT_B64U_CHARS,
   MAX_ENVELOPE_BYTES,
@@ -692,4 +693,15 @@ describe('blindness invariants', () => {
     });
   });
 
+  // §3's field table (docs/Sync-Protocol.md:80) closes the direction set at exactly two, and
+  // §3 line 102 makes "a `dir` that is neither `e2p` nor `p2e`" a rejection. DIRECTIONS is the
+  // whitelist all three validators consult (channel.ts:152, :214, :255), so widening it is how
+  // the relay would come to route a channel no receiver reads.
+  //
+  // This was already caught, but only *incidentally* — by `depth()` deriving its keys from
+  // this array, inside a test about schema creation. That is coverage by accident, and it is
+  // one refactor of `depth()` away from vanishing. This compares the array to the document.
+  it('the direction set is exactly the two §3 names', () => {
+    expect([...DIRECTIONS]).toEqual(['e2p', 'p2e']);
+  });
 });
