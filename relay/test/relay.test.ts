@@ -600,6 +600,9 @@ describe('PairingChannel durable object internals', () => {
       expect(instance.ttlSeconds(MAX_TTL_SECONDS * 10)).toBe(MAX_TTL_SECONDS);
       expect(instance.ttlSeconds(0)).toBe(DEFAULT_TTL_SECONDS);
       expect(instance.ttlSeconds(-1)).toBe(DEFAULT_TTL_SECONDS);
+      // The no-argument call is the shape `push` actually uses (channel.ts:192); the three
+      // above all pass a value, so the production path was the one not exercised here.
+      expect(instance.ttlSeconds()).toBe(DEFAULT_TTL_SECONDS);
     });
   });
 
@@ -650,5 +653,17 @@ describe('blindness invariants', () => {
   it('retention can never exceed the spec ceiling', () => {
     expect(MAX_TTL_SECONDS).toBe(30 * 24 * 60 * 60);
     expect(DEFAULT_TTL_SECONDS).toBeLessThanOrEqual(MAX_TTL_SECONDS);
+  });
+
+  // §3's retention rule bounds the CEILING ("MUST NOT exceed 30 days") and says nothing about
+  // the default; `7 * 24 * 60 * 60` appears nowhere in either spec, so the only statement of
+  // intent is protocol.ts's own "shorter than the ceiling on purpose: keep less, for less
+  // time". The assertion above is satisfied by the ceiling itself, so raising the default to
+  // 30 days was measured green across all 55 pre-existing tests. That mutation changes no
+  // behaviour any test can observe — it only makes the blind relay hold every user's
+  // ciphertext four times longer, which is the one property this component exists to minimise.
+  it('the retention default is 7 days, and strictly shorter than the ceiling', () => {
+    expect(DEFAULT_TTL_SECONDS).toBe(7 * 24 * 60 * 60);
+    expect(DEFAULT_TTL_SECONDS).toBeLessThan(MAX_TTL_SECONDS);
   });
 });
