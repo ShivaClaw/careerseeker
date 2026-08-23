@@ -666,4 +666,30 @@ describe('blindness invariants', () => {
     expect(DEFAULT_TTL_SECONDS).toBe(7 * 24 * 60 * 60);
     expect(DEFAULT_TTL_SECONDS).toBeLessThan(MAX_TTL_SECONDS);
   });
+
+  // The DDL runs in the PairingChannel constructor (src/channel.ts:29), and Cloudflare calls
+  // that constructor on EVERY instantiation of the object — including every wake from
+  // eviction or hibernation, against storage that already holds the table. `IF NOT EXISTS` is
+  // therefore not a stylistic nicety on either statement: it is the whole reason the
+  // constructor survives its second and every later run. Drop it and SQLite raises "table
+  // envelopes already exists", the constructor throws, and that pairing's channel is dead —
+  // a failure that arrives on a wake long after the deploy that caused it, one pairing at a
+  // time, on the path with no other guard.
+  //
+  // Nothing observed this before. Every other case in this file instantiates a *fresh* DO, so
+  // the re-entry path — the one production actually runs on every wake — was covered by no
+  // test at all: dropping `IF NOT EXISTS` from the table left all 57 pre-existing tests green.
+  // This asserts the property behaviourally rather than by grepping the DDL text, so it also
+  // covers the index statement and anything later added to the same string.
+  it('the schema DDL is idempotent, because every DO wake re-runs it', async () => {
+    const pairing = await bootstrap('tok');
+    const stub = env.PAIRING.get(env.PAIRING.idFromName(pairing));
+    await runInDurableObject(stub, async (_instance, state) => {
+      // The constructor already executed it once against this storage. A wake does it again,
+      // and so does the wake after that.
+      expect(() => state.storage.sql.exec(ENVELOPE_TABLE_DDL)).not.toThrow();
+      expect(() => state.storage.sql.exec(ENVELOPE_TABLE_DDL)).not.toThrow();
+    });
+  });
+
 });
