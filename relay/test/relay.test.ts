@@ -560,3 +560,166 @@ describe('blindness invariants', () => {
     expect(DEFAULT_TTL_SECONDS).toBeLessThanOrEqual(MAX_TTL_SECONDS);
   });
 });
+
+/**
+ * The ten error sites §2.3's block does not reach (PQ-S2-3, second pass).
+ *
+ * WHY THIS EXISTS. The block above pins every transport error NAME: mutating any of the
+ * nine names (`unauthorized`, `not_found`, `bad_request`, `too_large`, `exists`,
+ * `replay_rejected`, `upgrade_required`, `method_not_allowed`, `pairing_unknown`) turns at
+ * least two of its tests red. That is a vocabulary guard, and it holds.
+ *
+ * It is not a SITE guard, and the difference was measurable. Mutating each
+ * `error: '...'` literal ONE AT A TIME — 27 sites, by line number — left the suite fully
+ * green at 49/49 on ten of them. A name is pinned wherever some other site emits it; a
+ * site with no test of its own is pinned by nothing, and can change its status, its name,
+ * or stop firing entirely without a single test noticing.
+ *
+ * The ten split cleanly in two, and the split is the point.
+ */
+describe('error sites the vocabulary block does not reach (PQ-S2-3)', () => {
+  /**
+   * SEVEN REACHABLE SITES. Each is a distinct rejection a real client can provoke, and
+   * before these tests each could be renamed alone with the suite green.
+   */
+  const completion = JSON.stringify({ suite: 's', phone_pub: 'A', nonce: 'B', ciphertext: 'C' });
+
+  describe('reachable, and previously unasserted', () => {
+
+    it('channel.ts create: a wrong bearer on an existing channel is unauthorized', async () => {
+      const pairing = await bootstrap('right');
+      const res = await call(`/v1/${pairing}/create`, { method: 'POST', headers: bearer('wrong') });
+      expect(res.status).toBe(401);
+      expect(await res.json()).toMatchObject({ error: 'unauthorized' });
+    });
+
+    it('channel.ts pair: an oversize completion is too_large', async () => {
+      const pairing = await bootstrap('tok');
+      const res = await call(`/v1/${pairing}/pair`, {
+        method: 'POST', headers: bearer('tok'), body: 'x'.repeat(16 * 1024 + 1),
+      });
+      expect(res.status).toBe(413);
+      expect(await res.json()).toMatchObject({ error: 'too_large' });
+    });
+
+    it('channel.ts pair: an unparseable completion is bad_request', async () => {
+      const pairing = await bootstrap('tok');
+      const res = await call(`/v1/${pairing}/pair`, { method: 'POST', headers: bearer('tok'), body: 'not json' });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'bad_request' });
+    });
+
+    it('channel.ts pair: a completion missing a required field is bad_request', async () => {
+      const pairing = await bootstrap('tok');
+      const res = await call(`/v1/${pairing}/pair`, {
+        method: 'POST', headers: bearer('tok'), body: JSON.stringify({ suite: 'p256-hkdf-sha256' }),
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'bad_request' });
+      // The stored-completion path must NOT have run: a rejected completion is not a completion.
+      expect((await call(`/v1/${pairing}/pair`, { method: 'POST', headers: bearer('tok'), body: completion })).status).toBe(201);
+    });
+
+    it('channel.ts push: an unparseable body is bad_request', async () => {
+      const pairing = await bootstrap('tok');
+      const res = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: 'not json' });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'bad_request' });
+    });
+
+    it('channel.ts push: a bad header shape is bad_request', async () => {
+      const pairing = await bootstrap('tok');
+      const res = await call(`/v1/${pairing}/push`, {
+        method: 'POST', headers: bearer('tok'), body: envelope('e2p', 0), // seq < 1 — §3.2
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'bad_request' });
+    });
+
+    it('channel.ts pull: a negative since is bad_request', async () => {
+      const pairing = await bootstrap('tok');
+      const res = await call(`/v1/${pairing}/pull?dir=e2p&since=-1`, { headers: bearer('tok') });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'bad_request' });
+    });
+  });
+
+  /**
+   * THREE SHADOWED SITES — channel.ts:74, :81 and :218 — which no request through the
+   * Worker can reach, because index.ts answers first. They are defence in depth, not dead
+   * code: the Durable Object is only ever addressed through the Worker today, and if that
+   * ever stops being true they are the checks that hold.
+   *
+   * These three stay unguarded at the SITE level after this block, and the sweep still
+   * reports 0 failed for each. That is stated rather than smoothed over, because the first
+   * draft of this block claimed otherwise and two mutations falsified it:
+   *
+   *   - Removing the Worker's own `upgrade_required` check (index.ts) left the suite GREEN
+   *     at 59/59, because channel.ts:218 emits a byte-identical 426. Nothing observable
+   *     distinguishes which layer answered.
+   *   - Letting the Worker admit an empty bearer (`<=` -> `<`) left the suite GREEN too,
+   *     because channel.ts:81 answers 401 and creates nothing, exactly as index.ts:61 does.
+   *
+   * So a test CANNOT prove which layer answered here — the layers are observationally
+   * identical, which is what defence in depth means when it is working. Only the first test
+   * below pins a shadow (removing a channel case turns it red). The other two are kept for
+   * the properties they do pin, at the front door, and are named for those properties only.
+   */
+  describe('properties at the front door that keep the shadowed sites unreachable', () => {
+    // Shadows channel.ts:74 (`default: not_found`). Every (method, route) pair the Worker
+    // admits has a case in the channel's switch, so the default cannot fire.
+    it('every method/route pair the Worker admits maps to a channel case', async () => {
+      const admitted: Array<[method: string, route: string, expected: number]> = [
+        ['POST', 'create', 409],  // channel already bootstrapped -> exists
+        ['POST', 'pair', 201],
+        ['GET', 'pair', 200],     // a completion is stored first, below
+        ['POST', 'push', 201],
+        ['GET', 'pull', 200],
+        ['GET', 'live', 101],
+        ['DELETE', '', 200],
+      ];
+
+      for (const [method, route, expected] of admitted) {
+        const pairing = await bootstrap('tok');
+        // `GET pair` 404s legitimately when nothing is stored (channel.ts:131), which is a
+        // DIFFERENT site emitting the same name. Store one first, so that every admitted
+        // pair has a non-404 answer and any 404 here can only be the route fallthrough.
+        if (method === 'GET' && route === 'pair') {
+          await call(`/v1/${pairing}/pair`, { method: 'POST', headers: bearer('tok'), body: completion });
+        }
+        const query = route === 'pull' ? '?dir=e2p&since=0' : route === 'live' ? '?dir=e2p' : '';
+        const res = await call(`/v1/${pairing}/${route}${query}`, {
+          method,
+          headers: route === 'live' ? { ...bearer('tok'), upgrade: 'websocket' } : bearer('tok'),
+          ...(method === 'POST' && route === 'push' ? { body: envelope('e2p', 1) } : {}),
+          ...(method === 'POST' && route === 'pair' ? { body: completion } : {}),
+        });
+        expect(`${method} ${route} -> ${res.status}`).toBe(`${method} ${route} -> ${expected}`);
+      }
+    });
+
+    // NOT a shadow proof — index.ts:61 and channel.ts:81 are observationally identical.
+    // What is pinned: an empty bearer is refused AND bootstraps nothing. A relay that
+    // answered 401 but had already registered the token hash would pass the first
+    // assertion and fail the second.
+    it('an empty bearer is refused, and creates no channel', async () => {
+      const pairing = freshPairing();
+      const res = await call(`/v1/${pairing}/create`, { method: 'POST', headers: { authorization: 'Bearer ' } });
+      expect(res.status).toBe(401);
+      // 201, not 409: the refused call left no token hash behind.
+      expect((await call(`/v1/${pairing}/create`, { method: 'POST', headers: bearer('t') })).status).toBe(201);
+    });
+
+    // NOT a shadow proof either — index.ts:69 and channel.ts:218 emit the same 426.
+    // What is pinned: the upgrade check outranks the `dir` check. `dir=sideways` is
+    // invalid, so a relay that validated `dir` first would answer 400 bad_request here.
+    // Whichever layer answers, a non-websocket live request must never be told its
+    // direction is wrong instead of that it needs to upgrade.
+    it('a live request without an upgrade header is 426, even when dir is also invalid', async () => {
+      const pairing = await bootstrap('tok');
+      const res = await call(`/v1/${pairing}/live?dir=sideways`, { headers: bearer('tok') });
+      expect(res.status).toBe(426);
+      expect(await res.json()).toMatchObject({ error: 'upgrade_required' });
+    });
+  });
+});
