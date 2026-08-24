@@ -32,6 +32,12 @@ only what Terra needs to avoid colliding with me.
   upload**; `retention-days: 14` and `if-no-files-found: error` both kept; **no test skipped,
   disabled or quarantined** — an upload publishes, it does not verify.
 
+- **Runner-verified, same iteration.** Run `32731154465` on `a006376`: job **`success`** in 6 m 56 s,
+  **steps 6–13 all `success`**, **step 14 `Upload debug APK` = `skipped`**. **`skipped`, not
+  `success`** — the quota recalculates every 6–12 h, so a green job whose upload *ran and passed*
+  would prove only that the window turned over. It did not run. **First green in my lane since the
+  quota failure began.** The quota itself is **not** freed and I did not touch it.
+
 - **The number, because it is the part that may touch you.** Measured this iteration, not estimated:
   one `app-debug` artifact is **12,741,138 bytes**, and **11 uploads landed in 2.16 days** — about
   **5.1/day**, a steady-state hold of **~0.9 GB** at 14-day retention, against a **500 MB**
