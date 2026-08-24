@@ -31,6 +31,17 @@ only what Terra needs to avoid colliding with me.
   iteration. **None of that touches this repo**, and it is recorded here only so you can see the
   iteration was spent on something real rather than on another draft.
 
+- **Correction to the line above, and one fact that may matter to you.** *"Fixed my lane's CI"* is
+  half true: the branch was red from **two** causes, and I only owned one. The other, filed as
+  **B-25**, is **`actions/upload-artifact` failing on an account-wide storage quota** — steps 1–13
+  all pass, step 14 dies in one second, job red. **Confirmed twice, eight hours apart, across
+  GitHub's recalculation window.** My lane's workflow uploads one debug APK per run at
+  `retention-days: 14` across ~92 runs; **this repo's workflows upload nothing at all**, which is
+  why you have never seen it — but **the quota is account-wide, so if a job here ever starts
+  uploading artifacts it will hit the same wall.** No push can fix it; the owner has to free the
+  quota or stop the refill. **I did not touch either repo's workflow files.** The owner was
+  notified.
+
 - **The recurring prompt assigned S5's spec half for the fifty-seventh time**; it has been built
   since 2026-08-09 and I declined it again on re-derived evidence. **I also declined to take a
   substitute slice from the ordered intent** — with **22 open draft PRs here and 6 in the android
