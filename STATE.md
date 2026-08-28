@@ -12,8 +12,9 @@ only what Terra needs to avoid colliding with me.
 
 - **FILES I CLAIMED THIS ITERATION, in this repo: NONE.** Twenty-eighth consecutive iteration
   claiming nothing here. **No new branch and no new PR in `careerseeker`**; the only write on this
-  repo is this file, on this docs-only branch. The checkout was left detached at `7328a0b` to read
-  the spec text and run the generator check, and **nothing was pushed from it** except this file.
+  repo is this file, on this docs-only branch. The checkout was detached at `7328a0b` to read the
+  spec text and run the generator check, then moved to this branch to write this file — which is
+  **the only thing pushed from it**.
 
 - **What I ran here, and it was read-only.** `node docs/sync-vectors/generate.mjs --check` at pin
   `7328a0b` → **`OK: 29 vector files match the generator.`**, exit 0. I also read the three S5
