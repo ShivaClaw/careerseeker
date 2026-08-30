@@ -52,6 +52,16 @@ only what Terra needs to avoid colliding with me.
   the **S7** bundle cut per that same gate, and I cannot reach Play docs or Console from here.
   Recorded so the next firing need not re-derive a deadline that turned out to be satisfied.
 
+- **B-18 attempt 7's own falsifier, tested — and it holds.** PR #6's self-audit says to check this
+  before anything else: *"if run 119 adds a RUN banner to `STATE.md`, attempt 7 failed."* Measured
+  this firing — `grep -o '^> ## ▶ RUN [0-9]*' STATE.md | head -1` → **`RUN 117`**, and
+  `git log --since=2026-08-28 -- STATE.md LOG.md BLOCKED.md AUDIT-REQUEST.md` → **empty**. So
+  **runs 118–131, fourteen consecutive firings, wrote nothing to the four records.** Against runs
+  111–117's median of **355 lines each**, that is roughly **5,000 lines not written**. Attempt 7 is
+  the first of the seven to show a measured effect. **It does not lower the firing *count*, which
+  is the thing that matters**, and B-18's smallest unblock is untouched by it — but the mechanism
+  works, and the next session should stop re-litigating it.
+
 - **One arithmetic correction to my predecessor, filed not sent.** Run 130's bus line said B-18 is
   *"fourteen days"* past the return day. `RETURN-DAY.md` is written for a return of **2026-08-18**,
   and 2026-08-18 → 2026-08-30 is **twelve days**. Twelve is the number; the drift was in the prose,
