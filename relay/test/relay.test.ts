@@ -445,6 +445,90 @@ describe('retention is enforced on the read path, not only by the alarm (§2)', 
     expect(res.status).toBe(409);
   });
 
+  // ---------- the two high-water marks: measured, and each consumer's side pinned ----------
+  //
+  // The comment above says the push guard and the pull page "want opposite things from the same
+  // rows". That was a statement of intent. What it costs was never measured: between expiry and
+  // collection the SAME direction reports TWO different high-water marks, and they are not
+  // interchangeable. Each is read by a different consumer in the engine, and each consumer needs
+  // precisely the side it gets:
+  //
+  //   * pull `latest` -> InboundPump's loop bound (`_cursor < page.Latest`). It MUST NOT count a
+  //     row the page will not return, or the pump re-pulls the same page forever. Pinned by
+  //     'excludes expired rows from latest' above.
+  //   * push `latest` -> the 409 body -> SyncPublisher.ResumeSeq / ReconcileTo (§6.1). It MUST
+  //     count the expired-but-uncollected rows, because those are exactly the rows the push guard
+  //     will go on refusing against. A retention-filtered number here is BELOW the engine's own
+  //     counter; ReconcileTo refuses to move a counter DOWN (§6.2, rewinding would re-issue seqs
+  //     the phone may have accepted), so the reconciliation is declined and the engine walks up
+  //     one seq at a time into the same 409 -- once per expired row -- instead of resuming above
+  //     the mark in a single round trip.
+  //
+  // That failure is silent: every push is individually well-formed and the engine does eventually
+  // get through. Only the round-trip count changes, which no status code reports.
+  //
+  // Nothing asserted the VALUE in the 409 body. Reporting the retention-filtered mark there
+  // leaves the refusal decision, every status code, and all four cases above unchanged -- the
+  // whole suite stays green. These three cases are what make that mutation visible.
+
+  it('reports the mark the guard enforces in the 409 body, not the retention-filtered one', async () => {
+    const pairing = await bootstrap('tok');
+    await runInDurableObject(env.PAIRING.get(env.PAIRING.idFromName(pairing)), async (_i, state) => {
+      expiredRow(state.storage.sql, 'e2p', 5);
+    });
+    const res = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 5) });
+    expect(res.status).toBe(409);
+
+    // 5, not 0. The retention-filtered read of this direction is 0 -- every row in it is expired
+    // -- and 0 is below any engine counter that could have produced this push, so it reconciles
+    // nothing. The number that lets the engine escape is the one the guard actually compares to.
+    expect(await res.json()).toMatchObject({ error: 'replay_rejected', latest: 5 });
+  });
+
+  it('lets the two marks disagree, with the push mark above the pull mark', async () => {
+    const pairing = await bootstrap('tok');
+    await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1) });
+    await runInDurableObject(env.PAIRING.get(env.PAIRING.idFromName(pairing)), async (_i, state) => {
+      expiredRow(state.storage.sql, 'e2p', 7);
+    });
+
+    const push = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 4) });
+    expect(push.status).toBe(409);
+    const pushBody = await push.json() as { latest: number };
+
+    const pullBody = await (await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') })).json() as {
+      envelopes: { seq: number }[]; latest: number;
+    };
+
+    // Same direction, same instant, two marks: 7 from the guard's superset, 1 from the live rows.
+    expect(pushBody.latest).toBe(7);
+    expect(pullBody.latest).toBe(1);
+    expect(pullBody.envelopes.map((e) => e.seq)).toEqual([1]);
+
+    // The direction of the skew is the invariant, not the gap: the guard's set always contains
+    // the page's, so the push mark can never be the lower of the two. A consumer may rely on
+    // reconciling upward; nothing may rely on the two being equal.
+    expect(pushBody.latest).toBeGreaterThan(pullBody.latest);
+  });
+
+  it('agrees on both marks when nothing has expired — the skew is retention-shaped', async () => {
+    const pairing = await bootstrap('tok');
+    await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 3) });
+
+    const push = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 2) });
+    expect(push.status).toBe(409);
+    const pushBody = await push.json() as { latest: number };
+    const pullBody = await (await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') })).json() as {
+      latest: number;
+    };
+
+    // The control for the case above. Without an expired row the two predicates select the same
+    // rows and the marks coincide, so a reader cannot mistake the divergence for a permanent
+    // off-by-one between the two paths.
+    expect(pushBody.latest).toBe(3);
+    expect(pullBody.latest).toBe(3);
+  });
+
   // What the relay's monotonicity guard is NOT. It is MAX(seq) over live rows, so collection
   // removes the floor along with the rows. §6.2 puts the authoritative replay check on the
   // receiver's persisted high-water mark; this test exists so nobody reads the relay guard as
