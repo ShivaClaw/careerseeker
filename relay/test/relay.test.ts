@@ -174,6 +174,41 @@ describe('push / pull envelope flow', () => {
     expect(body.envelopes).toHaveLength(1);
   });
 
+  // `latest` is MAX(seq) for the direction, computed independently of `since`. Two separate
+  // consumers rely on that, and neither can observe a violation locally:
+  //
+  //   * the inbound pump uses it as its PAGINATION LOOP BOUND -- `MoreAvailable: _cursor <
+  //     page.Latest` (InboundPump.cs) -- while pulling with a moving, non-zero `since`. A
+  //     `since`-relative `latest` collapses that comparison as soon as a page comes back empty,
+  //     so the pump stops draining mid-backlog and reports a clean drain. Silent, not loud.
+  //   * the engine's §6.1 startup reconcile asks for the e2p high-water mark and passes the
+  //     vault's mark rather than 0, so it does not drag the whole retained direction across the
+  //     wire just to read one number.
+  //
+  // The implementation has had this property since the P1 relay, but nothing on this branch
+  // asserted it -- measured: making `latest` `since`-relative leaves the rest of this file
+  // GREEN. It was pinned only on `claude/s6-resume-reconciliation` (PR #53), which the landing
+  // plan recommends closing, so without this the guard leaves with it.
+  it('latest is the direction high-water mark, independent of since', async () => {
+    const pairing = await bootstrap('tok');
+    for (const s of [1, 2, 3]) await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', s) });
+
+    const at = async (since: number) =>
+      await (await call(`/v1/${pairing}/pull?dir=e2p&since=${since}`, { headers: bearer('tok') }))
+        .json() as { envelopes: unknown[]; latest: number };
+
+    // since=0 drags all three; since=3 drags none; both must report the same latest.
+    const all = await at(0);
+    const none = await at(3);
+    expect(all.envelopes).toHaveLength(3);
+    expect(none.envelopes).toHaveLength(0);
+    expect(all.latest).toBe(3);
+    expect(none.latest).toBe(3);
+
+    // And a since past the end still reports the real mark rather than clamping to it.
+    expect((await at(99)).latest).toBe(3);
+  });
+
   it('directions are independent queues', async () => {
     const pairing = await bootstrap('tok');
     await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1) });
