@@ -2,7 +2,15 @@ import { env } from 'cloudflare:workers';
 import { runInDurableObject } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import worker from '../src/index';
-import { DEFAULT_TTL_SECONDS, ENVELOPE_TABLE_DDL, MAX_TTL_SECONDS, isValidPairingId } from '../src/protocol';
+import {
+  DEFAULT_TTL_SECONDS,
+  ENVELOPE_TABLE_DDL,
+  MAX_CIPHERTEXT_B64U_CHARS,
+  MAX_ENVELOPE_BYTES,
+  MAX_PUSH_BODY_CHARS,
+  MAX_TTL_SECONDS,
+  isValidPairingId,
+} from '../src/protocol';
 
 // Each test uses a fresh pairing id so Durable Object state never bleeds between cases.
 // The id must be `p_` + exactly 16 base64url chars (isValidPairingId).
@@ -190,10 +198,49 @@ describe('push / pull envelope flow', () => {
     expect(res.status).toBe(400);
   });
 
-  it('rejects an oversized ciphertext (413)', async () => {
+  // §3.1 caps the DECODED ciphertext at MAX_ENVELOPE_BYTES. The relay cannot decode, so its
+  // guard counts base64url characters and the two constants must stay in step. Until
+  // 2026-08-09 this suite asserted `1 MiB + 1 chars → 413`, which pinned a character count
+  // against a byte budget and quietly capped the decoded payload at 786,432 bytes.
+  it('derives the character cap from the byte cap, not from a second round number', () => {
+    expect(MAX_CIPHERTEXT_B64U_CHARS).toBe(Math.ceil((MAX_ENVELOPE_BYTES * 4) / 3));
+    expect(MAX_CIPHERTEXT_B64U_CHARS).toBe(1398102);
+    // The old guard would have refused this much legal payload.
+    expect(MAX_ENVELOPE_BYTES - Math.floor(MAX_ENVELOPE_BYTES / 4) * 3).toBe(256 * 1024);
+  });
+
+  it('carries the largest ciphertext the protocol declares legal (201)', async () => {
     const pairing = await bootstrap('tok');
-    const big = envelope('e2p', 1, { ciphertext: 'A'.repeat(1024 * 1024 + 1) });
-    expect((await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: big })).status).toBe(413);
+    const atCap = envelope('e2p', 1, { ciphertext: 'A'.repeat(MAX_CIPHERTEXT_B64U_CHARS) });
+    const res = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: atCap });
+    expect(res.status).toBe(201);
+  });
+
+  it('returns a maximum-size envelope through pull byte-for-byte', async () => {
+    const pairing = await bootstrap('tok');
+    const atCap = envelope('e2p', 1, { ciphertext: 'A'.repeat(MAX_CIPHERTEXT_B64U_CHARS) });
+    await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: atCap });
+    // Read as TEXT, not JSON: pull splices the stored envelope into its response verbatim,
+    // so this is the assertion that actually proves storage did not truncate a row this size.
+    const body = await (await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') })).text();
+    expect(body).toBe(`{"envelopes":[${atCap}],"latest":1}`);
+  });
+
+  it('rejects one character beyond the declared maximum (413)', async () => {
+    const pairing = await bootstrap('tok');
+    const over = envelope('e2p', 1, { ciphertext: 'A'.repeat(MAX_CIPHERTEXT_B64U_CHARS + 1) });
+    const res = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: over });
+    expect(res.status).toBe(413);
+    expect(await res.json()).toMatchObject({ error: 'too_large' });
+  });
+
+  it('rejects an over-long body before parsing it (413)', async () => {
+    const pairing = await bootstrap('tok');
+    // Not even valid JSON: the body guard must fire first, so nothing this large is parsed.
+    const res = await call(`/v1/${pairing}/push`, {
+      method: 'POST', headers: bearer('tok'), body: 'A'.repeat(MAX_PUSH_BODY_CHARS + 1),
+    });
+    expect(res.status).toBe(413);
   });
 
   it('pull requires a valid dir', async () => {

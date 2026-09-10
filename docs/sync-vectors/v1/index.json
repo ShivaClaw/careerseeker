@@ -158,6 +158,18 @@
       "type": "entitlement",
       "valid": false,
       "expect_error": null
+    },
+    {
+      "name": "entitlement-ack",
+      "type": "entitlement_ack",
+      "valid": true,
+      "expect_error": null
+    },
+    {
+      "name": "entitlement-ack-no-order-id",
+      "type": "entitlement_ack",
+      "valid": true,
+      "expect_error": null
     }
   ]
 }

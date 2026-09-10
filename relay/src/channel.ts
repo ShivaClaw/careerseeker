@@ -3,7 +3,8 @@ import {
   DEFAULT_TTL_SECONDS,
   DIRECTIONS,
   ENVELOPE_TABLE_DDL,
-  MAX_ENVELOPE_BYTES,
+  MAX_CIPHERTEXT_B64U_CHARS,
+  MAX_PUSH_BODY_CHARS,
   MAX_TTL_SECONDS,
   PULL_PAGE_SIZE,
   type Direction,
@@ -136,7 +137,7 @@ export class PairingChannel extends DurableObject<Env> {
 
   private async push(request: Request): Promise<Response> {
     const raw = await request.text();
-    if (raw.length > MAX_ENVELOPE_BYTES + 4096) return this.json({ error: 'too_large' }, 413);
+    if (raw.length > MAX_PUSH_BODY_CHARS) return this.json({ error: 'too_large' }, 413);
 
     let env: Record<string, unknown>;
     try { env = JSON.parse(raw); } catch { return this.json({ error: 'bad_request' }, 400); }
@@ -157,7 +158,10 @@ export class PairingChannel extends DurableObject<Env> {
     ) {
       return this.json({ error: 'bad_request' }, 400);
     }
-    if ((env.ciphertext as string).length > MAX_ENVELOPE_BYTES) return this.json({ error: 'too_large' }, 413);
+    // Measured in base64url characters, because the relay cannot decode. The constant is
+    // derived from the protocol's byte cap (§3.1) — see protocol.ts for why it must never
+    // be re-spelled as a round number here.
+    if ((env.ciphertext as string).length > MAX_CIPHERTEXT_B64U_CHARS) return this.json({ error: 'too_large' }, 413);
 
     // Relay-side monotonicity: duplicates and regressions are refused at the door, so a
     // compromised sender cannot fill the queue with replays for the receiver to reject.
