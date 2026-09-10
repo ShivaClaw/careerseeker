@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import worker from '../src/index';
 import {
   DEFAULT_TTL_SECONDS,
+  DIRECTIONS,
   ENVELOPE_TABLE_DDL,
   MAX_CIPHERTEXT_B64U_CHARS,
   MAX_ENVELOPE_BYTES,
@@ -64,6 +65,31 @@ describe('routing and auth', () => {
     expect(isValidPairingId('p_7Fq2mXk9LtVbN3wR')).toBe(true);
     expect(isValidPairingId('p_short')).toBe(false);
     expect(isValidPairingId('brandon@example.com')).toBe(false);
+  });
+
+  // The regex in protocol.ts is a hand-transcription of the `pairing` row of the §3 envelope
+  // field table — "`p_` + 16 base64url chars" — and nothing compared the two. The case above
+  // pins one valid id and two obviously-wrong ones, which is satisfied by a regex widened to
+  // `{16,32}` or by a charset that admits `.`; both were measured green. The prefix was covered
+  // only incidentally, by every other test happening to use a `p_` id. Length, charset and
+  // prefix are pinned against the document here, so a widened shape fails on its own account.
+  it('the pairing id shape matches §3 exactly: `p_` + 16 base64url chars', () => {
+    expect(isValidPairingId('p_7Fq2mXk9LtVbN3wR')).toBe(true); // exactly 16
+
+    expect(isValidPairingId('p_7Fq2mXk9LtVbN3w')).toBe(false); // 15
+    expect(isValidPairingId('p_7Fq2mXk9LtVbN3wRx')).toBe(false); // 17
+
+    // base64url's alphabet is [A-Za-z0-9_-]. Standard-base64 and separator characters are
+    // the plausible slips, and none of them is a pairing id.
+    for (const bad of ['.', '+', '/', '=', ' ', '@']) {
+      expect(isValidPairingId(`p_${bad}Fq2mXk9LtVbN3wR`)).toBe(false);
+    }
+    expect(isValidPairingId('p_-Fq2mXk9LtVbN3wR')).toBe(true);
+    expect(isValidPairingId('p__Fq2mXk9LtVbN3wR')).toBe(true);
+
+    // The prefix is part of the shape, not decoration.
+    expect(isValidPairingId('q_7Fq2mXk9LtVbN3wR')).toBe(false);
+    expect(isValidPairingId('7Fq2mXk9LtVbN3wR')).toBe(false);
   });
 
   it.each(['push', 'pull', 'live'])('%s requires a bearer token', async (route) => {
@@ -575,6 +601,9 @@ describe('PairingChannel durable object internals', () => {
       expect(instance.ttlSeconds(MAX_TTL_SECONDS * 10)).toBe(MAX_TTL_SECONDS);
       expect(instance.ttlSeconds(0)).toBe(DEFAULT_TTL_SECONDS);
       expect(instance.ttlSeconds(-1)).toBe(DEFAULT_TTL_SECONDS);
+      // The no-argument call is the shape `push` actually uses (channel.ts:192); the three
+      // above all pass a value, so the production path was the one not exercised here.
+      expect(instance.ttlSeconds()).toBe(DEFAULT_TTL_SECONDS);
     });
   });
 
@@ -625,5 +654,54 @@ describe('blindness invariants', () => {
   it('retention can never exceed the spec ceiling', () => {
     expect(MAX_TTL_SECONDS).toBe(30 * 24 * 60 * 60);
     expect(DEFAULT_TTL_SECONDS).toBeLessThanOrEqual(MAX_TTL_SECONDS);
+  });
+
+  // §3's retention rule bounds the CEILING ("MUST NOT exceed 30 days") and says nothing about
+  // the default; `7 * 24 * 60 * 60` appears nowhere in either spec, so the only statement of
+  // intent is protocol.ts's own "shorter than the ceiling on purpose: keep less, for less
+  // time". The assertion above is satisfied by the ceiling itself, so raising the default to
+  // 30 days was measured green across all 55 pre-existing tests. That mutation changes no
+  // behaviour any test can observe — it only makes the blind relay hold every user's
+  // ciphertext four times longer, which is the one property this component exists to minimise.
+  it('the retention default is 7 days, and strictly shorter than the ceiling', () => {
+    expect(DEFAULT_TTL_SECONDS).toBe(7 * 24 * 60 * 60);
+    expect(DEFAULT_TTL_SECONDS).toBeLessThan(MAX_TTL_SECONDS);
+  });
+
+  // The DDL runs in the PairingChannel constructor (src/channel.ts:29), and Cloudflare calls
+  // that constructor on EVERY instantiation of the object — including every wake from
+  // eviction or hibernation, against storage that already holds the table. `IF NOT EXISTS` is
+  // therefore not a stylistic nicety on either statement: it is the whole reason the
+  // constructor survives its second and every later run. Drop it and SQLite raises "table
+  // envelopes already exists", the constructor throws, and that pairing's channel is dead —
+  // a failure that arrives on a wake long after the deploy that caused it, one pairing at a
+  // time, on the path with no other guard.
+  //
+  // Nothing observed this before. Every other case in this file instantiates a *fresh* DO, so
+  // the re-entry path — the one production actually runs on every wake — was covered by no
+  // test at all: dropping `IF NOT EXISTS` from the table left all 57 pre-existing tests green.
+  // This asserts the property behaviourally rather than by grepping the DDL text, so it also
+  // covers the index statement and anything later added to the same string.
+  it('the schema DDL is idempotent, because every DO wake re-runs it', async () => {
+    const pairing = await bootstrap('tok');
+    const stub = env.PAIRING.get(env.PAIRING.idFromName(pairing));
+    await runInDurableObject(stub, async (_instance, state) => {
+      // The constructor already executed it once against this storage. A wake does it again,
+      // and so does the wake after that.
+      expect(() => state.storage.sql.exec(ENVELOPE_TABLE_DDL)).not.toThrow();
+      expect(() => state.storage.sql.exec(ENVELOPE_TABLE_DDL)).not.toThrow();
+    });
+  });
+
+  // §3's field table (docs/Sync-Protocol.md:80) closes the direction set at exactly two, and
+  // §3 line 102 makes "a `dir` that is neither `e2p` nor `p2e`" a rejection. DIRECTIONS is the
+  // whitelist all three validators consult (channel.ts:152, :214, :255), so widening it is how
+  // the relay would come to route a channel no receiver reads.
+  //
+  // This was already caught, but only *incidentally* — by `depth()` deriving its keys from
+  // this array, inside a test about schema creation. That is coverage by accident, and it is
+  // one refactor of `depth()` away from vanishing. This compares the array to the document.
+  it('the direction set is exactly the two §3 names', () => {
+    expect([...DIRECTIONS]).toEqual(['e2p', 'p2e']);
   });
 });
