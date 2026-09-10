@@ -80,8 +80,8 @@ The current pinned breakdown is:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| SyncHarness | 294 |
-| **Total** | **775** |
+| SyncHarness | 325 |
+| **Total** | **806** |
 
 CI runs the warnings-as-errors Release build and the same offline verifier. Optional live switches use
 already-configured local credentials and are not part of the default gate:
