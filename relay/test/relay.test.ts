@@ -705,3 +705,78 @@ describe('blindness invariants', () => {
     expect([...DIRECTIONS]).toEqual(['e2p', 'p2e']);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// The envelope header's `pairing` field: what the relay does with it today.
+//
+// `pairing` is declared in `EnvelopeHeader` (protocol.ts) alongside `v`, `dir`, `seq`, `ts`
+// and `key_id`, and it is the ONLY one of those six the push validator never mentions —
+// `env.pairing` does not appear anywhere in `src/` (channel.ts:150-166 lists the rest).
+// `isValidPairingId` guards the PATH segment at index.ts:55 and nothing else, so the shape
+// the relay exports is enforced on the URL and never on the body.
+//
+// These four cases are a CHARACTERIZATION, not an endorsement. They assert today's
+// behaviour so that a change to it has to be deliberate; they must not be read as a
+// decision that this behaviour is right. Tightening what the relay refuses is the shape of
+// the size-cap bug (a relay refusing what the spec declares legal), and the harnesses that
+// would catch an over-tightening need .NET, which no cloud session has. The open question
+// is PQ-S2-1 in docs/protocol-questions.md — spec first, relay second, on a machine with a
+// gate.
+//
+// Why it is worth pinning rather than leaving unmeasured: `pairing` is in the §4.1 AAD, so
+// the receiver authenticates it. An envelope stored under one pairing while its header
+// names another decrypts nowhere — and the code the receiver reports for that is
+// `decrypt_failed` (§7.2), which says "corrupt or tampered" about what is really a routing
+// fault. The relay is the only party positioned to notice, and today it does not look.
+describe('envelope header `pairing` (characterization — see PQ-S2-1)', () => {
+  const foreign = 'p_AAAABBBBCCCCDDDD';
+
+  it('accepts a header naming a DIFFERENT pairing than the path', async () => {
+    const pairing = await bootstrap('tok');
+    const res = await call(`/v1/${pairing}/push`, {
+      method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1, { pairing: foreign }),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  // `p_x` is this suite's own fixture, in BOTH helpers (`envelope()` above and `rawEnvelope()`
+  // in the seq-range block). Every push case in this file has always carried a pairing id that
+  // `isValidPairingId` rejects, and nothing noticed, because nothing reads the field.
+  //
+  // The malformed id is passed EXPLICITLY here rather than inherited from `envelope()`'s
+  // default. Inheriting it would make this case say "malformed" while testing whatever the
+  // helper happens to carry — the coverage-by-accident shape that `depth()` produced for
+  // DIRECTIONS — and it would silently stop testing anything the day that fixture is fixed,
+  // which is exactly the day this assertion matters most.
+  it('accepts a header whose pairing id is malformed', async () => {
+    expect(isValidPairingId('p_x')).toBe(false);
+    const pairing = await bootstrap('tok');
+    const res = await call(`/v1/${pairing}/push`, {
+      method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1, { pairing: 'p_x' }),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('accepts a header with no `pairing` field at all', async () => {
+    const pairing = await bootstrap('tok');
+    const res = await call(`/v1/${pairing}/push`, {
+      method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1, { pairing: undefined }),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  // The consequence, and the reason the three cases above are not merely untidy: the foreign
+  // id is not normalised away in storage. It reaches the receiver verbatim, which rebuilds
+  // the §4.1 AAD from it and fails to decrypt.
+  it('serves the foreign pairing back to the receiver verbatim', async () => {
+    const pairing = await bootstrap('tok');
+    await call(`/v1/${pairing}/push`, {
+      method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1, { pairing: foreign }),
+    });
+    const res = await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') });
+    const body = await res.json() as { envelopes: { pairing: string }[] };
+    expect(body.envelopes).toHaveLength(1);
+    expect(body.envelopes[0].pairing).toBe(foreign);
+    expect(body.envelopes[0].pairing).not.toBe(pairing);
+  });
+});
