@@ -15,6 +15,22 @@ public static class Text
     // Keep word chars, %, whitespace and the dot (for "B.S." etc.); else -> space.
     private static readonly Regex Punct = new(@"[^\w%\s.]", RegexOptions.Compiled);
 
+    // Symbol-bearing identifiers: in "C++", "C#", "F#", "A+", "Security+" the symbol IS the
+    // meaning. They are rewritten to letter forms BEFORE Punct strips symbols, otherwise
+    // "C#" and "C++" both collapse to the token "c" and the Gate cannot tell them apart
+    // (audit 2026-09-10, finding F02). Order matters: "++" before the trailing single "+".
+    private static readonly Regex PlusPlusId = new(@"(\w)\+\+", RegexOptions.Compiled);
+    private static readonly Regex TrailingPlusId = new(@"(\w)\+(?!\w)", RegexOptions.Compiled);
+    private static readonly Regex SharpId = new(@"([a-z0-9])#", RegexOptions.Compiled);
+
+    // Negation markers, matched on raw lowercased text BEFORE normalization strips
+    // apostrophes, so contractions ("don't", "hasn't") still count. "not" is deliberately
+    // NOT a stop word: a token-subset check discards extra source words, so without this
+    // signal "I have not led X" lexically supports "I have led X" (audit finding F01).
+    private static readonly Regex Negation = new(
+        @"\b(not|no|never|none|neither|nor|cannot|without)\b|n['’]t\b",
+        RegexOptions.Compiled);
+
     // Minimal seed synonym map. Onboarding's per-user title expansion (spec
     // section 4.2, Bank 1) feeds additional entries at runtime. Ordered so the
     // port is deterministic; none of these chain, so order does not affect output.
@@ -37,10 +53,23 @@ public static class Text
     public static string Normalize(string text)
     {
         var t = text.ToLowerInvariant().Trim();
+        t = PlusPlusId.Replace(t, "$1plusplus");
+        t = TrailingPlusId.Replace(t, "$1plus");
+        t = SharpId.Replace(t, "$1sharp");
         t = Punct.Replace(t, " ");
         t = Ws.Replace(t, " ");
         return t.Trim();
     }
+
+    /// <summary>
+    /// True when the text carries a negation marker ("not", "never", "without",
+    /// "n't", ...). Evaluated on the raw text so contractions are visible. Subset
+    /// matching is polarity-blind — the positive claim's tokens are a subset of the
+    /// negated fact's — so every lexical accept in the Gate, and the fallback
+    /// matcher, must refuse to match across a negation mismatch and leave the
+    /// decision to real entailment, which fails closed.
+    /// </summary>
+    public static bool ContainsNegation(string text) => Negation.IsMatch(text.ToLowerInvariant());
 
     public static string Canonicalize(string text)
     {
@@ -109,6 +138,11 @@ public sealed class DefaultSemanticMatcher : ISemanticMatcher
 
     public Task<SemanticMatchResult> EntailsAsync(string sourceText, string tailoredText, CancellationToken ct = default)
     {
+        // Token coverage is polarity-blind: "I have not led X" covers 100% of
+        // "I have led X". A negation mismatch is therefore never entailment here —
+        // this matcher's contract is to fail closed (audit finding F01).
+        if (Text.ContainsNegation(sourceText) != Text.ContainsNegation(tailoredText))
+            return Task.FromResult(SemanticMatchResult.Unsupported());
         var src = Text.ContentTokens(sourceText);
         var tail = Text.ContentTokens(tailoredText);
         if (tail.Count == 0) return Task.FromResult(SemanticMatchResult.Unsupported());

@@ -210,6 +210,78 @@ Console.WriteLine("=== CareerSeeker L1 vertical slice (Scout→Store→Scorer→
         !verdict.Passed && matcher.Calls == 0,
         $"passed={verdict.Passed} calls={matcher.Calls}");
 }
+{
+    // Audit 2026-09-10 regressions (F01/F02). The lexical shortcut is polarity-blind and
+    // symbol-blind: pre-fix, each of the first three cases came back Ready with ZERO
+    // semantic calls. Post-fix they must be blocked, and where a semantic fallback exists
+    // the matcher must actually have been consulted (Calls > 0) — the shortcut may defer,
+    // never decide.
+    var negMatcher = new CountingSemanticMatcher((_, _) => false);
+    var negTextual = await FabricationGate.VerifyAsync(
+        new[] { new SourceClaim("s1", ClaimKind.Other, "I have not led payroll migrations", Confidence.Verified) },
+        new[] { new TailoredClaim(ClaimKind.Other, "I have led payroll migrations", "I have led payroll migrations") },
+        negMatcher);
+    Check("F01: negated source fact cannot lexically support its positive claim",
+        !negTextual.Passed && negMatcher.Calls > 0,
+        $"passed={negTextual.Passed} calls={negMatcher.Calls}");
+
+    var negCred = await FabricationGate.VerifyAsync(
+        new[] { new SourceClaim("c1", ClaimKind.Credential, "I am not AWS certified", Confidence.Verified) },
+        new[] { new TailoredClaim(ClaimKind.Credential, "I am AWS certified", "I am AWS certified") },
+        new CountingSemanticMatcher((_, _) => false));
+    Check("F01: negated credential cannot support the positive credential",
+        !negCred.Passed && negCred.Violations.Any(v => v.Kind == ViolationKind.CredentialNotFound),
+        string.Join(" | ", negCred.Violations.Select(v => v.Kind.ToString())));
+
+    var sharpMatcher = new CountingSemanticMatcher((_, _) => false);
+    var sharpFromPlus = await FabricationGate.VerifyAsync(
+        new[] { new SourceClaim("k1", ClaimKind.Skill, "Experience with C++", Confidence.Verified) },
+        new[] { new TailoredClaim(ClaimKind.Skill, "Experience with C#", "Experience with C#") },
+        sharpMatcher);
+    Check("F02: C++ experience does not lexically support a C# claim",
+        !sharpFromPlus.Passed && sharpMatcher.Calls > 0,
+        $"passed={sharpFromPlus.Passed} calls={sharpMatcher.Calls}");
+
+    var plusFromPlus = await FabricationGate.VerifyAsync(
+        new[] { new SourceClaim("k1", ClaimKind.Skill, "Experience with C++", Confidence.Verified) },
+        new[] { new TailoredClaim(ClaimKind.Skill, "Experience with C++", "Experience with C++") },
+        new CountingSemanticMatcher((_, _) => false));
+    Check("F02 control: C++ still lexically supports C++ after the identifier fix",
+        plusFromPlus.Passed,
+        string.Join(" | ", plusFromPlus.Violations.Select(v => v.Kind + ":" + v.Claim.Text)));
+
+    var symmetric = await FabricationGate.VerifyAsync(
+        new[] { new SourceClaim("s1", ClaimKind.Other, "never missed a release deadline", Confidence.Verified) },
+        new[] { new TailoredClaim(ClaimKind.Other, "never missed a release deadline", "never missed a release deadline") },
+        new CountingSemanticMatcher((_, _) => false));
+    Check("F01 control: matching negation on both sides still passes lexically", symmetric.Passed);
+
+    var aPlusCred = await FabricationGate.VerifyAsync(
+        new[] { new SourceClaim("c1", ClaimKind.Credential, "A+ certified", Confidence.Verified) },
+        new[] { new TailoredClaim(ClaimKind.Credential, "AWS certified", "AWS certified") },
+        new CountingSemanticMatcher((_, _) => false));
+    Check("F02: 'A+ certified' no longer reduces to bare 'certified' and cross-matches",
+        !aPlusCred.Passed && aPlusCred.Violations.Any(v => v.Kind == ViolationKind.CredentialNotFound));
+
+    Check("F01: fallback matcher refuses entailment across a negation mismatch",
+        !(await new DefaultSemanticMatcher().EntailsAsync(
+            "I have not led payroll migrations", "I have led payroll migrations")).Entailed);
+    Check("F02: fallback matcher does not entail C# from C++",
+        !(await new DefaultSemanticMatcher().EntailsAsync(
+            "Experience with C++", "Experience with C#")).Entailed);
+
+    // End to end through the prose Decomposer, the exact shape of the audit's probe.
+    var decomposed = Decomposer.FromDraft(new TailorDraft(
+        "I am AWS certified.", "", Array.Empty<DeclaredClaim>(), new Dictionary<string, string>()));
+    var negProse = await FabricationGate.VerifyAsync(
+        new[]
+        {
+            new SourceClaim("c1", ClaimKind.Credential, "I am not AWS certified", Confidence.Verified),
+            new SourceClaim("s1", ClaimKind.Other, "I am not AWS certified", Confidence.Verified),
+        },
+        decomposed, new CountingSemanticMatcher((_, _) => false));
+    Check("F01: decomposed prose of a negated fact is blocked end to end", !negProse.Passed);
+}
 
 // ── 1) HAPPY PATH: a clean, supported application flows all the way to a Gmail draft ───────────────
 Console.WriteLine("[ happy path -> DRAFTED ]");
