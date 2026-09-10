@@ -88,9 +88,9 @@ Check("engine rotates relay token provisional -> final", await client.RotateToke
 Console.WriteLine("\n[ envelope round-trip ]");
 var deltaPlain = JsonSerializer.SerializeToUtf8Bytes(new { kind = "delta", body = new { counters = new { drafted = 1 } } });
 var e2pEnvelope = SealEnvelope(pairing, "e2p", 1, paired.KeyEngineToPhone, deltaPlain, sig: null);
-Check("engine pushes an e2p envelope", await client.PushAsync(finalToken, e2pEnvelope));
+Check("engine pushes an e2p envelope", await PushedOk(client.PushAsync(finalToken, e2pEnvelope)));
 
-var (e2pPulled, _) = await client.PullAsync(finalToken, "e2p", 0);
+var (e2pPulled, _) = PullOk(await client.PullAsync(finalToken, "e2p", 0), "first e2p pull");
 Check("phone pulls exactly one e2p envelope", e2pPulled.Count == 1);
 // The smoke fixes key_id="k-live" on both sides (SealEnvelope); the vectors cover revocation.
 var e2pResult = ReceiveFrom(e2pPulled[0], _ => paired.KeyEngineToPhone);
@@ -110,12 +110,12 @@ Console.WriteLine("\n[ SyncPublisher snapshot + delta round-trip ]");
     // key_id must match the phone receiver's active key ("k-live"); startSeq 1 continues the e2p
     // stream after the hand-built delta above, so the relay's per-direction monotonicity is honored.
     var publisher = new SyncPublisher(paired.KeyEngineToPhone, pairing, "k-live",
-        (envJson, ct) => client.PushAsync(finalToken, envJson, ct), startSeq: 1);
+        (envJson, ct) => PushedOk(client.PushAsync(finalToken, envJson, ct)), startSeq: 1);
 
     Check("publisher pushes a snapshot (seq 2)", await publisher.PublishSnapshotAsync(liveCounters, liveApps, liveJobs));
     Check("publisher pushes a delta (seq 3)", await publisher.PublishDeltaAsync(2, liveCounters, liveApps, liveJobs));
 
-    var (published, latest) = await client.PullAsync(finalToken, "e2p", 1);
+    var (published, latest) = PullOk(await client.PullAsync(finalToken, "e2p", 1), "e2p pull after delta");
     Check("phone pulls the two new e2p envelopes", published.Count == 2 && latest == 3);
 
     var phoneReceiver = new EnvelopeReceiver("k-live");
@@ -138,9 +138,9 @@ Console.WriteLine("\n[ SyncPublisher snapshot + delta round-trip ]");
 // ---- phone -> engine: a SIGNED doc_edit --------------------------------------------
 var editPlain = JsonSerializer.SerializeToUtf8Bytes(new { kind = "doc_edit", body = new { app_id = "app_live", doc_kind = "cover_letter", base_rev = 1, new_text = "Live edit." } });
 var p2eEnvelope = SealEnvelope(pairing, "p2e", 1, phoneKeys.KeyPhoneToEngine, editPlain, sig: phoneSigning);
-Check("phone pushes a signed p2e doc_edit", await client.PushAsync(finalToken, p2eEnvelope));
+Check("phone pushes a signed p2e doc_edit", await PushedOk(client.PushAsync(finalToken, p2eEnvelope)));
 
-var (p2ePulled, _) = await client.PullAsync(finalToken, "p2e", 0);
+var (p2ePulled, _) = PullOk(await client.PullAsync(finalToken, "p2e", 0), "first p2e pull");
 Check("engine pulls the p2e envelope", p2ePulled.Count == 1);
 var engineReceiver = new EnvelopeReceiver(activeKeyId: "k-live", deviceSigPub: paired.DeviceSigPub);
 var p2eResult = engineReceiver.Receive(ToReceived(p2ePulled[0]), dir => phoneKeys.KeyPhoneToEngine);
@@ -173,7 +173,7 @@ Console.WriteLine("\n[ inbound p2e: entitlement + outcome + pull_request (P4 §2
     var outcomeApplier = new LiveOutcomeApplier();
     // The republisher continues the e2p stream (highest so far is 3), so pull_request emits snapshot seq 4.
     var republishPub = new SyncPublisher(paired.KeyEngineToPhone, pairing, "k-live",
-        (envJson, ct) => client.PushAsync(finalToken, envJson, ct), startSeq: 3);
+        (envJson, ct) => PushedOk(client.PushAsync(finalToken, envJson, ct)), startSeq: 3);
     var republisher = new LiveRepublisher(republishPub,
         new Counters(Discovered: 9, Acted: 4, Drafted: 4, Blocked: 0, Rejected: 1, Errors: 0, Cycles: 5),
         new[] { new AppSummary("app_live_1", "OFFER", "Northwind Labs", "Senior Platform Engineer", 88) },
@@ -184,15 +184,15 @@ Console.WriteLine("\n[ inbound p2e: entitlement + outcome + pull_request (P4 §2
 
     var entPlain = JsonSerializer.SerializeToUtf8Bytes(new { kind = "entitlement", body = new { original_json = originalJson, signature } });
     Check("phone pushes a signed entitlement (p2e seq 2)",
-        await client.PushAsync(finalToken, SealEnvelope(pairing, "p2e", 2, phoneKeys.KeyPhoneToEngine, entPlain, sig: phoneSigning)));
+        await PushedOk(client.PushAsync(finalToken, SealEnvelope(pairing, "p2e", 2, phoneKeys.KeyPhoneToEngine, entPlain, sig: phoneSigning))));
     var outcomePlain = JsonSerializer.SerializeToUtf8Bytes(new { kind = "outcome", body = new { app_id = "app_live_1", outcome = "interview", at = "2026-07-24T00:00:00Z" } });
     Check("phone pushes a signed outcome (p2e seq 3)",
-        await client.PushAsync(finalToken, SealEnvelope(pairing, "p2e", 3, phoneKeys.KeyPhoneToEngine, outcomePlain, sig: phoneSigning)));
+        await PushedOk(client.PushAsync(finalToken, SealEnvelope(pairing, "p2e", 3, phoneKeys.KeyPhoneToEngine, outcomePlain, sig: phoneSigning))));
     var pullReqPlain = JsonSerializer.SerializeToUtf8Bytes(new { kind = "pull_request", body = new { since_seq = 0 } });
     Check("phone pushes a pull_request (p2e seq 4, unsigned)",
-        await client.PushAsync(finalToken, SealEnvelope(pairing, "p2e", 4, phoneKeys.KeyPhoneToEngine, pullReqPlain, sig: null)));
+        await PushedOk(client.PushAsync(finalToken, SealEnvelope(pairing, "p2e", 4, phoneKeys.KeyPhoneToEngine, pullReqPlain, sig: null))));
 
-    var (inbound, _) = await client.PullAsync(finalToken, "p2e", 1); // since the doc_edit at seq 1
+    var (inbound, _) = PullOk(await client.PullAsync(finalToken, "p2e", 1), "p2e pull"); // since the doc_edit at seq 1
     var dispatched = new List<InboundOutcome>();
     foreach (var env in inbound.OrderBy(e => e.GetProperty("seq").GetInt64()))
         dispatched.Add((await dispatcher.DispatchAsync(ToReceived(env))).Outcome);
@@ -201,7 +201,7 @@ Console.WriteLine("\n[ inbound p2e: entitlement + outcome + pull_request (P4 §2
     Check("both layers verified live: Pro is entitled after the Play-signed entitlement", entSvc.IsEntitled());
     Check("the signed outcome reached the §2.5 applier seam", outcomeApplier.Bodies.Count == 1 && outcomeApplier.Bodies[0].Contains("interview"));
 
-    var (republished, _) = await client.PullAsync(finalToken, "e2p", 3);
+    var (republished, _) = PullOk(await client.PullAsync(finalToken, "e2p", 3), "republished snapshot pull");
     Check("pull_request round-trips a fresh snapshot to the phone (e2p seq 4)", republished.Count == 1);
     var snap = new EnvelopeReceiver("k-live").Receive(ToReceived(republished[0]), _ => paired.KeyEngineToPhone);
     Check("the republished envelope opens as kind=snapshot", snap.Accepted && snap.Kind == "snapshot", snap.Error?.ToWire());
@@ -209,14 +209,26 @@ Console.WriteLine("\n[ inbound p2e: entitlement + outcome + pull_request (P4 §2
 
 // ---- relay-side replay rejection ---------------------------------------------------
 Console.WriteLine("\n[ replay + unpair ]");
-Check("relay refuses a duplicate seq (409)", !await client.PushAsync(finalToken, e2pEnvelope));
+// This asserted `!await PushAsync(...)` when the answer was a bool -- which a DNS failure, a
+// timeout and a 500 all satisfy, so the one thing it named was the one thing it could not see.
+// Now it asserts the case, and the number: the relay's e2p high-water mark is 4 by this point
+// (hand-built delta 1, publisher snapshot 2 + delta 3, republished snapshot 4), and §2.2 requires
+// the 409 to carry it. That is §6.1's reconciliation input, proven to arrive on the live wire.
+var replay = await client.PushAsync(finalToken, e2pEnvelope);
+Check("relay refuses a duplicate seq (409)", replay is RelayPushResult.Conflict, replay.GetType().Name);
+Check("the 409 carries the relay's e2p high-water mark (§2.2, §6.1)",
+    replay is RelayPushResult.Conflict { Latest: 4 },
+    (replay as RelayPushResult.Conflict)?.Latest?.ToString() ?? "no latest");
 
 // ---- unpair purges everything ------------------------------------------------------
 Check("engine unpairs (DELETE)", await client.UnpairAsync(finalToken));
-bool pullAfterUnpair;
-try { await client.PullAsync(finalToken, "e2p", 0); pullAfterUnpair = false; }
-catch (HttpRequestException) { pullAfterUnpair = true; } // 401 -> EnsureSuccessStatusCode throws
-Check("after unpair the token no longer authorizes", pullAfterUnpair);
+// A purged pairing answers 401 on every route, not 404 -- measured under miniflare and pinned in
+// Sync-Protocol.md 2.3 (PQ-S2-4). Asserting the CASE rather than an exception type is what makes
+// that observable: the old form caught HttpRequestException, which a DNS failure raises too, so a
+// relay that had simply gone away would have passed this line.
+var afterUnpair = await client.PullAsync(finalToken, "e2p", 0);
+Check("after unpair the token no longer authorizes", afterUnpair is RelayPullResult.Unauthorised,
+    afterUnpair.GetType().Name);
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
@@ -224,6 +236,18 @@ return failed == 0 ? 0 : 1;
 // ---------------------------------------------------------------- helpers
 
 // For the live smoke both sides fix key_id="k-live"; the vectors cover key_id revocation.
+// PullAsync answers with a RelayPullResult rather than throwing. This smoke wants the page or a
+// hard stop: a live run that quietly treated "the relay refused" as "no envelopes" would report a
+// green empty pull, which is the one answer it must never give.
+(IReadOnlyList<JsonElement> Envelopes, long Latest) PullOk(RelayPullResult result, string what) =>
+    result is RelayPullResult.Ok ok
+        ? (ok.Envelopes, ok.Latest)
+        : throw new InvalidOperationException($"{what}: the relay answered {result.GetType().Name}");
+
+// PushAsync returns a RelayPushResult now. Two adapters, because the two uses want different
+// things: assertions want "did it append", and SyncPublisher's sink wants the bool it always had.
+async Task<bool> PushedOk(Task<RelayPushResult> push) => await push is RelayPushResult.Ok;
+
 string SealEnvelope(string pairing, string dir, long seq, byte[] key, byte[] plaintext, ECDsa? sig)
 {
     var nonce = RandomNumberGenerator.GetBytes(12);

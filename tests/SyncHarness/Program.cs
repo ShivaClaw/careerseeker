@@ -9,6 +9,7 @@
 // was always the plan ("when the real SyncPublisher lands in P1, this harness points at
 // it instead").
 
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -1000,6 +1001,29 @@ Console.WriteLine("\n[ inbound pump: the engine's p2e transport loop (S5, §6.1/
         var report = pump.DrainAsync().GetAwaiter().GetResult();
         Check("pump: cursor below the page's latest reports more available", report.MoreAvailable && report.Cursor == 2);
     }
+
+    // --- §6.4's bound is supplied by the party it defends against. This PINS the weakness.
+    //
+    // These two assertions are not a fix and must not be read as one. They are the executable form
+    // of the correction now in InboundPump's docstring, which used to claim the bound "denies a
+    // hostile relay a second, independent lever". It does not: `latest` and the crafted element
+    // arrive in the same response from the same party. The identical element bounded to 5 by an
+    // honest page walks the cursor to 1,000,000 when the page inflates its own bound.
+    //
+    // RelayClient now refuses a page whose latest exceeds Protocol.MaxSeq, which lowers the ceiling
+    // to 2^53-1 and leaves this reachable -- 2^53-1 is still past every real counter. Closing it
+    // needs a bound that does not come from the relay, which is a protocol change (PQ-LAT-2).
+    // If a later slice closes it, THIS TEST SHOULD FAIL. That is the point of writing it down.
+    {
+        var (honest, _, _) = MakePump(new[] { new[] { Undecryptable(1_000_000) } }, latest: 5);
+        var honestReport = honest.DrainAsync().GetAwaiter().GetResult();
+        var (inflated, _, _) = MakePump(new[] { new[] { Undecryptable(1_000_000) } }, latest: Protocol.MaxSeq);
+        var inflatedReport = inflated.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an honest latest bounds an unauthenticated claim to the page's own high-water mark",
+            honestReport.Cursor == 5);
+        Check("pump: an inflated latest does NOT (open weakness, pinned -- PQ-LAT-2)",
+            inflatedReport.Cursor == 1_000_000);
+    }
 }
 
 Console.WriteLine("\n[ the replay mark raises only (§6.2) ]");
@@ -1038,6 +1062,314 @@ Check("device key fingerprint is 16 lowercase hex chars",
     DeviceSignature.Fingerprint(devicePub) is { Length: 16 } fp && fp.All(c => "0123456789abcdef".Contains(c)));
 Check("suite string names its post-quantum successor",
     Protocol.SuiteHybridReserved.Contains("mlkem") && Protocol.SuiteHybridReserved != Protocol.Suite);
+// §3.2's cap is 2^53-1 because that is where the THREE implementations stop agreeing, not because
+// of anything about C#. Asserting the arithmetic rather than re-typing the literal is the point:
+// a transcribed constant can drift from the number it claims to be, and this one is shared with a
+// JavaScript relay that reaches it through a double.
+Check("the seq cap is 2^53-1, the largest integer a double represents exactly",
+    Protocol.MaxSeq == (1L << 53) - 1 && Protocol.MaxSeq == 9_007_199_254_740_991L);
+Check("the seq cap round-trips through a double unchanged, and the next integer up does not",
+    (long)(double)Protocol.MaxSeq == Protocol.MaxSeq
+    && (double)(Protocol.MaxSeq + 1) == (double)(Protocol.MaxSeq + 2));
+
+// ---------------------------------------------------------------- relay pull result (§2.2)
+//
+// RelayClient had no offline coverage at all before this section: `grep -rl RelayClient tests/`
+// returned only SyncLiveSmoke, which needs a live or local relay and is excluded from the hermetic
+// suite. That is how PullAsync stayed partial -- EnsureSuccessStatusCode, GetProperty and GetInt64
+// all throw, and nothing offline ever asked what happened when they did.
+//
+// These drive the real shipping client over a stub transport. The property under test is the one the
+// pump's contract states and the signature now carries: a relay that answers badly produces a VALUE,
+// never an exception.
+
+Console.WriteLine("\n[ relay pull result ]");
+
+const string PullPairing = "p_AAAAAAAAAAAAAAAA";
+
+async Task<RelayPullResult> Pull(
+    Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> respond,
+    CancellationToken ct = default)
+{
+    using var handler = new StubTransport(respond);
+    using var httpClient = new HttpClient(handler);
+    return await new RelayClient(httpClient, "https://relay.example", PullPairing)
+        .PullAsync("bearer-token", "p2e", 7, ct);
+}
+
+static HttpResponseMessage Answer(HttpStatusCode status, string body) =>
+    new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+
+// -- the happy path, and the two things about it that are easy to get wrong ------------------
+var okResult = await Pull((_, _) => Answer(HttpStatusCode.OK,
+    """{"envelopes":[{"seq":8,"dir":"p2e"},{"seq":9,"dir":"p2e"}],"latest":9}"""));
+Check("a well-formed page is Ok", okResult is RelayPullResult.Ok, okResult.GetType().Name);
+Check("Ok carries every envelope and the latest seq",
+    okResult is RelayPullResult.Ok { Envelopes.Count: 2, Latest: 9 });
+// The elements are cloned out of a JsonDocument that PullAsync disposes on the way out. Reading one
+// after the call has returned is the assertion that the clone is real -- drop the .Clone() and this
+// throws ObjectDisposedException rather than failing quietly.
+Check("Ok envelopes outlive the JsonDocument they were parsed from",
+    okResult is RelayPullResult.Ok ok2 && ok2.Envelopes[1].GetProperty("seq").GetInt64() == 9);
+
+// -- the request itself: nothing offline had ever asserted the wire form ---------------------
+HttpRequestMessage? seen = null;
+await Pull((req, _) => { seen = req; return Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""); });
+Check("the pull carries the bearer", seen?.Headers.Authorization?.ToString() == "Bearer bearer-token"
+    || seen?.Headers.GetValues("Authorization").FirstOrDefault() == "Bearer bearer-token");
+Check("the pull addresses /v1/{pairing}/pull with dir and since",
+    seen?.RequestUri?.ToString() == $"https://relay.example/v1/{PullPairing}/pull?dir=p2e&since=7",
+    seen?.RequestUri?.ToString());
+Check("an empty page is Ok, not a failure",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""))
+        is RelayPullResult.Ok { Envelopes.Count: 0, Latest: 0 });
+
+// -- 401 vs 404: the distinction PQ-S2-4 is about --------------------------------------------
+//
+// A purged pairing answers 401 on every route (measured under miniflare; §2.3 pins it), so
+// Unauthorised covers both "wrong bearer" and "pairing is gone" and the relay refuses to say which.
+// 404 on this route means something else entirely -- the id failed the relay's shape check, or the
+// route is absent -- and it must not be laundered into the same case.
+Check("401 is Unauthorised",
+    await Pull((_, _) => Answer(HttpStatusCode.Unauthorized, """{"error":"unauthorized"}"""))
+        is RelayPullResult.Unauthorised);
+Check("403 is Unauthorised too",
+    await Pull((_, _) => Answer(HttpStatusCode.Forbidden, """{"error":"forbidden"}"""))
+        is RelayPullResult.Unauthorised);
+Check("404 is Misconfigured, NOT Unauthorised and NOT Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.NotFound, """{"error":"pairing_unknown"}"""))
+        is RelayPullResult.Misconfigured);
+
+// -- everything else the relay or the network can do -----------------------------------------
+Check("500 is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.InternalServerError, "")) is RelayPullResult.Unavailable);
+Check("429 is Unavailable",
+    await Pull((_, _) => Answer((HttpStatusCode)429, "")) is RelayPullResult.Unavailable);
+Check("a transport failure is Unavailable, not an exception",
+    await Pull((_, _) => throw new HttpRequestException("no route to host")) is RelayPullResult.Unavailable);
+// HttpClient raises TaskCanceledException for its own timeout as well as for caller cancellation.
+// With the caller's token NOT cancelled this is the timeout, and a timeout is a relay condition.
+Check("a client timeout is Unavailable",
+    await Pull((_, _) => throw new TaskCanceledException("timed out")) is RelayPullResult.Unavailable);
+
+// -- a 200 that is not a pull page. This is the class the old code could not express ----------
+Check("a 200 carrying an HTML error page is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, "<html><body>502 Bad Gateway</body></html>"))
+        is RelayPullResult.Unavailable);
+Check("a 200 whose root is not an object is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, "[]")) is RelayPullResult.Unavailable);
+Check("a 200 with no envelopes array is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"latest":3}""")) is RelayPullResult.Unavailable);
+Check("a 200 whose envelopes is not an array is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":{},"latest":3}"""))
+        is RelayPullResult.Unavailable);
+Check("a 200 with no latest is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[]}""")) is RelayPullResult.Unavailable);
+Check("a 200 whose latest is a string is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":"3"}"""))
+        is RelayPullResult.Unavailable);
+Check("a 200 whose latest is fractional is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":3.5}"""))
+        is RelayPullResult.Unavailable);
+
+// -- latest's RANGE, which being an integer never established -------------------------------
+//
+// Measured before the check existed: `latest` of -1, 2^53 and Int64.MaxValue all returned Ok and
+// carried the value straight through, because TryGetInt64 fixes the type and the width and nothing
+// else. It already refused 1e19 and 1e300 -- those overflow Int64 -- so the hole was exactly the
+// two bands below, and a type check can never see them.
+//
+// `latest` is not an arbitrary Int64: it is MAX(seq) over the rows the relay holds, and every one
+// of those rows passed the relay's seq check, so it inherits seq's domain (§3.2). Note the domain
+// is inherited by DERIVATION, not by statement -- §3.2 caps the value a sender emits and the value
+// the relay rejects, and never mentions `latest`, which is the relay's REPORT of it. PQ-LAT-1.
+Check("a 200 whose latest is negative is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":-1}"""))
+        is RelayPullResult.Unavailable);
+Check("latest exactly at §3.2's cap is still Ok -- the check is a range, not an off-by-one",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":9007199254740991}"""))
+        is RelayPullResult.Ok { Latest: 9_007_199_254_740_991L });
+Check("latest one past §3.2's cap is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":9007199254740992}"""))
+        is RelayPullResult.Unavailable);
+Check("latest at Int64.MaxValue is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":9223372036854775807}"""))
+        is RelayPullResult.Unavailable);
+Check("latest 0 is Ok -- a direction holding nothing is not a malformed page",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""))
+        is RelayPullResult.Ok { Latest: 0 });
+// The value that overflows Int64 must keep answering Unavailable and not start throwing: the range
+// check runs AFTER TryGetInt64, so an out-of-width value never reaches it. This pins the order.
+Check("latest above Int64 is still Unavailable, not an exception",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":10000000000000000000}"""))
+        is RelayPullResult.Unavailable);
+// A malformed `latest` refuses the whole page, envelopes included. Skip-the-field-and-continue
+// would hand the pump a page whose bound it cannot compute, which is the one thing the cursor
+// rules cannot cope with -- the same reasoning as "one unusable element rejects the whole page".
+Check("an out-of-range latest refuses the page even when the envelopes are fine",
+    await Pull((_, _) => Answer(HttpStatusCode.OK,
+        """{"envelopes":[{"seq":8,"dir":"p2e"}],"latest":9007199254740992}"""))
+        is RelayPullResult.Unavailable);
+
+// -- the one exception that must still escape -------------------------------------------------
+//
+// Cancellation is the caller's decision, not the relay's. Turning it into Unavailable would tell a
+// shutting-down host "the relay did not answer, try again", which is how a stop request becomes a
+// loop that will not stop.
+using var cancelled = new CancellationTokenSource();
+cancelled.Cancel();
+var cancellationEscaped = false;
+try { await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""), cancelled.Token); }
+catch (OperationCanceledException) { cancellationEscaped = true; }
+Check("caller cancellation propagates rather than becoming a result", cancellationEscaped);
+
+// ---------------------------------------------------------------- relay push result (§2.2)
+//
+// PushAsync returned `res.StatusCode is HttpStatusCode.Created` -- a bare bool -- so a 409
+// replay_rejected, a 400, a 413, a timeout and a DNS failure were the same value. Three of those
+// are permanent for the bytes in hand and two are worth retrying, and no caller could tell which
+// it had. The 409 also carries `latest`, the second term of §6.1's max(persisted, relay_latest),
+// and bool discarded it unread (PQ-S6-3).
+//
+// Driven over the same stub transport as the pull tests: the real shipping client, fake socket.
+
+Console.WriteLine("\n[ relay push result ]");
+
+async Task<RelayPushResult> Push(
+    Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> respond,
+    CancellationToken ct = default)
+{
+    using var handler = new StubTransport(respond);
+    using var httpClient = new HttpClient(handler);
+    return await new RelayClient(httpClient, "https://relay.example", PullPairing)
+        .PushAsync("bearer-token", """{"v":1,"seq":8}""", ct);
+}
+
+// -- the happy path, and the wire form nothing offline had asserted --------------------------
+Check("201 is Ok", await Push((_, _) => Answer(HttpStatusCode.Created, """{"ok":true,"seq":8}"""))
+    is RelayPushResult.Ok);
+// §2.2 pins 201 as THE appended answer. A 200 is a relay not behaving like the relay, and the old
+// bool said the same thing (`is Created`) -- preserved deliberately, pinned so a later "surely 200
+// is fine too" cannot slip in unmeasured.
+Check("200 is NOT Ok -- §2.2 pins 201 for an appended envelope",
+    await Push((_, _) => Answer(HttpStatusCode.OK, """{"ok":true,"seq":8}""")) is RelayPushResult.Unavailable);
+// A 201 whose body is unreadable still appended the envelope. Parsing it would invent a failure on
+// top of a success and make the sender retry bytes the relay already holds -- which then answers
+// 409, turning a cosmetic problem into a real one.
+Check("a 201 with an unreadable body is still Ok -- the body is not parsed",
+    await Push((_, _) => Answer(HttpStatusCode.Created, "<html>not json</html>")) is RelayPushResult.Ok);
+
+HttpRequestMessage? pushSeen = null;
+string? pushBody = null;
+await Push((req, _) =>
+{
+    pushSeen = req;
+    pushBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+    return Answer(HttpStatusCode.Created, """{"ok":true,"seq":8}""");
+});
+Check("the push carries the bearer",
+    pushSeen?.Headers.GetValues("Authorization").FirstOrDefault() == "Bearer bearer-token");
+Check("the push POSTs to /v1/{pairing}/push",
+    pushSeen?.Method == HttpMethod.Post
+    && pushSeen.RequestUri?.ToString() == $"https://relay.example/v1/{PullPairing}/push",
+    pushSeen?.RequestUri?.ToString());
+// The body IS the envelope, byte for byte. A client that re-serialised it would change the bytes
+// the AAD was computed over, and the receiver's tag check is what would notice -- far downstream.
+Check("the body is the envelope JSON, unmodified", pushBody == """{"v":1,"seq":8}""", pushBody);
+
+// -- 409: the case the bool could not name, and the number it threw away ----------------------
+Check("409 is Conflict, not a failure and not a success",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":41}"""))
+        is RelayPushResult.Conflict);
+Check("Conflict carries the relay's high-water mark (§6.1's second term)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":41}"""))
+        is RelayPushResult.Conflict { Latest: 41 });
+// A 409 with no usable number is still a 409. Every one of these must stay Conflict: downgrading
+// to Unavailable would tell the caller to retry the one thing that provably cannot work.
+Check("a 409 with no latest is Conflict(null), NOT Unavailable",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected"}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("a 409 with an empty body is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, "")) is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose body is not JSON is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, "<html>502</html>"))
+        is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose root is not an object is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, "[41]")) is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose latest is a quoted number is Conflict(null) -- §2.2 says integer",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":"41"}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose latest is fractional is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":41.5}"""))
+        is RelayPushResult.Conflict { Latest: null });
+
+// -- the 409's latest gets the SAME range check as a pull page's ------------------------------
+//
+// This is the trap the pull slice found, one method over: TryGetInt64 fixes the type and the width
+// and nothing else, so -1, 2^53 and Int64.MaxValue would arrive typed and unbounded. And this
+// number is worse than the pull cursor's -- §6.1 says a sender resumes ABOVE it, so it goes on the
+// wire as the seq of the next envelope, where an absurd value burns the direction's whole domain.
+Check("a 409 whose latest is negative is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":-1}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("latest exactly at §3.2's cap survives -- a range, not an off-by-one",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":9007199254740991}"""))
+        is RelayPushResult.Conflict { Latest: 9_007_199_254_740_991L });
+Check("latest one past §3.2's cap is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":9007199254740992}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("latest at Int64.MaxValue is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":9223372036854775807}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("latest above Int64 is Conflict(null), not an exception -- the range check runs after the width check",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":10000000000000000000}"""))
+        is RelayPushResult.Conflict { Latest: null });
+// latest 0 is reachable and legal: §2.2 measured that a direction holding nothing accepts seq 1
+// rather than answering 409 with latest 0 -- but a relay MAY report 0, and 0 is in seq's domain.
+// Mapping it to null would lose the difference between "reported nothing" and "reported zero".
+Check("latest 0 survives as 0, not null",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":0}"""))
+        is RelayPushResult.Conflict { Latest: 0 });
+
+// -- the three terminal 4xx, each of which the bool flattened into "false" ---------------------
+Check("401 is Unauthorised",
+    await Push((_, _) => Answer(HttpStatusCode.Unauthorized, """{"error":"unauthorized"}"""))
+        is RelayPushResult.Unauthorised);
+Check("403 is Unauthorised too",
+    await Push((_, _) => Answer(HttpStatusCode.Forbidden, "")) is RelayPushResult.Unauthorised);
+Check("404 is Misconfigured, NOT Unauthorised -- a purge answers 401 on every route (§2.3)",
+    await Push((_, _) => Answer(HttpStatusCode.NotFound, """{"error":"pairing_unknown"}"""))
+        is RelayPushResult.Misconfigured);
+// 400 and 413 are both permanent for these bytes and are NOT the same fault: 400 says this engine
+// composed something malformed (a defect here), 413 says the payload needs chunking (§4.4). The
+// phone conflates neither, but it does route 400 into its RETRY path -- see PQ-S6C-1.
+Check("400 is Rejected -- this side composed something the relay would not shape-check",
+    await Push((_, _) => Answer(HttpStatusCode.BadRequest, """{"error":"bad_request"}"""))
+        is RelayPushResult.Rejected);
+Check("413 is TooLarge, distinct from Rejected",
+    await Push((_, _) => Answer(HttpStatusCode.RequestEntityTooLarge, """{"error":"too_large"}"""))
+        is RelayPushResult.TooLarge);
+
+// -- and everything that is genuinely worth retrying ------------------------------------------
+Check("500 is Unavailable",
+    await Push((_, _) => Answer(HttpStatusCode.InternalServerError, "")) is RelayPushResult.Unavailable);
+Check("429 is Unavailable",
+    await Push((_, _) => Answer((HttpStatusCode)429, "")) is RelayPushResult.Unavailable);
+Check("405 is Unavailable",
+    await Push((_, _) => Answer(HttpStatusCode.MethodNotAllowed, """{"error":"method_not_allowed"}"""))
+        is RelayPushResult.Unavailable);
+Check("a transport failure is Unavailable, not an exception",
+    await Push((_, _) => throw new HttpRequestException("no route to host")) is RelayPushResult.Unavailable);
+Check("a client timeout is Unavailable",
+    await Push((_, _) => throw new TaskCanceledException("timed out")) is RelayPushResult.Unavailable);
+
+// -- and the one exception that must still escape ---------------------------------------------
+using var pushCancelled = new CancellationTokenSource();
+pushCancelled.Cancel();
+var pushCancellationEscaped = false;
+try { await Push((_, _) => Answer(HttpStatusCode.Created, """{"ok":true}"""), pushCancelled.Token); }
+catch (OperationCanceledException) { pushCancellationEscaped = true; }
+Check("caller cancellation propagates rather than becoming a result", pushCancellationEscaped);
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
@@ -1122,4 +1454,19 @@ sealed class RecordingRepublisher : SeekerSvc.Sync.ISnapshotRepublisher
     public long? LastSince;
     public Task RepublishSnapshotAsync(long sinceSeq, CancellationToken ct = default)
     { LastSince = sinceSeq; return Task.CompletedTask; }
+}
+
+/// <summary>
+/// A stub <see cref="HttpMessageHandler"/> for the pull-result tests: it answers whatever the test
+/// hands it, including by throwing, so the real shipping <see cref="SeekerSvc.Sync.RelayClient"/> is
+/// the code under test and only the socket is fake.
+/// </summary>
+sealed class StubTransport(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> respond) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        // Mirrors HttpClient: an already-cancelled token fails the send rather than being ignored.
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(respond(request, ct));
+    }
 }
