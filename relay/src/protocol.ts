@@ -51,6 +51,27 @@ export const MAX_CIPHERTEXT_B64U_CHARS = Math.ceil((MAX_ENVELOPE_BYTES * 4) / 3)
 export const MAX_PUSH_BODY_CHARS = MAX_CIPHERTEXT_B64U_CHARS + 4096;
 
 /**
+ * The largest `seq` this protocol admits (docs/Sync-Protocol.md §3.2).
+ *
+ * Spelled as `Number.MAX_SAFE_INTEGER` because that IS the derivation, not because it is
+ * convenient: both receivers type `seq` as a 64-bit integer, this relay reads it through
+ * `JSON.parse` into a double, and `2^53 - 1` is the largest integer all three represent
+ * exactly. Above it the wire stops being unambiguous in three measured ways — the value
+ * silently rounds (2^62 came back 96 higher than it was pushed), then exceeds
+ * `Long.MaxValue`, then renders in exponent notation — and the last two are unparseable by
+ * both receivers' strict readers.
+ *
+ * That matters most on the READ path, which is the non-obvious half. `latest` is emitted
+ * from the same double, so one out-of-range envelope does not merely refuse later pushes:
+ * it makes `GET /pull` unreadable for that direction, and reading `latest` from `pull` is
+ * exactly the reconciliation §6.1 prescribes for a sender whose counter is behind.
+ *
+ * Do not re-spell this as a literal, and do not raise it to `2^63 - 1` to match the
+ * receivers — this file cannot represent that number, which is the whole point.
+ */
+export const MAX_SEQ = Number.MAX_SAFE_INTEGER;
+
+/**
  * Retention ceiling. CareerSeeker-Spec.md section 8.3 caps relay retention at 30 days;
  * this constant is the ceiling, and a deployment may configure something shorter.
  * Nothing may raise it -- see the assertion in test/relay.test.ts.

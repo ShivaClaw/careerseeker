@@ -8,6 +8,7 @@ import {
   MAX_CIPHERTEXT_B64U_CHARS,
   MAX_ENVELOPE_BYTES,
   MAX_PUSH_BODY_CHARS,
+  MAX_SEQ,
   MAX_TTL_SECONDS,
   isValidPairingId,
 } from '../src/protocol';
@@ -196,6 +197,85 @@ describe('push / pull envelope flow', () => {
     const pairing = await bootstrap('tok');
     const res = await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: JSON.stringify({ v: 1, dir: 'sideways' }) });
     expect(res.status).toBe(400);
+  });
+
+  // ---------------------------------------------------------------- §3.2 seq range
+  //
+  // These build the body as raw TEXT rather than through `envelope()`, because the point
+  // is the exact number the sender put on the wire and JSON.stringify would round it
+  // before the relay ever saw it.
+  const rawEnvelope = (dir: string, seqText: string) =>
+    `{"v":1,"pairing":"p_x","dir":"${dir}","seq":${seqText},"ts":"2026-06-11T14:02:11Z",`
+    + `"key_id":"k-1","nonce":"AAAAAAAAAAAAAAAA","ciphertext":"opaque"}`;
+
+  const pushRaw = (pairing: string, body: string) =>
+    call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body });
+
+  it('accepts seq at the §3.2 maximum, and MAX_SEQ is the derivation not a literal', async () => {
+    expect(MAX_SEQ).toBe(2 ** 53 - 1);
+    const pairing = await bootstrap('tok');
+    const res = await pushRaw(pairing, rawEnvelope('e2p', String(MAX_SEQ)));
+    expect(res.status).toBe(201);
+    // The boundary value survives the round trip exactly — which is the whole reason the
+    // cap sits here and not higher.
+    const page = await (await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') })).text();
+    expect(page).toContain(`"latest":${MAX_SEQ}`);
+  });
+
+  it.each([
+    ['2^53 (one past the maximum)', '9007199254740992'],
+    ['2^62, which silently rounded to a different number', '4611686018427387904'],
+    ['1e19, above Long.MaxValue', '10000000000000000000'],
+    ['1e300, which the old Number.isInteger guard accepted', '1e300'],
+  ])('refuses seq above the §3.2 maximum: %s', async (_label, seqText) => {
+    const pairing = await bootstrap('tok');
+    const res = await pushRaw(pairing, rawEnvelope('e2p', seqText));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'bad_request' });
+  });
+
+  it('carries no counter evidence on an out-of-range refusal', async () => {
+    // 400 means nothing was appended, so there is no `latest` to report — unlike the 409
+    // path, where `latest` is the sender's reconciliation input.
+    const pairing = await bootstrap('tok');
+    const res = await pushRaw(pairing, rawEnvelope('e2p', '1e300'));
+    expect(Object.keys(await res.json() as object)).toEqual(['error']);
+  });
+
+  it('leaves the direction usable after refusing an out-of-range seq', async () => {
+    // This is the regression the bound exists to prevent. Before §3.2 the 1e300 envelope
+    // was APPENDED, and every later push in that direction answered 409 against a `latest`
+    // of 1e+300 that neither receiver could even parse.
+    const pairing = await bootstrap('tok');
+    expect((await pushRaw(pairing, rawEnvelope('e2p', '1e300'))).status).toBe(400);
+    expect((await pushRaw(pairing, rawEnvelope('e2p', '1'))).status).toBe(201);
+    const page = await (await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') })).text();
+    expect(page).toContain('"latest":1');
+  });
+
+  it('keeps every reported latest inside the range both receivers can parse', async () => {
+    // The read-path half of §3.2. `latest` is emitted from the relay's double, so a value
+    // the relay accepts but cannot represent exactly becomes a page the engine's
+    // GetInt64() and the phone's strictLong() both reject — breaking the GET /pull
+    // reconciliation §6.1 prescribes for a sender whose counter is behind.
+    const pairing = await bootstrap('tok');
+    await pushRaw(pairing, rawEnvelope('e2p', String(MAX_SEQ)));
+    const body = await (await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') })).text();
+    const latest = (JSON.parse(body) as { latest: number }).latest;
+    expect(Number.isSafeInteger(latest)).toBe(true);
+    // Neither exponent notation nor a value past Long.MaxValue: both are unparseable to
+    // the receivers, and both were reachable before this bound.
+    expect(body).not.toContain('e+');
+    expect(latest).toBeLessThanOrEqual(MAX_SEQ);
+  });
+
+  it('no longer collides two distinct wire values onto one double', async () => {
+    // Measured before the bound: 9007199254740992 answered 201 and 9007199254740993 --
+    // a strictly LARGER integer -- answered 409 replay_rejected, because both land on the
+    // same double. Now neither is admitted, so the collision is unreachable.
+    const pairing = await bootstrap('tok');
+    expect((await pushRaw(pairing, rawEnvelope('e2p', '9007199254740992'))).status).toBe(400);
+    expect((await pushRaw(pairing, rawEnvelope('e2p', '9007199254740993'))).status).toBe(400);
   });
 
   // §3.1 caps the DECODED ciphertext at MAX_ENVELOPE_BYTES. The relay cannot decode, so its
