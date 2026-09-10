@@ -53,6 +53,78 @@ public sealed class SyncPublisher
     /// <summary>The highest e2p sequence number this publisher has assigned (0 before the first push).</summary>
     public long HighestSeq => Interlocked.Read(ref _seq);
 
+    /// <summary>
+    /// Raise the counter so the next push assigns a seq above <paramref name="seq"/> — §6.1's
+    /// reconciliation applied at the one moment the counter is *proved* wrong, which is a 409
+    /// <c>replay_rejected</c> carrying the relay's high-water mark
+    /// (<see cref="RelayPushResult.Conflict"/>).
+    ///
+    /// <para><b>It raises and never lowers</b>, and that asymmetry is the whole invariant. A relay
+    /// that reports a <c>latest</c> below this publisher's counter is not evidence the counter ran
+    /// ahead — the seqs in between may already sit in the phone's accepted history (§6.2 tracks the
+    /// highest seq it accepted, and the relay's TTL purge legitimately drops rows the phone kept).
+    /// Rewinding onto them would re-issue numbers the receiver refuses on sight, permanently, which
+    /// is the one-sided sync death §6.1 exists to prevent. So a lower number is discarded and the
+    /// call reports that it did nothing.</para>
+    ///
+    /// <para>Returns <c>true</c> if the counter moved. Callers use it to log "reconciled" rather
+    /// than "reported", so a reader can tell the two apart.</para>
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="seq"/> is outside the legal seq domain (§3.2). No shipped caller can trigger
+    /// this: both numbers that reach here — a 409's <c>latest</c> and a pull page's — are range-checked
+    /// inside <see cref="RelayClient"/> before they are handed over, and an unusable one arrives as
+    /// null and is never passed. The guard is therefore an assertion against a future caller that
+    /// skips that step, deliberately not a silent clamp: clamping would write a number this side has
+    /// already judged untrustworthy straight into the counter that goes on the wire.
+    /// </exception>
+    public bool ReconcileTo(long seq)
+    {
+        if (seq < 0 || seq > Protocol.MaxSeq)
+            throw new ArgumentOutOfRangeException(
+                nameof(seq), seq, $"a seq must be within [0, {Protocol.MaxSeq}] (§3.2)");
+
+        // CAS rather than a lock: PushSealedAsync assigns seqs with Interlocked.Increment and may be
+        // running concurrently, so the read-compare-write has to be atomic against it. Losing the
+        // race means re-reading a counter that only ever grows, so the loop terminates.
+        while (true)
+        {
+            var current = Interlocked.Read(ref _seq);
+            if (seq <= current) return false;
+            if (Interlocked.CompareExchange(ref _seq, seq, current) == current) return true;
+        }
+    }
+
+    /// <summary>
+    /// §6.1's startup rule as a value: the seq an engine must resume its e2p counter above, given
+    /// what its pairing store persisted and what the relay answered to
+    /// <c>GET /pull?dir=e2p&amp;since=0</c>.
+    ///
+    /// <para>This is a pure function on purpose. The composition that supplies its two arguments
+    /// lives in the host, needs a DPAPI-backed vault and a live relay, and therefore cannot be
+    /// executed in a hermetic harness — but the <em>rule</em> can, and the rule is the part that is
+    /// load-bearing. Keeping it here is what makes §6.1 testable rather than merely written down.</para>
+    ///
+    /// <para><b>A relay that did not answer falls back to the store, and does not stop publishing.</b>
+    /// §6.1 names the store as the value and the relay read as "belt-and-suspenders should the store
+    /// lag" — so the store is primary and the relay term only ever raises it. Refusing to publish
+    /// because the relay was briefly unreachable would convert a transient outage into no sync at
+    /// all, while the persisted mark is already correct in every case except the one the fallback
+    /// cannot detect. <see cref="RelayPullResult.Unauthorised"/> gets the same treatment rather than
+    /// a special one: if the token really is dead, the very next push says so with the same 401 on
+    /// the path that can act on it, and blocking startup here would be a second, weaker copy of a
+    /// check that already exists.</para>
+    ///
+    /// <para>A persisted value below zero is a corrupt store, not a position. It is floored at 0 and
+    /// left for the relay term to repair — which is precisely the lagging store §6.1 anticipates.</para>
+    /// </summary>
+    public static long ResumeSeq(long persistedSeq, RelayPullResult relayAnswer)
+    {
+        ArgumentNullException.ThrowIfNull(relayAnswer);
+        var floor = persistedSeq > 0 ? persistedSeq : 0;
+        return relayAnswer is RelayPullResult.Ok ok && ok.Latest > floor ? ok.Latest : floor;
+    }
+
     /// <summary>Full dashboard state, sent on engine start and on pairing.</summary>
     public Task<bool> PublishSnapshotAsync(
         Counters counters, IReadOnlyList<AppSummary> applications, IReadOnlyList<JobSummary> jobs,

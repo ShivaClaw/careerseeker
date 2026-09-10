@@ -1371,6 +1371,344 @@ try { await Push((_, _) => Answer(HttpStatusCode.Created, """{"ok":true}"""), pu
 catch (OperationCanceledException) { pushCancellationEscaped = true; }
 Check("caller cancellation propagates rather than becoming a result", pushCancellationEscaped);
 
+// ---------------------------------------------------------------- counter reconciliation (§6.1)
+//
+// PQ-S6-3's second bullet. The two previous slices gave the transport a vocabulary -- a typed pull
+// result, then a typed push result carrying the 409's `latest` -- and NOTHING CONSUMED EITHER. §6.1
+// says an engine resumes its e2p counter above max(persisted_seq, relay_latest_e2p_seq); the first
+// term was wired, the second was read, range-checked, logged, and thrown away.
+//
+// Two halves, and only one of them can be executed here. The RULE is pure and is tested below. The
+// COMPOSITION that feeds it -- BuildSyncBridge reading a DPAPI vault and a live relay -- is
+// compile-checked only, which is why the rule was extracted to SyncPublisher.ResumeSeq rather than
+// left inline in the host where nothing could reach it.
+
+Console.WriteLine("\n[ counter reconciliation (§6.1) ]");
+
+// -- the startup rule: max(persisted, relay latest) -------------------------------------------
+static RelayPullResult OkPage(long latest) => new RelayPullResult.Ok(Array.Empty<JsonElement>(), latest);
+
+Check("§6.1 startup takes the relay's mark when it leads the store",
+    SyncPublisher.ResumeSeq(41, OkPage(57)) == 57);
+Check("§6.1 startup keeps the store's mark when it leads the relay",
+    SyncPublisher.ResumeSeq(57, OkPage(41)) == 57);
+Check("§6.1 startup is max(), not last-writer -- equal terms resolve to the same value",
+    SyncPublisher.ResumeSeq(41, OkPage(41)) == 41);
+// The case that motivates the second term at all: RecordE2pSeq runs AFTER the relay's 201, so a
+// crash in between leaves the store behind. Store-only resume would 409 on the recovery snapshot.
+Check("a store that lags a successful push is repaired by the relay term",
+    SyncPublisher.ResumeSeq(0, OkPage(12)) == 12);
+// An empty direction reports latest 0 (channel.ts:206-208 `?? 0`), which must not drag anything down.
+Check("an empty relay direction (latest 0) does not lower the store's mark",
+    SyncPublisher.ResumeSeq(41, OkPage(0)) == 41);
+
+// A relay that did not answer must NOT stop publishing: §6.1 makes the relay read
+// belt-and-suspenders and the store the value. Each non-Ok case falls back to the store.
+Check("an unreachable relay falls back to the store rather than refusing to publish",
+    SyncPublisher.ResumeSeq(41, new RelayPullResult.Unavailable("no route")) == 41);
+Check("a 401 falls back to the store too -- the push path reports a dead token where it can act",
+    SyncPublisher.ResumeSeq(41, new RelayPullResult.Unauthorised()) == 41);
+Check("a misconfigured relay falls back to the store",
+    SyncPublisher.ResumeSeq(41, new RelayPullResult.Misconfigured("404")) == 41);
+// A corrupt store is not a position. Floored at 0 and left for the relay term to repair.
+Check("a negative persisted seq is floored, not trusted as a position",
+    SyncPublisher.ResumeSeq(-9, OkPage(0)) == 0);
+Check("a negative persisted seq is repaired by the relay term",
+    SyncPublisher.ResumeSeq(-9, OkPage(12)) == 12);
+// ...and the case that actually PINS the floor, added because a mutation removing it survived the
+// two assertions above: both of those are rescued by the relay term, which is >= 0 and therefore
+// beats any negative store on its own. The floor is only observable when the relay does NOT answer,
+// and that is exactly when it matters -- an unfloored -9 would construct the publisher at startSeq
+// -9 and put an illegal seq on the wire (§3.2) on the very first push.
+Check("a corrupt store AND a silent relay still resume from 0, not from a negative",
+    SyncPublisher.ResumeSeq(-9, new RelayPullResult.Unavailable("no route")) == 0);
+
+// -- the running rule: a 409 moves the counter, and only upward ------------------------------
+{
+    // The counter is what is under test here, not the sealing -- so the key and pairing are local
+    // literals rather than vector reads, and the sink always succeeds.
+    var reconcileKey = Convert.FromHexString(
+        "1122334455667788990011223344556677889900112233445566778899001122");
+    var reconcileCounters = new Counters(
+        Discovered: 3, Acted: 1, Drafted: 1, Blocked: 0, Rejected: 1, Errors: 0, Cycles: 7);
+    var reconciled = new SyncPublisher(
+        reconcileKey, (string)index["pairing_id"]!, activeKeyId,
+        (_, _) => Task.FromResult(true), startSeq: 5);
+
+    Check("ReconcileTo raises the counter and says it moved", reconciled.ReconcileTo(41));
+    Check("the counter is now the relay's mark", reconciled.HighestSeq == 41);
+    // The point of the whole slice: the NEXT envelope resumes above the relay's mark instead of
+    // walking up one at a time into the same 409 forever.
+    Check("the next push resumes ABOVE the reconciled mark",
+        reconciled.PublishHeartbeatAsync(1, reconcileCounters).GetAwaiter().GetResult()
+        && reconciled.HighestSeq == 42);
+
+    // THE INVARIANT. A relay reporting a mark below this counter is not evidence the counter ran
+    // ahead -- the seqs in between may sit in the phone's accepted history, which §6.2 says it
+    // refuses on sight and forever. Rewinding onto them is the one-sided sync death §6.1 prevents.
+    Check("ReconcileTo REFUSES to lower the counter and says it did nothing",
+        !reconciled.ReconcileTo(7));
+    Check("the counter survived the attempt to lower it", reconciled.HighestSeq == 42);
+    Check("an equal mark is not a move either", !reconciled.ReconcileTo(42) && reconciled.HighestSeq == 42);
+
+    // The guard is an assertion against a future caller, not a clamp: RelayClient range-checks both
+    // numbers that reach here, so a shipped call site cannot trigger it. Clamping would write a
+    // number this side already judged untrustworthy into the counter that goes on the wire.
+    var negativeRefused = false;
+    try { reconciled.ReconcileTo(-1); } catch (ArgumentOutOfRangeException) { negativeRefused = true; }
+    Check("ReconcileTo refuses a negative seq rather than clamping it", negativeRefused);
+    var overMaxRefused = false;
+    try { reconciled.ReconcileTo(Protocol.MaxSeq + 1); }
+    catch (ArgumentOutOfRangeException) { overMaxRefused = true; }
+    Check("ReconcileTo refuses a seq past §3.2's cap rather than clamping it", overMaxRefused);
+    // Caught, not thrown. The boundary mutation (`>` -> `>=`) makes this call throw, and an
+    // uncaught throw takes the whole harness down WITHOUT printing a FAIL line -- which reads as a
+    // survivor to anything counting FAILs. The assertion was load-bearing either way; this makes it
+    // report rather than crash, so the failure is legible instead of merely fatal.
+    var capAccepted = false;
+    try { capAccepted = reconciled.ReconcileTo(Protocol.MaxSeq) && reconciled.HighestSeq == Protocol.MaxSeq; }
+    catch (ArgumentOutOfRangeException) { capAccepted = false; }
+    Check("a seq exactly at §3.2's cap is still accepted", capAccepted);
+}
+
+// -- the sink APPLIES the rule: the call site, not just the rule it calls ---------------------
+// The gap this closes was measured, not assumed: before RelaySink existed, deleting the
+// ReconcileTo call from BuildSyncBridge's sink failed no test in this repo. ReconcileTo itself was
+// well covered (above); the line that INVOKES it was covered by nothing, because it sat in a
+// closure inside a host method that returns null without a DPAPI vault. These assertions are about
+// the call site.
+{
+    // A recording double for each collaborator. `pushed` is what the sink was handed, which also
+    // pins that the envelope reaches the transport unmodified.
+    string? pushed = null;
+    var persisted = new List<long>();
+    var reconciledTo = new List<long>();
+    var logged = new List<string>();
+    RelayPushResult answer = new RelayPushResult.Ok();
+    long? seqInFlight = 12;
+    var reconcileMoves = true;
+
+    var sink = RelaySink.Create(
+        push: (envelope, _) => { pushed = envelope; return Task.FromResult(answer); },
+        pushedSeq: () => seqInFlight,
+        persistSeq: seq => persisted.Add(seq),
+        reconcileTo: seq => { reconciledTo.Add(seq); return reconcileMoves; },
+        log: line => logged.Add(line));
+
+    // --- 201: persist the mark, report success, and do NOT touch the counter.
+    Check("the sink reports a 201 as success", sink("{\"envelope\":1}", default).GetAwaiter().GetResult());
+    Check("the envelope reaches the transport byte for byte", pushed == "{\"envelope\":1}");
+    Check("a 201 persists the seq that was pushed", persisted is [12]);
+    Check("a 201 does NOT reconcile -- there is nothing to repair", reconciledTo.Count == 0);
+
+    // --- 201 with no publisher attached yet. The publisher and its sink are mutually referential,
+    // so this "not yet" case is real; persisting a 0 here would write a false high-water mark.
+    persisted.Clear();
+    seqInFlight = null;
+    Check("a 201 with no publisher attached persists nothing rather than 0",
+        sink("{}", default).GetAwaiter().GetResult() && persisted.Count == 0);
+    seqInFlight = 12;
+
+    // --- THE ASSERTION THIS SLICE EXISTS FOR. A 409 carrying the relay's high-water mark must
+    // reach ReconcileTo, with THAT number. Reverting the call site now fails here.
+    persisted.Clear(); logged.Clear();
+    answer = new RelayPushResult.Conflict(41);
+    Check("the sink reports a 409 as failure -- these bytes are dead",
+        !sink("{}", default).GetAwaiter().GetResult());
+    Check("A 409 CALLS ReconcileTo -- the call site, not just the rule", reconciledTo is [41]);
+    // Count-guarded before indexing. An unguarded reconciledTo[0] throws when the call site is
+    // deleted -- which is the exact mutation this block exists to catch -- and the throw takes the
+    // harness down mid-run, after one FAIL line, so a fail-counting reader records a tidy
+    // "1 caught" and never sees that the run died. Same false-negative shape the thirtieth run hit
+    // from the other direction; an assertion that cannot survive its own target mutation is not an
+    // assertion.
+    Check("it reconciles to the RELAY's mark, not to the refused seq",
+        reconciledTo.Count == 1 && reconciledTo[0] == 41 && reconciledTo[0] != 12);
+    Check("a 409 persists nothing -- the envelope was never appended", persisted.Count == 0);
+    Check("a reconciled 409 is logged as reconciled", logged is [var l1] && l1.Contains("reconciled the e2p counter"));
+
+    // --- A 409 whose mark ReconcileTo refuses (at or below the counter) must still be reported,
+    // and reported DIFFERENTLY -- an operator has to be able to tell applied from not applied.
+    reconciledTo.Clear(); logged.Clear();
+    reconcileMoves = false;
+    Check("a refused reconciliation is still attempted", !sink("{}", default).GetAwaiter().GetResult() && reconciledTo is [41]);
+    Check("a refused reconciliation says NOT applied, and cites §6.2",
+        logged is [var l2] && l2.Contains("NOT applied") && l2.Contains("§6.2"));
+    reconcileMoves = true;
+
+    // --- A 409 with no usable number must NOT call ReconcileTo at all. Passing a null-substitute
+    // (0, say) would move the counter on the strength of a number the client already refused.
+    reconciledTo.Clear(); logged.Clear();
+    answer = new RelayPushResult.Conflict(null);
+    Check("a 409 with no usable mark does not call ReconcileTo at all",
+        !sink("{}", default).GetAwaiter().GetResult() && reconciledTo.Count == 0);
+    Check("...and says so rather than failing silently",
+        logged is [var l3] && l3.Contains("Nothing to reconcile"));
+
+    // --- Every remaining case: failure, no persist, no reconcile, and named distinctly. The
+    // distinctness matters -- collapsing these back into one bool is the defect RelayPushResult
+    // was introduced to fix, and nothing else asserts the sink kept them apart.
+    var others = new (RelayPushResult Result, string Fragment)[]
+    {
+        (new RelayPushResult.TooLarge(), "too large"),
+        (new RelayPushResult.Rejected("bad envelope"), "engine defect"),
+        (new RelayPushResult.Unauthorised(), "401/403"),
+        (new RelayPushResult.Misconfigured("404 on /push"), "Check the paired relay URL"),
+        (new RelayPushResult.Unavailable("dns"), "did not reach the relay"),
+    };
+    var allFailed = true; var allNamed = true;
+    persisted.Clear(); reconciledTo.Clear();
+    foreach (var (result, fragment) in others)
+    {
+        logged.Clear();
+        answer = result;
+        if (sink("{}", default).GetAwaiter().GetResult()) allFailed = false;
+        if (logged is not [var line] || !line.Contains(fragment)) allNamed = false;
+    }
+    Check("every non-201, non-409 case reports failure", allFailed);
+    Check("every non-201, non-409 case is named distinctly for the operator", allNamed);
+    Check("no failure case persists a high-water mark", persisted.Count == 0);
+    Check("no failure case moves the counter", reconciledTo.Count == 0);
+
+    // --- Composed against a REAL SyncPublisher, which is what proves the two halves fit: a 409
+    // from the relay must move the publisher's own counter, so the next envelope resumes above the
+    // relay's mark instead of walking into the same 409 forever. Everything above tests the sink
+    // against doubles; this tests that the doubles were standing in for something that matches.
+    var composedKey = Convert.FromHexString(
+        "1122334455667788990011223344556677889900112233445566778899001122");
+    var composedCounters = new Counters(
+        Discovered: 1, Acted: 0, Drafted: 0, Blocked: 0, Rejected: 0, Errors: 0, Cycles: 1);
+    SyncPublisher? composedRef = null;
+    RelayPushResult composedAnswer = new RelayPushResult.Conflict(41);
+    var composed = new SyncPublisher(
+        composedKey, (string)index["pairing_id"]!, activeKeyId,
+        sink: RelaySink.Create(
+            push: (_, _) => Task.FromResult(composedAnswer),
+            pushedSeq: () => composedRef?.HighestSeq,
+            persistSeq: _ => { },
+            reconcileTo: seq => composedRef?.ReconcileTo(seq) ?? false,
+            log: _ => { }),
+        startSeq: 5);
+    composedRef = composed;
+
+    Check("composed: the 409'd publish reports failure",
+        !composed.PublishHeartbeatAsync(1, composedCounters).GetAwaiter().GetResult());
+    Check("composed: the relay's 409 moved the REAL publisher's counter", composed.HighestSeq == 41);
+    composedAnswer = new RelayPushResult.Ok();
+    Check("composed: the next envelope resumes ABOVE the relay's mark",
+        composed.PublishHeartbeatAsync(2, composedCounters).GetAwaiter().GetResult()
+        && composed.HighestSeq == 42);
+}
+
+// -- the push path's WIRING, not just its rule ------------------------------------------------
+// The gap this closes was measured, not assumed. RelaySink made the sink's DECISION testable and
+// the previous slice proved the rule is applied — but which collaborator each delegate was attached
+// to stayed in BuildSyncBridge, which returns null without a DPAPI vault and has therefore never
+// executed in a harness or on a CI runner. Replacing `persistSeq: seq => vault.RecordE2pSeq(seq)`
+// with `persistSeq: _ => { }` built 0 warnings / 0 errors and left this harness at 277/0: an engine
+// that had silently stopped persisting its high-water mark failed no test in this repo.
+//
+// SyncPushPath.Create now owns that wiring, so these assertions run against the SHIPPING
+// composition rather than a copy of it — which is the whole point of tying the mutual reference in
+// one place. What remains unexecuted here is only the four argument identities at the host's single
+// call site (which vault, which token, which log, which resume value); those are recorded as
+// local-gate-only claims in the PR's self-audit rather than counted as covered.
+{
+    var pathKey = Convert.FromHexString(
+        "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF");
+    var pathCounters = new Counters(
+        Discovered: 3, Acted: 0, Drafted: 0, Blocked: 0, Rejected: 0, Errors: 0, Cycles: 2);
+
+    // A recording store standing in for the DPAPI vault, with the vault's own monotonic contract so
+    // the double behaves like the thing it replaces rather than like a list.
+    var recorded = new List<long>();
+    long highWater = 0;
+    var store = new RecordingE2pSeqStore(seq =>
+    {
+        recorded.Add(seq);
+        if (seq > highWater) highWater = seq;
+    });
+
+    var pushedEnvelopes = new List<string>();
+    var pathLog = new List<string>();
+    RelayPushResult pathAnswer = new RelayPushResult.Ok();
+
+    // startSeq 7 is §6.1's resume value arriving through the real parameter: the first envelope this
+    // publisher sends must be seq 8, not seq 1.
+    var path = SyncPushPath.Create(
+        pathKey, (string)index["pairing_id"]!, activeKeyId,
+        push: (envelope, _) => { pushedEnvelopes.Add(envelope); return Task.FromResult(pathAnswer); },
+        seqStore: store,
+        log: line => pathLog.Add(line),
+        startSeq: 7);
+
+    // --- 201 through the real wiring. THE ASSERTION THIS SLICE EXISTS FOR: emptying persistSeq now
+    // fails here, because the store the caller supplied is the one the sink reaches.
+    Check("push path: a 201 publish reports success",
+        path.PublishHeartbeatAsync(1, pathCounters).GetAwaiter().GetResult());
+    Check("PUSH PATH PERSISTS THE MARK -- the wiring, not just the sink's rule", recorded is [8]);
+
+    // --- ...and persists the seq that actually went on the wire. Asserting `recorded is [8]` alone
+    // would pass for a path that persisted a counter unrelated to the envelope it sent, so the
+    // number is read back out of the sealed envelope's own header rather than assumed.
+    var sentSeq = pushedEnvelopes.Count == 1
+        ? (long?)JsonNode.Parse(pushedEnvelopes[0])!["seq"]!.GetValue<long>()
+        : null;
+    Check("push path: §6.1's startSeq reaches the counter -- the first envelope is startSeq+1", sentSeq == 8);
+    Check("push path: the seq PERSISTED is the seq SENT, read from the envelope header",
+        recorded.Count == 1 && sentSeq is { } s && recorded[0] == s);
+
+    // --- The store is the caller's, by identity. This is what `seqStore: vault` buys at the host's
+    // call site: the path cannot quietly persist into a store of its own.
+    Check("push path: the mark lands in the store the CALLER supplied", store.Calls == 1 && highWater == 8);
+
+    // --- Successive pushes advance the mark rather than rewriting one. A path that persisted only
+    // the first seq, or re-persisted a stale one, is a store that lags the relay by construction.
+    Check("push path: a second 201 publish reports success",
+        path.PublishHeartbeatAsync(2, pathCounters).GetAwaiter().GetResult());
+    Check("push path: successive marks advance", recorded is [8, 9] && highWater == 9);
+
+    // --- 409 through the real wiring: the mutual reference must be tied, or ReconcileTo is reached
+    // through a null publisher and the counter never moves. Deleting `publisherRef = publisher`
+    // fails here and at the persist assertions above.
+    recorded.Clear(); pathLog.Clear();
+    pathAnswer = new RelayPushResult.Conflict(56);
+    Check("push path: a 409'd publish reports failure",
+        !path.PublishHeartbeatAsync(3, pathCounters).GetAwaiter().GetResult());
+    Check("push path: the 409 moved the REAL publisher's counter -- the mutual reference is tied",
+        path.HighestSeq == 56);
+    Check("push path: a 409 persists NOTHING -- the envelope was never appended", recorded.Count == 0);
+    Check("push path: the reconciliation reaches the operator's log",
+        pathLog is [var pl] && pl.Contains("reconciled the e2p counter"));
+
+    // --- ...and the next envelope resumes above the relay's mark, persisting THAT. This is the pair
+    // that shows reconcile and persist are wired to the same counter rather than to two.
+    pathAnswer = new RelayPushResult.Ok();
+    pushedEnvelopes.Clear();
+    Check("push path: the next envelope resumes above the relay's mark",
+        path.PublishHeartbeatAsync(4, pathCounters).GetAwaiter().GetResult() && path.HighestSeq == 57);
+    Check("push path: and persists the RECONCILED mark, not the pre-409 one", recorded is [57]);
+
+    // --- The envelope reaches the transport unmodified. Nothing else asserts the wiring did not
+    // wrap or re-serialise the sealed bytes on their way out.
+    Check("push path: the sealed envelope reaches the transport byte for byte",
+        pushedEnvelopes is [var wire] && JsonNode.Parse(wire)!["seq"]!.GetValue<long>() == 57);
+
+    // --- Null collaborators fail at wiring time, not at the first push. A path constructed without
+    // a store would otherwise look healthy until the moment persistence mattered.
+    Check("push path: a null store is refused at construction",
+        Throws<ArgumentNullException>(() => SyncPushPath.Create(
+            pathKey, "p", activeKeyId, (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
+            null!, _ => { }, 0), out var nullStoreDetail), nullStoreDetail);
+    Check("push path: a null push delegate is refused at construction",
+        Throws<ArgumentNullException>(() => SyncPushPath.Create(
+            pathKey, "p", activeKeyId, null!, store, _ => { }, 0), out var nullPushDetail), nullPushDetail);
+    Check("push path: a null log is refused at construction",
+        Throws<ArgumentNullException>(() => SyncPushPath.Create(
+            pathKey, "p", activeKeyId, (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
+            store, null!, 0), out var nullLogDetail), nullLogDetail);
+}
+
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
 
@@ -1378,6 +1716,28 @@ return failed == 0 ? 0 : 1;
 
 static byte[] B64u(string s) => Base64Url.TryDecode(s, out var b)
     ? b : throw new FormatException($"vector value is not strict base64url: {s[..Math.Min(16, s.Length)]}…");
+
+/// <summary>
+/// True when <paramref name="act"/> throws exactly <typeparamref name="T"/>. The three outcomes are
+/// kept distinct — threw the right type, threw the wrong one, did not throw — and
+/// <paramref name="detail"/> names which, because a guard that throws the wrong type is a different
+/// defect from a guard that does not throw and a bare `false` would report the second when the first
+/// happened.
+///
+/// <para><b>Nothing is allowed to escape, and that is a correction.</b> This helper's first version
+/// let a wrong exception type propagate on the reasoning above. Measured, that reasoning produced the
+/// wrong behaviour: dropping the null-store guard makes the delegate construction raise a
+/// <see cref="NullReferenceException"/>, which took the whole harness down <em>after zero FAIL
+/// lines</em>, so every assertion below it silently never ran. That is the same false-negative shape
+/// this repo has now met four times by four routes. Distinguishing the defects does not require
+/// letting one of them kill the run.</para>
+/// </summary>
+static bool Throws<T>(Action act, out string detail) where T : Exception
+{
+    try { act(); detail = $"did not throw at all; expected {typeof(T).Name}"; return false; }
+    catch (T) { detail = ""; return true; }
+    catch (Exception ex) { detail = $"threw {ex.GetType().Name}, not {typeof(T).Name}"; return false; }
+}
 
 static string ToHex(JsonNode n) => Convert.ToHexString(Base64Url.TryDecode((string)n!, out var b) ? b : throw new FormatException());
 
@@ -1446,6 +1806,17 @@ sealed class RecordingAckPublisher : SeekerSvc.Sync.IEntitlementAckPublisher
     public readonly List<(string ProductId, string? OrderId)> Published = new();
     public Task PublishEntitlementAckAsync(string productId, string? orderId, CancellationToken ct = default)
     { Published.Add((productId, orderId)); return Task.CompletedTask; }
+}
+
+/// <summary>
+/// Recording <see cref="SeekerSvc.Sync.IE2pSeqStore"/> — stands in for the DPAPI pairing vault, which
+/// cannot be constructed off Windows. <see cref="Calls"/> is counted separately from the recorded
+/// values so an assertion can tell "persisted the right number" from "persisted it exactly once".
+/// </summary>
+sealed class RecordingE2pSeqStore(Action<long> onRecord) : SeekerSvc.Sync.IE2pSeqStore
+{
+    public int Calls { get; private set; }
+    public void RecordE2pSeq(long seq) { Calls++; onRecord(seq); }
 }
 
 /// <summary>Recording <see cref="SeekerSvc.Sync.ISnapshotRepublisher"/> — captures the since_seq a pull_request asked to resume from.</summary>
