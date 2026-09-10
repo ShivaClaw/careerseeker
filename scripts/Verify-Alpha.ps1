@@ -161,7 +161,14 @@ $offlineProjects = @(
 # the absent-QR statement, and the confirmation code. That last one caught a real defect: the code was
 # rendered only on the pre-completion screen, so the human had nothing to compare after pairing -- which
 # is the entire MITM check. R7 adds two empty-profile scorer assertions: 611.
-$ExpectedOfflineTotal = 611
+# S5 adds twelve SyncHarness assertions (130 -> 142) for the strict section-3 wire parser
+# (src/Sync/EnvelopeJson.cs): eleven parser assertions plus the new shared `invalid-unknown-field`
+# vector. The vector is the load-bearing one -- before this change the engine had no inbound wire
+# parser at all, so an envelope carrying an unknown top-level field DECRYPTED AND WAS ACCEPTED here
+# while the phone rejected it, and no vector could express the difference (that is why it could not
+# be added earlier). Proven by mutation, not assumed: removing the unknown-field check makes that
+# vector report "got accepted". Re-derived on the post-S2/R7 base at integration: 611 + 12 = 623.
+$ExpectedOfflineTotal = 623
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -474,8 +481,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 130 |',
-        '| **Total** | **611** |',
+        '| SyncHarness | 142 |',
+        '| **Total** | **623** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -489,7 +496,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **611** |',
+        '| **Total** | **623** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -503,13 +510,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 130 |'
+        '| SyncHarness | 142 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 130 |',
-        '| **Total** | **611** |',
+        '| SyncHarness | 142 |',
+        '| **Total** | **623** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -543,7 +550,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **611 passed, 0 failed**',
+        'Pinned offline verifier: **623 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
