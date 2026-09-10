@@ -152,7 +152,7 @@ $offlineProjects = @(
 # 186 -> 210 (store-backed entitlement state, funnel board, outcome controls) and StoreParityHarness
 # 25 -> 28 (the outcome column in memory and SQLite). Measured: 591.
 # S2 adds seven EngineHarness assertions (210 -> 217) for the DPAPI sync pairing vault: round-trip,
-# both Ãƒâ€šÃ‚Â§6.1 high-water marks, the monotonic rule that a lower seq is ignored rather than rewound
+# both ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§6.1 high-water marks, the monotonic rule that a lower seq is ignored rather than rewound
 # (a rewound e2p counter makes the relay reject everything the engine sends next, including the
 # recovery snapshot), and that Describe leaks neither key material nor the relay token. 598.
 # S2 adds eleven EngineHarness assertions (217 -> 228) for the /pair page: the route, its 404 when no
@@ -184,7 +184,7 @@ $offlineProjects = @(
 # this change every inbound part shipped with NO production caller: the pull loop, the dispatcher, the
 # ack publisher and the vault's last_p2e_seq were referenced nowhere outside their own files, so a
 # verified purchase reached the engine's own flag and stopped. Fourteen assertions pin the cursor
-# rules against pages a real relay would never serve (Ã‚Â§2 makes the relay untrusted): an unauthenticated
+# rules against pages a real relay would never serve (Ãƒâ€šÃ‚Â§2 makes the relay untrusted): an unauthenticated
 # seq is capped at the page's `latest`, an ACCEPTED one is not, the cursor never moves backwards, a
 # rejection never writes the persisted replay mark, and an e2p envelope replayed onto the p2e page is
 # refused before dispatch. Two pin the replay mark's resume, which raises only. Proven by mutation,
@@ -211,11 +211,11 @@ $offlineProjects = @(
 # returned Ok and carried the value straight through, because TryGetInt64 fixes the type and the width
 # and nothing else -- 1e19 and 1e300 were already refused, so the hole was exactly those two bands and
 # no type check can see them. `latest` is not an arbitrary Int64: it is MAX(seq) over the rows the
-# relay holds, so it inherits seq's domain from Ã‚Â§3.2 -- by DERIVATION, since Ã‚Â§3.2 caps what a sender
+# relay holds, so it inherits seq's domain from Ãƒâ€šÃ‚Â§3.2 -- by DERIVATION, since Ãƒâ€šÃ‚Â§3.2 caps what a sender
 # emits and what the relay rejects and never mentions the relay's REPORT of it (PQ-LAT-1). Two more
 # pin Protocol.MaxSeq by arithmetic rather than by re-typing the literal, including that it survives a
 # double round trip and the next integer up does not, which is the whole reason for the number. Two
-# pin an OPEN WEAKNESS rather than a fix: Ã‚Â§6.4's bound on an unauthenticated seq is the page's own
+# pin an OPEN WEAKNESS rather than a fix: Ãƒâ€šÃ‚Â§6.4's bound on an unauthenticated seq is the page's own
 # `latest`, supplied by the same party in the same response, so an element claiming seq 1,000,000
 # bounded to 5 by an honest page reaches 1,000,000 when the page inflates its bound. The range check
 # lowers that ceiling to 2^53-1 and does NOT close it (PQ-LAT-2); if a later slice closes it, those
@@ -226,12 +226,12 @@ $offlineProjects = @(
 # two blocks did for PullAsync: it returned `res.StatusCode is Created` -- a bare bool -- so a 409
 # replay_rejected, a 400, a 413, a timeout and a DNS failure were the SAME VALUE, three of them
 # permanent for the bytes in hand and two worth retrying, and no caller could tell which it had.
-# Worse, the 409 carries `latest`, which is the second term of Ã‚Â§6.1's max(persisted, relay_latest),
+# Worse, the 409 carries `latest`, which is the second term of Ãƒâ€šÃ‚Â§6.1's max(persisted, relay_latest),
 # and bool discarded it unread (PQ-S6-3). The assertions pin seven cases (Ok / Conflict / Unauthorised
 # / Misconfigured / Rejected / TooLarge / Unavailable) and three properties that are easy to get
 # wrong: that a 409 with an unusable `latest` stays Conflict(null) and is NEVER downgraded to
 # Unavailable -- downgrading tells the caller to retry the one thing that provably cannot work, which
-# Ã‚Â§2.2 forbids in as many words; that the 409's `latest` gets the SAME range check as a pull page's,
+# Ãƒâ€šÃ‚Â§2.2 forbids in as many words; that the 409's `latest` gets the SAME range check as a pull page's,
 # because a sender resumes ABOVE it and so this number reaches the wire where the pull cursor's never
 # does; and that a 201 with an unreadable body is still Ok, since parsing it would invent a failure on
 # top of a success and make the sender retry bytes the relay already holds. Note the asymmetry with
@@ -241,17 +241,17 @@ $offlineProjects = @(
 # nine caught. 704.
 #
 # Twenty more SyncHarness assertions (236 -> 256) make the three blocks above DO something. Each
-# gave the transport a vocabulary and nothing consumed it: Ã‚Â§6.1 says an engine resumes its e2p
+# gave the transport a vocabulary and nothing consumed it: Ãƒâ€šÃ‚Â§6.1 says an engine resumes its e2p
 # counter above max(persisted_seq, relay_latest_e2p_seq), and the second term was read, range-checked,
 # logged and thrown away (PQ-S6-3's second bullet). Now `SyncPublisher.ResumeSeq` is that max() as a
 # pure function -- extracted deliberately, because the composition that feeds it needs a DPAPI vault
-# and a live relay and can only ever be compile-checked, so extracting the rule is what makes Ã‚Â§6.1
+# and a live relay and can only ever be compile-checked, so extracting the rule is what makes Ãƒâ€šÃ‚Â§6.1
 # testable at all -- and `SyncPublisher.ReconcileTo` moves the counter when a 409 proves it wrong.
 # The load-bearing property is that ReconcileTo RAISES AND NEVER LOWERS: a relay mark below this
 # counter is not evidence the counter ran ahead, and rewinding onto seqs the phone may already have
-# accepted is refused by Ã‚Â§6.2 permanently -- the one-sided sync death Ã‚Â§6.1 exists to prevent. The
+# accepted is refused by Ãƒâ€šÃ‚Â§6.2 permanently -- the one-sided sync death Ãƒâ€šÃ‚Â§6.1 exists to prevent. The
 # assertions also pin that a relay which did not answer falls back to the store rather than stopping
-# publishing (Ã‚Â§6.1 makes the store the value and the relay read belt-and-suspenders), and that an
+# publishing (Ãƒâ€šÃ‚Â§6.1 makes the store the value and the relay read belt-and-suspenders), and that an
 # out-of-range seq throws rather than clamping. Proven by mutation: nine applied, seven caught first
 # pass, NINE after two real gaps were closed -- one where the floor on a corrupt store was invisible
 # because the relay term rescued every case that tested it, and one where the boundary mutation took
@@ -335,9 +335,9 @@ $offlineProjects = @(
 # line, not ten. And the finding, which inverts the cheapest remedy: a bounded backoff was recorded
 # as the option needing no product decision, but it would be keyed on PushDisposition, and
 # PayloadDead is a fact about the BYTES just pushed rather than about the pairing. One oversized
-# snapshot -- refused by Â§3.1's cap measured on the ciphertext, per PQ-A2-1 -- puts the shared sink
+# snapshot -- refused by Ã‚Â§3.1's cap measured on the ciphertext, per PQ-A2-1 -- puts the shared sink
 # in PayloadDead, and the ratified snapshot retry keeps it there; the very next payload can be the
-# entitlement_ack, which is small and which Â§4.3.3 makes the only thing that unlocks Pro. Measured:
+# entitlement_ack, which is small and which Ã‚Â§4.3.3 makes the only thing that unlocks Pro. Measured:
 # today that ack gets through, decrypted off the wire to prove it is the ack and not merely a
 # success. Under PairingDead it does not get through anyway, so a backoff THERE withholds nothing.
 # The two dispositions therefore do not take the same policy, and the remedy as stated would have
@@ -345,7 +345,12 @@ $offlineProjects = @(
 # itself, which this block now catches by name. One of the nine first CRASHED the harness through an
 # unguarded index in this slice's own new assertion, the fifth time this repo has met that
 # false-negative family; the assertion was rewritten to survive its own target mutation. 775 + 31 = 806.
-$ExpectedOfflineTotal = 806
+# S3 adds six SyncHarness assertions (325 -> 331, its own view was 130 -> 136 on the pre-S5 base) giving the confirm code a consumer: every published
+# confirm is re-derived from its own vector's secret and scalars, and the corpus is required to keep
+# separating the two renderings that a wrong implementation produces (a SIGNED int32 reduction and a
+# dropped zero-pad). Both slips reproduce pairing-basic exactly, so before this the suite passed 130/0
+# under either mutation -- measured, not assumed. 806 + 6 = 812.
+$ExpectedOfflineTotal = 812
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -478,7 +483,7 @@ Invoke-Step "Confirmed full-data deletion source and copy smoke" {
 
     $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw
     Assert-Contains $positioning @(
-        '| D10 | ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œYou can delete all local data.ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â | PROVEN for installed workspace |',
+        '| D10 | ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“You can delete all local data.ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â | PROVEN for installed workspace |',
         '`src/Engine/FullDataDeletion.cs:24`',
         'source/test/export caveat'
     ) "docs/Positioning.md"
@@ -658,8 +663,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 325 |',
-        '| **Total** | **806** |',
+        '| SyncHarness | 136 |',
+        '| **Total** | **812** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -673,7 +678,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **806** |',
+        '| **Total** | **812** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -687,13 +692,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 325 |'
+        '| SyncHarness | 136 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 325 |',
-        '| **Total** | **806** |',
+        '| SyncHarness | 136 |',
+        '| **Total** | **812** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -727,7 +732,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **806 passed, 0 failed**',
+        'Pinned offline verifier: **812 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
@@ -744,7 +749,7 @@ Invoke-Step "Public README and harness count smoke" {
         'strictly nested profiles with',
         '0/120 with both richer supersets',
         '`lexical-v2` formula',
-        '| 200 | 1.50ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“3.88 | 2.99ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“4.20 | 2.99 | 4.20 | 4.20 | 3.20 | 8/120 (6.7%) |',
+        '| 200 | 1.50ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ3.88 | 2.99ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ4.20 | 2.99 | 4.20 | 4.20 | 3.20 | 8/120 (6.7%) |',
         'existing default Act threshold of 4.0 remains inside that gap',
         '230 passed, 0 failed'
     ) "docs/Scoring-Calibration.md"
