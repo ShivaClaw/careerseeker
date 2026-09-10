@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch] $IncludeLive,
     [switch] $IncludePublish,
     [switch] $IncludePackage,
@@ -152,7 +152,7 @@ $offlineProjects = @(
 # 186 -> 210 (store-backed entitlement state, funnel board, outcome controls) and StoreParityHarness
 # 25 -> 28 (the outcome column in memory and SQLite). Measured: 591.
 # S2 adds seven EngineHarness assertions (210 -> 217) for the DPAPI sync pairing vault: round-trip,
-# both §6.1 high-water marks, the monotonic rule that a lower seq is ignored rather than rewound
+# both Â§6.1 high-water marks, the monotonic rule that a lower seq is ignored rather than rewound
 # (a rewound e2p counter makes the relay reject everything the engine sends next, including the
 # recovery snapshot), and that Describe leaks neither key material nor the relay token. 598.
 # S2 adds eleven EngineHarness assertions (217 -> 228) for the /pair page: the route, its 404 when no
@@ -168,7 +168,18 @@ $offlineProjects = @(
 # while the phone rejected it, and no vector could express the difference (that is why it could not
 # be added earlier). Proven by mutation, not assumed: removing the unknown-field check makes that
 # vector report "got accepted". Re-derived on the post-S2/R7 base at integration: 611 + 12 = 623.
-$ExpectedOfflineTotal = 623
+# S5 adds fifteen more SyncHarness assertions (142 -> 157) for the `entitlement_ack` emitter
+# (src/Sync/SyncPayloads.EntitlementAck + the InboundDispatcher seam). Before this change the kind
+# appeared in the engine exactly once -- as a string in Protocol.ShippingKinds -- so the engine
+# verified a Play receipt, flipped its own Pro flag, and told the phone nothing, while section 4.3.3
+# makes the ack the ONLY thing that may unlock Pro there. Eleven assertions check the built body
+# against the two shared vectors BYTE for byte (not field by field: that is what catches a field
+# reordering or an order_id written as a literal null rather than omitted); four check the dispatcher
+# publishes exactly one ack on an accepted receipt, naming the product and order from the VERIFIED
+# receipt, and NONE at all on a rejected one -- section 4.3.3 has no negative form. Proven by
+# mutation, not assumed: five mutations (absent order_id as empty string, swapped field order, never
+# publishing, publishing on rejection, dropping the order id) were each caught. 623 + 15 = 638.
+$ExpectedOfflineTotal = 638
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -301,7 +312,7 @@ Invoke-Step "Confirmed full-data deletion source and copy smoke" {
 
     $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw
     Assert-Contains $positioning @(
-        '| D10 | “You can delete all local data.” | PROVEN for installed workspace |',
+        '| D10 | â€œYou can delete all local data.â€ | PROVEN for installed workspace |',
         '`src/Engine/FullDataDeletion.cs:24`',
         'source/test/export caveat'
     ) "docs/Positioning.md"
@@ -481,8 +492,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 142 |',
-        '| **Total** | **623** |',
+        '| SyncHarness | 157 |',
+        '| **Total** | **638** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -496,7 +507,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **623** |',
+        '| **Total** | **638** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -510,13 +521,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 142 |'
+        '| SyncHarness | 157 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 142 |',
-        '| **Total** | **623** |',
+        '| SyncHarness | 157 |',
+        '| **Total** | **638** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -550,7 +561,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **623 passed, 0 failed**',
+        'Pinned offline verifier: **638 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
@@ -567,7 +578,7 @@ Invoke-Step "Public README and harness count smoke" {
         'strictly nested profiles with',
         '0/120 with both richer supersets',
         '`lexical-v2` formula',
-        '| 200 | 1.50–3.88 | 2.99–4.20 | 2.99 | 4.20 | 4.20 | 3.20 | 8/120 (6.7%) |',
+        '| 200 | 1.50â€“3.88 | 2.99â€“4.20 | 2.99 | 4.20 | 4.20 | 3.20 | 8/120 (6.7%) |',
         'existing default Act threshold of 4.0 remains inside that gap',
         '230 passed, 0 failed'
     ) "docs/Scoring-Calibration.md"

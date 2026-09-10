@@ -45,6 +45,19 @@ public interface ISnapshotRepublisher
 }
 
 /// <summary>
+/// Publishes the engine's `entitlement_ack` (§4.3.3) once a receipt verifies — backed by the pairing's
+/// <see cref="SyncPublisher.PublishEntitlementAckAsync"/>; null leaves the seam inert like the other two.
+///
+/// This seam is what closes the purchase path. Without it the engine verifies the receipt, flips its own
+/// Pro flag, and tells the phone nothing — and §4.3.3 makes the ack the only thing that may unlock Pro
+/// there, so the user pays and never sees the feature.
+/// </summary>
+public interface IEntitlementAckPublisher
+{
+    Task PublishEntitlementAckAsync(string productId, string? orderId, CancellationToken ct = default);
+}
+
+/// <summary>
 /// The minimal inbound phone→engine path (P4 §2.4): take one envelope, run it through the shipping
 /// <see cref="EnvelopeReceiver"/> (which verifies the device signature on state-changing kinds), then
 /// dispatch by kind. Structural only — it is constructed behind the `--sync` seam and stays inert until
@@ -63,11 +76,13 @@ public sealed class InboundDispatcher
     private readonly string _deviceFingerprint;
     private readonly IOutcomeApplier? _outcomeApplier;
     private readonly ISnapshotRepublisher? _republisher;
+    private readonly IEntitlementAckPublisher? _ackPublisher;
     private readonly Func<string, byte[]> _keyForDir;
 
     public InboundDispatcher(
         EnvelopeReceiver receiver, EntitlementService entitlement, string deviceFingerprint,
-        Func<string, byte[]> keyForDir, IOutcomeApplier? outcomeApplier = null, ISnapshotRepublisher? republisher = null)
+        Func<string, byte[]> keyForDir, IOutcomeApplier? outcomeApplier = null, ISnapshotRepublisher? republisher = null,
+        IEntitlementAckPublisher? ackPublisher = null)
     {
         _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
         _entitlement = entitlement ?? throw new ArgumentNullException(nameof(entitlement));
@@ -75,6 +90,7 @@ public sealed class InboundDispatcher
         _keyForDir = keyForDir ?? throw new ArgumentNullException(nameof(keyForDir));
         _outcomeApplier = outcomeApplier;
         _republisher = republisher;
+        _ackPublisher = ackPublisher;
     }
 
     public async Task<InboundResult> DispatchAsync(ReceivedEnvelope env, CancellationToken ct = default)
@@ -90,9 +106,19 @@ public sealed class InboundDispatcher
                 if (!TryReadEntitlement(received.Plaintext!, out var originalJson, out var signature))
                     return new InboundResult(InboundOutcome.EntitlementRejected, null, received.Kind, EntitlementReject.Malformed);
                 var verdict = _entitlement.Apply(originalJson, signature, _deviceFingerprint);
-                return verdict.Accepted
-                    ? new InboundResult(InboundOutcome.EntitlementApplied, null, received.Kind)
-                    : new InboundResult(InboundOutcome.EntitlementRejected, null, received.Kind, verdict.Reason);
+                if (!verdict.Accepted)
+                    return new InboundResult(InboundOutcome.EntitlementRejected, null, received.Kind, verdict.Reason);
+
+                // §4.3.3: the ack is emitted on an ACCEPTED verdict and on no other path. There is no
+                // negative form of this kind, so a rejection must fall out above rather than reach here
+                // with a flag — an ack means granted, full stop. The product and order come from the
+                // verdict (i.e. from the Play-signed receipt the verifier just checked), never from the
+                // phone's request body: the phone is a courier, and letting it name the product it is
+                // acknowledged for would hand the unlock decision back to the device.
+                if (_ackPublisher is not null)
+                    await _ackPublisher.PublishEntitlementAckAsync(verdict.ProductId!, verdict.OrderId, ct).ConfigureAwait(false);
+
+                return new InboundResult(InboundOutcome.EntitlementApplied, null, received.Kind);
             }
 
             case "outcome":

@@ -1,4 +1,4 @@
-# CareerSeeker Engine Host
+﻿# CareerSeeker Engine Host
 
 `src/Engine` is the runnable composition root for the local-first CareerSeeker Windows Beta. It hosts the
 real scheduled engine, loopback dashboard, browser onboarding, one-shot diagnostic modes, and the bounded
@@ -158,8 +158,8 @@ Current pinned offline results:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| SyncHarness | 142 |
-| **Total** | **623** |
+| SyncHarness | 157 |
+| **Total** | **638** |
 
 The engine-specific assertions cover browser onboarding, crash reconciliation, SQLite composition,
 single-instance protection, scheduler pause/resume/backoff, honest dashboard state, identified Scout feeds,

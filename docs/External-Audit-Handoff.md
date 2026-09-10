@@ -1,4 +1,4 @@
-# CareerSeeker External Audit Handoff
+﻿# CareerSeeker External Audit Handoff
 
 Updated: 2026-08-12
 Audit target: Windows L1 Drafts Beta on `main`
@@ -19,7 +19,7 @@ The strongest review order is:
 
 ## Current evidence
 
-- Pinned offline verifier: **623 passed, 0 failed**.
+- Pinned offline verifier: **638 passed, 0 failed**.
 - GitHub CI runs the warnings-as-errors Release build and the same verifier on `main`, `agent/**`,
   `codex/**`, and pull requests into `main`.
 - Real engine path: `run` performs identified Greenhouse/Lever/Ashby discovery, local deterministic ranking,
@@ -144,7 +144,7 @@ create provider cost or a Gmail draft. They are not needed to reproduce the offl
 - Native Windows Service, tray, and WinUI shell are not built.
 - OAuth production verification and Google-directed CASA assessment are pending.
 - The repository `docs-site` truth-copy updates require a separate human deployment; no B8 deployment occurred.
-- The `role_reassign` detector has a measured high false-positive rate for ordinary “act as” job prose.
+- The `role_reassign` detector has a measured high false-positive rate for ordinary â€œact asâ€ job prose.
   Proposed tuning is not applied.
 - Historical Alpha `.cmd` launchers and `Package-AlphaRelease.ps1` remain in source, but the current
   `-IncludePackage` product artifact is the MSIX.
