@@ -20,6 +20,14 @@ public static class Protocol
     public const string Suite = "p256-hkdf-sha256";
     public const string SuiteHybridReserved = "p256+mlkem768-hkdf-sha256";
 
+    /// <summary>
+    /// The two `dir` values (§3). Named because the direction selects the AEAD key AND the replay
+    /// counter, so a literal typed in the wrong place is not a typo — it is a different key and a
+    /// different sequence space.
+    /// </summary>
+    public const string EngineToPhone = "e2p";
+    public const string PhoneToEngine = "p2e";
+
     public const string InfoEngineToPhone = "careerseeker/v1/e2p";
     public const string InfoPhoneToEngine = "careerseeker/v1/p2e";
     public const string InfoRelayToken = "careerseeker/v1/relay-token";

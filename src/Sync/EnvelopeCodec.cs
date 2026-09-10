@@ -64,4 +64,17 @@ public sealed class SequenceTracker
         _highest[dir] = seq;
         return true;
     }
+
+    /// <summary>
+    /// Restore a persisted mark at construction time (§6.1: the mark survives a restart).
+    ///
+    /// Raises only. A tracker that could be lowered is a tracker whose replay rule can be turned off by
+    /// whoever supplies the number, which would make every check downstream of it decorative — so a
+    /// value at or below the current mark is ignored rather than written, and there is deliberately no
+    /// way to reset one.
+    /// </summary>
+    public void Resume(string dir, long seq)
+    {
+        if (seq > HighestAccepted(dir)) _highest[dir] = seq;
+    }
 }
