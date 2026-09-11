@@ -11,6 +11,20 @@ public static class Protocol
     /// <summary>Envelope hard limit; larger is rejected before any crypto work.</summary>
     public const int MaxEnvelopeBytes = 1024 * 1024;
 
+    /// <summary>
+    /// The largest legal <c>seq</c> (§3.2): <c>2^53 - 1</c>. Not a C# limit — it is the largest
+    /// integer all three implementations represent <em>exactly</em>. Both receivers type <c>seq</c>
+    /// as a 64-bit integer, but the relay is JavaScript and moves the same number through an
+    /// IEEE-754 double, so above this value "the counter the sender wrote" and "the counter the
+    /// relay reports" stop being guaranteed to be the same number.
+    ///
+    /// <para><strong>§3.2 lives on a sibling branch</strong> (<c>claude/s2-seq-bound</c>, draft
+    /// PR #35) and is not in this tree; <c>merge-base --is-ancestor</c> exits 1 against it. The
+    /// citation resolves on merge of both, exactly as <c>InboundPump</c>'s §6.4 citation does —
+    /// flagged here rather than left for a reader to discover.</para>
+    /// </summary>
+    public const long MaxSeq = 9_007_199_254_740_991L;
+
     /// <summary>AES-256-GCM, decided at gate P0-CIPHER.</summary>
     public const int KeyBytes = 32;
     public const int NonceBytes = 12;
@@ -19,6 +33,14 @@ public static class Protocol
     /// <summary>Pairing suite for v1 (gate P1-CURVE). The hybrid PQ suite is a reserved bump.</summary>
     public const string Suite = "p256-hkdf-sha256";
     public const string SuiteHybridReserved = "p256+mlkem768-hkdf-sha256";
+
+    /// <summary>
+    /// The two `dir` values (§3). Named because the direction selects the AEAD key AND the replay
+    /// counter, so a literal typed in the wrong place is not a typo — it is a different key and a
+    /// different sequence space.
+    /// </summary>
+    public const string EngineToPhone = "e2p";
+    public const string PhoneToEngine = "p2e";
 
     public const string InfoEngineToPhone = "careerseeker/v1/e2p";
     public const string InfoPhoneToEngine = "careerseeker/v1/p2e";

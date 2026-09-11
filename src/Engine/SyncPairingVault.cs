@@ -36,7 +36,7 @@ public sealed record SyncPairing(
 /// platform-free so it can be verified offline and mirrored on Android; DPAPI is Windows-only
 /// persistence and belongs on the composition side of that line.
 /// </summary>
-public sealed class SyncPairingVault
+public sealed class SyncPairingVault : IE2pSeqStore
 {
     private readonly DpapiSecretVault _vault;
 
@@ -96,6 +96,10 @@ public sealed class SyncPairingVault
     /// Persist a new outbound high-water mark. Monotonic by construction: a lower value is ignored
     /// rather than written, so a late or out-of-order caller cannot rewind the counter and cause the
     /// relay to reject everything the engine sends next.
+    ///
+    /// <para>This is <see cref="IE2pSeqStore.RecordE2pSeq"/>'s production implementation, and the
+    /// monotonicity above is the contract that interface states rather than an incidental property of
+    /// this class — the push path is written against it.</para>
     /// </summary>
     public void RecordE2pSeq(long seq)
     {

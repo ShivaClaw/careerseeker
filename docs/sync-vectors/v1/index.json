@@ -106,6 +106,12 @@
       "expect_error": "bad_signature"
     },
     {
+      "name": "invalid-unknown-field",
+      "type": "envelope",
+      "valid": false,
+      "expect_error": "decrypt_failed"
+    },
+    {
       "name": "invalid-padded-base64",
       "type": "envelope",
       "valid": false,
@@ -128,6 +134,12 @@
       "type": "pairing",
       "valid": false,
       "expect_error": "decrypt_failed"
+    },
+    {
+      "name": "pairing-high-bit-confirm",
+      "type": "pairing",
+      "valid": true,
+      "expect_error": null
     },
     {
       "name": "entitlement-valid",
@@ -157,6 +169,18 @@
       "name": "entitlement-not-purchased",
       "type": "entitlement",
       "valid": false,
+      "expect_error": null
+    },
+    {
+      "name": "entitlement-ack",
+      "type": "entitlement_ack",
+      "valid": true,
+      "expect_error": null
+    },
+    {
+      "name": "entitlement-ack-no-order-id",
+      "type": "entitlement_ack",
+      "valid": true,
       "expect_error": null
     }
   ]

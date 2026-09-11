@@ -1,0 +1,29 @@
+{
+  "type": "entitlement_ack",
+  "name": "entitlement-ack",
+  "valid": true,
+  "notes": "The engine acknowledging a verified Pro grant, with the optional order_id present. Section 4.3.3. This is the only payload that may unlock Pro on the phone; acknowledged_at is advisory (section 6.3) and must never expire or re-lock the entitlement.",
+  "key_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+  "aad": "v=1|pairing=p_7Fq2mXk9LtVbN3wR|dir=e2p|seq=30|ts=2026-06-11T14:02:11Z|key_id=k-2026-06-01",
+  "nonce_b64u": "TvKdedMQkdiMicaO",
+  "plaintext_json": {
+    "kind": "entitlement_ack",
+    "body": {
+      "product_id": "pro_unlock",
+      "acknowledged_at": "2026-06-11T14:02:11Z",
+      "order_id": "GPA.3390-8461-2039-11123"
+    }
+  },
+  "ciphertext_b64u": "z2vwIjIprY9xYMNXOnjtIFyiTuQZt5FkPpL5uBSEuzVnaZhVs8IClBeyNmBmtITMu86u37BD2jNn_fNwdVlfL_WcK3lUWAcH6lO4_cVxtfS5qs68tK2fbGsfvSf46YpeB1XdAIuCWgs-GPPaGZUmCktu7Ooen5Ohs13ncMW8H_WJ3jGuJHF-Kl3WTpMjm5slKKRIvRyYJJ2qyLO7",
+  "envelope_json": {
+    "v": 1,
+    "pairing": "p_7Fq2mXk9LtVbN3wR",
+    "dir": "e2p",
+    "seq": 30,
+    "ts": "2026-06-11T14:02:11Z",
+    "key_id": "k-2026-06-01",
+    "nonce": "TvKdedMQkdiMicaO",
+    "ciphertext": "z2vwIjIprY9xYMNXOnjtIFyiTuQZt5FkPpL5uBSEuzVnaZhVs8IClBeyNmBmtITMu86u37BD2jNn_fNwdVlfL_WcK3lUWAcH6lO4_cVxtfS5qs68tK2fbGsfvSf46YpeB1XdAIuCWgs-GPPaGZUmCktu7Ooen5Ohs13ncMW8H_WJ3jGuJHF-Kl3WTpMjm5slKKRIvRyYJJ2qyLO7"
+  },
+  "expect_error": null
+}

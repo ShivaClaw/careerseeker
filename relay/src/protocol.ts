@@ -12,8 +12,64 @@
 
 export const PROTOCOL_VERSION = 1;
 
-/** Envelope hard limit. Larger is rejected with HTTP 413 before any storage work. */
+/**
+ * The protocol's size cap, in the units the protocol states it: **decoded ciphertext
+ * bytes** (docs/Sync-Protocol.md §3.1). Both receivers measure exactly this after
+ * base64url-decoding, and neither of them ever sees this file.
+ */
 export const MAX_ENVELOPE_BYTES = 1024 * 1024;
+
+/**
+ * The same cap, converted into the units the relay can actually observe.
+ *
+ * The relay is blind: it never decodes `ciphertext`, so it cannot measure the quantity
+ * §3.1 caps. All it can count is base64url characters. Unpadded base64url expands by
+ * 4/3, so the largest *legal* ciphertext arrives as `ceil(4/3 × MAX_ENVELOPE_BYTES)`
+ * characters — 1,398,102 for a 1 MiB cap.
+ *
+ * This constant must be DERIVED, never written as its own round number. Comparing a
+ * character count against a byte budget is what this file did until 2026-08-09: the
+ * guard read `ciphertext.length > MAX_ENVELOPE_BYTES`, which capped the *decoded*
+ * payload at 786,432 bytes and made the top 256 KiB of the protocol's declared range
+ * untransmittable. The relay refusing to carry what the spec declares legal is a worse
+ * failure than the relay carrying 33% more bytes, because only the first one is silent —
+ * it surfaces as a 413 on a §4.4 chunk sized correctly against §3.1.
+ */
+export const MAX_CIPHERTEXT_B64U_CHARS = Math.ceil((MAX_ENVELOPE_BYTES * 4) / 3);
+
+/**
+ * Headroom for the JSON scaffolding around the ciphertext — `v`, `pairing`, `dir`, `seq`,
+ * `ts`, `key_id`, `nonce`, an optional `sig`, and the punctuation. That is ~200 bytes in
+ * practice; 4 KiB is deliberate slack so the body guard never becomes the binding limit
+ * and turns a size rule into a header-length rule.
+ *
+ * Note this counts UTF-16 code units (`String.length`), not bytes. For a well-formed
+ * envelope every field is ASCII and the two agree; for a hostile body they do not, so
+ * read this as a coarse resource guard on an already-materialised string and not as a
+ * byte-exact limit. The binding protocol check is the ciphertext one above.
+ */
+export const MAX_PUSH_BODY_CHARS = MAX_CIPHERTEXT_B64U_CHARS + 4096;
+
+/**
+ * The largest `seq` this protocol admits (docs/Sync-Protocol.md §3.2).
+ *
+ * Spelled as `Number.MAX_SAFE_INTEGER` because that IS the derivation, not because it is
+ * convenient: both receivers type `seq` as a 64-bit integer, this relay reads it through
+ * `JSON.parse` into a double, and `2^53 - 1` is the largest integer all three represent
+ * exactly. Above it the wire stops being unambiguous in three measured ways — the value
+ * silently rounds (2^62 came back 96 higher than it was pushed), then exceeds
+ * `Long.MaxValue`, then renders in exponent notation — and the last two are unparseable by
+ * both receivers' strict readers.
+ *
+ * That matters most on the READ path, which is the non-obvious half. `latest` is emitted
+ * from the same double, so one out-of-range envelope does not merely refuse later pushes:
+ * it makes `GET /pull` unreadable for that direction, and reading `latest` from `pull` is
+ * exactly the reconciliation §6.1 prescribes for a sender whose counter is behind.
+ *
+ * Do not re-spell this as a literal, and do not raise it to `2^63 - 1` to match the
+ * receivers — this file cannot represent that number, which is the whole point.
+ */
+export const MAX_SEQ = Number.MAX_SAFE_INTEGER;
 
 /**
  * Retention ceiling. CareerSeeker-Spec.md section 8.3 caps relay retention at 30 days;

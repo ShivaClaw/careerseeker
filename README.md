@@ -1,4 +1,4 @@
-# CareerSeeker
+﻿# CareerSeeker
 
 CareerSeeker is a local-first Windows L1 Drafts beta. It discovers jobs from public ATS boards, ranks
 them against a local source-of-truth profile, researches employers, tailors materials, verifies generated
@@ -80,8 +80,8 @@ The current pinned breakdown is:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| SyncHarness | 130 |
-| **Total** | **620** |
+| SyncHarness | 134 |
+| **Total** | **825** |
 
 CI runs the warnings-as-errors Release build and the same offline verifier. Optional live switches use
 already-configured local credentials and are not part of the default gate:

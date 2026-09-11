@@ -9,6 +9,8 @@
 // was always the plan ("when the real SyncPublisher lands in P1, this harness points at
 // it instead").
 
+using System.Buffers.Binary;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -131,6 +133,65 @@ catch (CryptographicException) { mitmRejected = true; }
 Check("pairing-mitm-keyswap: swapped phone_pub cannot decrypt the completion", mitmRejected,
     "a relay that substitutes keys must break the handshake, not hijack it");
 
+// ---------------------------------------------------------------- confirm code: the two failure modes
+//
+// The confirm code is the one derived value a human reads off two screens and compares, so an
+// implementation that renders it wrong is a field bug that no decrypt failure reports. Two
+// plausible slips reproduce `pairing-basic` (digest 0x5fd509b6) EXACTLY: reducing the digest as
+// a SIGNED int32, and rendering without the six-digit zero pad. `pairing-high-bit-confirm`
+// (digest 0x9010f572 -> 030514) exists to separate all three renderings, and this section is
+// what makes the engine PROVE the property rather than merely ship the vector.
+//
+// The loop is deliberately generic: it re-derives from each vector's OWN secret and scalars, so
+// a confirm code added to the corpus later cannot arrive unchecked. generate.mjs audits the same
+// property, but that runs in the relay CI job -- this runs in the offline gate.
+
+Console.WriteLine("\n[ pairing: every published confirm re-derives, and both failure modes are pinned ]");
+
+var confirmVectors = pairingVectors
+    .Where(v => (bool)v["valid"]! && v["expected"]?["confirm"] is not null)
+    .ToList();
+
+Check("the corpus publishes more than one confirm code",
+    confirmVectors.Count > 1,
+    $"one confirm cannot discriminate a signed reduction from an unsigned one; found {confirmVectors.Count}");
+
+var confirmFacts = new List<(string Name, string Published, uint Digest)>();
+foreach (var v in confirmVectors)
+{
+    var vName = (string)v["name"]!;
+    var vSecret = B64u((string)v["secret_b64u"]!);
+    using var vEngineKey = ImportEcdh((string)v["engine"]!["d_hex"]!, (string)v["engine"]!["pub_b64u"]!);
+    var vIkm = PairingCrypto.ComputeSharedSecret(vEngineKey, B64u((string)v["phone"]!["pub_b64u"]!));
+    var vPublished = (string)v["expected"]!["confirm"]!;
+
+    var vDerived = PairingCrypto.Derive(new[] { vIkm }, vSecret).ConfirmCode;
+    Check($"{vName}: confirm re-derives from that vector's own secret and scalars",
+        vDerived == vPublished, $"derived {vDerived}, vector {vPublished}");
+
+    // The raw 4-byte confirm digest, recomputed here only to build the counterfactuals below.
+    // The assertion above is what tests the shipping path; this is the witness for what the
+    // corpus can still distinguish, measured rather than quoted from the generator.
+    confirmFacts.Add((vName, vPublished, BinaryPrimitives.ReadUInt32BigEndian(
+        HKDF.DeriveKey(HashAlgorithmName.SHA256, vIkm, 4, vSecret, Encoding.ASCII.GetBytes(Protocol.InfoConfirm)))));
+}
+
+Check("a SIGNED int32 reduction is separable: some published digest exceeds 0x7fffffff",
+    confirmFacts.Any(f => f.Digest > int.MaxValue),
+    "without a high-bit digest every vector passes under a signed reduction");
+Check("a DROPPED zero-pad is separable: some published confirm has a leading zero",
+    confirmFacts.Any(f => f.Published.StartsWith('0')),
+    "without a leading-zero code every vector passes with the pad removed");
+
+// Reported, not thrown: if the witness is ever removed from the corpus the two checks above
+// already say so, and this one must still render a verdict rather than abort the harness.
+var witness = confirmFacts.FirstOrDefault(f => f.Digest > int.MaxValue);
+var signedRender = witness.Published is null ? null : ((int)witness.Digest % 1_000_000).ToString();
+var unpaddedRender = witness.Published is null ? null : (witness.Digest % 1_000_000u).ToString();
+Check($"{witness.Name ?? "(no high-bit vector)"}: both wrong renderings disagree with the vector",
+    witness.Published is not null && signedRender != witness.Published && unpaddedRender != witness.Published,
+    $"published {witness.Published ?? "(none)"}, signed {signedRender ?? "(none)"}, unpadded {unpaddedRender ?? "(none)"}");
+
 // ---------------------------------------------------------------- valid envelope vectors
 
 Console.WriteLine("\n[ valid envelope vectors decrypt and verify through src/Sync ]");
@@ -195,9 +256,21 @@ byte[] KeyFor(string dir) => dir == "e2p"
     ? Convert.FromHexString("a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")
     : Convert.FromHexString("0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0");
 
+// Vectors are fed as WIRE TEXT through the strict §3 parser, not field-by-field. That is the
+// point of routing them this way: the old ToReceived read the nine names it wanted and dropped
+// everything else, so a vector carrying a tenth field was accepted here and rejected on the
+// phone, and no vector could express the difference (B-6 / PQ-A2-3).
+ReceiveResult ReceiveWire(JsonObject envelopeJson)
+{
+    var parsed = EnvelopeJson.Parse(envelopeJson.ToJsonString());
+    return parsed.Error is { } err
+        ? new ReceiveResult(err, null, null)
+        : receiver.Receive(parsed.Envelope!, KeyFor);
+}
+
 foreach (var v in validEnv.OrderBy(v => (long)v["envelope_json"]!["seq"]!))
 {
-    var result = receiver.Receive(ToReceived(v["envelope_json"]!.AsObject()), KeyFor);
+    var result = ReceiveWire(v["envelope_json"]!.AsObject());
     Check($"receiver accepts {(string)v["name"]!}", result.Accepted, result.Error?.ToWire());
 }
 
@@ -217,7 +290,7 @@ foreach (var v in invalidEnv)
     }
     else
     {
-        result = receiver.Receive(ToReceived(v["envelope_json"]!.AsObject()), KeyFor);
+        result = ReceiveWire(v["envelope_json"]!.AsObject());
     }
 
     Check($"{name} -> {expectedCode}", result.Error?.ToWire() == expectedCode,
@@ -227,6 +300,61 @@ foreach (var v in invalidEnv)
 Check("rejections never advanced the sequence tracker",
     receiver.HighestAccepted("e2p") == 4 && receiver.HighestAccepted("p2e") == 1,
     $"e2p={receiver.HighestAccepted("e2p")} p2e={receiver.HighestAccepted("p2e")}");
+
+// ---------------------------------------------------------------- strict section-3 parser
+//
+// invalid-unknown-field pins the rule end-to-end through the vectors. These pin the parser
+// directly, and cover the cases no vector file can carry: a vector IS json, so it cannot
+// express "the wire bytes were not JSON at all" or "the root was not an object", and
+// index.json gives each vector exactly one expect_error, so a case whose whole interest is
+// *which check fired first* has nowhere to live in the shared suite.
+
+Console.WriteLine("\n[ the strict section-3 wire parser ]");
+
+var goodWire = envelopeVectors.Single(v => (string)v["name"]! == "delta-basic")["envelope_json"]!.AsObject();
+string WireWith(Action<JsonObject> edit)
+{
+    var o = JsonNode.Parse(goodWire.ToJsonString())!.AsObject();
+    edit(o);
+    return o.ToJsonString();
+}
+
+Check("parser accepts an envelope carrying exactly the nine section-3 fields",
+    EnvelopeJson.Parse(goodWire.ToJsonString()).Ok);
+
+Check("an unknown top-level field is rejected as decrypt_failed",
+    EnvelopeJson.Parse(WireWith(o => o["next_seq"] = 99)).Error == SyncError.DecryptFailed);
+
+// PQ-ER-1, pinned rather than argued: the unknown-field check runs BEFORE the version check,
+// so a v2 sender that also adds a field cannot learn that the version is the problem. The
+// pair of assertions is the point -- the second shows the first is about the field, not the
+// version, which a single assertion could not distinguish.
+Check("unknown-field rejection precedes the version check (PQ-ER-1)",
+    EnvelopeJson.Parse(WireWith(o => { o["v"] = 2; o["next_seq"] = 99; })).Error == SyncError.DecryptFailed);
+Check("the same envelope WITHOUT the extra field is told version_unsupported instead",
+    new EnvelopeReceiver(activeKeyId, devicePub)
+        .Receive(EnvelopeJson.Parse(WireWith(o => o["v"] = 2)).Envelope!, KeyFor)
+        .Error == SyncError.VersionUnsupported);
+
+// A present-but-non-string sig must not silently degrade into "unsigned": that would turn a
+// malformed signature into a missing one, and the two are reported by different checks at
+// different times (decrypt_failed before decryption, bad_signature after).
+Check("a present-but-non-string sig is rejected, not read as unsigned",
+    EnvelopeJson.Parse(WireWith(o => o["sig"] = 42)).Error == SyncError.DecryptFailed);
+Check("an explicit JSON null sig parses as absent",
+    EnvelopeJson.Parse(WireWith(o => o["sig"] = null)) is { Ok: true, Envelope.Sig: null });
+
+Check("seq as a quoted string is rejected (types are not coerced)",
+    EnvelopeJson.Parse(WireWith(o => o["seq"] = "12")).Error == SyncError.DecryptFailed);
+Check("v as a quoted string is rejected (types are not coerced)",
+    EnvelopeJson.Parse(WireWith(o => o["v"] = "1")).Error == SyncError.DecryptFailed);
+Check("a malformed pairing id is rejected before it can reach the AAD",
+    EnvelopeJson.Parse(WireWith(o => o["pairing"] = "not-a-pairing-id")).Error == SyncError.DecryptFailed);
+
+Check("a JSON root that is not an object is rejected",
+    EnvelopeJson.Parse("[1,2,3]").Error == SyncError.DecryptFailed);
+Check("wire bytes that are not JSON at all are rejected",
+    EnvelopeJson.Parse("{not json").Error == SyncError.DecryptFailed);
 
 // ---------------------------------------------------------------- pairing manager
 //
@@ -565,6 +693,75 @@ foreach (var v in entitlementVectors.OrderBy(v => (string)v["name"]!, StringComp
         && store.Audits.Count == auditsBefore && Equals(store.Load(), stateBefore));
 }
 
+// ---------------------------------------------------------------- entitlement_ack (S5, §4.3.3)
+//
+// The engine's answer to a verified receipt, and the ONLY payload that may unlock Pro on the phone.
+// Until this section the two ack vectors had no consumer on either side (§10.2 said so in as many
+// words), so they pinned a body that nothing produced: `entitlement_ack` appeared in the engine
+// exactly once, as a string in Protocol.ShippingKinds.
+//
+// The assertion is byte equality against the vector, not field-by-field agreement. The vectors were
+// generated by Node; if the C# builder emits the same BYTES under the AEAD then an engine-built ack
+// is indistinguishable on the wire from the published artifact the phone's applier was written
+// against -- which is the property a shared vector exists to give, and one that a field-by-field
+// check would pass while the two implementations disagreed about field order or an omitted null.
+
+Console.WriteLine("\n[ entitlement_ack: the engine builds §4.3.3's body byte-identically (S5) ]");
+
+var ackVectors = vectors.Where(v => (string)v["type"]! == "entitlement_ack").ToList();
+Check("suite carries the entitlement_ack vectors, both valid",
+    ackVectors.Count == 2 && ackVectors.All(v => (bool)v["valid"]!));
+
+foreach (var v in ackVectors.OrderBy(v => (string)v["name"]!, StringComparer.Ordinal))
+{
+    var name = (string)v["name"]!;
+    var key = Convert.FromHexString((string)v["key_hex"]!);
+    var nonce = B64u((string)v["nonce_b64u"]!);
+    var aad = (string)v["aad"]!;
+    var body = v["plaintext_json"]!["body"]!.AsObject();
+
+    var built = SyncPayloads.EntitlementAck(
+        (string)body["product_id"]!, (string)body["acknowledged_at"]!, (string?)body["order_id"]);
+
+    var vectorPlaintext = EnvelopeCodec.Open(key, nonce, aad, B64u((string)v["ciphertext_b64u"]!));
+    Check($"{name}: SyncPayloads.EntitlementAck reproduces the vector plaintext byte for byte",
+        built.SequenceEqual(vectorPlaintext),
+        $"built={Encoding.UTF8.GetString(built)} vector={Encoding.UTF8.GetString(vectorPlaintext)}");
+
+    // AES-GCM is deterministic given key+nonce+aad+plaintext, so this follows from the line above --
+    // asserted anyway because it is the claim that actually matters: an ack this engine seals is the
+    // same ciphertext the phone's applier was written against.
+    Check($"{name}: re-sealing the built body reproduces the vector ciphertext exactly",
+        Base64Url.Encode(EnvelopeCodec.Seal(key, nonce, aad, built)) == (string)v["ciphertext_b64u"]!);
+
+    Check($"{name}: is e2p and carries no sig (the engine holds no device signing key, §4.3.3)",
+        (string?)v["envelope_json"]!["dir"] == "e2p" && v["envelope_json"]!["sig"] is null);
+}
+
+{
+    // order_id's optionality is the reason the pair exists. A builder that wrote `"order_id": null`
+    // instead of omitting the key would still round-trip through a lenient reader and would still
+    // fail here -- which is the point: the absent form is a wire fact, not a serializer preference.
+    var withOrder = ackVectors.Single(v => (string)v["name"]! == "entitlement-ack");
+    var without = ackVectors.Single(v => (string)v["name"]! == "entitlement-ack-no-order-id");
+
+    var omitted = Encoding.UTF8.GetString(SyncPayloads.EntitlementAck("pro_unlock", "2026-06-11T14:02:11Z"));
+    Check("entitlement_ack omits order_id entirely when absent (never a literal null)",
+        !omitted.Contains("order_id") && !omitted.Contains("null"));
+    Check("entitlement_ack carries order_id verbatim when present",
+        Encoding.UTF8.GetString(SyncPayloads.EntitlementAck("pro_unlock", "2026-06-11T14:02:11Z", "GPA.3390-8461-2039-11123"))
+            .Contains("\"order_id\":\"GPA.3390-8461-2039-11123\""));
+    Check("the two ack vectors differ only by order_id (same product, same grant)",
+        (string?)withOrder["plaintext_json"]!["body"]!["product_id"]
+            == (string?)without["plaintext_json"]!["body"]!["product_id"]
+        && (string?)withOrder["plaintext_json"]!["body"]!["acknowledged_at"]
+            == (string?)without["plaintext_json"]!["body"]!["acknowledged_at"]
+        && without["plaintext_json"]!["body"]!["order_id"] is null);
+
+    Check("entitlement_ack is a shipping kind and is not state-changing (it is e2p)",
+        Protocol.ShippingKinds.Contains("entitlement_ack") && !Protocol.StateChangingKinds.Contains("entitlement_ack"));
+}
+
 // ---------------------------------------------------------------- inbound dispatcher (P4 §2.4)
 //
 // The inbound path routes each accepted p2e kind. entitlement/doc_edit cases reuse the signed vectors;
@@ -603,26 +800,52 @@ Console.WriteLine("\n[ inbound dispatcher routes each p2e kind (P4 §2.4) ]");
             Base64Url.Encode(nonce), Base64Url.Encode(ct), sig);
     }
 
-    InboundDispatcher MakeDispatcher(RecordingOutcomeApplier? outcome, RecordingRepublisher? republisher)
+    InboundDispatcher MakeDispatcher(RecordingOutcomeApplier? outcome, RecordingRepublisher? republisher,
+        RecordingAckPublisher? acks = null)
     {
         var receiver = new EnvelopeReceiver(activeKeyId, devicePub);
         var svc = new EntitlementService(VerifierFor(entConfig), new FakeEntitlementStore(),
             () => new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero));
-        return new InboundDispatcher(receiver, svc, fingerprint, _ => kP2e, outcome, republisher);
+        return new InboundDispatcher(receiver, svc, fingerprint, _ => kP2e, outcome, republisher, acks);
     }
 
-    // entitlement (valid) -> applied
-    var rApplied = MakeDispatcher(null, null)
+    // entitlement (valid) -> applied, AND the phone is told. The ack is the only thing that unlocks
+    // Pro there (§4.3.3), so "applied" without a published ack is a user who paid and saw nothing.
+    var appliedAcks = new RecordingAckPublisher();
+    var rApplied = MakeDispatcher(null, null, appliedAcks)
         .DispatchAsync(ToReceived(entitlementVectors.Single(v => (string)v["name"]! == "entitlement-valid")["envelope_json"]!.AsObject()))
         .GetAwaiter().GetResult();
     Check("dispatch: entitlement-valid -> EntitlementApplied", rApplied.Outcome == InboundOutcome.EntitlementApplied);
+    Check("dispatch: an applied entitlement publishes exactly one entitlement_ack",
+        appliedAcks.Published.Count == 1);
 
-    // entitlement (wrong product) -> rejected with the distinct reason
-    var rRejected = MakeDispatcher(null, null)
+    // Read the expected product/order out of the Play-signed receipt the verifier just checked, so this
+    // asserts the ack echoes THAT record -- not a constant, and not anything the phone chose to send.
+    var validReceipt = JsonNode.Parse((string)entitlementVectors
+        .Single(v => (string)v["name"]! == "entitlement-valid")["plaintext_json"]!["body"]!["original_json"]!)!.AsObject();
+    Check("dispatch: the ack names the product and order from the VERIFIED receipt, not the request body",
+        appliedAcks.Published.Count == 1
+        && appliedAcks.Published[0].ProductId == (string?)validReceipt["productId"]
+        && appliedAcks.Published[0].OrderId == (string?)validReceipt["orderId"]);
+
+    // entitlement (wrong product) -> rejected with the distinct reason, and NO ack. §4.3.3 has no
+    // negative form: an ack means granted, full stop. This is the assertion that a future refactor
+    // returning "ack with a flag" has to fail, on the one path that turns a paid feature on.
+    var rejectedAcks = new RecordingAckPublisher();
+    var rRejected = MakeDispatcher(null, null, rejectedAcks)
         .DispatchAsync(ToReceived(entitlementVectors.Single(v => (string)v["name"]! == "entitlement-wrong-product")["envelope_json"]!.AsObject()))
         .GetAwaiter().GetResult();
     Check("dispatch: entitlement-wrong-product -> EntitlementRejected(WrongProduct)",
         rRejected.Outcome == InboundOutcome.EntitlementRejected && rRejected.EntitlementReason == EntitlementReject.WrongProduct);
+    Check("dispatch: a REJECTED entitlement publishes no ack at all (§4.3.3 has no negative form)",
+        rejectedAcks.Published.Count == 0);
+
+    // The seam stays optional, like the other two: a dispatcher with no ack publisher still applies.
+    var rNoSeam = MakeDispatcher(null, null)
+        .DispatchAsync(ToReceived(entitlementVectors.Single(v => (string)v["name"]! == "entitlement-valid")["envelope_json"]!.AsObject()))
+        .GetAwaiter().GetResult();
+    Check("dispatch: a null ack publisher leaves the seam inert without failing the apply",
+        rNoSeam.Outcome == InboundOutcome.EntitlementApplied);
 
     // outcome (signed, minted fresh) -> handed to the applier
     var outcomeApplier = new RecordingOutcomeApplier();
@@ -631,7 +854,31 @@ Console.WriteLine("\n[ inbound dispatcher routes each p2e kind (P4 §2.4) ]");
         .GetAwaiter().GetResult();
     Check("dispatch: signed outcome -> OutcomeApplied and handed to the §2.5 applier",
         rOutcome.Outcome == InboundOutcome.OutcomeApplied && outcomeApplier.Applied.Count == 1
-        && outcomeApplier.Applied[0].Body.Contains("interview") && outcomeApplier.Applied[0].Fingerprint == fingerprint);
+        && outcomeApplier.Applied[0].Body.Contains("interview") && outcomeApplier.Applied[0].Fingerprint == fingerprint
+        && rOutcome.OutcomeReason == OutcomeReject.None);
+
+    // PQ-S6-1: the two ways an outcome can be dropped must both be visible to the caller. Before this,
+    // BOTH of the next two cases returned OutcomeApplied — a mark the engine never stored, reported stored.
+    var rNoApplier = MakeDispatcher(null, null).DispatchAsync(
+        SealP2e(1, new { kind = "outcome", body = new { app_id = "app_1", outcome = "interview", at = "2026-07-24T00:00:00Z" } }, sign: true))
+        .GetAwaiter().GetResult();
+    Check("dispatch: outcome with a null applier -> OutcomeNotApplied(NoApplier), never OutcomeApplied",
+        rNoApplier.Outcome == InboundOutcome.OutcomeNotApplied && rNoApplier.OutcomeReason == OutcomeReject.NoApplier);
+
+    var refusing = new RecordingOutcomeApplier(OutcomeVerdict.Reject(OutcomeReject.NotPhoneSettable));
+    var rRefused = MakeDispatcher(refusing, null).DispatchAsync(
+        SealP2e(1, new { kind = "outcome", body = new { app_id = "app_1", outcome = "no_reply", at = "2026-07-24T00:00:00Z" } }, sign: true))
+        .GetAwaiter().GetResult();
+    Check("dispatch: an applier that refuses the body -> OutcomeNotApplied carrying the applier's reason",
+        rRefused.Outcome == InboundOutcome.OutcomeNotApplied && rRefused.OutcomeReason == OutcomeReject.NotPhoneSettable
+        && refusing.Applied.Count == 1);
+
+    // A refusal is NOT a wire rejection: the envelope decrypted and its device sig verified, and the
+    // applier then declined the body. An auditor reading OutcomeNotApplied must be able to tell those
+    // apart, or a hostile-client refusal reads as a transport fault.
+    Check("dispatch: a refused outcome carries no ReceiveError — the wire accepted it, the applier did not",
+        rRefused.Outcome == InboundOutcome.OutcomeNotApplied && rRefused.ReceiveError is null
+        && rNoApplier.ReceiveError is null);
 
     // pull_request (not state-changing, so unsigned) -> re-publish snapshot from since_seq
     var republisher = new RecordingRepublisher();
@@ -640,6 +887,14 @@ Console.WriteLine("\n[ inbound dispatcher routes each p2e kind (P4 §2.4) ]");
         .GetAwaiter().GetResult();
     Check("dispatch: pull_request -> SnapshotRepublished(since_seq=7)",
         rPull.Outcome == InboundOutcome.SnapshotRepublished && republisher.LastSince == 7L);
+
+    // The same over-reporting shape on a second kind (PQ-S6-1 extension). Milder — an unanswered request
+    // loses nothing, since PullPolicy's latch re-asks — but it was equally indistinguishable.
+    var rPullNone = MakeDispatcher(null, null).DispatchAsync(
+        SealP2e(1, new { kind = "pull_request", body = new { since_seq = 7L } }, sign: false))
+        .GetAwaiter().GetResult();
+    Check("dispatch: pull_request with no republisher -> SnapshotNotRepublished, not a claimed republish",
+        rPullNone.Outcome == InboundOutcome.SnapshotNotRepublished);
 
     // doc_edit (signed) -> recognised but unimplemented; the apply path is NEVER touched
     var rDoc = MakeDispatcher(null, null)
@@ -656,6 +911,223 @@ Console.WriteLine("\n[ inbound dispatcher routes each p2e kind (P4 §2.4) ]");
         .GetAwaiter().GetResult();
     Check("dispatch: an unsigned state-changing kind is ReceiveRejected(bad_signature), never dispatched",
         rBad.Outcome == InboundOutcome.ReceiveRejected && rBad.ReceiveError == SyncError.BadSignature);
+}
+
+// ---------------------------------------------------------------- inbound pump (S5 host wiring)
+//
+// The transport loop that turns the dispatcher above from a library into something the running engine
+// does. Everything here is an ordering rule, and ordering rules are exactly what a live smoke against a
+// relay cannot pin: the smoke proves the happy path round-trips, while what actually needs proving is
+// what the cursor does when the relay is hostile or merely broken.
+//
+// The relay is faked, and that is the point — this asserts against pages a real relay would never
+// serve. §2 says the relay is blind but NOT trusted; every page below is one it is free to construct.
+
+Console.WriteLine("\n[ inbound pump: the engine's p2e transport loop (S5, §6.1/§6.2/§6.4) ]");
+
+{
+    var pairingId = (string)index["pairing_id"]!;
+    var kP2e = Convert.FromHexString("0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0");
+    var kE2p = Convert.FromHexString("1122334455667788990011223344556677889900112233445566778899001122");
+    var deviceD = Convert.FromHexString((string)pairingBasic["device_sig"]!["d_hex"]!);
+    using var deviceSigner = ECDsa.Create(new ECParameters
+    {
+        Curve = ECCurve.NamedCurves.nistP256, D = deviceD,
+        Q = new ECPoint { X = devicePub[1..33], Y = devicePub[33..] },
+    });
+    var fingerprint = DeviceSignature.Fingerprint(devicePub);
+    var entConfig = entitlementVectors.Single(v => (string)v["name"]! == "entitlement-valid")["entitlement"]!.AsObject();
+    var pumpNonce = 200;
+
+    // One sealed envelope, as the relay would serve it: a bare §3 object (§2.1), not a wrapper.
+    JsonElement Wire(string dir, long seq, byte[] key, object plaintext, bool sign, string? extraField = null)
+    {
+        var header = new EnvelopeHeader(1, pairingId, dir, seq, "2026-07-24T00:00:00Z", activeKeyId);
+        var aad = header.Aad();
+        var nonce = new byte[Protocol.NonceBytes]; nonce[0] = (byte)pumpNonce++; nonce[1] = 0x5c;
+        var ct = EnvelopeCodec.Seal(key, nonce, aad, JsonSerializer.SerializeToUtf8Bytes(plaintext));
+        var o = new JsonObject
+        {
+            ["v"] = 1, ["pairing"] = pairingId, ["dir"] = dir, ["seq"] = seq,
+            ["ts"] = "2026-07-24T00:00:00Z", ["key_id"] = activeKeyId,
+            ["nonce"] = Base64Url.Encode(nonce), ["ciphertext"] = Base64Url.Encode(ct),
+        };
+        if (sign)
+        {
+            var input = DeviceSignature.SigInput(aad, Base64Url.Encode(nonce), ct);
+            o["sig"] = Base64Url.Encode(deviceSigner.SignData(Encoding.ASCII.GetBytes(input), HashAlgorithmName.SHA256));
+        }
+        if (extraField is not null) o[extraField] = "x";
+        return JsonDocument.Parse(o.ToJsonString()).RootElement.Clone();
+    }
+
+    // A well-formed §3 envelope whose ciphertext is not openable under any key the engine holds. This is
+    // the shape the cursor rules exist for: it PARSES, so it has a header seq, and that seq is
+    // authenticated by nothing at all.
+    JsonElement Undecryptable(long seq) => Wire(Protocol.PhoneToEngine, seq, kE2p, new { kind = "outcome", body = new { } }, sign: true);
+
+    (InboundPump Pump, RecordingAckPublisher Acks, List<long> Persisted) MakePump(
+        IReadOnlyList<IReadOnlyList<JsonElement>> pages, long latest, long resumeFrom = 0)
+    {
+        var acks = new RecordingAckPublisher();
+        var persisted = new List<long>();
+        var receiver = new EnvelopeReceiver(activeKeyId, devicePub,
+            resume: resumeFrom > 0 ? new Dictionary<string, long>(StringComparer.Ordinal) { [Protocol.PhoneToEngine] = resumeFrom } : null);
+        var dispatcher = new InboundDispatcher(
+            receiver,
+            new EntitlementService(VerifierFor(entConfig), new FakeEntitlementStore(),
+                () => new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero)),
+            fingerprint,
+            dir => dir == Protocol.PhoneToEngine ? kP2e : kE2p,
+            new RecordingOutcomeApplier(), new RecordingRepublisher(), acks);
+        var served = 0;
+        var pump = new InboundPump(
+            (_, _) => Task.FromResult<InboundPage?>(
+                served < pages.Count ? new InboundPage(pages[served++], latest) : new InboundPage(Array.Empty<JsonElement>(), latest)),
+            dispatcher, Protocol.PhoneToEngine, resumeFrom, persisted.Add);
+        return (pump, acks, persisted);
+    }
+
+    // --- the happy path: a signed outcome is dispatched and its seq becomes the persisted mark
+    {
+        var outcome = Wire(Protocol.PhoneToEngine, 4, kP2e,
+            new { kind = "outcome", body = new { app_id = "app_1", outcome = "interview", at = "2026-07-24T00:00:00Z" } }, sign: true);
+        var (pump, _, persisted) = MakePump(new[] { new[] { outcome } }, latest: 4);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an accepted envelope is dispatched, moves the cursor, and persists its seq",
+            report.Outcomes.SequenceEqual(new[] { InboundOutcome.OutcomeApplied })
+            && report.Cursor == 4 && persisted.SequenceEqual(new[] { 4L }) && !report.MoreAvailable);
+    }
+
+    // --- the headline: a parseable, unauthenticated seq CANNOT walk the cursor past `latest`.
+    // Without the bound this page truncates history: the cursor jumps to 1,000,000, never moves
+    // backwards, and every real envelope below it is never requested again -- performed by a party that
+    // decrypted nothing. §6.4 permits the advance and bounds it; the bound is what this asserts.
+    {
+        var (pump, _, persisted) = MakePump(new[] { new[] { Undecryptable(1_000_000) } }, latest: 5);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: a crafted seq of 1,000,000 on an undecryptable envelope is capped at the page's latest",
+            report.Cursor == 5);
+        Check("pump: that envelope is reported as a rejection and never dispatched",
+            report.Rejections.SequenceEqual(new[] { SyncError.DecryptFailed }) && report.Outcomes.Count == 0);
+        Check("pump: an unauthenticated seq is never persisted as the replay mark",
+            persisted.Count == 0);
+    }
+
+    // --- the same rule for an element that fails the §3 parse outright (unknown top-level field)
+    {
+        var (pump, _, persisted) = MakePump(new[] { new[] { Wire(Protocol.PhoneToEngine, 999, kP2e, new { kind = "outcome", body = new { } }, sign: true, extraField: "shadow") } }, latest: 3);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an element failing the §3 parse advances the cursor only as far as latest",
+            report.Cursor == 3 && report.Rejections.SequenceEqual(new[] { SyncError.DecryptFailed }));
+        // Added after a mutation survived: the assertion above pins the cursor and said nothing about
+        // the mark, so writing a claimed seq into the persisted replay mark from this branch was caught
+        // by nothing. An unparseable element is the LEAST authenticated thing on the page.
+        Check("pump: an element failing the §3 parse persists no replay mark either", persisted.Count == 0);
+    }
+
+    // --- an ACCEPTED seq is authenticated, so it is the one number that moves the cursor unbounded.
+    // This is the other half of the rule: bounding everything would be the stall §6.2 forbids.
+    {
+        var accepted = Wire(Protocol.PhoneToEngine, 9, kP2e, new { kind = "pull_request", body = new { since_seq = 0 } }, sign: false);
+        var (pump, _, persisted) = MakePump(new[] { new[] { accepted } }, latest: 3);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an accepted envelope's AUTHENTICATED seq moves the cursor past a lying latest",
+            report.Cursor == 9 && persisted.SequenceEqual(new[] { 9L }));
+    }
+
+    // --- the cursor never moves backwards, whatever the page claims
+    {
+        var (pump, _, _) = MakePump(new[] { new[] { Undecryptable(2) } }, latest: 50, resumeFrom: 20);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: the cursor never moves backwards (seeded at 20, page claims 2)", report.Cursor == 20);
+    }
+
+    // --- the engine's own e2p traffic, served back on the p2e page.
+    // Every downstream check passes for this envelope -- no sig is required of an e2p envelope, the
+    // replay counter consulted is the *e2p* one which resume never seeds, and keyForDir hands over the
+    // e2p key so the tag verifies. Without the pump's direction guard it is ACCEPTED, and `onAccepted`
+    // writes an e2p seq into the persisted p2e mark. Push that mark past the phone's counter and every
+    // genuine phone envelope afterwards is refused as a replay: a silent, permanent, one-way outage.
+    {
+        var ownTraffic = Wire(Protocol.EngineToPhone, 900, kE2p, new { kind = "snapshot", body = new { } }, sign: false);
+        var (pump, _, persisted) = MakePump(new[] { new[] { ownTraffic } }, latest: 6);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an e2p envelope replayed onto the p2e page is refused before dispatch",
+            report.Outcomes.Count == 0 && report.Rejections.SequenceEqual(new[] { SyncError.DecryptFailed }));
+        Check("pump: and it cannot corrupt the p2e replay mark or the cursor",
+            persisted.Count == 0 && report.Cursor == 6);
+    }
+
+    // --- resumption: the persisted mark is what refuses an already-applied envelope after a restart
+    {
+        var replayed = Wire(Protocol.PhoneToEngine, 5, kP2e,
+            new { kind = "outcome", body = new { app_id = "app_1", outcome = "interview", at = "2026-07-24T00:00:00Z" } }, sign: true);
+        var (fresh, _, freshPersisted) = MakePump(new[] { new[] { replayed } }, latest: 5);
+        var freshReport = fresh.DrainAsync().GetAwaiter().GetResult();
+        var (resumed, _, resumedPersisted) = MakePump(new[] { new[] { replayed } }, latest: 5, resumeFrom: 5);
+        var resumedReport = resumed.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an unseeded receiver ACCEPTS the already-applied envelope (this is what the mark prevents)",
+            freshReport.Outcomes.SequenceEqual(new[] { InboundOutcome.OutcomeApplied }) && freshPersisted.SequenceEqual(new[] { 5L }));
+        Check("pump: a receiver resumed from the persisted mark refuses it as a replay instead",
+            resumedReport.Outcomes.Count == 0
+            && resumedReport.Rejections.SequenceEqual(new[] { SyncError.ReplayRejected })
+            && resumedPersisted.Count == 0);
+    }
+
+    // --- a transport failure arrives as data, never as an exception out of the drain
+    {
+        var dispatcher = new InboundDispatcher(
+            new EnvelopeReceiver(activeKeyId, devicePub),
+            new EntitlementService(VerifierFor(entConfig), new FakeEntitlementStore(), () => DateTimeOffset.UtcNow),
+            fingerprint, _ => kP2e);
+        var pump = new InboundPump((_, _) => Task.FromResult<InboundPage?>(null), dispatcher, Protocol.PhoneToEngine, resumeFrom: 7);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: a relay that did not answer reports PullFailed and leaves the cursor untouched",
+            report.PullFailed && report.Cursor == 7 && report.Pulled == 0 && !report.MoreAvailable);
+    }
+
+    // --- more-available is the paging signal the bridge's drain loop follows
+    {
+        var (pump, _, _) = MakePump(new[] { new[] { Undecryptable(2) } }, latest: 40);
+        var report = pump.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: cursor below the page's latest reports more available", report.MoreAvailable && report.Cursor == 2);
+    }
+
+    // --- §6.4's bound is supplied by the party it defends against. This PINS the weakness.
+    //
+    // These two assertions are not a fix and must not be read as one. They are the executable form
+    // of the correction now in InboundPump's docstring, which used to claim the bound "denies a
+    // hostile relay a second, independent lever". It does not: `latest` and the crafted element
+    // arrive in the same response from the same party. The identical element bounded to 5 by an
+    // honest page walks the cursor to 1,000,000 when the page inflates its own bound.
+    //
+    // RelayClient now refuses a page whose latest exceeds Protocol.MaxSeq, which lowers the ceiling
+    // to 2^53-1 and leaves this reachable -- 2^53-1 is still past every real counter. Closing it
+    // needs a bound that does not come from the relay, which is a protocol change (PQ-LAT-2).
+    // If a later slice closes it, THIS TEST SHOULD FAIL. That is the point of writing it down.
+    {
+        var (honest, _, _) = MakePump(new[] { new[] { Undecryptable(1_000_000) } }, latest: 5);
+        var honestReport = honest.DrainAsync().GetAwaiter().GetResult();
+        var (inflated, _, _) = MakePump(new[] { new[] { Undecryptable(1_000_000) } }, latest: Protocol.MaxSeq);
+        var inflatedReport = inflated.DrainAsync().GetAwaiter().GetResult();
+        Check("pump: an honest latest bounds an unauthenticated claim to the page's own high-water mark",
+            honestReport.Cursor == 5);
+        Check("pump: an inflated latest does NOT (open weakness, pinned -- PQ-LAT-2)",
+            inflatedReport.Cursor == 1_000_000);
+    }
+}
+
+Console.WriteLine("\n[ the replay mark raises only (§6.2) ]");
+
+{
+    var tracker = new SequenceTracker();
+    tracker.Resume(Protocol.PhoneToEngine, 12);
+    tracker.Resume(Protocol.PhoneToEngine, 4);
+    Check("resume raises the replay mark and refuses to lower it",
+        tracker.HighestAccepted(Protocol.PhoneToEngine) == 12 && !tracker.Accept(Protocol.PhoneToEngine, 12));
+    Check("resume is per direction: seeding p2e leaves e2p at zero",
+        tracker.HighestAccepted(Protocol.EngineToPhone) == 0);
 }
 
 // ---------------------------------------------------------------- protocol rules
@@ -682,6 +1154,979 @@ Check("device key fingerprint is 16 lowercase hex chars",
     DeviceSignature.Fingerprint(devicePub) is { Length: 16 } fp && fp.All(c => "0123456789abcdef".Contains(c)));
 Check("suite string names its post-quantum successor",
     Protocol.SuiteHybridReserved.Contains("mlkem") && Protocol.SuiteHybridReserved != Protocol.Suite);
+// §3.2's cap is 2^53-1 because that is where the THREE implementations stop agreeing, not because
+// of anything about C#. Asserting the arithmetic rather than re-typing the literal is the point:
+// a transcribed constant can drift from the number it claims to be, and this one is shared with a
+// JavaScript relay that reaches it through a double.
+Check("the seq cap is 2^53-1, the largest integer a double represents exactly",
+    Protocol.MaxSeq == (1L << 53) - 1 && Protocol.MaxSeq == 9_007_199_254_740_991L);
+Check("the seq cap round-trips through a double unchanged, and the next integer up does not",
+    (long)(double)Protocol.MaxSeq == Protocol.MaxSeq
+    && (double)(Protocol.MaxSeq + 1) == (double)(Protocol.MaxSeq + 2));
+
+// ---------------------------------------------------------------- relay pull result (§2.2)
+//
+// RelayClient had no offline coverage at all before this section: `grep -rl RelayClient tests/`
+// returned only SyncLiveSmoke, which needs a live or local relay and is excluded from the hermetic
+// suite. That is how PullAsync stayed partial -- EnsureSuccessStatusCode, GetProperty and GetInt64
+// all throw, and nothing offline ever asked what happened when they did.
+//
+// These drive the real shipping client over a stub transport. The property under test is the one the
+// pump's contract states and the signature now carries: a relay that answers badly produces a VALUE,
+// never an exception.
+
+Console.WriteLine("\n[ relay pull result ]");
+
+const string PullPairing = "p_AAAAAAAAAAAAAAAA";
+
+async Task<RelayPullResult> Pull(
+    Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> respond,
+    CancellationToken ct = default)
+{
+    using var handler = new StubTransport(respond);
+    using var httpClient = new HttpClient(handler);
+    return await new RelayClient(httpClient, "https://relay.example", PullPairing)
+        .PullAsync("bearer-token", "p2e", 7, ct);
+}
+
+static HttpResponseMessage Answer(HttpStatusCode status, string body) =>
+    new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+
+// -- the happy path, and the two things about it that are easy to get wrong ------------------
+var okResult = await Pull((_, _) => Answer(HttpStatusCode.OK,
+    """{"envelopes":[{"seq":8,"dir":"p2e"},{"seq":9,"dir":"p2e"}],"latest":9}"""));
+Check("a well-formed page is Ok", okResult is RelayPullResult.Ok, okResult.GetType().Name);
+Check("Ok carries every envelope and the latest seq",
+    okResult is RelayPullResult.Ok { Envelopes.Count: 2, Latest: 9 });
+// The elements are cloned out of a JsonDocument that PullAsync disposes on the way out. Reading one
+// after the call has returned is the assertion that the clone is real -- drop the .Clone() and this
+// throws ObjectDisposedException rather than failing quietly.
+Check("Ok envelopes outlive the JsonDocument they were parsed from",
+    okResult is RelayPullResult.Ok ok2 && ok2.Envelopes[1].GetProperty("seq").GetInt64() == 9);
+
+// -- the request itself: nothing offline had ever asserted the wire form ---------------------
+HttpRequestMessage? seen = null;
+await Pull((req, _) => { seen = req; return Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""); });
+Check("the pull carries the bearer", seen?.Headers.Authorization?.ToString() == "Bearer bearer-token"
+    || seen?.Headers.GetValues("Authorization").FirstOrDefault() == "Bearer bearer-token");
+Check("the pull addresses /v1/{pairing}/pull with dir and since",
+    seen?.RequestUri?.ToString() == $"https://relay.example/v1/{PullPairing}/pull?dir=p2e&since=7",
+    seen?.RequestUri?.ToString());
+Check("an empty page is Ok, not a failure",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""))
+        is RelayPullResult.Ok { Envelopes.Count: 0, Latest: 0 });
+
+// -- 401 vs 404: the distinction PQ-S2-4 is about --------------------------------------------
+//
+// A purged pairing answers 401 on every route (measured under miniflare; §2.3 pins it), so
+// Unauthorised covers both "wrong bearer" and "pairing is gone" and the relay refuses to say which.
+// 404 on this route means something else entirely -- the id failed the relay's shape check, or the
+// route is absent -- and it must not be laundered into the same case.
+Check("401 is Unauthorised",
+    await Pull((_, _) => Answer(HttpStatusCode.Unauthorized, """{"error":"unauthorized"}"""))
+        is RelayPullResult.Unauthorised);
+Check("403 is Unauthorised too",
+    await Pull((_, _) => Answer(HttpStatusCode.Forbidden, """{"error":"forbidden"}"""))
+        is RelayPullResult.Unauthorised);
+Check("404 is Misconfigured, NOT Unauthorised and NOT Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.NotFound, """{"error":"pairing_unknown"}"""))
+        is RelayPullResult.Misconfigured);
+
+// -- everything else the relay or the network can do -----------------------------------------
+Check("500 is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.InternalServerError, "")) is RelayPullResult.Unavailable);
+Check("429 is Unavailable",
+    await Pull((_, _) => Answer((HttpStatusCode)429, "")) is RelayPullResult.Unavailable);
+Check("a transport failure is Unavailable, not an exception",
+    await Pull((_, _) => throw new HttpRequestException("no route to host")) is RelayPullResult.Unavailable);
+// HttpClient raises TaskCanceledException for its own timeout as well as for caller cancellation.
+// With the caller's token NOT cancelled this is the timeout, and a timeout is a relay condition.
+Check("a client timeout is Unavailable",
+    await Pull((_, _) => throw new TaskCanceledException("timed out")) is RelayPullResult.Unavailable);
+
+// -- a 200 that is not a pull page. This is the class the old code could not express ----------
+Check("a 200 carrying an HTML error page is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, "<html><body>502 Bad Gateway</body></html>"))
+        is RelayPullResult.Unavailable);
+Check("a 200 whose root is not an object is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, "[]")) is RelayPullResult.Unavailable);
+Check("a 200 with no envelopes array is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"latest":3}""")) is RelayPullResult.Unavailable);
+Check("a 200 whose envelopes is not an array is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":{},"latest":3}"""))
+        is RelayPullResult.Unavailable);
+Check("a 200 with no latest is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[]}""")) is RelayPullResult.Unavailable);
+Check("a 200 whose latest is a string is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":"3"}"""))
+        is RelayPullResult.Unavailable);
+Check("a 200 whose latest is fractional is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":3.5}"""))
+        is RelayPullResult.Unavailable);
+
+// -- latest's RANGE, which being an integer never established -------------------------------
+//
+// Measured before the check existed: `latest` of -1, 2^53 and Int64.MaxValue all returned Ok and
+// carried the value straight through, because TryGetInt64 fixes the type and the width and nothing
+// else. It already refused 1e19 and 1e300 -- those overflow Int64 -- so the hole was exactly the
+// two bands below, and a type check can never see them.
+//
+// `latest` is not an arbitrary Int64: it is MAX(seq) over the rows the relay holds, and every one
+// of those rows passed the relay's seq check, so it inherits seq's domain (§3.2). Note the domain
+// is inherited by DERIVATION, not by statement -- §3.2 caps the value a sender emits and the value
+// the relay rejects, and never mentions `latest`, which is the relay's REPORT of it. PQ-LAT-1.
+Check("a 200 whose latest is negative is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":-1}"""))
+        is RelayPullResult.Unavailable);
+Check("latest exactly at §3.2's cap is still Ok -- the check is a range, not an off-by-one",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":9007199254740991}"""))
+        is RelayPullResult.Ok { Latest: 9_007_199_254_740_991L });
+Check("latest one past §3.2's cap is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":9007199254740992}"""))
+        is RelayPullResult.Unavailable);
+Check("latest at Int64.MaxValue is Unavailable",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":9223372036854775807}"""))
+        is RelayPullResult.Unavailable);
+Check("latest 0 is Ok -- a direction holding nothing is not a malformed page",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""))
+        is RelayPullResult.Ok { Latest: 0 });
+// The value that overflows Int64 must keep answering Unavailable and not start throwing: the range
+// check runs AFTER TryGetInt64, so an out-of-width value never reaches it. This pins the order.
+Check("latest above Int64 is still Unavailable, not an exception",
+    await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":10000000000000000000}"""))
+        is RelayPullResult.Unavailable);
+// A malformed `latest` refuses the whole page, envelopes included. Skip-the-field-and-continue
+// would hand the pump a page whose bound it cannot compute, which is the one thing the cursor
+// rules cannot cope with -- the same reasoning as "one unusable element rejects the whole page".
+Check("an out-of-range latest refuses the page even when the envelopes are fine",
+    await Pull((_, _) => Answer(HttpStatusCode.OK,
+        """{"envelopes":[{"seq":8,"dir":"p2e"}],"latest":9007199254740992}"""))
+        is RelayPullResult.Unavailable);
+
+// -- the one exception that must still escape -------------------------------------------------
+//
+// Cancellation is the caller's decision, not the relay's. Turning it into Unavailable would tell a
+// shutting-down host "the relay did not answer, try again", which is how a stop request becomes a
+// loop that will not stop.
+using var cancelled = new CancellationTokenSource();
+cancelled.Cancel();
+var cancellationEscaped = false;
+try { await Pull((_, _) => Answer(HttpStatusCode.OK, """{"envelopes":[],"latest":0}"""), cancelled.Token); }
+catch (OperationCanceledException) { cancellationEscaped = true; }
+Check("caller cancellation propagates rather than becoming a result", cancellationEscaped);
+
+// ---------------------------------------------------------------- relay push result (§2.2)
+//
+// PushAsync returned `res.StatusCode is HttpStatusCode.Created` -- a bare bool -- so a 409
+// replay_rejected, a 400, a 413, a timeout and a DNS failure were the same value. Three of those
+// are permanent for the bytes in hand and two are worth retrying, and no caller could tell which
+// it had. The 409 also carries `latest`, the second term of §6.1's max(persisted, relay_latest),
+// and bool discarded it unread (PQ-S6-3).
+//
+// Driven over the same stub transport as the pull tests: the real shipping client, fake socket.
+
+Console.WriteLine("\n[ relay push result ]");
+
+async Task<RelayPushResult> Push(
+    Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> respond,
+    CancellationToken ct = default)
+{
+    using var handler = new StubTransport(respond);
+    using var httpClient = new HttpClient(handler);
+    return await new RelayClient(httpClient, "https://relay.example", PullPairing)
+        .PushAsync("bearer-token", """{"v":1,"seq":8}""", ct);
+}
+
+// -- the happy path, and the wire form nothing offline had asserted --------------------------
+Check("201 is Ok", await Push((_, _) => Answer(HttpStatusCode.Created, """{"ok":true,"seq":8}"""))
+    is RelayPushResult.Ok);
+// §2.2 pins 201 as THE appended answer. A 200 is a relay not behaving like the relay, and the old
+// bool said the same thing (`is Created`) -- preserved deliberately, pinned so a later "surely 200
+// is fine too" cannot slip in unmeasured.
+Check("200 is NOT Ok -- §2.2 pins 201 for an appended envelope",
+    await Push((_, _) => Answer(HttpStatusCode.OK, """{"ok":true,"seq":8}""")) is RelayPushResult.Unavailable);
+// A 201 whose body is unreadable still appended the envelope. Parsing it would invent a failure on
+// top of a success and make the sender retry bytes the relay already holds -- which then answers
+// 409, turning a cosmetic problem into a real one.
+Check("a 201 with an unreadable body is still Ok -- the body is not parsed",
+    await Push((_, _) => Answer(HttpStatusCode.Created, "<html>not json</html>")) is RelayPushResult.Ok);
+
+HttpRequestMessage? pushSeen = null;
+string? pushBody = null;
+await Push((req, _) =>
+{
+    pushSeen = req;
+    pushBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+    return Answer(HttpStatusCode.Created, """{"ok":true,"seq":8}""");
+});
+Check("the push carries the bearer",
+    pushSeen?.Headers.GetValues("Authorization").FirstOrDefault() == "Bearer bearer-token");
+Check("the push POSTs to /v1/{pairing}/push",
+    pushSeen?.Method == HttpMethod.Post
+    && pushSeen.RequestUri?.ToString() == $"https://relay.example/v1/{PullPairing}/push",
+    pushSeen?.RequestUri?.ToString());
+// The body IS the envelope, byte for byte. A client that re-serialised it would change the bytes
+// the AAD was computed over, and the receiver's tag check is what would notice -- far downstream.
+Check("the body is the envelope JSON, unmodified", pushBody == """{"v":1,"seq":8}""", pushBody);
+
+// -- 409: the case the bool could not name, and the number it threw away ----------------------
+Check("409 is Conflict, not a failure and not a success",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":41}"""))
+        is RelayPushResult.Conflict);
+Check("Conflict carries the relay's high-water mark (§6.1's second term)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":41}"""))
+        is RelayPushResult.Conflict { Latest: 41 });
+// A 409 with no usable number is still a 409. Every one of these must stay Conflict: downgrading
+// to Unavailable would tell the caller to retry the one thing that provably cannot work.
+Check("a 409 with no latest is Conflict(null), NOT Unavailable",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected"}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("a 409 with an empty body is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, "")) is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose body is not JSON is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, "<html>502</html>"))
+        is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose root is not an object is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, "[41]")) is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose latest is a quoted number is Conflict(null) -- §2.2 says integer",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":"41"}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("a 409 whose latest is fractional is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":41.5}"""))
+        is RelayPushResult.Conflict { Latest: null });
+
+// -- the 409's latest gets the SAME range check as a pull page's ------------------------------
+//
+// This is the trap the pull slice found, one method over: TryGetInt64 fixes the type and the width
+// and nothing else, so -1, 2^53 and Int64.MaxValue would arrive typed and unbounded. And this
+// number is worse than the pull cursor's -- §6.1 says a sender resumes ABOVE it, so it goes on the
+// wire as the seq of the next envelope, where an absurd value burns the direction's whole domain.
+Check("a 409 whose latest is negative is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":-1}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("latest exactly at §3.2's cap survives -- a range, not an off-by-one",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":9007199254740991}"""))
+        is RelayPushResult.Conflict { Latest: 9_007_199_254_740_991L });
+Check("latest one past §3.2's cap is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":9007199254740992}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("latest at Int64.MaxValue is Conflict(null)",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":9223372036854775807}"""))
+        is RelayPushResult.Conflict { Latest: null });
+Check("latest above Int64 is Conflict(null), not an exception -- the range check runs after the width check",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":10000000000000000000}"""))
+        is RelayPushResult.Conflict { Latest: null });
+// latest 0 is reachable and legal: §2.2 measured that a direction holding nothing accepts seq 1
+// rather than answering 409 with latest 0 -- but a relay MAY report 0, and 0 is in seq's domain.
+// Mapping it to null would lose the difference between "reported nothing" and "reported zero".
+Check("latest 0 survives as 0, not null",
+    await Push((_, _) => Answer(HttpStatusCode.Conflict, """{"error":"replay_rejected","latest":0}"""))
+        is RelayPushResult.Conflict { Latest: 0 });
+
+// -- the three terminal 4xx, each of which the bool flattened into "false" ---------------------
+Check("401 is Unauthorised",
+    await Push((_, _) => Answer(HttpStatusCode.Unauthorized, """{"error":"unauthorized"}"""))
+        is RelayPushResult.Unauthorised);
+Check("403 is Unauthorised too",
+    await Push((_, _) => Answer(HttpStatusCode.Forbidden, "")) is RelayPushResult.Unauthorised);
+Check("404 is Misconfigured, NOT Unauthorised -- a purge answers 401 on every route (§2.3)",
+    await Push((_, _) => Answer(HttpStatusCode.NotFound, """{"error":"pairing_unknown"}"""))
+        is RelayPushResult.Misconfigured);
+// 400 and 413 are both permanent for these bytes and are NOT the same fault: 400 says this engine
+// composed something malformed (a defect here), 413 says the payload needs chunking (§4.4). The
+// phone conflates neither, but it does route 400 into its RETRY path -- see PQ-S6C-1.
+Check("400 is Rejected -- this side composed something the relay would not shape-check",
+    await Push((_, _) => Answer(HttpStatusCode.BadRequest, """{"error":"bad_request"}"""))
+        is RelayPushResult.Rejected);
+Check("413 is TooLarge, distinct from Rejected",
+    await Push((_, _) => Answer(HttpStatusCode.RequestEntityTooLarge, """{"error":"too_large"}"""))
+        is RelayPushResult.TooLarge);
+
+// -- and everything that is genuinely worth retrying ------------------------------------------
+Check("500 is Unavailable",
+    await Push((_, _) => Answer(HttpStatusCode.InternalServerError, "")) is RelayPushResult.Unavailable);
+Check("429 is Unavailable",
+    await Push((_, _) => Answer((HttpStatusCode)429, "")) is RelayPushResult.Unavailable);
+Check("405 is Unavailable",
+    await Push((_, _) => Answer(HttpStatusCode.MethodNotAllowed, """{"error":"method_not_allowed"}"""))
+        is RelayPushResult.Unavailable);
+Check("a transport failure is Unavailable, not an exception",
+    await Push((_, _) => throw new HttpRequestException("no route to host")) is RelayPushResult.Unavailable);
+Check("a client timeout is Unavailable",
+    await Push((_, _) => throw new TaskCanceledException("timed out")) is RelayPushResult.Unavailable);
+
+// -- and the one exception that must still escape ---------------------------------------------
+using var pushCancelled = new CancellationTokenSource();
+pushCancelled.Cancel();
+var pushCancellationEscaped = false;
+try { await Push((_, _) => Answer(HttpStatusCode.Created, """{"ok":true}"""), pushCancelled.Token); }
+catch (OperationCanceledException) { pushCancellationEscaped = true; }
+Check("caller cancellation propagates rather than becoming a result", pushCancellationEscaped);
+
+// ---------------------------------------------------------------- counter reconciliation (§6.1)
+//
+// PQ-S6-3's second bullet. The two previous slices gave the transport a vocabulary -- a typed pull
+// result, then a typed push result carrying the 409's `latest` -- and NOTHING CONSUMED EITHER. §6.1
+// says an engine resumes its e2p counter above max(persisted_seq, relay_latest_e2p_seq); the first
+// term was wired, the second was read, range-checked, logged, and thrown away.
+//
+// Two halves, and only one of them can be executed here. The RULE is pure and is tested below. The
+// COMPOSITION that feeds it -- BuildSyncBridge reading a DPAPI vault and a live relay -- is
+// compile-checked only, which is why the rule was extracted to SyncPublisher.ResumeSeq rather than
+// left inline in the host where nothing could reach it.
+
+Console.WriteLine("\n[ counter reconciliation (§6.1) ]");
+
+// -- the startup rule: max(persisted, relay latest) -------------------------------------------
+static RelayPullResult OkPage(long latest) => new RelayPullResult.Ok(Array.Empty<JsonElement>(), latest);
+
+Check("§6.1 startup takes the relay's mark when it leads the store",
+    SyncPublisher.ResumeSeq(41, OkPage(57)) == 57);
+Check("§6.1 startup keeps the store's mark when it leads the relay",
+    SyncPublisher.ResumeSeq(57, OkPage(41)) == 57);
+Check("§6.1 startup is max(), not last-writer -- equal terms resolve to the same value",
+    SyncPublisher.ResumeSeq(41, OkPage(41)) == 41);
+// The case that motivates the second term at all: RecordE2pSeq runs AFTER the relay's 201, so a
+// crash in between leaves the store behind. Store-only resume would 409 on the recovery snapshot.
+Check("a store that lags a successful push is repaired by the relay term",
+    SyncPublisher.ResumeSeq(0, OkPage(12)) == 12);
+// An empty direction reports latest 0 (channel.ts:206-208 `?? 0`), which must not drag anything down.
+Check("an empty relay direction (latest 0) does not lower the store's mark",
+    SyncPublisher.ResumeSeq(41, OkPage(0)) == 41);
+
+// A relay that did not answer must NOT stop publishing: §6.1 makes the relay read
+// belt-and-suspenders and the store the value. Each non-Ok case falls back to the store.
+Check("an unreachable relay falls back to the store rather than refusing to publish",
+    SyncPublisher.ResumeSeq(41, new RelayPullResult.Unavailable("no route")) == 41);
+Check("a 401 falls back to the store too -- the push path reports a dead token where it can act",
+    SyncPublisher.ResumeSeq(41, new RelayPullResult.Unauthorised()) == 41);
+Check("a misconfigured relay falls back to the store",
+    SyncPublisher.ResumeSeq(41, new RelayPullResult.Misconfigured("404")) == 41);
+// A corrupt store is not a position. Floored at 0 and left for the relay term to repair.
+Check("a negative persisted seq is floored, not trusted as a position",
+    SyncPublisher.ResumeSeq(-9, OkPage(0)) == 0);
+Check("a negative persisted seq is repaired by the relay term",
+    SyncPublisher.ResumeSeq(-9, OkPage(12)) == 12);
+// ...and the case that actually PINS the floor, added because a mutation removing it survived the
+// two assertions above: both of those are rescued by the relay term, which is >= 0 and therefore
+// beats any negative store on its own. The floor is only observable when the relay does NOT answer,
+// and that is exactly when it matters -- an unfloored -9 would construct the publisher at startSeq
+// -9 and put an illegal seq on the wire (§3.2) on the very first push.
+Check("a corrupt store AND a silent relay still resume from 0, not from a negative",
+    SyncPublisher.ResumeSeq(-9, new RelayPullResult.Unavailable("no route")) == 0);
+
+// -- the running rule: a 409 moves the counter, and only upward ------------------------------
+{
+    // The counter is what is under test here, not the sealing -- so the key and pairing are local
+    // literals rather than vector reads, and the sink always succeeds.
+    var reconcileKey = Convert.FromHexString(
+        "1122334455667788990011223344556677889900112233445566778899001122");
+    var reconcileCounters = new Counters(
+        Discovered: 3, Acted: 1, Drafted: 1, Blocked: 0, Rejected: 1, Errors: 0, Cycles: 7);
+    var reconciled = new SyncPublisher(
+        reconcileKey, (string)index["pairing_id"]!, activeKeyId,
+        (_, _) => Task.FromResult(true), startSeq: 5);
+
+    Check("ReconcileTo raises the counter and says it moved", reconciled.ReconcileTo(41));
+    Check("the counter is now the relay's mark", reconciled.HighestSeq == 41);
+    // The point of the whole slice: the NEXT envelope resumes above the relay's mark instead of
+    // walking up one at a time into the same 409 forever.
+    Check("the next push resumes ABOVE the reconciled mark",
+        reconciled.PublishHeartbeatAsync(1, reconcileCounters).GetAwaiter().GetResult()
+        && reconciled.HighestSeq == 42);
+
+    // THE INVARIANT. A relay reporting a mark below this counter is not evidence the counter ran
+    // ahead -- the seqs in between may sit in the phone's accepted history, which §6.2 says it
+    // refuses on sight and forever. Rewinding onto them is the one-sided sync death §6.1 prevents.
+    Check("ReconcileTo REFUSES to lower the counter and says it did nothing",
+        !reconciled.ReconcileTo(7));
+    Check("the counter survived the attempt to lower it", reconciled.HighestSeq == 42);
+    Check("an equal mark is not a move either", !reconciled.ReconcileTo(42) && reconciled.HighestSeq == 42);
+
+    // The guard is an assertion against a future caller, not a clamp: RelayClient range-checks both
+    // numbers that reach here, so a shipped call site cannot trigger it. Clamping would write a
+    // number this side already judged untrustworthy into the counter that goes on the wire.
+    var negativeRefused = false;
+    try { reconciled.ReconcileTo(-1); } catch (ArgumentOutOfRangeException) { negativeRefused = true; }
+    Check("ReconcileTo refuses a negative seq rather than clamping it", negativeRefused);
+    var overMaxRefused = false;
+    try { reconciled.ReconcileTo(Protocol.MaxSeq + 1); }
+    catch (ArgumentOutOfRangeException) { overMaxRefused = true; }
+    Check("ReconcileTo refuses a seq past §3.2's cap rather than clamping it", overMaxRefused);
+    // Caught, not thrown. The boundary mutation (`>` -> `>=`) makes this call throw, and an
+    // uncaught throw takes the whole harness down WITHOUT printing a FAIL line -- which reads as a
+    // survivor to anything counting FAILs. The assertion was load-bearing either way; this makes it
+    // report rather than crash, so the failure is legible instead of merely fatal.
+    var capAccepted = false;
+    try { capAccepted = reconciled.ReconcileTo(Protocol.MaxSeq) && reconciled.HighestSeq == Protocol.MaxSeq; }
+    catch (ArgumentOutOfRangeException) { capAccepted = false; }
+    Check("a seq exactly at §3.2's cap is still accepted", capAccepted);
+}
+
+// -- the sink APPLIES the rule: the call site, not just the rule it calls ---------------------
+// The gap this closes was measured, not assumed: before RelaySink existed, deleting the
+// ReconcileTo call from BuildSyncBridge's sink failed no test in this repo. ReconcileTo itself was
+// well covered (above); the line that INVOKES it was covered by nothing, because it sat in a
+// closure inside a host method that returns null without a DPAPI vault. These assertions are about
+// the call site.
+{
+    // A recording double for each collaborator. `pushed` is what the sink was handed, which also
+    // pins that the envelope reaches the transport unmodified.
+    string? pushed = null;
+    var persisted = new List<long>();
+    var reconciledTo = new List<long>();
+    var logged = new List<string>();
+    RelayPushResult answer = new RelayPushResult.Ok();
+    long? seqInFlight = 12;
+    var reconcileMoves = true;
+
+    var sink = RelaySink.Create(
+        push: (envelope, _) => { pushed = envelope; return Task.FromResult(answer); },
+        pushedSeq: () => seqInFlight,
+        persistSeq: seq => persisted.Add(seq),
+        reconcileTo: seq => { reconciledTo.Add(seq); return reconcileMoves; },
+        log: line => logged.Add(line));
+
+    // --- 201: persist the mark, report success, and do NOT touch the counter.
+    Check("the sink reports a 201 as success", sink("{\"envelope\":1}", default).GetAwaiter().GetResult());
+    Check("the envelope reaches the transport byte for byte", pushed == "{\"envelope\":1}");
+    Check("a 201 persists the seq that was pushed", persisted is [12]);
+    Check("a 201 does NOT reconcile -- there is nothing to repair", reconciledTo.Count == 0);
+
+    // --- 201 with no publisher attached yet. The publisher and its sink are mutually referential,
+    // so this "not yet" case is real; persisting a 0 here would write a false high-water mark.
+    persisted.Clear();
+    seqInFlight = null;
+    Check("a 201 with no publisher attached persists nothing rather than 0",
+        sink("{}", default).GetAwaiter().GetResult() && persisted.Count == 0);
+    seqInFlight = 12;
+
+    // --- THE ASSERTION THIS SLICE EXISTS FOR. A 409 carrying the relay's high-water mark must
+    // reach ReconcileTo, with THAT number. Reverting the call site now fails here.
+    persisted.Clear(); logged.Clear();
+    answer = new RelayPushResult.Conflict(41);
+    Check("the sink reports a 409 as failure -- these bytes are dead",
+        !sink("{}", default).GetAwaiter().GetResult());
+    Check("A 409 CALLS ReconcileTo -- the call site, not just the rule", reconciledTo is [41]);
+    // Count-guarded before indexing. An unguarded reconciledTo[0] throws when the call site is
+    // deleted -- which is the exact mutation this block exists to catch -- and the throw takes the
+    // harness down mid-run, after one FAIL line, so a fail-counting reader records a tidy
+    // "1 caught" and never sees that the run died. Same false-negative shape the thirtieth run hit
+    // from the other direction; an assertion that cannot survive its own target mutation is not an
+    // assertion.
+    Check("it reconciles to the RELAY's mark, not to the refused seq",
+        reconciledTo.Count == 1 && reconciledTo[0] == 41 && reconciledTo[0] != 12);
+    Check("a 409 persists nothing -- the envelope was never appended", persisted.Count == 0);
+    Check("a reconciled 409 is logged as reconciled", logged is [var l1] && l1.Contains("reconciled the e2p counter"));
+
+    // --- A 409 whose mark ReconcileTo refuses (at or below the counter) must still be reported,
+    // and reported DIFFERENTLY -- an operator has to be able to tell applied from not applied.
+    reconciledTo.Clear(); logged.Clear();
+    reconcileMoves = false;
+    Check("a refused reconciliation is still attempted", !sink("{}", default).GetAwaiter().GetResult() && reconciledTo is [41]);
+    Check("a refused reconciliation says NOT applied, and cites §6.2",
+        logged is [var l2] && l2.Contains("NOT applied") && l2.Contains("§6.2"));
+    reconcileMoves = true;
+
+    // --- A 409 with no usable number must NOT call ReconcileTo at all. Passing a null-substitute
+    // (0, say) would move the counter on the strength of a number the client already refused.
+    reconciledTo.Clear(); logged.Clear();
+    answer = new RelayPushResult.Conflict(null);
+    Check("a 409 with no usable mark does not call ReconcileTo at all",
+        !sink("{}", default).GetAwaiter().GetResult() && reconciledTo.Count == 0);
+    Check("...and says so rather than failing silently",
+        logged is [var l3] && l3.Contains("Nothing to reconcile"));
+
+    // --- Every remaining case: failure, no persist, no reconcile, and named distinctly. The
+    // distinctness matters -- collapsing these back into one bool is the defect RelayPushResult
+    // was introduced to fix, and nothing else asserts the sink kept them apart.
+    var others = new (RelayPushResult Result, string Fragment)[]
+    {
+        (new RelayPushResult.TooLarge(), "too large"),
+        (new RelayPushResult.Rejected("bad envelope"), "engine defect"),
+        (new RelayPushResult.Unauthorised(), "401/403"),
+        (new RelayPushResult.Misconfigured("404 on /push"), "Check the paired relay URL"),
+        (new RelayPushResult.Unavailable("dns"), "did not reach the relay"),
+    };
+    var allFailed = true; var allNamed = true;
+    persisted.Clear(); reconciledTo.Clear();
+    foreach (var (result, fragment) in others)
+    {
+        logged.Clear();
+        answer = result;
+        if (sink("{}", default).GetAwaiter().GetResult()) allFailed = false;
+        if (logged is not [var line] || !line.Contains(fragment)) allNamed = false;
+    }
+    Check("every non-201, non-409 case reports failure", allFailed);
+    Check("every non-201, non-409 case is named distinctly for the operator", allNamed);
+    Check("no failure case persists a high-water mark", persisted.Count == 0);
+    Check("no failure case moves the counter", reconciledTo.Count == 0);
+
+    // --- Composed against a REAL SyncPublisher, which is what proves the two halves fit: a 409
+    // from the relay must move the publisher's own counter, so the next envelope resumes above the
+    // relay's mark instead of walking into the same 409 forever. Everything above tests the sink
+    // against doubles; this tests that the doubles were standing in for something that matches.
+    var composedKey = Convert.FromHexString(
+        "1122334455667788990011223344556677889900112233445566778899001122");
+    var composedCounters = new Counters(
+        Discovered: 1, Acted: 0, Drafted: 0, Blocked: 0, Rejected: 0, Errors: 0, Cycles: 1);
+    SyncPublisher? composedRef = null;
+    RelayPushResult composedAnswer = new RelayPushResult.Conflict(41);
+    var composed = new SyncPublisher(
+        composedKey, (string)index["pairing_id"]!, activeKeyId,
+        sink: RelaySink.Create(
+            push: (_, _) => Task.FromResult(composedAnswer),
+            pushedSeq: () => composedRef?.HighestSeq,
+            persistSeq: _ => { },
+            reconcileTo: seq => composedRef?.ReconcileTo(seq) ?? false,
+            log: _ => { }),
+        startSeq: 5);
+    composedRef = composed;
+
+    Check("composed: the 409'd publish reports failure",
+        !composed.PublishHeartbeatAsync(1, composedCounters).GetAwaiter().GetResult());
+    Check("composed: the relay's 409 moved the REAL publisher's counter", composed.HighestSeq == 41);
+    composedAnswer = new RelayPushResult.Ok();
+    Check("composed: the next envelope resumes ABOVE the relay's mark",
+        composed.PublishHeartbeatAsync(2, composedCounters).GetAwaiter().GetResult()
+        && composed.HighestSeq == 42);
+}
+
+// -- the push path's WIRING, not just its rule ------------------------------------------------
+// The gap this closes was measured, not assumed. RelaySink made the sink's DECISION testable and
+// the previous slice proved the rule is applied — but which collaborator each delegate was attached
+// to stayed in BuildSyncBridge, which returns null without a DPAPI vault and has therefore never
+// executed in a harness or on a CI runner. Replacing `persistSeq: seq => vault.RecordE2pSeq(seq)`
+// with `persistSeq: _ => { }` built 0 warnings / 0 errors and left this harness at 277/0: an engine
+// that had silently stopped persisting its high-water mark failed no test in this repo.
+//
+// SyncPushPath.Create now owns that wiring, so these assertions run against the SHIPPING
+// composition rather than a copy of it — which is the whole point of tying the mutual reference in
+// one place. What remains unexecuted here is only the four argument identities at the host's single
+// call site (which vault, which token, which log, which resume value); those are recorded as
+// local-gate-only claims in the PR's self-audit rather than counted as covered.
+{
+    var pathKey = Convert.FromHexString(
+        "00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF");
+    var pathCounters = new Counters(
+        Discovered: 3, Acted: 0, Drafted: 0, Blocked: 0, Rejected: 0, Errors: 0, Cycles: 2);
+
+    // A recording store standing in for the DPAPI vault, with the vault's own monotonic contract so
+    // the double behaves like the thing it replaces rather than like a list.
+    var recorded = new List<long>();
+    long highWater = 0;
+    var store = new RecordingE2pSeqStore(seq =>
+    {
+        recorded.Add(seq);
+        if (seq > highWater) highWater = seq;
+    });
+
+    var pushedEnvelopes = new List<string>();
+    var pathLog = new List<string>();
+    RelayPushResult pathAnswer = new RelayPushResult.Ok();
+
+    // startSeq 7 is §6.1's resume value arriving through the real parameter: the first envelope this
+    // publisher sends must be seq 8, not seq 1.
+    var path = SyncPushPath.Create(
+        pathKey, (string)index["pairing_id"]!, activeKeyId,
+        push: (envelope, _) => { pushedEnvelopes.Add(envelope); return Task.FromResult(pathAnswer); },
+        seqStore: store,
+        log: line => pathLog.Add(line),
+        startSeq: 7);
+
+    // --- 201 through the real wiring. THE ASSERTION THIS SLICE EXISTS FOR: emptying persistSeq now
+    // fails here, because the store the caller supplied is the one the sink reaches.
+    Check("push path: a 201 publish reports success",
+        path.PublishHeartbeatAsync(1, pathCounters).GetAwaiter().GetResult());
+    Check("PUSH PATH PERSISTS THE MARK -- the wiring, not just the sink's rule", recorded is [8]);
+
+    // --- ...and persists the seq that actually went on the wire. Asserting `recorded is [8]` alone
+    // would pass for a path that persisted a counter unrelated to the envelope it sent, so the
+    // number is read back out of the sealed envelope's own header rather than assumed.
+    var sentSeq = pushedEnvelopes.Count == 1
+        ? (long?)JsonNode.Parse(pushedEnvelopes[0])!["seq"]!.GetValue<long>()
+        : null;
+    Check("push path: §6.1's startSeq reaches the counter -- the first envelope is startSeq+1", sentSeq == 8);
+    Check("push path: the seq PERSISTED is the seq SENT, read from the envelope header",
+        recorded.Count == 1 && sentSeq is { } s && recorded[0] == s);
+
+    // --- The store is the caller's, by identity. This is what `seqStore: vault` buys at the host's
+    // call site: the path cannot quietly persist into a store of its own.
+    Check("push path: the mark lands in the store the CALLER supplied", store.Calls == 1 && highWater == 8);
+
+    // --- Successive pushes advance the mark rather than rewriting one. A path that persisted only
+    // the first seq, or re-persisted a stale one, is a store that lags the relay by construction.
+    Check("push path: a second 201 publish reports success",
+        path.PublishHeartbeatAsync(2, pathCounters).GetAwaiter().GetResult());
+    Check("push path: successive marks advance", recorded is [8, 9] && highWater == 9);
+
+    // --- 409 through the real wiring: the mutual reference must be tied, or ReconcileTo is reached
+    // through a null publisher and the counter never moves. Deleting `publisherRef = publisher`
+    // fails here and at the persist assertions above.
+    recorded.Clear(); pathLog.Clear();
+    pathAnswer = new RelayPushResult.Conflict(56);
+    Check("push path: a 409'd publish reports failure",
+        !path.PublishHeartbeatAsync(3, pathCounters).GetAwaiter().GetResult());
+    Check("push path: the 409 moved the REAL publisher's counter -- the mutual reference is tied",
+        path.HighestSeq == 56);
+    Check("push path: a 409 persists NOTHING -- the envelope was never appended", recorded.Count == 0);
+    Check("push path: the reconciliation reaches the operator's log",
+        pathLog is [var pl] && pl.Contains("reconciled the e2p counter"));
+
+    // --- ...and the next envelope resumes above the relay's mark, persisting THAT. This is the pair
+    // that shows reconcile and persist are wired to the same counter rather than to two.
+    pathAnswer = new RelayPushResult.Ok();
+    pushedEnvelopes.Clear();
+    Check("push path: the next envelope resumes above the relay's mark",
+        path.PublishHeartbeatAsync(4, pathCounters).GetAwaiter().GetResult() && path.HighestSeq == 57);
+    Check("push path: and persists the RECONCILED mark, not the pre-409 one", recorded is [57]);
+
+    // --- The envelope reaches the transport unmodified. Nothing else asserts the wiring did not
+    // wrap or re-serialise the sealed bytes on their way out.
+    Check("push path: the sealed envelope reaches the transport byte for byte",
+        pushedEnvelopes is [var wire] && JsonNode.Parse(wire)!["seq"]!.GetValue<long>() == 57);
+
+    // --- Null collaborators fail at wiring time, not at the first push. A path constructed without
+    // a store would otherwise look healthy until the moment persistence mattered.
+    Check("push path: a null store is refused at construction",
+        Throws<ArgumentNullException>(() => SyncPushPath.Create(
+            pathKey, "p", activeKeyId, (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
+            null!, _ => { }, 0), out var nullStoreDetail), nullStoreDetail);
+    Check("push path: a null push delegate is refused at construction",
+        Throws<ArgumentNullException>(() => SyncPushPath.Create(
+            pathKey, "p", activeKeyId, null!, store, _ => { }, 0), out var nullPushDetail), nullPushDetail);
+    Check("push path: a null log is refused at construction",
+        Throws<ArgumentNullException>(() => SyncPushPath.Create(
+            pathKey, "p", activeKeyId, (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
+            store, null!, 0), out var nullLogDetail), nullLogDetail);
+}
+
+// -- the push DISPOSITION: permanence as a value, not as prose ---------------------------------
+// The gap this closes was measured, not assumed. RelayPushResult exists because a bare bool could
+// not tell a replay refusal from a DNS failure -- and RelaySink named each case for the operator
+// and then returned `false` for all of them, so one layer up the conflation was exactly as it had
+// been. Driven through the REAL SyncPushPath composition for five engine cycles (mimicking
+// EngineSyncBridge's ratified snapshot retry), a 400 bad_request and a DNS failure produced the
+// same push count, the same burnt seqs and the same delivered count. The permanence was written
+// down in doc comments and expressible nowhere in code.
+{
+    var allResults = new (RelayPushResult Result, PushDisposition ExpectedDisposition, string Name)[]
+    {
+        (new RelayPushResult.Ok(), PushDisposition.Delivered, "201"),
+        (new RelayPushResult.Conflict(41), PushDisposition.ResendAbove, "409 with a mark"),
+        (new RelayPushResult.Conflict(null), PushDisposition.ResendAbove, "409 without a mark"),
+        (new RelayPushResult.TooLarge(), PushDisposition.PayloadDead, "413"),
+        (new RelayPushResult.Rejected("bad shape"), PushDisposition.PayloadDead, "400"),
+        (new RelayPushResult.Unauthorised(), PushDisposition.PairingDead, "401/403"),
+        (new RelayPushResult.Misconfigured("404 on /push"), PushDisposition.PairingDead, "404"),
+        (new RelayPushResult.Unavailable("dns"), PushDisposition.RetryLater, "transport failure"),
+    };
+
+    var mapped = true;
+    foreach (var (result, expectedDisposition, _) in allResults)
+        if (RelaySink.Classify(result) != expectedDisposition) mapped = false;
+    Check("CLASSIFY maps every push result to its documented disposition", mapped);
+
+    // THE ASSERTION THIS SLICE EXISTS FOR. Before it, nothing in shipping code could tell these two
+    // apart; the reproduction measured them as identical through the real composition.
+    Check("A PERMANENT FAILURE IS DISTINGUISHABLE FROM A TRANSIENT ONE -- the defect, closed",
+        RelaySink.Classify(new RelayPushResult.Rejected("x")) != RelaySink.Classify(new RelayPushResult.Unavailable("dns")));
+    Check("...and a dead pairing is distinguishable from dead bytes",
+        RelaySink.Classify(new RelayPushResult.Unauthorised()) != RelaySink.Classify(new RelayPushResult.TooLarge()));
+    // 413 and 400 SHARE a disposition while keeping different words: the remedy differs (split vs
+    // fix) but the answer to "resend these bytes?" is the same, which is what a disposition answers.
+    Check("413 and 400 share PayloadDead -- a disposition is not a status code",
+        RelaySink.Classify(new RelayPushResult.TooLarge()) == RelaySink.Classify(new RelayPushResult.Rejected("x")));
+    Check("401/403 and 404 share PairingDead for the same reason",
+        RelaySink.Classify(new RelayPushResult.Unauthorised()) == RelaySink.Classify(new RelayPushResult.Misconfigured("x")));
+    Check("Classify refuses a null result rather than classifying it",
+        Throws<ArgumentNullException>(() => RelaySink.Classify(null!), out var nullClassifyDetail), nullClassifyDetail);
+
+    // --- The bool is DERIVED from the disposition. Asserting the mapping alone would leave the
+    // sink free to classify PayloadDead and still report success; this pins that it cannot.
+    {
+        var dispLog = new List<string>();
+        RelayPushResult dispAnswer = new RelayPushResult.Ok();
+        var dispSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(dispAnswer),
+            pushedSeq: () => 3,
+            persistSeq: _ => { },
+            reconcileTo: _ => true,
+            log: dispLog.Add);
+
+        var derived = true;
+        foreach (var (result, expectedDisposition, _) in allResults)
+        {
+            dispAnswer = result;
+            if (dispSink("{}", default).GetAwaiter().GetResult() != (expectedDisposition == PushDisposition.Delivered))
+                derived = false;
+        }
+        Check("the sink's bool is exactly 'disposition == Delivered', for every case", derived);
+    }
+
+    // --- The corrected claim. The old line asserted the envelope "will not be retried"; nothing in
+    // this repo prevents that retry and the ratified snapshot policy guarantees it (C-DSP-2).
+    {
+        var tlLog = new List<string>();
+        var tlSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.TooLarge()),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: tlLog.Add);
+        tlSink("{}", default).GetAwaiter().GetResult();
+        Check("the 413 line no longer claims the envelope will not be retried",
+            tlLog is [var tl] && !tl.Contains("will not be retried"));
+        Check("...and says what is actually true: it recurs every cycle until the payload is split",
+            tlLog.Count == 1 && tlLog[0].Contains("every cycle") && tlLog[0].Contains("§4.4"));
+    }
+
+    // --- Repetition is counted, not repeated. A permanent condition used to emit a byte-identical
+    // line on every cycle (C-DSP-4), burying the two transitions that carry information.
+    {
+        var repLog = new List<string>();
+        RelayPushResult repAnswer = new RelayPushResult.Unauthorised();
+        var repSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(repAnswer),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: repLog.Add);
+
+        for (var i = 0; i < 5; i++) repSink("{}", default).GetAwaiter().GetResult();
+        Check("FIVE identical permanent failures produce ONE operator line, not five",
+            repLog.Count == 1 && repLog[0].Contains("401/403"));
+
+        // The recovery is the other half: suppressing without announcing the end would hide the
+        // transition entirely, which is worse than the repetition it replaced.
+        repAnswer = new RelayPushResult.Ok();
+        repSink("{}", default).GetAwaiter().GetResult();
+        Check("the return to Delivered is ANNOUNCED, naming what recovered",
+            repLog.Count == 2 && repLog[1].Contains("recovered") && repLog[1].Contains("PairingDead"));
+        Check("...and names how many repeats were suppressed, so nothing is hidden",
+            repLog.Count == 2 && repLog[1].Contains("4"));
+
+        // A steady healthy engine must stay quiet: a recovery line on every push would be the same
+        // noise defect wearing the opposite sign.
+        repSink("{}", default).GetAwaiter().GetResult();
+        Check("a second consecutive success announces nothing", repLog.Count == 2);
+    }
+
+    // --- Suppression is by LINE, not by disposition: a changing detail is news and must survive.
+    {
+        var varyLog = new List<string>();
+        var detail = "dns";
+        var varySink = RelaySink.Create(
+            push: (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Unavailable(detail)),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: varyLog.Add);
+        varySink("{}", default).GetAwaiter().GetResult();
+        detail = "connection reset";
+        varySink("{}", default).GetAwaiter().GetResult();
+        Check("a failure whose DETAIL changed is logged again, not suppressed",
+            varyLog.Count == 2 && varyLog[1].Contains("connection reset"));
+    }
+
+    // --- And a recovery from a run with no suppressed repeats still announces, without a count it
+    // would have to invent.
+    {
+        var oneLog = new List<string>();
+        RelayPushResult oneAnswer = new RelayPushResult.Unavailable("dns");
+        var oneSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(oneAnswer),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: oneLog.Add);
+        oneSink("{}", default).GetAwaiter().GetResult();
+        oneAnswer = new RelayPushResult.Ok();
+        oneSink("{}", default).GetAwaiter().GetResult();
+        Check("a single failure then success announces recovery with no repeat count",
+            oneLog.Count == 2 && oneLog[1].Contains("recovered") && !oneLog[1].Contains("suppressed"));
+    }
+
+    // --- The very first push must not announce a recovery it did not have. The dedupe state starts
+    // at Delivered, and a naive implementation that treated "no previous state" as a failed one
+    // would greet every engine start with a phantom recovery line.
+    {
+        var freshLog = new List<string>();
+        var freshSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult<RelayPushResult>(new RelayPushResult.Ok()),
+            pushedSeq: () => 1, persistSeq: _ => { }, reconcileTo: _ => true, log: freshLog.Add);
+        freshSink("{}", default).GetAwaiter().GetResult();
+        Check("a first push that succeeds logs nothing at all", freshLog.Count == 0);
+    }
+
+    // --- Suppression must never touch the EFFECTS. Persisting the mark and reconciling the counter
+    // are what the sink is for; a dedupe that skipped them because the words repeated would trade a
+    // log defect for a protocol one.
+    {
+        var effLog = new List<string>();
+        var effPersisted = new List<long>();
+        var effReconciled = new List<long>();
+        RelayPushResult effAnswer = new RelayPushResult.Conflict(41);
+        var effSink = RelaySink.Create(
+            push: (_, _) => Task.FromResult(effAnswer),
+            pushedSeq: () => 12,
+            persistSeq: effPersisted.Add,
+            reconcileTo: seq => { effReconciled.Add(seq); return true; },
+            log: effLog.Add);
+
+        effSink("{}", default).GetAwaiter().GetResult();
+        effSink("{}", default).GetAwaiter().GetResult();
+        Check("an identical 409 still reaches ReconcileTo BOTH times -- suppression is words only",
+            effReconciled is [41, 41]);
+        Check("...while the operator sees that line once", effLog.Count == 1);
+
+        effAnswer = new RelayPushResult.Ok();
+        effSink("{}", default).GetAwaiter().GetResult();
+        Check("and a 201 after suppression still persists the mark", effPersisted is [12]);
+    }
+}
+
+// -- the halt policy: the argument FOR halting, answered with measurements ----------------------
+// RelaySink.Classify names PairingDead and PayloadDead, and nothing consumes either for anything
+// but words. RelaySink's remarks record two arguments AGAINST halting; the argument FOR it was
+// answered nowhere: "on a pairing that can never accept, the engine burns one seq per cycle
+// forever, and the operator's only signal is a single line that scrolls away."
+//
+// This block answers that claim clause by clause, because the cheapest remedy on the table -- a
+// bounded backoff, recorded as the option needing no product decision -- turns out to need one for
+// half its domain. The FOR argument's three clauses measure out very differently: the per-cycle
+// cost is real, the "forever" is not a resource risk, the operator half is already fixed, and a
+// backoff keyed on PushDisposition would suppress the one payload that unlocks Pro.
+{
+    var haltKey = Convert.FromHexString(
+        "0F1E2D3C4B5A69788796A5B4C3D2E1F00F1E2D3C4B5A69788796A5B4C3D2E1F0");
+    var haltCounters = new Counters(
+        Discovered: 5, Acted: 1, Drafted: 1, Blocked: 0, Rejected: 0, Errors: 0, Cycles: 9);
+    var haltPairing = (string)index["pairing_id"]!;
+
+    // §3.1's cap as PQ-A2-1 decided it is measured -- on the CIPHERTEXT, not on the envelope JSON.
+    // The stand-in enforces the real constant rather than a threshold invented for the test, so an
+    // envelope refused here is refused for the reason the shipping relay refuses one.
+    static bool OverCap(string envelopeJson)
+    {
+        var ct = (string)JsonNode.Parse(envelopeJson)!["ciphertext"]!;
+        return Base64Url.TryDecode(ct, out var raw) && raw.Length > Protocol.MaxEnvelopeBytes;
+    }
+
+    // --- Clause one: the per-cycle cost of never halting, driven through the REAL SyncPushPath
+    // composition rather than through the sink alone, so the numbers are the engine's own.
+    {
+        var attempts = 0;
+        var deadLog = new List<string>();
+        var deadPersisted = new List<long>();
+        var deadPath = SyncPushPath.Create(
+            haltKey, haltPairing, activeKeyId,
+            push: (_, _) => { attempts++; return Task.FromResult<RelayPushResult>(new RelayPushResult.Unauthorised()); },
+            seqStore: new RecordingE2pSeqStore(deadPersisted.Add),
+            log: deadLog.Add,
+            startSeq: 100);
+
+        const int cycles = 10;
+        var delivered = 0;
+        for (var cycle = 1; cycle <= cycles; cycle++)
+            if (deadPath.PublishHeartbeatAsync(cycle, haltCounters).GetAwaiter().GetResult()) delivered++;
+
+        Check("halt: a permanently dead pairing costs ONE push attempt per cycle, indefinitely",
+            attempts == cycles);
+        Check("halt: ...and burns one seq per cycle -- the counter advanced by exactly the cycle count",
+            deadPath.HighestSeq == 100 + cycles);
+        Check("halt: ...delivering nothing and persisting nothing", delivered == 0 && deadPersisted.Count == 0);
+        Check("halt: ...while the operator sees ONE line, not ten -- that clause is ALREADY answered",
+            deadLog.Count == 1);
+    }
+
+    // --- Clause two, retired arithmetically. "Burns one seq per cycle FOREVER" reads as a resource
+    // exhaustion argument and is not one: §3.2's domain is 2^53-1, and an engine burning a seq every
+    // SECOND -- orders of magnitude faster than any cycle this engine runs -- needs geological time
+    // to reach it. Pinned as an assertion rather than as a sentence so that lowering MaxSeq re-opens
+    // the question instead of silently invalidating the answer given here.
+    {
+        const long secondsPerYear = 31_557_600L;
+        Check("halt: seq exhaustion is NOT the harm -- MaxSeq outlasts a per-SECOND burn by >100M years",
+            Protocol.MaxSeq / secondsPerYear > 100_000_000L);
+    }
+
+    // --- Clause three, and THE FINDING this block exists for. A bounded backoff would be keyed on
+    // PushDisposition, and PushDisposition puts 413 and 400 in one bucket by design -- "resend these
+    // bytes?" has the same answer for both. But the sink is shared by EVERY payload one publisher
+    // sends, and PayloadDead is a fact about the bytes just pushed, not about the pairing. One
+    // oversized snapshot puts the sink there, and the ratified snapshot retry re-sends that same
+    // snapshot every cycle, so it stays there. The next payload need not be another snapshot: it can
+    // be the entitlement_ack, which is small, which §4.3.3 makes the only thing that unlocks Pro,
+    // and which -- measured here -- gets through today.
+    {
+        var bigApps = Enumerable.Range(0, 12_000)
+            .Select(i => new AppSummary($"app_{i:D6}", "READY", "Northwind Labs", "Senior Platform Engineer", 82))
+            .ToArray();
+
+        var capPushed = new List<string>();
+        var capLog = new List<string>();
+        var capPersisted = new List<long>();
+        var capPath = SyncPushPath.Create(
+            haltKey, haltPairing, activeKeyId,
+            push: (envelope, _) =>
+            {
+                capPushed.Add(envelope);
+                return Task.FromResult<RelayPushResult>(
+                    OverCap(envelope) ? new RelayPushResult.TooLarge() : new RelayPushResult.Ok());
+            },
+            seqStore: new RecordingE2pSeqStore(capPersisted.Add),
+            log: capLog.Add,
+            startSeq: 0);
+
+        var snapshotDelivered = capPath
+            .PublishSnapshotAsync(haltCounters, bigApps, Array.Empty<JobSummary>()).GetAwaiter().GetResult();
+        Check("halt: an oversized snapshot is refused by §3.1's cap, measured on the CIPHERTEXT (PQ-A2-1)",
+            !snapshotDelivered && capPushed.Count == 1 && OverCap(capPushed[0]));
+        Check("halt: ...and that refusal classifies PayloadDead, which is what a backoff would key on",
+            RelaySink.Classify(new RelayPushResult.TooLarge()) == PushDisposition.PayloadDead);
+
+        var ackDelivered = capPath
+            .PublishEntitlementAckAsync("pro_unlock", "GPA.3311-4455-6677-88990").GetAwaiter().GetResult();
+        Check("halt: THE ACK STILL REACHES THE RELAY on the very next push -- what a PayloadDead backoff would suppress",
+            ackDelivered && capPushed.Count == 2);
+
+        // Read back off the wire rather than trusting the call that produced it: asserting the
+        // return value alone would pass for a path that delivered the wrong bytes successfully.
+        //
+        // Indexed defensively, and that is not fussiness -- it is this repo's own lesson applied to
+        // the assertion above. The mutation this block exists to catch is a backoff that SKIPS the
+        // push, and under it `capPushed` has one element; a bare `capPushed[1]` threw, took the whole
+        // harness down after that FAIL line, and every assertion below it silently never ran. An
+        // assertion has to survive its own target mutation.
+        JsonNode? ackPlain = null;
+        if (capPushed.Count == 2 && JsonNode.Parse(capPushed[1]) is { } ackEnvelope)
+        {
+            var ackHeader = new EnvelopeHeader(
+                (int)ackEnvelope["v"]!, (string)ackEnvelope["pairing"]!, (string)ackEnvelope["dir"]!,
+                (long)ackEnvelope["seq"]!, (string)ackEnvelope["ts"]!, (string)ackEnvelope["key_id"]!);
+            ackPlain = JsonNode.Parse(EnvelopeCodec.Open(
+                haltKey, B64u((string)ackEnvelope["nonce"]!), ackHeader.Aad(),
+                B64u((string)ackEnvelope["ciphertext"]!)));
+        }
+        Check("halt: ...and the bytes that got through ARE the entitlement_ack, decrypted from the wire",
+            ackPlain is not null
+            && (string?)ackPlain["kind"] == "entitlement_ack"
+            && (string?)ackPlain["body"]?["product_id"] == "pro_unlock");
+        Check("halt: ...and its mark was persisted, so the delivery is a real one and not a reported one",
+            capPersisted is [2]);
+    }
+
+    // --- Clause four: the contrast that gives the remedy its shape. Under PairingDead nothing on the
+    // pairing is accepted, so the ack fails there whether or not anything suppresses it -- a bounded,
+    // self-clearing backoff on THAT disposition withholds nothing that would have succeeded. The two
+    // dispositions therefore do not take the same policy, and a backoff written against "permanent"
+    // as one bucket is a defect, not a simplification.
+    {
+        var pdPushed = new List<string>();
+        var pdPath = SyncPushPath.Create(
+            haltKey, haltPairing, activeKeyId,
+            push: (envelope, _) => { pdPushed.Add(envelope); return Task.FromResult<RelayPushResult>(new RelayPushResult.Unauthorised()); },
+            seqStore: new RecordingE2pSeqStore(_ => { }),
+            log: _ => { },
+            startSeq: 0);
+
+        var pdAck = pdPath.PublishEntitlementAckAsync("pro_unlock").GetAwaiter().GetResult();
+        Check("halt: under PairingDead the ack fails ANYWAY -- a backoff there withholds nothing that would have succeeded",
+            !pdAck && pdPushed.Count == 1);
+        Check("halt: ...so PairingDead and PayloadDead do NOT take the same policy, though they share a permanence",
+            RelaySink.Classify(new RelayPushResult.Unauthorised())
+            != RelaySink.Classify(new RelayPushResult.TooLarge()));
+    }
+}
 
 Console.WriteLine($"\n=== {passed} passed, {failed} failed ===");
 return failed == 0 ? 0 : 1;
@@ -690,6 +2135,28 @@ return failed == 0 ? 0 : 1;
 
 static byte[] B64u(string s) => Base64Url.TryDecode(s, out var b)
     ? b : throw new FormatException($"vector value is not strict base64url: {s[..Math.Min(16, s.Length)]}…");
+
+/// <summary>
+/// True when <paramref name="act"/> throws exactly <typeparamref name="T"/>. The three outcomes are
+/// kept distinct — threw the right type, threw the wrong one, did not throw — and
+/// <paramref name="detail"/> names which, because a guard that throws the wrong type is a different
+/// defect from a guard that does not throw and a bare `false` would report the second when the first
+/// happened.
+///
+/// <para><b>Nothing is allowed to escape, and that is a correction.</b> This helper's first version
+/// let a wrong exception type propagate on the reasoning above. Measured, that reasoning produced the
+/// wrong behaviour: dropping the null-store guard makes the delegate construction raise a
+/// <see cref="NullReferenceException"/>, which took the whole harness down <em>after zero FAIL
+/// lines</em>, so every assertion below it silently never ran. That is the same false-negative shape
+/// this repo has now met four times by four routes. Distinguishing the defects does not require
+/// letting one of them kill the run.</para>
+/// </summary>
+static bool Throws<T>(Action act, out string detail) where T : Exception
+{
+    try { act(); detail = $"did not throw at all; expected {typeof(T).Name}"; return false; }
+    catch (T) { detail = ""; return true; }
+    catch (Exception ex) { detail = $"threw {ex.GetType().Name}, not {typeof(T).Name}"; return false; }
+}
 
 static string ToHex(JsonNode n) => Convert.ToHexString(Base64Url.TryDecode((string)n!, out var b) ? b : throw new FormatException());
 
@@ -742,12 +2209,38 @@ sealed class FakeEntitlementStore : SeekerSvc.Sync.IEntitlementStateStore
         => Audits.Add((productId, orderId, deviceFingerprint, acknowledged));
 }
 
-/// <summary>Recording <see cref="SeekerSvc.Sync.IOutcomeApplier"/> — the §2.5 seam stubbed for the §2.4 routing tests.</summary>
-sealed class RecordingOutcomeApplier : SeekerSvc.Sync.IOutcomeApplier
+/// <summary>
+/// Recording <see cref="SeekerSvc.Sync.IOutcomeApplier"/> — the §2.5 seam stubbed for the §2.4 routing
+/// tests. The verdict is settable so the routing tests can drive the refusal branch (PQ-S6-1) without
+/// pulling the store-backed applier (and all of SeekerSvc.Engine) into this harness.
+/// </summary>
+sealed class RecordingOutcomeApplier(SeekerSvc.Sync.OutcomeVerdict? verdict = null) : SeekerSvc.Sync.IOutcomeApplier
 {
+    private readonly SeekerSvc.Sync.OutcomeVerdict _verdict = verdict ?? SeekerSvc.Sync.OutcomeVerdict.Ok;
     public readonly List<(string Body, string Fingerprint)> Applied = new();
-    public Task ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default)
-    { Applied.Add((outcomeBodyJson, deviceFingerprint)); return Task.CompletedTask; }
+    public Task<SeekerSvc.Sync.OutcomeVerdict> ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default)
+    { Applied.Add((outcomeBodyJson, deviceFingerprint)); return Task.FromResult(_verdict); }
+}
+
+/// <summary>Recording <see cref="SeekerSvc.Sync.IEntitlementAckPublisher"/> — captures every §4.3.3 ack the
+/// dispatcher emits, so the tests can assert both that an accepted receipt produces one and that a rejected
+/// receipt produces none.</summary>
+sealed class RecordingAckPublisher : SeekerSvc.Sync.IEntitlementAckPublisher
+{
+    public readonly List<(string ProductId, string? OrderId)> Published = new();
+    public Task PublishEntitlementAckAsync(string productId, string? orderId, CancellationToken ct = default)
+    { Published.Add((productId, orderId)); return Task.CompletedTask; }
+}
+
+/// <summary>
+/// Recording <see cref="SeekerSvc.Sync.IE2pSeqStore"/> — stands in for the DPAPI pairing vault, which
+/// cannot be constructed off Windows. <see cref="Calls"/> is counted separately from the recorded
+/// values so an assertion can tell "persisted the right number" from "persisted it exactly once".
+/// </summary>
+sealed class RecordingE2pSeqStore(Action<long> onRecord) : SeekerSvc.Sync.IE2pSeqStore
+{
+    public int Calls { get; private set; }
+    public void RecordE2pSeq(long seq) { Calls++; onRecord(seq); }
 }
 
 /// <summary>Recording <see cref="SeekerSvc.Sync.ISnapshotRepublisher"/> — captures the since_seq a pull_request asked to resume from.</summary>
@@ -756,4 +2249,19 @@ sealed class RecordingRepublisher : SeekerSvc.Sync.ISnapshotRepublisher
     public long? LastSince;
     public Task RepublishSnapshotAsync(long sinceSeq, CancellationToken ct = default)
     { LastSince = sinceSeq; return Task.CompletedTask; }
+}
+
+/// <summary>
+/// A stub <see cref="HttpMessageHandler"/> for the pull-result tests: it answers whatever the test
+/// hands it, including by throwing, so the real shipping <see cref="SeekerSvc.Sync.RelayClient"/> is
+/// the code under test and only the socket is fake.
+/// </summary>
+sealed class StubTransport(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> respond) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        // Mirrors HttpClient: an already-cancelled token fails the send rather than being ignored.
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(respond(request, ct));
+    }
 }

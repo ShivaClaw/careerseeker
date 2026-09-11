@@ -36,8 +36,8 @@ its own, and no envelope from anyone creates a path to sending email — see §8
 | `/v1/{pairing}/create` | POST | Engine bootstraps the pairing channel (§5.2.1) |
 | `/v1/{pairing}/pair` | POST | Phone submits the pairing completion (§5.2.2) |
 | `/v1/{pairing}/pair` | GET | Engine collects the completion; one-shot (§5.2.2) |
-| `/v1/{pairing}/push` | POST | Append one envelope to the recipient's queue |
-| `/v1/{pairing}/pull?since={seq}&dir={dir}` | GET | Fetch envelopes for direction `dir` with `seq > since` |
+| `/v1/{pairing}/push` | POST | Append one envelope to the recipient's queue. Response bodies in §2.2 |
+| `/v1/{pairing}/pull?since={seq}&dir={dir}` | GET | Fetch envelopes for direction `dir` with `seq > since`. Response body in §2.1 |
 | `/v1/{pairing}/live` | WSS | Live fan-out while a client is connected |
 | `/v1/{pairing}` | DELETE | Unpair — purge the Durable Object and all queued envelopes |
 | `/v1/health` | GET | Liveness. Returns no pairing information. |
@@ -53,6 +53,232 @@ Transport is HTTPS/WSS only. Clients MUST reject cleartext. Envelopes are JSON, 
 
 **Retention.** The relay MUST purge any envelope older than the configured TTL, which MUST
 NOT exceed 30 days (`CareerSeeker-Spec.md` §8.3). The relay MUST NOT log envelope bodies.
+
+### 2.1 Pull response body
+
+**Decided 2026-08-11 (PQ-S4-2).** The route table above defines the pull *request* and
+stopped there, so each of the three implementations invented its own reading of the
+*response* — and `latest`, which §6.1 already depends on, was used by the normative text
+without ever being defined. This section defines it.
+
+```
+200 body = {
+  "envelopes": [ <envelope>, … ],   // REQUIRED — §3 envelopes, bare, ascending seq
+  "latest": <integer>               // REQUIRED — highest seq the relay holds for dir
+}
+```
+
+- Both fields are **REQUIRED**. A receiver MUST reject a 200 body that omits either one,
+  and MUST NOT substitute a default for a missing field.
+- `envelopes` is a JSON array of **bare §3 envelope objects**, spliced verbatim, in
+  ascending `seq`, every one of them matching the requested `dir` and having
+  `seq > since`. An empty array is legal and means "nothing above your cursor *in this
+  page*" — see the truncation rule below. A receiver MUST NOT accept any other element
+  shape; in particular it MUST NOT accept a `{"seq": N, "envelope": …}` wrapper.
+- `latest` is a JSON **integer** — never a quoted number — and is the highest `seq` the
+  relay currently holds for that direction, or `0` if it holds none.
+- **The page MAY be truncated.** The relay bounds it (`PULL_PAGE_SIZE`, currently 100 —
+  `relay/src/protocol.ts:64`), so a full page does not mean the stream is drained. A
+  client MUST decide whether more remains by comparing its cursor against `latest`, and
+  MUST NOT infer "caught up" from a short or empty `envelopes` array.
+- A body that cannot be read under these rules MUST NOT be treated as an empty page: a
+  receiver MUST NOT let it reach the caller as a successful pull of zero envelopes. It
+  SHOULD be reported as a transport failure. The distinction is deliberate — the MUST is
+  the safety property, and the SHOULD is reporting style, which the two receivers can
+  reasonably differ on: the phone returns `RelayResult.Unavailable` because the failure
+  lands in a background sync coroutine, while the engine's `PullAsync`
+  (`src/Sync/RelayClient.cs`) lets the parse throw to its caller. Both refuse the silent
+  empty page, which is the half that matters; neither is required to adopt the other's
+  error type.
+
+**Why both fields are required rather than defaulted, which is the load-bearing part.**
+`latest` is the client's loop bound: it drives "is the relay still ahead of me" and §6.2's
+gap check. A receiver that defaults an absent `latest` to `0` computes `cursor < 0`, which
+is false, and therefore reports a healthy, fully-caught-up, permanently empty sync. **The
+relay is the party that controls this body** (§1: blind, but not trusted), so that is one
+deleted field standing between a working sync and a silent stall with no error anywhere.
+Rejecting the body is loud; defaulting it is not. The same argument applies to `envelopes`
+in mirror image — absent, defaulted to `[]`, it asserts "nothing to do" and "the relay is
+ahead of you" in the same breath.
+
+**Why the wrapper shape is refused.** No implementation emits it. The relay splices bare
+envelope JSON (`relay/src/channel.ts`, `pull`: `rows.map((r) => r.ciphertext).join(',')`),
+the engine's reader has no branch for it (`src/Sync/RelayClient.cs`, `PullAsync`), no test
+vector contains a page at all, and this document never described one. It was accepted by
+exactly one client and produced by none. Beyond being dead, it is **harmful**: the `seq` it
+carries is the relay's own unauthenticated number, and it can disagree with the
+authenticated `seq` inside the envelope that the AAD covers (§4.1). A client that advanced
+a cursor on the wrapper's number could be walked past envelopes it never read by a relay
+that cannot decrypt a byte of them. Any per-envelope sequence a client reads before
+decryption is a **claim**; only the `seq` recovered from the sealed bytes is a fact, and
+§6.2's rules run on the latter.
+
+### 2.2 Push response body
+
+**Decided 2026-08-11 (PQ-S6-2).** §2.1 defined the pull response because three
+implementations had each invented one. The push route has the same hole, and here it is
+load-bearing in a way pull's was not: **§6.1 tells a sender to reconcile its counter
+against the relay's high-water mark, and the relay already returns that number on the very
+response that reports the counter is wrong** — in a body this document never described.
+
+Measured under miniflare against the deployed Worker source, not read off it:
+
+```
+201 body = {"ok": true, "seq": <integer>}     // appended; seq echoes the envelope's
+409 body = {"error": "replay_rejected",       // seq <= the relay's high-water mark …
+            "latest": <integer>}              // … for THIS direction
+400 body = {"error": "bad_request"}           // unparseable body, or header shape invalid
+413 body = {"error": "too_large"}             // §3.1 cap (measured on the ciphertext)
+```
+
+- **201 means appended, and nothing more.** It is not an acknowledgement that the
+  *receiver* accepted, decrypted or applied anything. The relay is blind (§1) and has no
+  opinion about the payload; §6.2's receiver rules run later and independently. A sender
+  MUST NOT report a delivered envelope as an applied one.
+- **The 409 carries `latest`, and it is REQUIRED on that status.** It is the relay's
+  high-water `seq` **for the direction the refused envelope named**, not across the
+  pairing. Measured: with `e2p` at 90 and `p2e` at 4, a replayed `p2e` seq 4 answers
+  `latest: 4`. A sender MUST NOT read it as a position for the other direction.
+- `latest` is a JSON **integer**, never a quoted number — the same field and the same
+  rule as §2.1's.
+- **400 and 413 carry no `latest`**, and a sender MUST NOT treat either as evidence about
+  its counter. They say nothing about the sender's position.
+- A sender MUST treat 409 as **neither success nor a transport failure**. Retrying the
+  same bytes cannot fix it, and §6.1 says what to do instead.
+- **A direction holding nothing accepts any `seq >= 1`** — measured: the first push on a
+  fresh direction answers 201 even at seq 1, because the monotonicity check has no prior
+  value to compare against. `GET /pull?dir=…&since=0` on that direction answers
+  `{"envelopes":[],"latest":0}`.
+
+**Why the 409's `latest` is more than a convenience.** §6.1 requires a sender to resume
+above `max(persisted_seq, relay_latest)` and points at `GET /pull?dir=…&since=0` for the
+second term. That works, but it is a round trip the sender must make *before* it knows it
+needs one — so in practice it is made at startup or never. The 409 delivers the same
+number at the exact moment the sender is proved wrong, which lets a sender recover inside
+the push loop it is already in. That is the difference between a counter gap that heals
+itself and one that needs a restart to notice.
+
+**The relay's HTTP error codes are a different namespace from §7.2's, and the overlap is
+the trap.** §7.2 defines the sealed `error` *payload* — `{code, detail?, ref_seq?}` —
+exchanged between engine and phone and invisible to the relay. The bodies above are
+**transport** errors, shaped `{"error": …}`, produced by a party that cannot read a
+payload at all. Two names appear in both vocabularies with the same meaning
+(`replay_rejected`, `too_large`), which is exactly why the split is easy to miss;
+`bad_request` appears in neither §7.2 nor anywhere else in this document, and nor do
+`unauthorized`, `not_found`, `method_not_allowed`, `upgrade_required` or `exists`, all of
+which the relay also emits. **Read `{"error": …}` as transport and `{"code": …}` as
+payload.** The remaining routes are pinned in §2.3.
+
+### 2.3 Transport responses for the remaining routes
+
+**Decided 2026-08-11 (PQ-S2-3, option (a)).** §2.2 pinned `push` and said in terms that v1
+pinned "no other route's". This pins the rest. Every line below was **measured under
+miniflare against the Worker source and written down second** — this section is
+descriptive, and it changes no relay behaviour. That direction is deliberate: §3.1's
+amendment forbids the relay refusing what this document declares legal, and a transport
+section written from the spec downwards is how that bug got in the first time.
+
+**The vocabulary is nine codes, not eight.** PQ-S2-3's table listed eight and dropped
+`exists`; §2.2's prose inherited the omission. The full set, measured
+(`relay/test/relay.test.ts`, "emits exactly nine transport codes"):
+
+`bad_request`, `exists`, `method_not_allowed`, `not_found`, `pairing_unknown`,
+`replay_rejected`, `too_large`, `unauthorized`, `upgrade_required`.
+
+| Route | Status | Body |
+| --- | --- | --- |
+| `POST /create` | 201 | `{"ok": true}` — channel bootstrapped |
+| | 200 | `{"ok": true, "rotated": true}` — provisional → final (§5.2.3) |
+| | 409 | `{"error": "exists"}` — channel exists and no `rotate_to` was sent |
+| | 400 | `{"error": "bad_request"}` — `rotate_to` was not 64 **lowercase** hex chars (see below) |
+| | 401 | `{"error": "unauthorized"}` — bearer absent, empty, or not the channel's |
+| `POST /pair` | 201 | `{"ok": true}` — completion stored |
+| | 409 | `{"error": "exists"}` — a completion is already stored |
+| | 400 | `{"error": "bad_request"}` — unparseable, or a required field missing |
+| | 413 | `{"error": "too_large"}` — body over **16,384 characters** (not bytes — see below) |
+| `GET /pair` | 200 | **the stored completion document, raw** — not wrapped in `{"ok": …}` |
+| | 404 | `{"error": "not_found"}` — nothing waiting (see below) |
+| `GET /pull` | 200 | §2.1's body |
+| | 400 | `{"error": "bad_request"}` — `dir` absent/unknown, or `since` not a non-negative integer |
+| `GET /live` | 101 | WebSocket upgrade |
+| | 426 | `{"error": "upgrade_required"}` — no `Upgrade: websocket` header |
+| | 400 | `{"error": "bad_request"}` — `dir` absent or unknown |
+| `DELETE /v1/{pairing}` | 200 | `{"ok": true, "purged": <integer>}` — `purged` counts **envelopes**, not storage keys |
+| `GET /v1/health` | 200 | `{"ok": true, "protocol": 1, "phase": …}` — no credential, no pairing information |
+| any | 404 | `{"error": "not_found"}` — path shape wrong, or unknown route under a valid credential |
+| | 404 | `{"error": "pairing_unknown"}` — pairing id **malformed** (see below) |
+| | 401 | `{"error": "unauthorized"}` — bearer absent/empty, or not this channel's |
+| | 405 | `{"error": "method_not_allowed"}` — known route, wrong method |
+
+Three rules a client may rely on:
+
+- **Key off the HTTP status.** Every transport error body is exactly `{"error": …}`; the
+  **only** one carrying a second field is push's 409 `latest` (§2.2). A client that needs
+  to act on something other than a status has exactly one case to special-case.
+- **`{"error": …}` is transport and `{"code": …}` is payload**, always. Measured, the two
+  vocabularies share exactly **three** names out of nine transport and ten payload codes:
+  `replay_rejected` and `too_large` mean the same thing in each, and **`pairing_unknown`
+  means something different in each** — which is the worse of the two cases, and the
+  subject of the last note in this section. §2.2 states why the overlap is the dangerous
+  half rather than the gap.
+- **409 is three different answers.** `create` and `pair` answer `{"error": "exists"}`,
+  meaning "already done, nothing to reconcile"; `push` answers
+  `{"error": "replay_rejected", "latest": N}`, meaning "your counter is behind, and here is
+  the number". A client MUST NOT read one as the other.
+
+**`rotate_to` is lowercase hex, and this is a live interop trap rather than a curiosity.** The
+relay tests `/^[0-9a-f]{64}$/`, which is case-**sensitive**. C#'s `Convert.ToHexString`
+returns **uppercase**, and the engine's only rotation caller
+(`tests/SyncLiveSmoke/Program.cs:84`) is correct solely because it appends an explicit
+`.ToLowerInvariant()`. Drop that call and rotation is refused with a bare `400` — and
+`RelayClient.RotateTokenAsync` returns a bare `bool` (`src/Sync/RelayClient.cs:30-38`), so
+the failure is indistinguishable from a network error, on the one call that is **one-way and
+locks the engine out of the channel if it half-succeeds**. Senders MUST emit lowercase;
+receivers of this document should not assume a hex string is case-normalised anywhere.
+
+**`POST /pair`'s cap counts CHARACTERS, and §3.1's lesson had not reached it.** The check is
+`raw.length > 16 * 1024` on the decoded string, so the unit is UTF-16 code units, not bytes.
+Measured: a body of 16,384 three-byte characters — **49,152 bytes** — passes the cap and
+falls through to `bad_request`, while 16,385 ASCII characters is refused with `too_large`.
+So the effective byte ceiling is up to **3× the number the constant looks like**, and this
+is the same character-versus-byte conflation §3.1 was amended to fix, in a second place
+nobody had written down.
+
+**v1 pins the measured behaviour rather than correcting it**, for the reason §3.1 itself
+gives: tightening the relay to a byte count would refuse completions this document has
+never declared illegal, and the completion body is a small pairing document whose
+worst case is a bounded over-allocation rather than a security property. The cap is
+therefore stated in the unit it actually uses. **A future amendment that wants a byte
+budget must state the byte budget and derive the character constant from it — never the
+other way round**, which is exactly what §3.1's `MAX_CIPHERTEXT_B64U_CHARS` does.
+
+**`GET /pair`'s 404 is an ordinary state, not a statement about the pairing.** It is the
+answer both before the phone posts a completion and after the engine's one-shot read has
+taken it. A client MUST NOT infer from it that the pairing has been purged.
+
+**`pairing_unknown` on the transport means the id is MALFORMED — never that the pairing is
+unknown.** This is the one place where a transport code's name actively misleads, and it is
+worth reading twice. Measured: a well-formed pairing id that was never created answers
+**401**, and a pairing that has been purged by `DELETE` answers **401 on every route** —
+`pull`, `push`, `pair` and `DELETE` alike. The only way to see `pairing_unknown` is to send
+an id that fails the `p_` + 16-base64url-char shape check, which the relay rejects
+**before** it authenticates anything.
+
+**So §7.2's `pairing_unknown` condition — "the relay has no Durable Object for this
+pairing" — has no transport code at all.** It is reported as `unauthorized`, exactly like a
+wrong token. That is defensible as a privacy property rather than an oversight: a purged
+pairing is indistinguishable from one that never existed, so the relay never answers "did
+this pairing ever exist?" to a caller holding the wrong credential — and measured, the same
+pairing id re-bootstraps with `POST /create` afterwards, so there is no tombstone to
+disclose. **v1 pins the 401, and does not add a code.**
+
+**Conformance note, stated because neither client currently gets this right.** A receiver
+that treats 401 as "fetch a fresher bearer and retry" and 404 as "the pairing is gone" has
+the two conditions exactly backwards for the unpair case: it will retry a credential path
+that cannot succeed, and its terminal state will never be reached. **The cost, and which
+implementation is affected, is recorded as PQ-S2-4 in the android repo** — the fix touches
+two codebases and a product decision about what a phone should show when it has been
+unpaired remotely, so it is not made here.
 
 ---
 
@@ -78,7 +304,7 @@ The envelope is the only structure the relay parses.
 | `v` | int | Protocol version. MUST be `1`. See §7. |
 | `pairing` | string | Pairing id, `p_` + 16 base64url chars. Opaque; not derived from anything personal. |
 | `dir` | string | `e2p` (engine→phone) or `p2e` (phone→engine). |
-| `seq` | int | Per-direction monotonic counter, starts at 1. See §6. |
+| `seq` | int | Per-direction monotonic counter, starts at 1, maximum `2^53 - 1`. See §3.2 and §6. |
 | `ts` | string | RFC 3339 UTC, sender's clock. **Advisory only** — never used for security decisions (§6.3). |
 | `key_id` | string | Which derived key encrypted this. See §5.3. |
 | `nonce` | string | base64url, 12 bytes, unpadded. Fresh CSPRNG value per envelope. |
@@ -98,12 +324,135 @@ to verify — see §5.4 for why it moved.
 Other unknown top-level fields MUST be rejected, not ignored. A permissive parser here is
 how a future version's field silently becomes an injection point.
 
+Every **structural** rejection — an unknown top-level field, padded base64, a nonce that is
+not 12 bytes, a `dir` that is neither `e2p` nor `p2e`, a body that is not parseable JSON —
+is reported as `decrypt_failed` (§7.2). v1 deliberately does **not** add a `malformed`
+code: a distinct code would be a new observable, and §7.2 already requires that a receiver
+not let an observer separate `decrypt_failed` from `bad_signature`. "This envelope is not
+acceptable" is the whole of what a rejection may communicate. Amended in S5 (PQ-A2-2) to
+state what both implementations already did rather than leave the code unnamed.
+
 ### 3.1 Size limits
 
-An envelope MUST NOT exceed **1 MiB** total. The relay MUST reject larger with HTTP 413.
+The **decoded ciphertext** — the AEAD output including its 16-byte tag, after base64url
+decoding — MUST NOT exceed **1 MiB**. A receiver measures those decoded bytes, not the
+length of the JSON envelope and not the length of the base64url text, and rejects a larger
+one with `too_large` (§7.2) *before* attempting any cryptography.
+
+The relay cannot check that rule directly — it holds no key and never decodes `ciphertext`,
+so the only quantity it can count is base64url characters. It therefore enforces the **same**
+cap converted into its own units: a `ciphertext` string longer than
+`ceil(4/3 × 1 MiB) = 1,398,102` characters, or a request body longer than that plus 4 KiB of
+JSON scaffolding, is rejected with HTTP 413 (`relay/src/protocol.ts`
+`MAX_CIPHERTEXT_B64U_CHARS` / `MAX_PUSH_BODY_CHARS`, applied in `relay/src/channel.ts`).
+
+That conversion is normative, not incidental: **the relay MUST carry every envelope this
+section declares legal.** A relay cap written as its own round number is a bug even when the
+number looks conservative, because a sender obeying §3.1 and §4.4 has no way to discover it
+except as a 413 on a correctly-sized chunk.
+
 Document payloads that would exceed this are chunked at the payload layer (§4.4), not by
 splitting ciphertext — a partial AEAD frame is not decryptable and must never be on the
 wire.
+
+Amended in S5 (PQ-A2-1). The P0 wording — "an envelope MUST NOT exceed 1 MiB total" —
+described something neither implementation ever measured: both
+(`src/Sync/EnvelopeReceiver.cs:45`, `core/.../EnvelopeReceiver.kt`) test the decoded
+ciphertext. The prose was moved to the implementations rather than the reverse, because
+the ciphertext is the thing that gets decrypted and because changing two shipping receivers
+to satisfy a sentence would be a wire-visible change made for the sentence's sake. The
+`invalid-oversized` vector pins the receiver rule: it sets a ciphertext of
+`max_envelope_bytes + 1` **decoded** bytes.
+
+Corrected later the same day, and the correction is the more interesting half. The first
+version of this amendment observed that the relay's string test was *stricter* than the
+receivers' byte test and concluded "an envelope the relay agrees to carry can never be one a
+receiver rejects on size — so there is no gap". That implication is true and the conclusion
+does not follow: it reasons in one direction only. Running the other direction against a local
+relay showed the relay 413ing a ciphertext of exactly 1 MiB decoded — **legal by the sentence
+at the top of this section, and refused by the transport**. The old guard compared a character
+count to a byte budget, which capped the decoded payload at 786,432 bytes and left the top
+**256 KiB** of the declared range untransmittable. Nothing sends envelopes that large today
+(§4.4 chunking is unimplemented in both codebases), so this was latent rather than live — but
+§4.4 instructs a future chunker to size against exactly the number that does not fit. The
+relay now derives its cap from this section's, and `relay/test/relay.test.ts` pins the
+derivation, the maximum legal envelope surviving a push/pull round trip, and the first
+character beyond it.
+
+### 3.2 Sequence number range
+
+`seq` starts at 1 (§6.1) and **MUST NOT exceed 9,007,199,254,740,991** — `2^53 - 1`.
+
+- A **sender** MUST NOT emit a larger value.
+- The **relay** MUST reject one with HTTP 400 `bad_request`, alongside its other header-shape
+  checks and before the monotonicity comparison. It carries no counter evidence: a rejected
+  envelope was never appended, so there is nothing for `latest` to report.
+- A **receiver** SHOULD treat a larger value as a structural rejection (`decrypt_failed`, §3).
+  SHOULD rather than MUST because the relay is the only ingress, so this is defence in depth
+  rather than the property being protected — see the conformance note below.
+
+**Why this number and not `2^63 - 1`.** The three implementations do not agree above it. Both
+receivers type `seq` as a 64-bit integer (`src/Sync/EnvelopeCodec.cs:7` `long Seq`; the Kotlin
+header likewise). The relay is JavaScript: it reads `seq` through `JSON.parse` into an IEEE-754
+double and writes it back into `latest` the same way. `2^53 - 1` is the largest integer all
+three represent **exactly**, so it is the largest value at which "the counter the sender wrote"
+and "the counter the relay reports" are guaranteed to be the same number. A cap chosen for the
+relay's convenience would be the §3.1 mistake again; this one is chosen at the point where the
+wire stops being unambiguous, which is a property of the protocol rather than of one party.
+
+**What went wrong above it, measured.** The previous text stated no maximum at all, and
+`relay/src/channel.ts` checked only `Number.isInteger(seq) && seq >= 1`. `Number.isInteger` rejects
+a fractional value but **cannot reject a large one**: every double at or above `2^53` is
+necessarily integral, because the format has no bits left for a fraction there. So the predicate
+is vacuously true across the entire range this rule cares about, `1e300` included, the reachable
+range ran to ~1.8e308, and `Infinity` was refused only because `Number.isInteger(Infinity)` is
+`false` — not by any bound. Measured under miniflare against the real Worker, in three bands:
+
+| pushed `seq` | relay reported `latest` as | consequence |
+| --- | --- | --- |
+| `4611686018427387904` (`2^62`) | `4611686018427388000` | **silently rounded** — the relay's counter and the sender's differ by 96, and both receivers parse it happily |
+| `10000000000000000000` (`1e19`) | `10000000000000000000` | above `Long.MaxValue`; plain decimal, and **neither receiver can parse it** |
+| `1e300` | `1e+300` | exponent notation; **neither receiver can parse it** |
+
+Two distinct wire values also collide: pushing `9007199254740992` then `9007199254740993`
+answered `201` and then `409 {"error":"replay_rejected","latest":9007199254740992}` — the second
+envelope carries a strictly larger integer and is refused as a **replay**, because both land on
+the same double.
+
+**The read path is the severe half, and it is why this is worth a rule rather than a note.** A
+single out-of-range envelope was already known to refuse every later push in that direction
+(`seq <= MAX(seq)` → 409, for the life of the row). What was not recorded is that it also breaks
+`GET /pull` for that direction: `latest` is emitted from the same double, and both receivers
+parse it strictly — `RelayClient.PullAsync` reads `GetProperty("latest").GetInt64()`
+(`src/Sync/RelayClient.cs:74`) with no catch on the path, and the phone's `strictLong` falls
+through `toLongOrNull()` to a rejected page (`core/.../RelayClient.kt:258-262`, reported as
+`Unavailable`). **So the envelope does not merely wedge the direction; it disables the recovery
+§6.1 prescribes for exactly this situation**, which reconciles by reading `latest` from
+`GET /pull?dir=…&since=0`. One garbage counter from one buggy sender takes out both the write
+path and the instrument used to diagnose it.
+
+**Spec first, then the relay — deliberately.** Refusing an envelope this document declares legal
+is the one thing §3.1's amendment forbids, so the bound had to be stated here before
+`relay/src/channel.ts` could enforce it. `MAX_SEQ` in `relay/src/protocol.ts` is
+`Number.MAX_SAFE_INTEGER`, which *is* `2^53 - 1` — spelled as the derivation and not as a
+literal, for the reason §3.1 gives about round numbers.
+
+**The bound is not a constraint any real sender can feel.** At one envelope per second per
+direction, `2^53 - 1` is roughly 285 million years.
+
+**Conformance, measured rather than assumed.** Both senders already conform and neither needed a
+change: the engine assigns `seq` by `Interlocked.Increment` from its persisted vault mark
+(`src/Sync/SyncPublisher.cs:90`), and the phone's counter starts at 1. The relay conforms as of
+this change. **Neither receiver implements the SHOULD** — both accept any 64-bit value — which is
+stated here rather than quietly tightened, per the rule that a spec running ahead of its
+implementations is the same defect as an implementation running ahead of its spec.
+
+**What this does not fix, and it is the half a reader should not assume closed.** The bound stops
+a channel being wedged *out of range*; it does nothing for a channel wedged *in* range. A sender
+that emits `9007199254740991` legitimately-shaped still refuses every later envelope in that
+direction until the row expires or the pairing is deleted, and the relay still exposes no
+channel-level reset short of `DELETE /v1/{pairing}`. Whether it should is a product question,
+recorded as the open half of PQ-S2-2 and not decided here.
 
 ---
 
@@ -148,7 +497,7 @@ Engine → phone:
 | `evidence` | `{audit_ok, first_broken_seq?, event_count, events:[{seq, ts, actor, kind, entity, entity_id}]}` — the engine's audit-chain verdict plus recent event metadata. Never full event payload bodies. |
 | `heartbeat` | `{ts, cycle, counters}`. Drives the app's "last seen" indicator. |
 | `conflict` | Rejection of a `doc_edit`: `{app_id, doc_kind, base_rev, current_rev}`. |
-| `entitlement_ack` | Engine confirms a verified Pro entitlement was applied. |
+| `entitlement_ack` | Engine confirms a verified Pro entitlement was applied. Body in §4.3.3. |
 | `error` | §7.2. |
 
 Phone → engine:
@@ -158,7 +507,7 @@ Phone → engine:
 | `doc_edit` | `{app_id, doc_kind, base_rev, new_text, device_sig}`. See §5.4 and §8. |
 | `outcome` | Pro: `{app_id, outcome, at}`. `outcome` ∈ `sent` \| `replied` \| `interview` \| `offer` \| `rejected`. |
 | `entitlement` | `{original_json, signature}` — Google Play's signed purchase payload. Body in §4.3.2. State-changing: the envelope MUST carry `sig` (§5.4). |
-| `pull_request` | `{since_seq}` — ask the engine to re-publish from a sequence point. |
+| `pull_request` | `{since_seq}` — ask the engine to re-publish the whole dashboard as a fresh `snapshot`. `since_seq` is **reserved in v1** and carries no meaning: senders MUST send `0`, receivers MUST ignore it. Body in §4.3.4. |
 | `error` | §7.2. |
 
 **Reserved, not implemented in v1.** These names are claimed so a future L2 cannot collide
@@ -256,6 +605,115 @@ vector per reason: signature-invalid, wrong-product, wrong-package, not-purchase
 Because `entitlement` is state-changing (§5.4), the envelope also carries the device ECDSA
 `sig`, so the audit chain records *which paired device* delivered the entitlement.
 
+### 4.3.3 Entitlement acknowledgement body (`entitlement_ack`)
+
+**Decided 2026-08-07 (gate PQ-A6-1, default-proceed).** `entitlement_ack` is the only thing
+that may unlock Pro on the phone. §4.3.2 makes the phone a courier: it forwards the
+Play-signed receipt, the engine verifies it against its configured public key, and this
+kind is the engine's answer. Until S5 the kind had a name in the §4.3 table and no body at
+all, which is why the phone-side unlock path could not be written — parsing an unspecified
+shape would have been inventing wire format.
+
+```
+entitlement_ack body = {
+  "product_id":      <string>,   // the product granted, e.g. "pro_unlock"
+  "acknowledged_at": <string>,   // RFC 3339 UTC — when the ENGINE recorded the grant
+  "order_id":        <string>    // OPTIONAL — Play orderId, for support correspondence
+}
+```
+
+`product_id` MUST be one of the product ids the receiver already knows (§4.3.2's configured
+set). A receiver that sees anything else MUST ignore the ack rather than unlock on it: the
+field records *which* entitlement was granted, and is not a request to grant one.
+
+`acknowledged_at` is the engine's clock and is **advisory only** (§6.3). It exists for
+display and support. A receiver MUST NOT expire, re-lock, or refuse an entitlement on the
+strength of this timestamp — clocks are not security inputs here, and an entitlement that
+silently lapsed because two machines disagreed about the time would be indistinguishable
+from a revocation nobody performed.
+
+`order_id` is optional because it is Play correspondence data, not authorisation. An ack
+without it is complete and MUST be honoured; an ack carrying it gains no additional weight.
+It is present so a human can match a support ticket to a purchase.
+
+**There is no negative form.** A receipt the engine rejects produces an `error` (§7.2)
+naming the reason — never an `entitlement_ack` with a failure flag inside it. An ack means
+*granted*, full stop. A kind whose meaning depends on reading a field inside the body is
+exactly the parser hazard §4.2 exists to avoid, and here it would be a hazard on the one
+path that turns a paid feature on.
+
+Because `entitlement_ack` is `e2p`, the envelope MUST NOT carry `sig` (§3) — the engine
+holds no device signing key. Its authenticity comes from the AEAD under the pairing's
+`k_e2p`, which only the paired engine can produce; a relay that fabricated one would have
+to forge a tag.
+
+This body says nothing about *how* the phone stores the resulting state. That the unlock is
+reachable only through an ack — and never through a locally-computed verdict on a receipt —
+is a phone-side design boundary recorded as PQ-A2-4 in the android repo, and it is
+load-bearing: a device that could self-certify its own entitlement would be a device with
+an incentive to.
+
+### 4.3.4 Pull request body (`pull_request`)
+
+**Decided 2026-08-10 (PQ-S4-1, option (a)).** A `pull_request` means exactly one thing in
+v1: *send me the current dashboard state as a fresh `snapshot`*. It is **not** resumable.
+
+```
+pull_request body = {
+  "since_seq": <long>   // RESERVED in v1 — MUST be 0, MUST be ignored by the receiver
+}
+```
+
+- A sender MUST set `since_seq` to `0`.
+- A receiver MUST answer with a full `snapshot` — never a `delta`, and never a replay of
+  the envelopes above some sequence point.
+- A receiver MUST NOT reject a `pull_request` whose `since_seq` is non-zero. The field is
+  reserved, not validated: a sender that fills it in honestly is asking for something v1
+  cannot express, and a full snapshot is the correct answer to that question anyway.
+  Rejecting it would turn a forward-compatible request into a stalled stream.
+
+This replaces the earlier one-line description, "ask the engine to re-publish **from a
+sequence point**", which described an intent that no implementation has ever had. What
+ships on both sides today, measured rather than recalled:
+
+- **Engine.** `InboundDispatcher` (`src/Sync/InboundDispatcher.cs:105-111`) parses the
+  field — `ReadSinceSeq`, defaulting to `0` on any parse failure — and hands it to
+  `ISnapshotRepublisher.RepublishSnapshotAsync(since, ct)`. **Every implementation of that
+  interface ignores the argument.** `LiveRepublisher`
+  (`tests/SyncLiveSmoke/Program.cs:311-312`) calls `PublishSnapshotAsync(...)`
+  unconditionally; `RecordingRepublisher` (`tests/SyncHarness/Program.cs:756-758`) only
+  records the value so the harness can assert it round-tripped. No shipping code path lets
+  `since_seq` change what is sent.
+- **Phone.** `PullPolicy` always sends `0`, for every reason it asks — cold start, a
+  `delta` refused for want of a snapshot, or a §6.2 gap.
+
+**Why the spec moves to the code rather than the code to the spec.** Resumption is not
+merely unimplemented here; it conflicts with §6.2. A large gap is defined as a signal to
+request *a fresh `snapshot`*, and a resumable pull cannot express "start over" — the two
+features want the same kind to mean opposite things. Reporting a real high-water mark
+would also encode a request the current engine ignores but a future one might honour, and
+on the exact path where honouring it is wrong: the gap case would come back as deltas
+resuming after N, which is what §6.2 says not to do. `0` is the only value that means "I
+hold nothing usable, send everything" under both the engine that exists and the engine
+that might.
+
+**A v2 that wants resumption needs a different shape, not this field.** It needs a way to
+ask for a snapshot *specifically* — a distinct kind, or an explicit discriminator — because
+once a pull can resume, §6.2's "ask for a fresh snapshot" has no wire form left. Widening
+`since_seq` in place would silently change what every v1 sender's `0` means.
+
+**Note the field-name collision, because it is confusing on first read.** §4.3.1's `delta`
+body also has a `since_seq`, and *that* one is live: it is the last envelope the publisher
+sent, and the receiver applies latest-wins over what it holds. Same name, two fields, two
+directions, and only one of them carries meaning. A reader who has seen `delta.since_seq`
+work should not infer this one does.
+
+This is a reserved **field**, which is a different thing from the reserved **kinds** listed
+under §4.3: a reserved kind MUST be rejected as `unknown_kind`, while this field MUST be
+accepted and ignored. The asymmetry is deliberate — rejecting an unknown kind refuses
+traffic v1 cannot understand, whereas rejecting this field would refuse a request v1
+understands perfectly.
+
 ### 4.4 Chunking
 
 A `doc` or `doc_edit` body whose text would exceed the envelope limit is split into
@@ -321,6 +779,17 @@ relay_token  = b64u( HKDF-SHA256(ikm, salt, info="careerseeker/v1/relay-token", 
 confirm      = BE_uint32( HKDF-SHA256(ikm, salt, info="careerseeker/v1/confirm", 4) )
                mod 1_000_000, rendered as 6 digits, zero-padded
 ```
+
+`BE_uint32` is **unsigned**, and the six-digit rendering is **zero-padded**. Both halves of that
+sentence are load-bearing and both are user-visible: a signed reduction renders `-936782` where
+six digits belong, and a missing pad renders five characters — on the screen a human is comparing
+against the phone. Neither is a hypothetical. Conformance is pinned by
+`docs/sync-vectors/v1/pairing-high-bit-confirm.json`, whose confirm digest `0x9010f572` has the
+high bit set and reduces to `030514`: a signed reduction fails it, a dropped zero-pad fails it, and
+the conforming derivation passes. `pairing-basic` cannot make that distinction — its digest
+`0x5fd509b6` reduces to `797174`, which both errors reproduce exactly — so the two pairing vectors
+are not redundant and neither may be dropped. `generate.mjs` re-asserts both properties over the
+whole corpus at generation time and fails if either lapses.
 
 `ikm` is **always the concatenation function over the suite's shared secrets**, even while
 there is only one. Deriving from the raw ECDH output directly would make the hybrid
@@ -454,15 +923,56 @@ unchanged, which is why it is built now rather than when L2 needs it.
 ### 6.1 Sequence numbers
 
 Each direction has an independent counter starting at 1, incremented per envelope, and
-**persisted by the sender across restarts**. This is load-bearing on the engine side: the phone
-persists its highest-accepted e2p seq — it survives a process restart (a fresh in-memory receiver
-would otherwise re-accept an old seq) — so an engine that resumed its counter at 1 after its own
-restart would have every envelope, *including the recovery `snapshot`*, rejected as
-`replay_rejected`: a silent, total, one-sided sync death. The engine MUST therefore resume its
-e2p counter above `max(persisted_seq, relay_latest_e2p_seq)` — the value from its pairing store,
-reconciled on startup against the relay's current `latest` for the direction
-(`GET /pull?dir=e2p&since=0` returns it) as a belt-and-suspenders should the store lag. The
-pairing store is the device-session deliverable; this rule is what it must satisfy.
+**persisted by the sender across restarts**.
+
+**The resume rule, and it binds whichever side is sending.** A sender MUST resume its
+counter above `max(persisted_seq, relay_latest_seq_for_that_direction)` — the value from
+its own store, reconciled against the relay's current high-water mark for the direction as
+a belt-and-suspenders should the store lag. **Two sources carry the relay's number and a
+sender MAY use either**: `GET /pull?dir=…&since=0` returns it as `latest` (§2.1), and a
+refused `POST /push` returns the same number as `latest` in its 409 body (§2.2), at the
+moment the sender is proved to need it.
+
+**The engine's e2p case is the worked example, and it is the severe one.** The phone
+persists its highest-accepted e2p seq, so the mark survives a process restart — a fresh
+in-memory receiver would otherwise re-accept an old seq. An engine that resumed its counter
+at 1 after its own restart would therefore have every envelope it sends, *including the
+recovery `snapshot`*, rejected as `replay_rejected`: a silent, total, one-sided sync death.
+
+**The phone owes the identical obligation on `p2e`, and until 2026-08-11 this section asked
+only the engine** (PQ-S6-2). The relay does not care who is sending: `POST /push` refuses
+`seq <= last` per direction (§2.2) whichever end pushed it. A phone whose persisted p2e
+counter has fallen behind — a restore from backup, a rolled-back store, a counter persisted
+only after a push whose response was lost — builds envelopes the relay refuses at the door
+until the counter climbs back. **The consequence is smaller than the engine's, and that is
+why the asymmetry was easy to write rather than why it is optional**: marks and entitlements
+stall rather than the dashboard dying. A second phone implementation reading the old text
+had no rule to follow at all.
+
+Note that the first sentence of this section already bound **both** senders to persist;
+what was engine-only was the *recovery* rule above. The pairing store on each side is the
+device-session deliverable; this rule is what it must satisfy.
+
+> **Conformance note, measured 2026-08-11, and stated because a spec that quietly outruns
+> its implementations is a defect in the spec** (the §2.1 precedent). Neither shipping
+> sender fully satisfies the rule as written, and this note is not a grant of exemption —
+> both gaps are unblocked implementation work.
+>
+> - **Engine.** `src/Engine/Program.cs:288` constructs the publisher with
+>   `startSeq: paired.LastE2pSeq` — the persisted term **only**, with no reconciliation
+>   against the relay — although the comment block ten lines above it states the `max(…)`
+>   rule verbatim. Compounding it, `RelayClient.PushAsync` (`src/Sync/RelayClient.cs:51-60`)
+>   returns `bool` from `res.StatusCode is HttpStatusCode.Created`, so the 409's `latest` is
+>   discarded unread and a replay refusal is indistinguishable from a timeout. Recorded as
+>   **PQ-S6-3**.
+> - **Phone.** It reads the number (`RelayClient.conflictLatest`) and reconciles through
+>   `OutboundQueue.reconciled()`, but nothing persists its p2e counter yet: `SeqSource` is
+>   a `fun interface` whose **only implementation in the tree is a test double**
+>   (`OutboundQueueTest.kt:30`) — there is no production counter to persist, in memory or
+>   otherwise. Recorded as the android tree's **B-8**.
+>
+> The rule is stated for both senders regardless, because it is a safety property rather
+> than a matter of style, and because it was already normative for one of the two.
 
 ### 6.2 Receiver rules
 
@@ -471,10 +981,22 @@ A receiver tracks the highest `seq` it has accepted per direction. It MUST:
 - **reject** `seq <= highest_accepted` with `replay_rejected` (§7.2), before decryption;
 - **accept** `seq > highest_accepted`, including gaps — the relay's TTL purge creates
   legitimate gaps and a gap MUST NOT stall the stream;
-- treat a large gap as a signal to request a fresh `snapshot`, not as an error.
+- treat a large gap as a signal to request a fresh `snapshot` (via `pull_request`, §4.3.4),
+  not as an error.
+
+**What counts as "large" is receiver policy, and v1 deliberately pins no number.** The
+threshold cannot be a wire-level constant because only one side ever has an opinion: the
+engine answers a `pull_request` but never sends one, so the number lives entirely in the
+asking implementation and no third implementation can observe another's choice. A receiver
+SHOULD document the value it picked and whether it was measured or chosen. The phone's is
+a constructor parameter defaulting to **32**, labelled in its own source as chosen rather
+than measured — there is no deployment to derive it from yet.
 
 Rejection happens on the header, before any decryption attempt, so a replayed envelope
 costs a comparison rather than a crypto operation.
+
+The mark this section governs is **not** the same number as the pulling receiver's
+transport cursor. See §6.4.
 
 ### 6.3 Clocks are not security inputs
 
@@ -482,6 +1004,91 @@ costs a comparison rather than a crypto operation.
 wrong clock, or a relay that delays an envelope, MUST NOT be able to cause a security
 decision to go the wrong way. Freshness comes from sequence numbers and the pairing
 lifetime, never from comparing timestamps.
+
+### 6.4 The transport cursor
+
+**Decided 2026-08-11 (PQ-S4-3). Amended 2026-08-13 (PQ-CUR-1)** — the carve-out below was
+first drawn for elements that fail the §3 parse, and a parseable element whose AEAD tag
+does not verify fell through the gap between the two rules. See "Parsing is not
+authenticating", below.
+
+§6.2 governs `highest_accepted`: the authenticated,
+persisted mark that drives replay rejection. A pulling receiver keeps a *second* number —
+the **transport cursor**, the `since` it sends on its next pull — and this document has
+never said anything about it. The two are deliberately different, and the gap between them
+is where an untrusted relay gets to act.
+
+A receiver MAY advance its transport cursor past envelopes it did not accept and did not
+apply. It has to: an envelope that is re-fetched forever is a page the receiver pulls,
+refuses, and pulls again, and §6.2 already forbids letting one unreadable envelope stall
+the direction.
+
+- The cursor MUST NOT move backwards.
+- The cursor MUST advance **without a bound** only to a `seq` **recovered from the sealed
+  bytes** (§4.1) — that is, only for an element the receiver **accepted**. That number is
+  authenticated by the AEAD tag; every other per-element number in the body is a claim, not
+  a fact (§2.1).
+- For **every other element** — one that fails the §3 parse, *and* one that parses and is
+  then rejected for any reason, **the AEAD tag included** — no authenticated `seq` exists.
+  The receiver MAY advance the cursor using the `seq` the element *claims* (the element's
+  top-level `seq` when the parse failed; the parsed header's `seq` when it did not), but
+  **MUST NOT advance it beyond the page's `latest`** (§2.1).
+
+**Parsing is not authenticating, and that is where the line falls.** A `seq` is recovered
+from the sealed bytes only when the **AEAD tag verifies** — the `seq` lives in the AAD
+(§4.1), and the tag is what turns it from a claim into a fact. An element can pass the §3
+parse completely — well-formed JSON, exactly the known fields, a valid pairing id, a typed
+`seq`, a 12-byte nonce, a base64url ciphertext — and still be bytes the relay invented. It
+parses. Its header `seq` is authenticated by nothing at all.
+
+So the boundary is **accepted vs. not accepted**, not *parsed vs. not parsed*. A failed
+parse and a failed tag are the same case for this rule, and a receiver MUST treat them
+identically: both may advance the cursor, and both are bounded by `latest`. Drawing the
+carve-out at the parse instead left a parseable-but-unopenable element covered by neither
+rule — no authenticated `seq`, so the MUST forbade advancing; not a parse failure, so the
+carve-out did not reach it — which read literally is the permanent stall §6.2 forbids in as
+many words, reachable by serving one crafted element. That was a defect in this section,
+not in the receivers, and this is its correction.
+
+**Why bounded, rather than free or refused.** The relay controls this body (§1: blind, but
+not trusted). Left free, one element with no authenticated `seq` carrying `"seq": 1000000`
+walks the cursor
+past every envelope between the receiver's position and that value — and since the cursor
+never moves backwards, those envelopes are never requested again. That is **history
+truncation performed without decrypting anything**, by a party that cannot read a byte of
+what it just removed from the receiver's view.
+
+Refusing to advance at all is the other wrong answer, and it is wrong for a reason this
+document already states: one corrupt byte would then stall the direction permanently, which
+§6.2 forbids in as many words.
+
+The bound settles it because **the two failure modes are not symmetric**. A stall is
+recoverable and loud: the cursor stays put, `latest` still exceeds it, the receiver still
+reports more available, and the moment the relay serves a readable page the stream resumes
+exactly where it stopped. Truncation is neither — it is silent, it presents as a healthy
+fully-caught-up sync, and it is permanent. **When a receiver must choose between the two,
+it stalls.**
+
+Bounding by `latest` specifically — rather than by some new constant — is what denies the
+relay a *second*, independent lever. `latest` is already the number that decides "am I
+caught up" (§2.1) and already the one §6.1 reconciles a restarted counter against. Capping
+the unauthenticated path there means an unauthenticated element gains the relay no reach it did
+not already have through a field this document **requires** it to publish, and an honest
+relay never notices the rule at all: its `latest` covers every row it serves, so the bound
+is a no-op on every conforming page.
+
+**What the bound does and does not buy, stated precisely, because the difference is the
+whole value.** It does **not** stop a hostile relay from skipping a receiver past envelopes
+the relay *currently holds*: `latest` is its own claim, and a relay willing to lie about an
+element's `seq` can serve a page whose `latest` already covers what it wants withheld. It
+did not need an unauthenticated element for that — it could simply not serve those rows. What the
+bound stops is the part that outlives the attack: an **unbounded** claim pushes the cursor
+into the *future*, past sequence numbers that have not been issued yet, so every envelope
+the engine publishes from now until that number is discarded on arrival by a receiver that
+believes it is ahead of them. One unauthenticated element becomes permanent, silent, forward-going
+data loss against an engine and a relay that are both behaving. The bound confines the
+damage to envelopes that exist at the moment of the attack, which is the same set the relay
+could already withhold, and leaves the stream correct for everything issued afterwards.
 
 ---
 
@@ -502,7 +1109,7 @@ contain plaintext content.
 | --- | --- |
 | `version_unsupported` | `v` was not 1. |
 | `replay_rejected` | `seq` was not greater than the highest accepted. |
-| `decrypt_failed` | AEAD tag check failed — wrong key, tampering, or corruption. |
+| `decrypt_failed` | AEAD tag check failed — wrong key, tampering, or corruption. **Also every structural rejection**: unknown top-level field, padded base64, wrong nonce length, unparseable framing (§3). There is deliberately no separate `malformed` code. |
 | `unknown_kind` | `kind` not recognised, or reserved-but-unimplemented. |
 | `key_unknown` | `key_id` is not the active pairing's key. Checked **before** decryption (§5.3). |
 | `bad_signature` | `device_sig` missing or invalid on a state-changing kind. |
@@ -557,6 +1164,12 @@ auditable rather than silent:
 | This doc (P0) | `doc_edit` body carries `device_sig` | field removed; the envelope `sig` covers it (§3, §5.4) |
 | This doc (P0/§4.3) | `entitlement` body `{voucher}` (option-A entitlement Worker) | `{original_json, signature}` — the engine verifies Google Play's signature (gate P0-WORKER option C; §4.3.2, P4) |
 | This doc (§4.3.1) | application summary `{id,state,company,title,score}` | adds nullable `outcome` — Pro outcome tracking, absent when unset/non-Pro (§4.3.1, P4 §2.5) |
+| This doc (P0/§3.1) | "An envelope MUST NOT exceed **1 MiB** total" | the cap is on the **decoded ciphertext**, which is what both shipping receivers always measured; the relay's own limits are stated separately and are stricter (§3.1, S5 / PQ-A2-1) |
+| This doc (§3) | structural rejection had no named error code | structural rejection reports `decrypt_failed`; no `malformed` code is added, so the observable set does not grow (§3, §7.2, S5 / PQ-A2-2) |
+| This doc (§4.3) | `entitlement_ack` listed with no body | body is `{product_id, acknowledged_at, order_id?}` (§4.3.3, S5 / gate PQ-A6-1, default-proceed) |
+| This doc (§4.3) | `pull_request` — "re-publish **from a sequence point**" | v1 `pull_request` is a whole-snapshot request; `since_seq` is **reserved**, MUST be `0`, MUST be ignored, and MUST NOT be a rejection reason (§4.3.4, S4 / PQ-S4-1 option (a)) |
+| This doc (§6.2) | "treat a large gap as a signal to request a fresh `snapshot`" — no threshold | unchanged in substance; §6.2 now states explicitly that the threshold is **receiver policy** and that v1 pins no number, since only the asking side ever has an opinion (§6.2, S4 / PQ-S4-1) |
+| This doc (§6) | the **transport cursor** was not described at all — §6.2 governs `highest_accepted` only, so how far an *unparseable* element may move a receiver's `since` was unstated | new **§6.4**: the cursor advances only on a `seq` recovered from the sealed bytes, except that an element failing the §3 parse MAY advance it by its claimed `seq` **bounded by the page's `latest`** — a stall is recoverable, truncation is not (§6.4, S4 / PQ-S4-3) |
 
 `CareerSeeker-Spec.md` §7.2 is amended in the same commit that introduces this file. Two
 documents disagreeing about a wire format is precisely the drift `CLAUDE.md` exists to
@@ -602,9 +1215,85 @@ Invalid vectors set `"valid": false` and name the required rejection in `expect_
 The suite MUST include at least: sequence regression (`replay_rejected`), truncated tag
 (`decrypt_failed`), flipped AAD field (`decrypt_failed`), unknown key id, unknown payload
 kind (`unknown_kind`), reserved-kind-in-v1 (`unknown_kind`), version mismatch
-(`version_unsupported`), padded base64 (rejected), and an oversized envelope (`too_large`).
+(`version_unsupported`), padded base64 (rejected), an oversized envelope (`too_large`), and
+an **unknown top-level field** (`decrypt_failed`, §3). Added in S5 (PQ-A2-3): the
+unknown-field rule had been normative since P1 with no vector behind it, because a vector
+can only be added once *both* consumers can reject one — see §10.3.
 
 A conforming implementation decrypts every `valid` vector to the stated plaintext, and
 rejects every invalid one **with the stated code**. Rejecting for the wrong reason is a
 failure: it usually means a check fired earlier than intended and the real check is
 untested.
+
+#### 10.1 The `type` field, and why a new kind gets its own
+
+Every vector carries a `type`. Vectors of type `envelope` go through the generic
+round-trip, AAD-tampering and receiver loops in **both** consumers; `pairing`,
+`entitlement` and `entitlement_ack` vectors are read by dedicated sections instead. Both
+consumers filter on the same string (`tests/SyncHarness/Program.cs:62`,
+`core/.../ProtocolVectorsTest.kt:55`).
+
+That partition is load-bearing, not cosmetic. The `envelope` suite is fed through a
+**single receiver in sequence order** — valid vectors first, then invalid ones — so its
+`seq` space is fully packed by design: the valid `e2p` vectors occupy 1–4 and every invalid
+`e2p` vector sits above them, relying on the high-water mark staying at 4. Adding a new
+*valid* `e2p` envelope vector would raise that mark past `invalid-truncated-tag` (seq 5)
+and `invalid-unknown-kind` (seq 8), whose expected `decrypt_failed` and `unknown_kind`
+would silently become `replay_rejected` — the replay check runs before both
+(`src/Sync/EnvelopeReceiver.cs:53`). There is no integer that avoids this: the vector would
+need `seq > 4` to be accepted and `seq < 5` to be harmless.
+
+So a new payload kind is introduced under its **own `type`**, consumed by a dedicated
+section, exactly as `entitlement` was. Renumbering existing vectors is not an option: their
+bytes are a published wire artifact that a second repository vendors at a pinned commit.
+
+#### 10.2 `entitlement-ack`: asserted by the engine, transcribed by the phone
+
+The `entitlement-ack` and `entitlement-ack-no-order-id` vectors (S5) pin §4.3.3's body. The
+pair exists so that `order_id`'s optionality is pinned by an artifact rather than by prose:
+one vector carries it, one does not, and both are valid.
+
+**The engine asserts against these files directly** (S5, `tests/SyncHarness/Program.cs`).
+`SyncPayloads.EntitlementAck` must reproduce each vector's plaintext **byte for byte**, and
+re-sealing that plaintext under the vector's own key and nonce must reproduce
+`ciphertext_b64u` exactly — so an ack this engine emits is not merely field-compatible with
+the published artifact, it *is* those bytes. Byte equality is the assertion deliberately:
+a field-by-field check passes while the two implementations disagree about field order, or
+about whether an absent `order_id` is an omitted key or a literal `null`, which is precisely
+what the second vector exists to catch.
+
+**The phone does not yet read these files.** `EntitlementAckApplier` is implemented and
+tested, but `EntitlementAckTest` **transcribes** the two bodies verbatim into the test rather
+than loading the vectors: the android repo vendors this directory pinned at a main-repo
+commit, and the ack vectors postdate that pin. That is a real asymmetry and is recorded here
+rather than glossed — the engine's conformance is vector-driven, the phone's is a
+transcription that a future re-vendor must convert into the same vector-driven form. Until
+it does, these vectors are evidence about **one** implementation, not two, and the
+cross-implementation property the rest of §10 relies on does not yet hold for this kind.
+
+#### 10.3 The wire-parse layer, and why `invalid-unknown-field` could not exist before S5
+
+§3's "unknown top-level fields MUST be rejected" was normative from P1 and enforced on
+**one side only**. The phone parses wire JSON strictly (`core/.../EnvelopeJson.kt`); the
+engine had no inbound wire parser at all — `ReceivedEnvelope` was a record that callers
+built field-by-field from already-parsed JSON, reading the nine names it wanted and
+dropping the rest. An envelope carrying a tenth field therefore **decrypted and was
+accepted** by the engine and rejected by the phone.
+
+That asymmetry is why the vector could not simply be added: a shared vector is only
+enforceable if both consumers can fail it, and one of them would have gone green by
+accepting the envelope the vector exists to refuse. S5 closes it with
+`src/Sync/EnvelopeJson.cs`, the C# counterpart of the phone's parser, and routes
+`SyncHarness`'s envelope loops through it as wire text rather than field-by-field.
+
+Two consequences worth stating, because both are observable:
+
+1. **Structural rejection happens before the version check** in both implementations, so a
+   v2 sender that bumps `v` *and* adds a field is told `decrypt_failed` and cannot learn
+   that the version is the problem. That is a diagnosability cost, not a safety one; the
+   two implementations agree, which is the property that matters here.
+2. **A permissive parser would not merely admit one envelope.** Accepting it also commits
+   its sequence number, and §10.1 explains what that does to a suite whose `seq` space is
+   packed by design: the high-water mark moves and later invalid vectors start reporting
+   `replay_rejected` instead of their own codes. Removing the check makes
+   `invalid-unknown-field` report "accepted" and takes two further assertions with it.

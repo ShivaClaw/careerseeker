@@ -217,6 +217,24 @@ Console.WriteLine("\n[ Beta onboarding local web flow ]");
 }
 
 Console.WriteLine("\n[ confirmed full-data deletion ]");
+// This section is Windows-bound, and until now it took the whole harness down with it off Windows.
+// FullDataDeletion.ResolveAllowedWorkspace derives the volume root with Path.GetPathRoot and trims
+// its trailing separator (FullDataDeletion.cs:79-81). On Windows "C:\" trims to "C:" and the guard
+// compares two real paths; on Linux the root is "/", which trims to the empty string, so the
+// IsNullOrWhiteSpace arm fires and EVERY workspace is refused as a volume root. That refusal is
+// safe -- it fails closed, which is the right direction for a deletion guard -- but it threw out of
+// PlanInstalledWorkspace on the first line of this block and aborted the process, so a cloud
+// session reached 17 of this file's 237 assertions and the other 220 were never executed. The
+// product is Windows-only and this guard is correct there, so the fix belongs here rather than in
+// the deletion code: skip the platform-bound block, say so out loud, and let the rest of the file
+// run. The Windows path is untouched, so the pinned offline total does not move.
+if (!OperatingSystem.IsWindows())
+{
+    Console.WriteLine("  SKIP  6 full-data-deletion assertions: FullDataDeletion resolves a POSIX "
+        + "path root to \"\" and refuses every workspace as a volume root (B-10). Windows-only "
+        + "section; the remaining sections below now run on this platform.");
+}
+else
 {
     var installedPlan = FullDataDeletion.PlanInstalledWorkspace();
     var expectedInstalled = Path.GetFullPath(Path.Combine(
@@ -2477,6 +2495,21 @@ Console.WriteLine("\n[ Pro outcome funnel windows 7/30/90d (P4 §2.5c) ]");
 }
 
 // ── sync pairing vault (S2): the persistence --sync needs to survive a restart ──
+// Genuinely Windows-bound, unlike the block above: SyncPairingVault is DPAPI-backed
+// (SyncPairingVault.cs:78 -> DpapiSecretVault.Save -> WindowsDpapi.Protect), and DPAPI is a
+// Windows API with no POSIX equivalent -- P/Invoking crypt32 off Windows throws DllNotFoundException,
+// which is correct. So these seven stay unrunnable here and the skip is honest rather than a gap to
+// engineer away. What matters is that it no longer aborts the process: the [ pair page ] section
+// below is deliberately DPAPI-free (its host half lives in Program.cs precisely so the dashboard
+// half stays harness-testable) and was being lost to this exception rather than to any limit of
+// its own.
+if (!OperatingSystem.IsWindows())
+{
+    Console.WriteLine("\n[ sync pairing vault ]");
+    Console.WriteLine("  SKIP  7 vault assertions: DPAPI (crypt32) is Windows-only, so the vault "
+        + "cannot round-trip here. Windows CI covers these (B-10).");
+}
+else
 {
     Console.WriteLine("\n[ sync pairing vault ]");
     var vaultDir = Path.Combine("tmp", "engine-harness-sync-vault");
