@@ -379,7 +379,7 @@ Invoke-Step "Alpha workspace initializer dry run" {
 }
 
 Invoke-Step "Source-control hygiene smoke" {
-    $gitignore = Get-Content -LiteralPath ".gitignore" -Raw
+    $gitignore = Get-Content -LiteralPath ".gitignore" -Raw -Encoding UTF8
     Assert-Contains $gitignore @(
         'secrets/',
         '.appdata/',
@@ -460,7 +460,7 @@ Invoke-Step "Full-data deletion confirmation preview" {
 }
 
 Invoke-Step "Confirmed full-data deletion source and copy smoke" {
-    $deletion = Get-Content -LiteralPath "src/Engine/FullDataDeletion.cs" -Raw
+    $deletion = Get-Content -LiteralPath "src/Engine/FullDataDeletion.cs" -Raw -Encoding UTF8
     Assert-Contains $deletion @(
         'DELETE ALL CAREERSEEKER DATA AT ',
         'PlanInstalledWorkspace()',
@@ -470,7 +470,7 @@ Invoke-Step "Confirmed full-data deletion source and copy smoke" {
         'TargetExistsAfter: false'
     ) "src/Engine/FullDataDeletion.cs"
 
-    $program = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    $program = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $program @(
         'explicitMode?.Equals("delete-all-data"',
         'status: NOT DELETED (separate confirmation required)',
@@ -478,7 +478,7 @@ Invoke-Step "Confirmed full-data deletion source and copy smoke" {
         'target exists after:'
     ) "src/Engine/Program.cs"
 
-    $engineHarness = Get-Content -LiteralPath "tests/EngineHarness/Program.cs" -Raw
+    $engineHarness = Get-Content -LiteralPath "tests/EngineHarness/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $engineHarness @(
         'delete-all-data rejects a mismatched confirmation without touching data',
         'delete-all-data refuses a volume root',
@@ -486,7 +486,7 @@ Invoke-Step "Confirmed full-data deletion source and copy smoke" {
         'repeat deletion honestly reports an already absent workspace'
     ) "tests/EngineHarness/Program.cs"
 
-    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw
+    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw -Encoding UTF8
     Assert-Contains $positioning @(
         '| D10 | “You can delete all local data.” | PROVEN for installed workspace |',
         '`src/Engine/FullDataDeletion.cs:24`',
@@ -514,7 +514,7 @@ Invoke-Step "Docs-site trust copy smoke" {
         "docs-site/download.md",
         "docs-site/download.html"
     )) {
-        $content = Get-Content -LiteralPath $relative -Raw
+        $content = Get-Content -LiteralPath $relative -Raw -Encoding UTF8
         $snippets = $trustSnippets
         Assert-Contains $content $snippets $relative
         if ($relative -like "*privacy*") {
@@ -563,12 +563,12 @@ Invoke-Step "Docs-site trust copy smoke" {
         }
     }
 
-    $index = Get-Content -LiteralPath "docs-site/index.html" -Raw
+    $index = Get-Content -LiteralPath "docs-site/index.html" -Raw -Encoding UTF8
     Assert-Contains $index @("download.html", "privacy.html", "support.html", "autonomy-contract.html") "docs-site/index.html"
 }
 
 Invoke-Step "R5 distribution copy smoke" {
-    $changelog = Get-Content -LiteralPath "docs/Beta-Changelog.md" -Raw
+    $changelog = Get-Content -LiteralPath "docs/Beta-Changelog.md" -Raw -Encoding UTF8
     Assert-Contains $changelog @(
         "7018ff9",
         "CareerSeeker-alpha2-bridge-win-x64-2026-07-24-7018ff9.zip",
@@ -579,7 +579,7 @@ Invoke-Step "R5 distribution copy smoke" {
         "No public Beta artifact or download URL has been published"
     ) "docs/Beta-Changelog.md"
 
-    $migration = Get-Content -LiteralPath "docs/Alpha-to-Beta-Migration.md" -Raw
+    $migration = Get-Content -LiteralPath "docs/Alpha-to-Beta-Migration.md" -Raw -Encoding UTF8
     Assert-Contains $migration @(
         "Export-AlphaEvidencePackage.ps1",
         "Import-AlphaPackage.ps1",
@@ -597,7 +597,7 @@ Invoke-Step "R5 distribution copy smoke" {
         "production-ready"
     ) "R5 distribution documents"
 
-    $runbook = Get-Content -LiteralPath "docs/Beta-Runbook.md" -Raw
+    $runbook = Get-Content -LiteralPath "docs/Beta-Runbook.md" -Raw -Encoding UTF8
     Assert-Contains $runbook @(
         "docs-site/download.md",
         "https://careerseeker.app/download/",
@@ -617,13 +617,13 @@ Invoke-Step "Trust wording smoke" {
         "docs-site/download.md",
         "docs-site/download.html"
     )) {
-        $content = Get-Content -LiteralPath $relative -Raw
+        $content = Get-Content -LiteralPath $relative -Raw -Encoding UTF8
         Assert-DoesNotContain $content @("without any send capability") $relative
     }
 }
 
 Invoke-Step "Service-grade scheduled task source smoke" {
-    $manager = Get-Content -LiteralPath "scripts/Manage-AlphaDashboardTask.ps1" -Raw
+    $manager = Get-Content -LiteralPath "scripts/Manage-AlphaDashboardTask.ps1" -Raw -Encoding UTF8
     Assert-Contains $manager @(
         '"Pause", "Resume"',
         '-MultipleInstances IgnoreNew',
@@ -634,7 +634,7 @@ Invoke-Step "Service-grade scheduled task source smoke" {
         'Local database, vaults, logs, and artifacts were preserved'
     ) "scripts/Manage-AlphaDashboardTask.ps1"
 
-    $supervisor = Get-Content -LiteralPath "scripts/Start-BetaEngineHost.ps1" -Raw
+    $supervisor = Get-Content -LiteralPath "scripts/Start-BetaEngineHost.ps1" -Raw -Encoding UTF8
     Assert-Contains $supervisor @(
         '"--service-host"',
         'SupervisorSelfTest',
@@ -645,7 +645,7 @@ Invoke-Step "Service-grade scheduled task source smoke" {
         'restart $restart in $delay seconds'
     ) "scripts/Start-BetaEngineHost.ps1"
 
-    $hostSource = Get-Content -LiteralPath "src/Engine/ServiceGradeHost.cs" -Raw
+    $hostSource = Get-Content -LiteralPath "src/Engine/ServiceGradeHost.cs" -Raw -Encoding UTF8
     Assert-Contains $hostSource @(
         'FileShare.None',
         'SingleInstanceLease',
@@ -655,7 +655,7 @@ Invoke-Step "Service-grade scheduled task source smoke" {
 }
 
 Invoke-Step "Public README and harness count smoke" {
-    $readme = Get-Content -LiteralPath "README.md" -Raw
+    $readme = Get-Content -LiteralPath "README.md" -Raw -Encoding UTF8
     Assert-Contains $readme @(
         'local-first Windows L1 Drafts beta',
         'one unsigned `win-x64` MSIX',
@@ -677,7 +677,7 @@ Invoke-Step "Public README and harness count smoke" {
         'native Windows service/tray packaging'
     ) "README.md"
 
-    $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
+    $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw -Encoding UTF8
     # The harness-count rows live in a Markdown table whose columns may be alignment-padded (a linter
     # re-pads them); collapse runs of spaces so the row assertions tolerate that padding.
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
@@ -700,7 +700,7 @@ Invoke-Step "Public README and harness count smoke" {
         '| SyncHarness | 134 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
-    $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
+    $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw -Encoding UTF8
     Assert-Contains $engineReadme @(
         '| SyncHarness | 134 |',
         '| **Total** | **816** |',
@@ -713,7 +713,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Native SCM Windows Service and tray UI are not built'
     ) "src/Engine/README.md"
 
-    $engineCore = Get-Content -LiteralPath "src/Engine/EngineCore.cs" -Raw
+    $engineCore = Get-Content -LiteralPath "src/Engine/EngineCore.cs" -Raw -Encoding UTF8
     Assert-Contains $engineCore @(
         'public long Scored => Interlocked.Read(ref _scored);',
         'public long ActEligible => Interlocked.Read(ref _actEligible);',
@@ -721,13 +721,13 @@ Invoke-Step "Public README and harness count smoke" {
         '_counters.IncActEligible();'
     ) "src/Engine/EngineCore.cs"
 
-    $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $engineProgram @(
         'Console.WriteLine($"  scored: {counters.Scored}");',
         'Console.WriteLine($"  act-eligible: {counters.ActEligible}");'
     ) "src/Engine/Program.cs"
 
-    $storeParity = Get-Content -LiteralPath "tests/StoreParityHarness/Program.cs" -Raw
+    $storeParity = Get-Content -LiteralPath "tests/StoreParityHarness/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $storeParity @(
         '--migration-output',
         'SqliteOpenMode.ReadOnly',
@@ -735,7 +735,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Migration output already exists; refusing to overwrite it.'
     ) "tests/StoreParityHarness/Program.cs"
 
-    $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
+    $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw -Encoding UTF8
     Assert-Contains $handoff @(
         'Pinned offline verifier: **816 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
@@ -749,7 +749,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Local evidence export/import still uses ZIP'
     ) "docs/External-Audit-Handoff.md"
 
-    $calibration = Get-Content -LiteralPath "docs/Scoring-Calibration.md" -Raw
+    $calibration = Get-Content -LiteralPath "docs/Scoring-Calibration.md" -Raw -Encoding UTF8
     Assert-Contains $calibration @(
         'strictly nested profiles with',
         '0/120 with both richer supersets',
@@ -759,7 +759,7 @@ Invoke-Step "Public README and harness count smoke" {
         '230 passed, 0 failed'
     ) "docs/Scoring-Calibration.md"
 
-    $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw
+    $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw -Encoding UTF8
     Assert-Contains $historicalAudit @(
         'Current-status note, 2026-07-20',
         'this is preserved as historical audit input, not as current status for',
@@ -770,7 +770,7 @@ Invoke-Step "Public README and harness count smoke" {
         'historical live provider evidence exists'
     ) "docs/CareerSeeker-Project-Summary.md"
 
-    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw
+    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw -Encoding UTF8
     Assert-Contains $positioning @(
         'Public Claims Register',
         '`**UNPROVEN**`',
@@ -780,7 +780,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Updating this register never authorizes a deploy.'
     ) "docs/Positioning.md"
 
-    $betaRunbook = Get-Content -LiteralPath "docs/Beta-Runbook.md" -Raw
+    $betaRunbook = Get-Content -LiteralPath "docs/Beta-Runbook.md" -Raw -Encoding UTF8
     Assert-Contains $betaRunbook @(
         'single ordered Sunday list',
         'Deploy the truth copy',
@@ -792,7 +792,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Anything not executed remains `PENDING`'
     ) "docs/Beta-Runbook.md"
 
-    $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $engineProgram @(
         'draft-job --job-id 123',
         '[--secrets secrets/env.secrets]',
@@ -800,13 +800,13 @@ Invoke-Step "Public README and harness count smoke" {
         '[--gate-semantic-candidates 3]'
     ) "src/Engine/Program.cs"
 
-    $tailorModel = Get-Content -LiteralPath "src/Tailor/GatewayTailorModel.cs" -Raw
+    $tailorModel = Get-Content -LiteralPath "src/Tailor/GatewayTailorModel.cs" -Raw -Encoding UTF8
     Assert-Contains $tailorModel @(
         'Do not quote, paraphrase,',
         'It is not candidate evidence.'
     ) "src/Tailor/GatewayTailorModel.cs"
 
-    $packaging = Get-Content -LiteralPath "src/Dispatcher/Packaging.cs" -Raw
+    $packaging = Get-Content -LiteralPath "src/Dispatcher/Packaging.cs" -Raw -Encoding UTF8
     Assert-Contains $packaging @(
         'sb.AppendLine("- " + step);',
         'Review the form, complete any remaining fields, and submit when ready.'
@@ -818,14 +818,14 @@ Invoke-Step "Public README and harness count smoke" {
         throw "src/Dispatcher/Packaging.cs overclaims ATS auto-fill in L1 manual draft instructions."
     }
 
-    $dispatchContracts = Get-Content -LiteralPath "src/Dispatcher/Dispatch.cs" -Raw
+    $dispatchContracts = Get-Content -LiteralPath "src/Dispatcher/Dispatch.cs" -Raw -Encoding UTF8
     Assert-Contains $dispatchContracts @(
         'string SubjectTemplate = "Application for {title} at {company}"'
     ) "src/Dispatcher/Dispatch.cs"
 }
 
 Invoke-Step "Local API security spec smoke" {
-    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw -Encoding UTF8
     Assert-Contains $spec @(
         'Local API security is load-bearing',
         'loopback only',
@@ -837,7 +837,7 @@ Invoke-Step "Local API security spec smoke" {
 }
 
 Invoke-Step "L2 Gmail relay scope smoke" {
-    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw -Encoding UTF8
     Assert-Contains $spec @(
         'any email digest is a separately scoped relay feature',
         'separately scoped email digest only if that L2 relay channel has been enabled',
@@ -853,7 +853,7 @@ Invoke-Step "L2 Gmail relay scope smoke" {
 }
 
 Invoke-Step "LLM provider registry smoke" {
-    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw -Encoding UTF8
     Assert-Contains $spec @(
         'Anthropic/Gemini (Google) API key'
     ) "docs/CareerSeeker-Spec.md"
@@ -861,7 +861,7 @@ Invoke-Step "LLM provider registry smoke" {
         'Anthropic/OpenAI API key'
     ) "docs/CareerSeeker-Spec.md"
 
-    $gatewayAddendum = Get-Content -LiteralPath "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md" -Raw
+    $gatewayAddendum = Get-Content -LiteralPath "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md" -Raw -Encoding UTF8
     Assert-Contains $gatewayAddendum @(
         'Anthropic / Gemini (Google) key'
     ) "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md"
@@ -869,7 +869,7 @@ Invoke-Step "LLM provider registry smoke" {
         'Anthropic / OpenAI / Google key'
     ) "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md"
 
-    $routing = Get-Content -LiteralPath "src/Gateway/Routing.cs" -Raw
+    $routing = Get-Content -LiteralPath "src/Gateway/Routing.cs" -Raw -Encoding UTF8
     Assert-Contains $routing @(
         'const string pricingAsOf = "2026-07-23"',
         'gemini-3.1-flash-lite',
@@ -882,7 +882,7 @@ Invoke-Step "LLM provider registry smoke" {
 }
 
 Invoke-Step "Alpha 2.0 provider onboarding smoke" {
-    $setupBridge = Get-Content -LiteralPath "src/Engine/AlphaSetupBridge.cs" -Raw
+    $setupBridge = Get-Content -LiteralPath "src/Engine/AlphaSetupBridge.cs" -Raw -Encoding UTF8
     Assert-Contains $setupBridge @(
         'AI resume provider',
         'Gemini',
@@ -902,7 +902,7 @@ Invoke-Step "Alpha 2.0 provider onboarding smoke" {
         'Send this resume to Gemini'
     ) "src/Engine/AlphaSetupBridge.cs"
 
-    $providerDiagnostics = Get-Content -LiteralPath "src/Engine/AlphaProviderDiagnostics.cs" -Raw
+    $providerDiagnostics = Get-Content -LiteralPath "src/Engine/AlphaProviderDiagnostics.cs" -Raw -Encoding UTF8
     Assert-Contains $providerDiagnostics @(
         'ACCESS_TOKEN_TYPE_UNSUPPORTED',
         'HttpStatusCode.Unauthorized',
@@ -913,14 +913,14 @@ Invoke-Step "Alpha 2.0 provider onboarding smoke" {
 }
 
 Invoke-Step "Beta onboarding local web flow source smoke" {
-    $program = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    $program = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $program @(
         'HasFlag("--console")',
         'BetaSetupWebFlow.RunAsync',
         'setup --console'
     ) "src/Engine/Program.cs"
 
-    $webSetup = Get-Content -LiteralPath "src/Engine/BetaSetupWebFlow.cs" -Raw
+    $webSetup = Get-Content -LiteralPath "src/Engine/BetaSetupWebFlow.cs" -Raw -Encoding UTF8
     Assert-Contains $webSetup @(
         'CareerSeeker runs locally. It creates Gmail drafts only. It never sends applications.',
         'Locally extracted resume text is sent to the selected AI provider only after explicit consent.',
@@ -940,7 +940,7 @@ Invoke-Step "Beta onboarding local web flow source smoke" {
         '--sync'
     ) "src/Engine/BetaSetupWebFlow.cs"
 
-    $package = Get-Content -LiteralPath "scripts/Package-AlphaRelease.ps1" -Raw
+    $package = Get-Content -LiteralPath "scripts/Package-AlphaRelease.ps1" -Raw -Encoding UTF8
     Assert-Contains $package @(
         'ten-step local browser flow',
         'accept, edit, and drop controls',
@@ -949,7 +949,7 @@ Invoke-Step "Beta onboarding local web flow source smoke" {
 }
 
 Invoke-Step "Code-signing guidance smoke" {
-    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw -Encoding UTF8
     Assert-Contains $spec @(
         'prefer Azure Artifact Signing',
         'EV certificates are no longer a SmartScreen shortcut',
@@ -957,7 +957,7 @@ Invoke-Step "Code-signing guidance smoke" {
     ) "docs/CareerSeeker-Spec.md"
     Assert-DoesNotContain $spec @('Azure Artifact Signing/OV/EV') "docs/CareerSeeker-Spec.md"
 
-    $signScript = Get-Content -LiteralPath "scripts/Sign-BetaRelease.ps1" -Raw
+    $signScript = Get-Content -LiteralPath "scripts/Sign-BetaRelease.ps1" -Raw -Encoding UTF8
     Assert-Contains $signScript @(
         '[switch] $ValidateOnly',
         'TimestampUrl must be an absolute HTTPS URL.',
@@ -965,7 +965,7 @@ Invoke-Step "Code-signing guidance smoke" {
         'verify /pa /all'
     ) "scripts/Sign-BetaRelease.ps1"
 
-    $packageTest = Get-Content -LiteralPath "scripts/Test-BetaReleasePackage.ps1" -Raw
+    $packageTest = Get-Content -LiteralPath "scripts/Test-BetaReleasePackage.ps1" -Raw -Encoding UTF8
     Assert-Contains $packageTest @(
         '[string] $ExpectedPublisher',
         '[switch] $RequireSigned',
@@ -974,7 +974,7 @@ Invoke-Step "Code-signing guidance smoke" {
         '@("verify", "/pa", "/all", "/v", $fullPackage)'
     ) "scripts/Test-BetaReleasePackage.ps1"
 
-    $matrixScript = Get-Content -LiteralPath "scripts/New-BetaVmInstallMatrix.ps1" -Raw
+    $matrixScript = Get-Content -LiteralPath "scripts/New-BetaVmInstallMatrix.ps1" -Raw -Encoding UTF8
     Assert-Contains $matrixScript @(
         'mode: validation only; no install, signature check, or output write',
         'VM07',
@@ -984,7 +984,7 @@ Invoke-Step "Code-signing guidance smoke" {
         '-RequireSigned'
     ) "scripts/New-BetaVmInstallMatrix.ps1"
 
-    $packageRunbook = Get-Content -LiteralPath "docs/Beta-Windows-Package-Runbook.md" -Raw
+    $packageRunbook = Get-Content -LiteralPath "docs/Beta-Windows-Package-Runbook.md" -Raw -Encoding UTF8
     Assert-Contains $packageRunbook @(
         'Offline production-flow validation',
         '-ExpectedPublisher',
@@ -992,7 +992,7 @@ Invoke-Step "Code-signing guidance smoke" {
         'eleven `PENDING` steps'
     ) "docs/Beta-Windows-Package-Runbook.md"
 
-    $humanQueue = Get-Content -LiteralPath "docs/autonomy/HUMAN-QUEUE.md" -Raw
+    $humanQueue = Get-Content -LiteralPath "docs/autonomy/HUMAN-QUEUE.md" -Raw -Encoding UTF8
     Assert-Contains $humanQueue @(
         'az artifact-signing certificate-profile create',
         'Artifact Signing Certificate Profile Signer',
@@ -1054,14 +1054,14 @@ Invoke-Step "Code-signing guidance smoke" {
 }
 
 Invoke-Step "Per-user storage guidance smoke" {
-    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw -Encoding UTF8
     Assert-Contains $spec @(
         '%LOCALAPPDATA%\CareerSeeker\seeker.db',
         'must not default to a machine-global `%ProgramData%` path',
         'per-user DPAPI vaults'
     ) "docs/CareerSeeker-Spec.md"
 
-    $roadmap = Get-Content -LiteralPath "docs/CareerSeeker-Integration-Windows-Roadmap.md" -Raw
+    $roadmap = Get-Content -LiteralPath "docs/CareerSeeker-Integration-Windows-Roadmap.md" -Raw -Encoding UTF8
     Assert-Contains $roadmap @(
         'explicit per-user identity/task model',
         '%LOCALAPPDATA%\CareerSeeker\seeker.db',
@@ -1070,7 +1070,7 @@ Invoke-Step "Per-user storage guidance smoke" {
 }
 
 Invoke-Step "Alpha secrets checklist smoke" {
-    $checklist = Get-Content -LiteralPath "docs/CareerSeeker-Alpha-Build-Checklist.md" -Raw
+    $checklist = Get-Content -LiteralPath "docs/CareerSeeker-Alpha-Build-Checklist.md" -Raw -Encoding UTF8
     Assert-Contains $checklist @(
         'Suggested entries for the current alpha verification path:',
         'ANTHROPIC_API_KEY=...',
@@ -1084,7 +1084,7 @@ Invoke-Step "Alpha secrets checklist smoke" {
         'CAREERSEEKER_GMAIL_TEST_EMAIL=...'
     ) "docs/CareerSeeker-Alpha-Build-Checklist.md"
 
-    $providerConnect = Get-Content -LiteralPath "scripts/Connect-AlphaProviders.ps1" -Raw
+    $providerConnect = Get-Content -LiteralPath "scripts/Connect-AlphaProviders.ps1" -Raw -Encoding UTF8
     Assert-Contains $providerConnect @(
         'function Test-SecretValue',
         'return -not [string]::IsNullOrWhiteSpace($value)',
