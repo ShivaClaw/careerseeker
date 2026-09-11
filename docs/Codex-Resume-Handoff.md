@@ -1,6 +1,43 @@
-# Codex Resume Handoff
+﻿# Codex Resume Handoff
 
-Updated: 2026-08-12
+Updated: 2026-09-11
+
+## 2026-09-11 (Fable 5, Brandon-authorized burn-down) — the S-series LANDED; queue 18 -> 2
+
+Never trust a SHA here — derive. Executed under Brandon's explicit merge authorization, reconciled
+against the loop's RETURN-DAY.md landing plan and the 2026-09-10 external audit (ASTRA, `AUDIT.md`).
+
+- **main @ `11bb1f5` (PR #59), CI green, offline pin 816** (was 611). Landed as reviewed units:
+  #32, #34, #35, #54-#57 individually; then #37, #38, #39, #45, #46, #47, #49, #33, #36, #48, #50,
+  #51, #52 via the `claude/s5-s6-integration` branch — one integration commit per PR with the pin
+  arithmetic in each message (611+12=623 ... 812+4=816), every step's changed harnesses measured
+  before commit. Eight contained PRs were closed-as-landed with `merge-base --is-ancestor` proof
+  (GitHub auto-flips only five). 26 landed branches deleted from origin.
+- **#53 closed as superseded** (landing plan §11.2/§11.4: duplicate incompatible PushOutcome vs the
+  landed RelayPushResult; its unique guard was already rescued into #54). Branch kept.
+- **Stacked-PR trap recorded:** merging a parent PR with `--delete-branch` CLOSES its children
+  instead of retargeting them. Recovery: restore the branch tip from the merge commit's second
+  parent, reopen, retarget to main, re-delete. Never `--delete-branch` mid-stack.
+- **Two toolchain defects found and fixed in-branch:** (1) integration tooling stripped the
+  verifier's BOM and Windows PowerShell 5.1 re-reads compounded mojibake into 14 lines — restored
+  byte-exactly from clean git twins (`9b1f801`); (2) the doc-smoke was shell-dependent — BOM-less
+  docs read as CP-1252 under 5.1 while pwsh CI read UTF-8, so a curly-quote assertion could fail
+  only locally; all 49 doc reads now pass `-Encoding UTF8` (`b7b5110`).
+- **ASTRA audit reconciliation:** F01/F02 fixed on draft **PR #58** (re-derived onto this main,
+  pin 816+9=825, verifier green locally, awaiting Codex — never self-merge). F06 + F07 landed
+  (#34; #32/#33/#35). F09's transport/component gaps landed (#37-#49); the residual is wiring
+  `BuildSyncBridge`/pump into the production `run` host + a real Android app shell — see
+  `docs/Composition-Root-Decision.md`. F03 fix `e97769e` exists on `claude/android-a0-probe`,
+  unintegrated. F04 (iOS swift-crypto `from:"3.0.0"` can never reach patched 4.5.1) and F05
+  (relay dev-dep lockfile refresh) open. Shared vector corpus on main is now 30 (was 26);
+  android vendors 29 — run the android repo's `scripts/repin-vectors.sh` against post-landing
+  main. Relay changes are landed in source but NOT deployed to relay.careerseeker.app (gated).
+- **VISIBILITY FINDING (Brandon decision, urgent):** GitHub reports `careerseeker-android` AND
+  `careerseeker-ios` as **PUBLIC**; the android README and the recorded program decision say
+  private-always. Possibly deliberate (cloud-session access). Confirm intent; flipping is one
+  command but cuts off any unauthenticated cloud automation.
+- Remaining open PRs: **#58** (Codex review) and **#26** (SBOM, blocked on human queue Q07).
+  Human queue Q01-Q07 unchanged — all Brandon-only.
 
 ## 2026-08-12 (Terra R7) - Final ladder handoff: empty-profile scorer boundary
 
