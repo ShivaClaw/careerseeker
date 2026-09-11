@@ -23,11 +23,29 @@ public sealed record ReceiveResult(SyncError? Error, string? Kind, byte[]? Plain
 /// crypto; crypto precedes payload interpretation; the sequence number is committed only
 /// after every check passes, so garbage cannot burn sequence numbers.
 /// </summary>
-public sealed class EnvelopeReceiver(string activeKeyId, byte[]? deviceSigPub = null)
+/// <param name="activeKeyId">The pairing's current key id; anything else is <c>key_unknown</c>.</param>
+/// <param name="deviceSigPub">The paired device's ECDSA public key, for state-changing p2e kinds.</param>
+/// <param name="resume">Persisted highest-accepted seq per direction, restored at construction
+/// (§6.1/§6.2). Without it the replay mark is empty on every process start, and since the *relay*
+/// chooses what a page contains, an engine that restarts can be handed an already-applied
+/// <c>entitlement</c> or <c>outcome</c> again and will accept it: the mark the pairing vault persists
+/// protects nothing unless the receiver is built from it. Supplied at construction rather than through
+/// a setter so trust state cannot be moved after the receiver is in use, and the tracker raises only,
+/// so a wrong value here can over-refuse but never under-refuse.</param>
+public sealed class EnvelopeReceiver(
+    string activeKeyId, byte[]? deviceSigPub = null, IReadOnlyDictionary<string, long>? resume = null)
 {
-    private readonly SequenceTracker _seq = new();
+    private readonly SequenceTracker _seq = Restored(resume);
 
     public long HighestAccepted(string dir) => _seq.HighestAccepted(dir);
+
+    private static SequenceTracker Restored(IReadOnlyDictionary<string, long>? resume)
+    {
+        var tracker = new SequenceTracker();
+        if (resume is not null)
+            foreach (var (dir, seq) in resume) tracker.Resume(dir, seq);
+        return tracker;
+    }
 
     public ReceiveResult Receive(ReceivedEnvelope env, Func<string, byte[]> keyForDir)
     {

@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch] $IncludeLive,
     [switch] $IncludePublish,
     [switch] $IncludePackage,
@@ -161,7 +161,201 @@ $offlineProjects = @(
 # the absent-QR statement, and the confirmation code. That last one caught a real defect: the code was
 # rendered only on the pre-completion screen, so the human had nothing to compare after pairing -- which
 # is the entire MITM check. R7 adds two empty-profile scorer assertions: 611.
-$ExpectedOfflineTotal = 611
+# S5 adds twelve SyncHarness assertions (130 -> 142) for the strict section-3 wire parser
+# (src/Sync/EnvelopeJson.cs): eleven parser assertions plus the new shared `invalid-unknown-field`
+# vector. The vector is the load-bearing one -- before this change the engine had no inbound wire
+# parser at all, so an envelope carrying an unknown top-level field DECRYPTED AND WAS ACCEPTED here
+# while the phone rejected it, and no vector could express the difference (that is why it could not
+# be added earlier). Proven by mutation, not assumed: removing the unknown-field check makes that
+# vector report "got accepted". Re-derived on the post-S2/R7 base at integration: 611 + 12 = 623.
+# S5 adds fifteen more SyncHarness assertions (142 -> 157) for the `entitlement_ack` emitter
+# (src/Sync/SyncPayloads.EntitlementAck + the InboundDispatcher seam). Before this change the kind
+# appeared in the engine exactly once -- as a string in Protocol.ShippingKinds -- so the engine
+# verified a Play receipt, flipped its own Pro flag, and told the phone nothing, while section 4.3.3
+# makes the ack the ONLY thing that may unlock Pro there. Eleven assertions check the built body
+# against the two shared vectors BYTE for byte (not field by field: that is what catches a field
+# reordering or an order_id written as a literal null rather than omitted); four check the dispatcher
+# publishes exactly one ack on an accepted receipt, naming the product and order from the VERIFIED
+# receipt, and NONE at all on a rejected one -- section 4.3.3 has no negative form. Proven by
+# mutation, not assumed: five mutations (absent order_id as empty string, swapped field order, never
+# publishing, publishing on rejection, dropping the order id) were each caught. 623 + 15 = 638.
+# S5 adds sixteen more SyncHarness assertions (157 -> 173) for the inbound pump
+# (src/Sync/InboundPump.cs), the transport loop that gives the engine a receive path at all. Before
+# this change every inbound part shipped with NO production caller: the pull loop, the dispatcher, the
+# ack publisher and the vault's last_p2e_seq were referenced nowhere outside their own files, so a
+# verified purchase reached the engine's own flag and stopped. Fourteen assertions pin the cursor
+# rules against pages a real relay would never serve (§2 makes the relay untrusted): an unauthenticated
+# seq is capped at the page's `latest`, an ACCEPTED one is not, the cursor never moves backwards, a
+# rejection never writes the persisted replay mark, and an e2p envelope replayed onto the p2e page is
+# refused before dispatch. Two pin the replay mark's resume, which raises only. Proven by mutation,
+# not assumed: seven mutations, and the seventh was NOT caught on the first pass -- persisting a mark
+# from the parse-failure branch went unnoticed, which was a real gap in the new tests and is why there
+# are sixteen assertions rather than fifteen. 638 + 16 = 654.
+#
+# Twenty-one more SyncHarness assertions (173 -> 194) give RelayClient.PullAsync its first offline
+# coverage of any kind: before this, `grep -rl RelayClient tests/` returned only SyncLiveSmoke, which
+# needs a live relay and is excluded from this suite, so the client's failure behaviour had never been
+# executed hermetically. PullAsync used to call EnsureSuccessStatusCode, GetProperty and GetInt64 --
+# three throwing calls and no failure channel in its signature -- so every bad answer left as an
+# exception and the host contained it by catching five types BY NAME. The assertions pin the four
+# cases a relay can actually produce on this route (Ok / Unauthorised / Misconfigured / Unavailable),
+# including that a purged pairing's 401 and a shape-check 404 are NOT the same condition (PQ-S2-4),
+# that a 200 carrying an HTML error page is data rather than a crash, and that caller cancellation
+# still propagates instead of being laundered into "the relay did not answer". Proven by mutation:
+# seven applied, seven caught -- two of them (dropping the .Clone(), dropping the root-is-an-object
+# guard) as an unhandled exception escaping the harness rather than a FAIL line, which is the exact
+# failure mode this change exists to remove. 662.
+#
+# Eleven more SyncHarness assertions (194 -> 205) give `latest` a RANGE check, which being an integer
+# never established. Measured before writing any: a `latest` of -1, of 2^53 and of Int64.MaxValue all
+# returned Ok and carried the value straight through, because TryGetInt64 fixes the type and the width
+# and nothing else -- 1e19 and 1e300 were already refused, so the hole was exactly those two bands and
+# no type check can see them. `latest` is not an arbitrary Int64: it is MAX(seq) over the rows the
+# relay holds, so it inherits seq's domain from §3.2 -- by DERIVATION, since §3.2 caps what a sender
+# emits and what the relay rejects and never mentions the relay's REPORT of it (PQ-LAT-1). Two more
+# pin Protocol.MaxSeq by arithmetic rather than by re-typing the literal, including that it survives a
+# double round trip and the next integer up does not, which is the whole reason for the number. Two
+# pin an OPEN WEAKNESS rather than a fix: §6.4's bound on an unauthenticated seq is the page's own
+# `latest`, supplied by the same party in the same response, so an element claiming seq 1,000,000
+# bounded to 5 by an honest page reaches 1,000,000 when the page inflates its bound. The range check
+# lowers that ceiling to 2^53-1 and does NOT close it (PQ-LAT-2); if a later slice closes it, those
+# two assertions SHOULD fail. Proven by mutation: seven applied, seven caught, tree byte-identical
+# after. 673.
+#
+# Thirty-one more SyncHarness assertions (205 -> 236) do for RelayClient.PushAsync what the previous
+# two blocks did for PullAsync: it returned `res.StatusCode is Created` -- a bare bool -- so a 409
+# replay_rejected, a 400, a 413, a timeout and a DNS failure were the SAME VALUE, three of them
+# permanent for the bytes in hand and two worth retrying, and no caller could tell which it had.
+# Worse, the 409 carries `latest`, which is the second term of §6.1's max(persisted, relay_latest),
+# and bool discarded it unread (PQ-S6-3). The assertions pin seven cases (Ok / Conflict / Unauthorised
+# / Misconfigured / Rejected / TooLarge / Unavailable) and three properties that are easy to get
+# wrong: that a 409 with an unusable `latest` stays Conflict(null) and is NEVER downgraded to
+# Unavailable -- downgrading tells the caller to retry the one thing that provably cannot work, which
+# §2.2 forbids in as many words; that the 409's `latest` gets the SAME range check as a pull page's,
+# because a sender resumes ABOVE it and so this number reaches the wire where the pull cursor's never
+# does; and that a 201 with an unreadable body is still Ok, since parsing it would invent a failure on
+# top of a success and make the sender retry bytes the relay already holds. Note the asymmetry with
+# PullAsync, which refuses the whole page on a bad `latest`: there the number governs a cursor about
+# to advance, here it is an optional aid to a decision already made. Proven by mutation: nine applied,
+# nine caught. 654 + 63 = 717.
+# nine caught. 704.
+#
+# Twenty more SyncHarness assertions (236 -> 256) make the three blocks above DO something. Each
+# gave the transport a vocabulary and nothing consumed it: §6.1 says an engine resumes its e2p
+# counter above max(persisted_seq, relay_latest_e2p_seq), and the second term was read, range-checked,
+# logged and thrown away (PQ-S6-3's second bullet). Now `SyncPublisher.ResumeSeq` is that max() as a
+# pure function -- extracted deliberately, because the composition that feeds it needs a DPAPI vault
+# and a live relay and can only ever be compile-checked, so extracting the rule is what makes §6.1
+# testable at all -- and `SyncPublisher.ReconcileTo` moves the counter when a 409 proves it wrong.
+# The load-bearing property is that ReconcileTo RAISES AND NEVER LOWERS: a relay mark below this
+# counter is not evidence the counter ran ahead, and rewinding onto seqs the phone may already have
+# accepted is refused by §6.2 permanently -- the one-sided sync death §6.1 exists to prevent. The
+# assertions also pin that a relay which did not answer falls back to the store rather than stopping
+# publishing (§6.1 makes the store the value and the relay read belt-and-suspenders), and that an
+# out-of-range seq throws rather than clamping. Proven by mutation: nine applied, seven caught first
+# pass, NINE after two real gaps were closed -- one where the floor on a corrupt store was invisible
+# because the relay term rescued every case that tested it, and one where the boundary mutation took
+# the harness down with an unhandled exception INSTEAD of printing a FAIL, which reads as a survivor
+# to anything counting FAIL lines. 724.
+#
+# Twenty-one more SyncHarness assertions (256 -> 277) cover the CALL SITE rather than the rule. The
+# previous block tested `ReconcileTo` thoroughly and left the line that invokes it untested: the sink
+# was a closure inside `BuildSyncBridge`, which returns null without a DPAPI pairing vault, so
+# deleting `publisherRef.ReconcileTo(latest)` failed no test in this repo. The rule was pinned and
+# its only caller was held in place by nothing. `RelaySink.Create` takes its collaborators as
+# delegates -- push, pushedSeq, persistSeq, reconcileTo, log -- rather than returning a decision
+# record, deliberately: a pure Decide() would answer "does the engine know what a 409 means", which
+# was never the open question, and only an observable call site answers the one that was. The
+# assertions pin that a 409 reaches ReconcileTo with the RELAY's mark and not the refused seq, that a
+# 409 carrying no usable number does not call it at all (passing a 0 substitute would move the
+# counter on a number the client already refused), that no failure case persists a high-water mark,
+# that the six non-201 cases stay named distinctly, and -- composed against a real SyncPublisher --
+# that a 409 moves the actual counter so the next envelope resumes above the relay's mark. Proven by
+# mutation: ten applied, ten caught. One assertion was rewritten first: an unguarded index threw
+# under the very mutation it existed to catch, taking the harness down AFTER one FAIL line, which
+# reads as a tidy "1 caught" to a fail-counting reader while the rest of the suite never ran. 745.
+#
+# Seventeen more SyncHarness assertions (277 -> 294) cover the WIRING rather than the rule or its
+# call site. The previous two blocks made the sink's decision testable and proved the rule is
+# applied; which collaborator each delegate was attached to stayed in `BuildSyncBridge`, which has
+# never executed in a harness or on a CI runner because it returns null without a DPAPI pairing
+# vault. Measured, not suspected: replacing `persistSeq: seq => vault.RecordE2pSeq(seq)` with
+# `persistSeq: _ => { }` built 0/0 and left this harness at 277/0, so an engine that had silently
+# stopped persisting its e2p high-water mark failed no test in this repo. `SyncPushPath.Create` now
+# ties the publisher to its sink and store and `IE2pSeqStore` names the one thing that path needs
+# from the vault -- in src/Sync, which is platform-free by design, since an interface declared next
+# to the DPAPI type would drag the composition back out of reach. This does NOT make the composition
+# executable; it shrinks the unexecuted remainder from five delegate bodies to four argument
+# identities at one call site, and those four are recorded as local-gate-only rather than counted as
+# covered. The assertions pin that a 201 persists through the CALLER's store, that the seq persisted
+# is the seq sent (read back out of the sealed envelope's own header, since `recorded is [8]` alone
+# would pass for a path persisting a counter unrelated to the envelope it emitted), that startSeq
+# reaches the counter, and that after a 409 the NEXT mark persisted is the reconciled one -- which is
+# what shows reconcile and persist share a counter rather than two. Proven by mutation: eight
+# applied, eight caught, and the eighth (removing the vault's interface) DOES NOT COMPILE, so one of
+# the four remaining argument identities is now statically enforced instead of merely conventional.
+# One helper was rewritten first: `Throws<T>` let a wrong exception type escape by design, and the
+# null-store mutation then raised a NullReferenceException that killed the harness after ZERO FAIL
+# lines -- the same false-negative family as the three blocks above, reached a fourth time. 717 + 58 = 775.
+# lines -- the same false-negative family as the three blocks above, reached a fourth time. 762.
+#
+# Nineteen more SyncHarness assertions (294 -> 313) give the push result's PERMANENCE a consumer.
+# RelayPushResult exists because a bare bool could not tell a replay refusal from a DNS failure, and
+# its own summary names the three questions its cases answer: retry these bytes, never retry these
+# bytes, or fix the counter and send different bytes. RelaySink then named each case for the operator
+# and returned `false` for all of them -- so one layer above the fix the conflation was exactly as it
+# had been, and the permanence lived only in doc comments. Measured, not suspected: driven through
+# the real SyncPushPath composition for five engine cycles, a 400 bad_request and a DNS failure
+# produced the same push count (5), the same burnt seqs (5) and the same delivered count (0).
+# `RelaySink.Classify` is now that permanence as a pure, total, public function
+# (Delivered/RetryLater/ResendAbove/PayloadDead/PairingDead), and the sink's bool is DERIVED from it
+# rather than written per case, so a case classifying as PayloadDead while reporting success is no
+# longer expressible. Two further defects the reproduction surfaced: the 413 line asserted the
+# envelope "will not be retried" when nothing prevents that retry and EngineSyncBridge's ratified
+# snapshot policy guarantees it (four retries in five cycles, measured) -- corrected; and every
+# failing cycle emitted a byte-identical line, so a permanent fault filled the log with one sentence
+# and buried the transitions -- a repeat is now counted rather than repeated, and the return to
+# Delivered is announced WITH that count, so nothing is hidden. The assertions pin the full mapping,
+# that permanent and transient are distinguishable at all (the defect), that 413/400 share a
+# disposition while keeping different words, that suppression is by LINE and never touches the
+# EFFECTS (an identical 409 still reaches ReconcileTo both times), and that a first successful push
+# announces no phantom recovery. Proven by mutation: ten applied, ten caught, tree byte-identical
+# after. NOT done, and deliberately: the sink does not HALT on a permanent disposition. The retry is
+# ratified above it (the 2026-07-24 snapshot finding) and permanence is an assumption about the
+# relay's answer rather than a fact -- a 401 from a relay deploy blip would turn a self-imposed halt
+# into the outage it was meant to prevent. The policy is left to the layer that owns it. 781.
+#
+# Twelve more SyncHarness assertions (313 -> 325) answer the argument FOR that halt, which was
+# recorded nowhere while both arguments against it sat in RelaySink's remarks. Its three clauses
+# measure out very differently. The per-cycle cost is real and is now a number: ten cycles on a dead
+# pairing, driven through the real SyncPushPath composition, cost ten push attempts and ten burnt
+# seqs for zero deliveries. The "forever" is NOT a resource risk -- MaxSeq outlasts a per-SECOND
+# burn by over 100 million years, pinned as an assertion so that lowering the constant re-opens the
+# question. The operator half was already fixed by the previous slice: those ten cycles produce one
+# line, not ten. And the finding, which inverts the cheapest remedy: a bounded backoff was recorded
+# as the option needing no product decision, but it would be keyed on PushDisposition, and
+# PayloadDead is a fact about the BYTES just pushed rather than about the pairing. One oversized
+# snapshot -- refused by §3.1's cap measured on the ciphertext, per PQ-A2-1 -- puts the shared sink
+# in PayloadDead, and the ratified snapshot retry keeps it there; the very next payload can be the
+# entitlement_ack, which is small and which §4.3.3 makes the only thing that unlocks Pro. Measured:
+# today that ack gets through, decrypted off the wire to prove it is the ack and not merely a
+# success. Under PairingDead it does not get through anyway, so a backoff THERE withholds nothing.
+# The two dispositions therefore do not take the same policy, and the remedy as stated would have
+# shipped a defect. Proven by mutation: nine applied, nine caught -- including the naive backoff
+# itself, which this block now catches by name. One of the nine first CRASHED the harness through an
+# unguarded index in this slice's own new assertion, the fifth time this repo has met that
+# false-negative family; the assertion was rewritten to survive its own target mutation. 775 + 31 = 806.
+# S3 adds six SyncHarness assertions (325 -> 331, its own view was 130 -> 136 on the pre-S5 base) giving the confirm code a consumer: every published
+# confirm is re-derived from its own vector's secret and scalars, and the corpus is required to keep
+# separating the two renderings that a wrong implementation produces (a SIGNED int32 reduction and a
+# dropped zero-pad). Both slips reproduce pairing-basic exactly, so before this the suite passed 130/0
+# under either mutation -- measured, not assumed. 806 + 6 = 812.
+# PQ-S6-1 adds four SyncHarness assertions (331 -> 335, its own view was 130 -> 134 on the pre-S5 base) for the inbound dispatcher's disposition: an
+# `outcome` with a null applier and one the applier refuses are now OutcomeNotApplied with distinct
+# reasons rather than both reporting OutcomeApplied, and a `pull_request` with no republisher reports
+# SnapshotNotRepublished. Measured on Linux at 385; EngineHarness's 230 is the Windows-only remainder
+# (B-10: it aborts at tests/EngineHarness/Program.cs:221 on POSIX). 812 + 4 = 816.
+$ExpectedOfflineTotal = 816
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -185,7 +379,7 @@ Invoke-Step "Alpha workspace initializer dry run" {
 }
 
 Invoke-Step "Source-control hygiene smoke" {
-    $gitignore = Get-Content -LiteralPath ".gitignore" -Raw
+    $gitignore = Get-Content -LiteralPath ".gitignore" -Raw -Encoding UTF8
     Assert-Contains $gitignore @(
         'secrets/',
         '.appdata/',
@@ -266,7 +460,7 @@ Invoke-Step "Full-data deletion confirmation preview" {
 }
 
 Invoke-Step "Confirmed full-data deletion source and copy smoke" {
-    $deletion = Get-Content -LiteralPath "src/Engine/FullDataDeletion.cs" -Raw
+    $deletion = Get-Content -LiteralPath "src/Engine/FullDataDeletion.cs" -Raw -Encoding UTF8
     Assert-Contains $deletion @(
         'DELETE ALL CAREERSEEKER DATA AT ',
         'PlanInstalledWorkspace()',
@@ -276,7 +470,7 @@ Invoke-Step "Confirmed full-data deletion source and copy smoke" {
         'TargetExistsAfter: false'
     ) "src/Engine/FullDataDeletion.cs"
 
-    $program = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    $program = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $program @(
         'explicitMode?.Equals("delete-all-data"',
         'status: NOT DELETED (separate confirmation required)',
@@ -284,7 +478,7 @@ Invoke-Step "Confirmed full-data deletion source and copy smoke" {
         'target exists after:'
     ) "src/Engine/Program.cs"
 
-    $engineHarness = Get-Content -LiteralPath "tests/EngineHarness/Program.cs" -Raw
+    $engineHarness = Get-Content -LiteralPath "tests/EngineHarness/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $engineHarness @(
         'delete-all-data rejects a mismatched confirmation without touching data',
         'delete-all-data refuses a volume root',
@@ -292,7 +486,7 @@ Invoke-Step "Confirmed full-data deletion source and copy smoke" {
         'repeat deletion honestly reports an already absent workspace'
     ) "tests/EngineHarness/Program.cs"
 
-    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw
+    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw -Encoding UTF8
     Assert-Contains $positioning @(
         '| D10 | “You can delete all local data.” | PROVEN for installed workspace |',
         '`src/Engine/FullDataDeletion.cs:24`',
@@ -320,7 +514,7 @@ Invoke-Step "Docs-site trust copy smoke" {
         "docs-site/download.md",
         "docs-site/download.html"
     )) {
-        $content = Get-Content -LiteralPath $relative -Raw
+        $content = Get-Content -LiteralPath $relative -Raw -Encoding UTF8
         $snippets = $trustSnippets
         Assert-Contains $content $snippets $relative
         if ($relative -like "*privacy*") {
@@ -369,12 +563,12 @@ Invoke-Step "Docs-site trust copy smoke" {
         }
     }
 
-    $index = Get-Content -LiteralPath "docs-site/index.html" -Raw
+    $index = Get-Content -LiteralPath "docs-site/index.html" -Raw -Encoding UTF8
     Assert-Contains $index @("download.html", "privacy.html", "support.html", "autonomy-contract.html") "docs-site/index.html"
 }
 
 Invoke-Step "R5 distribution copy smoke" {
-    $changelog = Get-Content -LiteralPath "docs/Beta-Changelog.md" -Raw
+    $changelog = Get-Content -LiteralPath "docs/Beta-Changelog.md" -Raw -Encoding UTF8
     Assert-Contains $changelog @(
         "7018ff9",
         "CareerSeeker-alpha2-bridge-win-x64-2026-07-24-7018ff9.zip",
@@ -385,7 +579,7 @@ Invoke-Step "R5 distribution copy smoke" {
         "No public Beta artifact or download URL has been published"
     ) "docs/Beta-Changelog.md"
 
-    $migration = Get-Content -LiteralPath "docs/Alpha-to-Beta-Migration.md" -Raw
+    $migration = Get-Content -LiteralPath "docs/Alpha-to-Beta-Migration.md" -Raw -Encoding UTF8
     Assert-Contains $migration @(
         "Export-AlphaEvidencePackage.ps1",
         "Import-AlphaPackage.ps1",
@@ -403,7 +597,7 @@ Invoke-Step "R5 distribution copy smoke" {
         "production-ready"
     ) "R5 distribution documents"
 
-    $runbook = Get-Content -LiteralPath "docs/Beta-Runbook.md" -Raw
+    $runbook = Get-Content -LiteralPath "docs/Beta-Runbook.md" -Raw -Encoding UTF8
     Assert-Contains $runbook @(
         "docs-site/download.md",
         "https://careerseeker.app/download/",
@@ -423,13 +617,13 @@ Invoke-Step "Trust wording smoke" {
         "docs-site/download.md",
         "docs-site/download.html"
     )) {
-        $content = Get-Content -LiteralPath $relative -Raw
+        $content = Get-Content -LiteralPath $relative -Raw -Encoding UTF8
         Assert-DoesNotContain $content @("without any send capability") $relative
     }
 }
 
 Invoke-Step "Service-grade scheduled task source smoke" {
-    $manager = Get-Content -LiteralPath "scripts/Manage-AlphaDashboardTask.ps1" -Raw
+    $manager = Get-Content -LiteralPath "scripts/Manage-AlphaDashboardTask.ps1" -Raw -Encoding UTF8
     Assert-Contains $manager @(
         '"Pause", "Resume"',
         '-MultipleInstances IgnoreNew',
@@ -440,7 +634,7 @@ Invoke-Step "Service-grade scheduled task source smoke" {
         'Local database, vaults, logs, and artifacts were preserved'
     ) "scripts/Manage-AlphaDashboardTask.ps1"
 
-    $supervisor = Get-Content -LiteralPath "scripts/Start-BetaEngineHost.ps1" -Raw
+    $supervisor = Get-Content -LiteralPath "scripts/Start-BetaEngineHost.ps1" -Raw -Encoding UTF8
     Assert-Contains $supervisor @(
         '"--service-host"',
         'SupervisorSelfTest',
@@ -451,7 +645,7 @@ Invoke-Step "Service-grade scheduled task source smoke" {
         'restart $restart in $delay seconds'
     ) "scripts/Start-BetaEngineHost.ps1"
 
-    $hostSource = Get-Content -LiteralPath "src/Engine/ServiceGradeHost.cs" -Raw
+    $hostSource = Get-Content -LiteralPath "src/Engine/ServiceGradeHost.cs" -Raw -Encoding UTF8
     Assert-Contains $hostSource @(
         'FileShare.None',
         'SingleInstanceLease',
@@ -461,7 +655,7 @@ Invoke-Step "Service-grade scheduled task source smoke" {
 }
 
 Invoke-Step "Public README and harness count smoke" {
-    $readme = Get-Content -LiteralPath "README.md" -Raw
+    $readme = Get-Content -LiteralPath "README.md" -Raw -Encoding UTF8
     Assert-Contains $readme @(
         'local-first Windows L1 Drafts beta',
         'one unsigned `win-x64` MSIX',
@@ -474,8 +668,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 130 |',
-        '| **Total** | **611** |',
+        '| SyncHarness | 134 |',
+        '| **Total** | **816** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -483,13 +677,13 @@ Invoke-Step "Public README and harness count smoke" {
         'native Windows service/tray packaging'
     ) "README.md"
 
-    $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw
+    $summary = Get-Content -LiteralPath "docs/CareerSeeker-Project-Summary.md" -Raw -Encoding UTF8
     # The harness-count rows live in a Markdown table whose columns may be alignment-padded (a linter
     # re-pads them); collapse runs of spaces so the row assertions tolerate that padding.
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **611** |',
+        '| **Total** | **816** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -503,13 +697,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 130 |'
+        '| SyncHarness | 134 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
-    $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw
+    $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw -Encoding UTF8
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 130 |',
-        '| **Total** | **611** |',
+        '| SyncHarness | 134 |',
+        '| **Total** | **816** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -519,7 +713,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Native SCM Windows Service and tray UI are not built'
     ) "src/Engine/README.md"
 
-    $engineCore = Get-Content -LiteralPath "src/Engine/EngineCore.cs" -Raw
+    $engineCore = Get-Content -LiteralPath "src/Engine/EngineCore.cs" -Raw -Encoding UTF8
     Assert-Contains $engineCore @(
         'public long Scored => Interlocked.Read(ref _scored);',
         'public long ActEligible => Interlocked.Read(ref _actEligible);',
@@ -527,13 +721,13 @@ Invoke-Step "Public README and harness count smoke" {
         '_counters.IncActEligible();'
     ) "src/Engine/EngineCore.cs"
 
-    $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $engineProgram @(
         'Console.WriteLine($"  scored: {counters.Scored}");',
         'Console.WriteLine($"  act-eligible: {counters.ActEligible}");'
     ) "src/Engine/Program.cs"
 
-    $storeParity = Get-Content -LiteralPath "tests/StoreParityHarness/Program.cs" -Raw
+    $storeParity = Get-Content -LiteralPath "tests/StoreParityHarness/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $storeParity @(
         '--migration-output',
         'SqliteOpenMode.ReadOnly',
@@ -541,9 +735,9 @@ Invoke-Step "Public README and harness count smoke" {
         'Migration output already exists; refusing to overwrite it.'
     ) "tests/StoreParityHarness/Program.cs"
 
-    $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw
+    $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw -Encoding UTF8
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **611 passed, 0 failed**',
+        'Pinned offline verifier: **816 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',
@@ -555,7 +749,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Local evidence export/import still uses ZIP'
     ) "docs/External-Audit-Handoff.md"
 
-    $calibration = Get-Content -LiteralPath "docs/Scoring-Calibration.md" -Raw
+    $calibration = Get-Content -LiteralPath "docs/Scoring-Calibration.md" -Raw -Encoding UTF8
     Assert-Contains $calibration @(
         'strictly nested profiles with',
         '0/120 with both richer supersets',
@@ -565,7 +759,7 @@ Invoke-Step "Public README and harness count smoke" {
         '230 passed, 0 failed'
     ) "docs/Scoring-Calibration.md"
 
-    $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw
+    $historicalAudit = Get-Content -LiteralPath "docs/repo-audit-2026-07-13.md" -Raw -Encoding UTF8
     Assert-Contains $historicalAudit @(
         'Current-status note, 2026-07-20',
         'this is preserved as historical audit input, not as current status for',
@@ -576,7 +770,7 @@ Invoke-Step "Public README and harness count smoke" {
         'historical live provider evidence exists'
     ) "docs/CareerSeeker-Project-Summary.md"
 
-    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw
+    $positioning = Get-Content -LiteralPath "docs/Positioning.md" -Raw -Encoding UTF8
     Assert-Contains $positioning @(
         'Public Claims Register',
         '`**UNPROVEN**`',
@@ -586,7 +780,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Updating this register never authorizes a deploy.'
     ) "docs/Positioning.md"
 
-    $betaRunbook = Get-Content -LiteralPath "docs/Beta-Runbook.md" -Raw
+    $betaRunbook = Get-Content -LiteralPath "docs/Beta-Runbook.md" -Raw -Encoding UTF8
     Assert-Contains $betaRunbook @(
         'single ordered Sunday list',
         'Deploy the truth copy',
@@ -598,7 +792,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Anything not executed remains `PENDING`'
     ) "docs/Beta-Runbook.md"
 
-    $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    $engineProgram = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $engineProgram @(
         'draft-job --job-id 123',
         '[--secrets secrets/env.secrets]',
@@ -606,13 +800,13 @@ Invoke-Step "Public README and harness count smoke" {
         '[--gate-semantic-candidates 3]'
     ) "src/Engine/Program.cs"
 
-    $tailorModel = Get-Content -LiteralPath "src/Tailor/GatewayTailorModel.cs" -Raw
+    $tailorModel = Get-Content -LiteralPath "src/Tailor/GatewayTailorModel.cs" -Raw -Encoding UTF8
     Assert-Contains $tailorModel @(
         'Do not quote, paraphrase,',
         'It is not candidate evidence.'
     ) "src/Tailor/GatewayTailorModel.cs"
 
-    $packaging = Get-Content -LiteralPath "src/Dispatcher/Packaging.cs" -Raw
+    $packaging = Get-Content -LiteralPath "src/Dispatcher/Packaging.cs" -Raw -Encoding UTF8
     Assert-Contains $packaging @(
         'sb.AppendLine("- " + step);',
         'Review the form, complete any remaining fields, and submit when ready.'
@@ -624,14 +818,14 @@ Invoke-Step "Public README and harness count smoke" {
         throw "src/Dispatcher/Packaging.cs overclaims ATS auto-fill in L1 manual draft instructions."
     }
 
-    $dispatchContracts = Get-Content -LiteralPath "src/Dispatcher/Dispatch.cs" -Raw
+    $dispatchContracts = Get-Content -LiteralPath "src/Dispatcher/Dispatch.cs" -Raw -Encoding UTF8
     Assert-Contains $dispatchContracts @(
         'string SubjectTemplate = "Application for {title} at {company}"'
     ) "src/Dispatcher/Dispatch.cs"
 }
 
 Invoke-Step "Local API security spec smoke" {
-    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw -Encoding UTF8
     Assert-Contains $spec @(
         'Local API security is load-bearing',
         'loopback only',
@@ -643,7 +837,7 @@ Invoke-Step "Local API security spec smoke" {
 }
 
 Invoke-Step "L2 Gmail relay scope smoke" {
-    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw -Encoding UTF8
     Assert-Contains $spec @(
         'any email digest is a separately scoped relay feature',
         'separately scoped email digest only if that L2 relay channel has been enabled',
@@ -659,7 +853,7 @@ Invoke-Step "L2 Gmail relay scope smoke" {
 }
 
 Invoke-Step "LLM provider registry smoke" {
-    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw -Encoding UTF8
     Assert-Contains $spec @(
         'Anthropic/Gemini (Google) API key'
     ) "docs/CareerSeeker-Spec.md"
@@ -667,7 +861,7 @@ Invoke-Step "LLM provider registry smoke" {
         'Anthropic/OpenAI API key'
     ) "docs/CareerSeeker-Spec.md"
 
-    $gatewayAddendum = Get-Content -LiteralPath "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md" -Raw
+    $gatewayAddendum = Get-Content -LiteralPath "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md" -Raw -Encoding UTF8
     Assert-Contains $gatewayAddendum @(
         'Anthropic / Gemini (Google) key'
     ) "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md"
@@ -675,7 +869,7 @@ Invoke-Step "LLM provider registry smoke" {
         'Anthropic / OpenAI / Google key'
     ) "docs/CareerSeeker-Spec-5_6-LLM-Gateway.md"
 
-    $routing = Get-Content -LiteralPath "src/Gateway/Routing.cs" -Raw
+    $routing = Get-Content -LiteralPath "src/Gateway/Routing.cs" -Raw -Encoding UTF8
     Assert-Contains $routing @(
         'const string pricingAsOf = "2026-07-23"',
         'gemini-3.1-flash-lite',
@@ -688,7 +882,7 @@ Invoke-Step "LLM provider registry smoke" {
 }
 
 Invoke-Step "Alpha 2.0 provider onboarding smoke" {
-    $setupBridge = Get-Content -LiteralPath "src/Engine/AlphaSetupBridge.cs" -Raw
+    $setupBridge = Get-Content -LiteralPath "src/Engine/AlphaSetupBridge.cs" -Raw -Encoding UTF8
     Assert-Contains $setupBridge @(
         'AI resume provider',
         'Gemini',
@@ -708,7 +902,7 @@ Invoke-Step "Alpha 2.0 provider onboarding smoke" {
         'Send this resume to Gemini'
     ) "src/Engine/AlphaSetupBridge.cs"
 
-    $providerDiagnostics = Get-Content -LiteralPath "src/Engine/AlphaProviderDiagnostics.cs" -Raw
+    $providerDiagnostics = Get-Content -LiteralPath "src/Engine/AlphaProviderDiagnostics.cs" -Raw -Encoding UTF8
     Assert-Contains $providerDiagnostics @(
         'ACCESS_TOKEN_TYPE_UNSUPPORTED',
         'HttpStatusCode.Unauthorized',
@@ -719,14 +913,14 @@ Invoke-Step "Alpha 2.0 provider onboarding smoke" {
 }
 
 Invoke-Step "Beta onboarding local web flow source smoke" {
-    $program = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw
+    $program = Get-Content -LiteralPath "src/Engine/Program.cs" -Raw -Encoding UTF8
     Assert-Contains $program @(
         'HasFlag("--console")',
         'BetaSetupWebFlow.RunAsync',
         'setup --console'
     ) "src/Engine/Program.cs"
 
-    $webSetup = Get-Content -LiteralPath "src/Engine/BetaSetupWebFlow.cs" -Raw
+    $webSetup = Get-Content -LiteralPath "src/Engine/BetaSetupWebFlow.cs" -Raw -Encoding UTF8
     Assert-Contains $webSetup @(
         'CareerSeeker runs locally. It creates Gmail drafts only. It never sends applications.',
         'Locally extracted resume text is sent to the selected AI provider only after explicit consent.',
@@ -746,7 +940,7 @@ Invoke-Step "Beta onboarding local web flow source smoke" {
         '--sync'
     ) "src/Engine/BetaSetupWebFlow.cs"
 
-    $package = Get-Content -LiteralPath "scripts/Package-AlphaRelease.ps1" -Raw
+    $package = Get-Content -LiteralPath "scripts/Package-AlphaRelease.ps1" -Raw -Encoding UTF8
     Assert-Contains $package @(
         'ten-step local browser flow',
         'accept, edit, and drop controls',
@@ -755,7 +949,7 @@ Invoke-Step "Beta onboarding local web flow source smoke" {
 }
 
 Invoke-Step "Code-signing guidance smoke" {
-    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw -Encoding UTF8
     Assert-Contains $spec @(
         'prefer Azure Artifact Signing',
         'EV certificates are no longer a SmartScreen shortcut',
@@ -763,7 +957,7 @@ Invoke-Step "Code-signing guidance smoke" {
     ) "docs/CareerSeeker-Spec.md"
     Assert-DoesNotContain $spec @('Azure Artifact Signing/OV/EV') "docs/CareerSeeker-Spec.md"
 
-    $signScript = Get-Content -LiteralPath "scripts/Sign-BetaRelease.ps1" -Raw
+    $signScript = Get-Content -LiteralPath "scripts/Sign-BetaRelease.ps1" -Raw -Encoding UTF8
     Assert-Contains $signScript @(
         '[switch] $ValidateOnly',
         'TimestampUrl must be an absolute HTTPS URL.',
@@ -771,7 +965,7 @@ Invoke-Step "Code-signing guidance smoke" {
         'verify /pa /all'
     ) "scripts/Sign-BetaRelease.ps1"
 
-    $packageTest = Get-Content -LiteralPath "scripts/Test-BetaReleasePackage.ps1" -Raw
+    $packageTest = Get-Content -LiteralPath "scripts/Test-BetaReleasePackage.ps1" -Raw -Encoding UTF8
     Assert-Contains $packageTest @(
         '[string] $ExpectedPublisher',
         '[switch] $RequireSigned',
@@ -780,7 +974,7 @@ Invoke-Step "Code-signing guidance smoke" {
         '@("verify", "/pa", "/all", "/v", $fullPackage)'
     ) "scripts/Test-BetaReleasePackage.ps1"
 
-    $matrixScript = Get-Content -LiteralPath "scripts/New-BetaVmInstallMatrix.ps1" -Raw
+    $matrixScript = Get-Content -LiteralPath "scripts/New-BetaVmInstallMatrix.ps1" -Raw -Encoding UTF8
     Assert-Contains $matrixScript @(
         'mode: validation only; no install, signature check, or output write',
         'VM07',
@@ -790,7 +984,7 @@ Invoke-Step "Code-signing guidance smoke" {
         '-RequireSigned'
     ) "scripts/New-BetaVmInstallMatrix.ps1"
 
-    $packageRunbook = Get-Content -LiteralPath "docs/Beta-Windows-Package-Runbook.md" -Raw
+    $packageRunbook = Get-Content -LiteralPath "docs/Beta-Windows-Package-Runbook.md" -Raw -Encoding UTF8
     Assert-Contains $packageRunbook @(
         'Offline production-flow validation',
         '-ExpectedPublisher',
@@ -798,7 +992,7 @@ Invoke-Step "Code-signing guidance smoke" {
         'eleven `PENDING` steps'
     ) "docs/Beta-Windows-Package-Runbook.md"
 
-    $humanQueue = Get-Content -LiteralPath "docs/autonomy/HUMAN-QUEUE.md" -Raw
+    $humanQueue = Get-Content -LiteralPath "docs/autonomy/HUMAN-QUEUE.md" -Raw -Encoding UTF8
     Assert-Contains $humanQueue @(
         'az artifact-signing certificate-profile create',
         'Artifact Signing Certificate Profile Signer',
@@ -860,14 +1054,14 @@ Invoke-Step "Code-signing guidance smoke" {
 }
 
 Invoke-Step "Per-user storage guidance smoke" {
-    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw
+    $spec = Get-Content -LiteralPath "docs/CareerSeeker-Spec.md" -Raw -Encoding UTF8
     Assert-Contains $spec @(
         '%LOCALAPPDATA%\CareerSeeker\seeker.db',
         'must not default to a machine-global `%ProgramData%` path',
         'per-user DPAPI vaults'
     ) "docs/CareerSeeker-Spec.md"
 
-    $roadmap = Get-Content -LiteralPath "docs/CareerSeeker-Integration-Windows-Roadmap.md" -Raw
+    $roadmap = Get-Content -LiteralPath "docs/CareerSeeker-Integration-Windows-Roadmap.md" -Raw -Encoding UTF8
     Assert-Contains $roadmap @(
         'explicit per-user identity/task model',
         '%LOCALAPPDATA%\CareerSeeker\seeker.db',
@@ -876,7 +1070,7 @@ Invoke-Step "Per-user storage guidance smoke" {
 }
 
 Invoke-Step "Alpha secrets checklist smoke" {
-    $checklist = Get-Content -LiteralPath "docs/CareerSeeker-Alpha-Build-Checklist.md" -Raw
+    $checklist = Get-Content -LiteralPath "docs/CareerSeeker-Alpha-Build-Checklist.md" -Raw -Encoding UTF8
     Assert-Contains $checklist @(
         'Suggested entries for the current alpha verification path:',
         'ANTHROPIC_API_KEY=...',
@@ -890,7 +1084,7 @@ Invoke-Step "Alpha secrets checklist smoke" {
         'CAREERSEEKER_GMAIL_TEST_EMAIL=...'
     ) "docs/CareerSeeker-Alpha-Build-Checklist.md"
 
-    $providerConnect = Get-Content -LiteralPath "scripts/Connect-AlphaProviders.ps1" -Raw
+    $providerConnect = Get-Content -LiteralPath "scripts/Connect-AlphaProviders.ps1" -Raw -Encoding UTF8
     Assert-Contains $providerConnect @(
         'function Test-SecretValue',
         'return -not [string]::IsNullOrWhiteSpace($value)',

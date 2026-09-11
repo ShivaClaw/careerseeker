@@ -11,37 +11,91 @@ public enum InboundOutcome
     EntitlementApplied,
     /// <summary>The entitlement decrypted and its device sig verified, but the payload was not a valid Pro grant. See EntitlementReason.</summary>
     EntitlementRejected,
-    /// <summary>An outcome was handed to the outcome applier (§2.5).</summary>
+    /// <summary>The §2.5 applier accepted the outcome and persisted it. Reports the APPLY, not the dispatch.</summary>
     OutcomeApplied,
-    /// <summary>A pull_request asked the engine to re-publish; a fresh snapshot was requested from the republisher.</summary>
+    /// <summary>
+    /// The outcome was received and verified but NOT persisted — either no applier is configured, or the
+    /// applier refused the body. See OutcomeReason. PQ-S6-1: this disposition exists so that a dropped mark
+    /// is distinguishable from an applied one; reporting OutcomeApplied for both is what it used to do.
+    /// </summary>
+    OutcomeNotApplied,
+    /// <summary>A pull_request asked the engine to re-publish, and the republisher was called.</summary>
     SnapshotRepublished,
+    /// <summary>
+    /// A pull_request was accepted but no republisher is configured, so nothing was re-published. Milder
+    /// than OutcomeNotApplied — the phone loses nothing but its request goes unanswered (PQ-S6-1 ext.).
+    /// </summary>
+    SnapshotNotRepublished,
     /// <summary>doc_edit is a recognised kind with no engine handler yet — P3 owns it. Never stubbed here.</summary>
     DocEditUnimplemented,
     /// <summary>A shipping kind that has no inbound meaning (e.g. an e2p-only kind seen on p2e); no action.</summary>
     Ignored,
 }
 
+/// <summary>Why an inbound `outcome` was not persisted. Mirrors <see cref="EntitlementReject"/>.</summary>
+public enum OutcomeReject
+{
+    None,
+    /// <summary>The body is not a JSON object, or app_id/outcome/at is missing, the wrong type, or unparseable.</summary>
+    Malformed,
+    /// <summary>The outcome is outside the phone-settable subset (e.g. the desktop-set `no_reply`, or an unknown value).</summary>
+    NotPhoneSettable,
+    /// <summary>No applier is configured — the §2.5 seam is inert, so the mark was dropped by construction.</summary>
+    NoApplier,
+}
+
+/// <summary>
+/// What an <see cref="IOutcomeApplier"/> did with one outcome body. On refusal it carries the reason,
+/// so the dispatcher can report the apply rather than the fact that it reached the `case`.
+/// </summary>
+public readonly record struct OutcomeVerdict(bool Applied, OutcomeReject Reason)
+{
+    public static OutcomeVerdict Ok => new(true, OutcomeReject.None);
+    public static OutcomeVerdict Reject(OutcomeReject reason) => new(false, reason);
+}
+
 /// <summary>The result of dispatching one inbound envelope.</summary>
 public sealed record InboundResult(
     InboundOutcome Outcome, SyncError? ReceiveError, string? Kind,
-    EntitlementReject EntitlementReason = EntitlementReject.None);
+    EntitlementReject EntitlementReason = EntitlementReject.None,
+    OutcomeReject OutcomeReason = OutcomeReject.None);
 
 /// <summary>
 /// Applies a phone-originated `outcome` (Pro outcome tracking). Filled by the engine's store-backed
 /// applier in §2.5; a null applier means outcome dispatch is a no-op seam for now.
+///
+/// The verdict is load-bearing (PQ-S6-1): an applier that silently declines a body MUST say so, because
+/// the dispatcher derives its <see cref="InboundOutcome"/> from this return value. Returning
+/// <see cref="OutcomeVerdict.Ok"/> for a body you did not persist re-creates the exact over-reporting
+/// this signature was widened to remove.
 /// </summary>
 public interface IOutcomeApplier
 {
-    Task ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default);
+    Task<OutcomeVerdict> ApplyAsync(string outcomeBodyJson, string deviceFingerprint, CancellationToken ct = default);
 }
 
 /// <summary>
 /// Re-publishes a fresh snapshot in response to a `pull_request` (§6.2: a large gap → request a fresh
-/// snapshot). Backed by the engine's SyncPublisher/bridge; null means the seam is inert (no vault yet).
+/// snapshot). Backed by the engine's SyncPublisher/bridge; null means the seam is inert (no vault yet),
+/// which the dispatcher now reports as <see cref="InboundOutcome.SnapshotNotRepublished"/> rather than
+/// claiming a republish that never happened.
 /// </summary>
 public interface ISnapshotRepublisher
 {
     Task RepublishSnapshotAsync(long sinceSeq, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Publishes the engine's `entitlement_ack` (§4.3.3) once a receipt verifies — backed by the pairing's
+/// <see cref="SyncPublisher.PublishEntitlementAckAsync"/>; null leaves the seam inert like the other two.
+///
+/// This seam is what closes the purchase path. Without it the engine verifies the receipt, flips its own
+/// Pro flag, and tells the phone nothing — and §4.3.3 makes the ack the only thing that may unlock Pro
+/// there, so the user pays and never sees the feature.
+/// </summary>
+public interface IEntitlementAckPublisher
+{
+    Task PublishEntitlementAckAsync(string productId, string? orderId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -63,11 +117,13 @@ public sealed class InboundDispatcher
     private readonly string _deviceFingerprint;
     private readonly IOutcomeApplier? _outcomeApplier;
     private readonly ISnapshotRepublisher? _republisher;
+    private readonly IEntitlementAckPublisher? _ackPublisher;
     private readonly Func<string, byte[]> _keyForDir;
 
     public InboundDispatcher(
         EnvelopeReceiver receiver, EntitlementService entitlement, string deviceFingerprint,
-        Func<string, byte[]> keyForDir, IOutcomeApplier? outcomeApplier = null, ISnapshotRepublisher? republisher = null)
+        Func<string, byte[]> keyForDir, IOutcomeApplier? outcomeApplier = null, ISnapshotRepublisher? republisher = null,
+        IEntitlementAckPublisher? ackPublisher = null)
     {
         _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
         _entitlement = entitlement ?? throw new ArgumentNullException(nameof(entitlement));
@@ -75,6 +131,7 @@ public sealed class InboundDispatcher
         _keyForDir = keyForDir ?? throw new ArgumentNullException(nameof(keyForDir));
         _outcomeApplier = outcomeApplier;
         _republisher = republisher;
+        _ackPublisher = ackPublisher;
     }
 
     public async Task<InboundResult> DispatchAsync(ReceivedEnvelope env, CancellationToken ct = default)
@@ -90,23 +147,39 @@ public sealed class InboundDispatcher
                 if (!TryReadEntitlement(received.Plaintext!, out var originalJson, out var signature))
                     return new InboundResult(InboundOutcome.EntitlementRejected, null, received.Kind, EntitlementReject.Malformed);
                 var verdict = _entitlement.Apply(originalJson, signature, _deviceFingerprint);
-                return verdict.Accepted
-                    ? new InboundResult(InboundOutcome.EntitlementApplied, null, received.Kind)
-                    : new InboundResult(InboundOutcome.EntitlementRejected, null, received.Kind, verdict.Reason);
+                if (!verdict.Accepted)
+                    return new InboundResult(InboundOutcome.EntitlementRejected, null, received.Kind, verdict.Reason);
+
+                // §4.3.3: the ack is emitted on an ACCEPTED verdict and on no other path. There is no
+                // negative form of this kind, so a rejection must fall out above rather than reach here
+                // with a flag — an ack means granted, full stop. The product and order come from the
+                // verdict (i.e. from the Play-signed receipt the verifier just checked), never from the
+                // phone's request body: the phone is a courier, and letting it name the product it is
+                // acknowledged for would hand the unlock decision back to the device.
+                if (_ackPublisher is not null)
+                    await _ackPublisher.PublishEntitlementAckAsync(verdict.ProductId!, verdict.OrderId, ct).ConfigureAwait(false);
+
+                return new InboundResult(InboundOutcome.EntitlementApplied, null, received.Kind);
             }
 
+            // PQ-S6-1: the result is derived from the applier's verdict, never from reaching this case.
+            // A null seam and a refused body are both reported as OutcomeNotApplied with a distinct reason.
             case "outcome":
             {
-                if (_outcomeApplier is not null)
-                    await _outcomeApplier.ApplyAsync(BodyJson(received.Plaintext!), _deviceFingerprint, ct).ConfigureAwait(false);
-                return new InboundResult(InboundOutcome.OutcomeApplied, null, received.Kind);
+                if (_outcomeApplier is null)
+                    return new InboundResult(InboundOutcome.OutcomeNotApplied, null, received.Kind, EntitlementReject.None, OutcomeReject.NoApplier);
+                var verdict = await _outcomeApplier.ApplyAsync(BodyJson(received.Plaintext!), _deviceFingerprint, ct).ConfigureAwait(false);
+                return verdict.Applied
+                    ? new InboundResult(InboundOutcome.OutcomeApplied, null, received.Kind)
+                    : new InboundResult(InboundOutcome.OutcomeNotApplied, null, received.Kind, EntitlementReject.None, verdict.Reason);
             }
 
             case "pull_request":
             {
                 var since = ReadSinceSeq(received.Plaintext!);
-                if (_republisher is not null)
-                    await _republisher.RepublishSnapshotAsync(since, ct).ConfigureAwait(false);
+                if (_republisher is null)
+                    return new InboundResult(InboundOutcome.SnapshotNotRepublished, null, received.Kind);
+                await _republisher.RepublishSnapshotAsync(since, ct).ConfigureAwait(false);
                 return new InboundResult(InboundOutcome.SnapshotRepublished, null, received.Kind);
             }
 
