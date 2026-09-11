@@ -355,7 +355,9 @@ $offlineProjects = @(
 # reasons rather than both reporting OutcomeApplied, and a `pull_request` with no republisher reports
 # SnapshotNotRepublished. Measured on Linux at 385; EngineHarness's 230 is the Windows-only remainder
 # (B-10: it aborts at tests/EngineHarness/Program.cs:221 on POSIX). 812 + 4 = 816.
-$ExpectedOfflineTotal = 816
+# The 2026-09-10 Gate lexical hardening (audit F01/F02: negation-mismatch guard on every
+# lexical accept + symbol-identifier preservation) adds nine Slice regressions: 816 + 9 = 825.
+$ExpectedOfflineTotal = 825
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -669,7 +671,7 @@ Invoke-Step "Public README and harness count smoke" {
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
         '| SyncHarness | 134 |',
-        '| **Total** | **816** |',
+        '| **Total** | **825** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -683,7 +685,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **816** |',
+        '| **Total** | **825** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -703,7 +705,7 @@ Invoke-Step "Public README and harness count smoke" {
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw -Encoding UTF8
     Assert-Contains $engineReadme @(
         '| SyncHarness | 134 |',
-        '| **Total** | **816** |',
+        '| **Total** | **825** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -737,7 +739,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw -Encoding UTF8
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **816 passed, 0 failed**',
+        'Pinned offline verifier: **825 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',

@@ -48,7 +48,7 @@ The pinned offline verifier is **615 passed, 0 failed**:
 
 | Harness | Assertions |
 |---|---:|
-| Slice | 28 |
+| Slice | 37 |
 | EngineHarness | 230 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
@@ -58,7 +58,7 @@ The pinned offline verifier is **615 passed, 0 failed**:
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
 | SyncHarness | 134 |
-| **Total** | **816** |
+| **Total** | **825** |
 
 ## Current product path
 
