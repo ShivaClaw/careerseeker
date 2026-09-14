@@ -158,7 +158,7 @@ Current pinned offline results:
 | DispatcherNoSendHarness | 35 |
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
-| SyncHarness | 134 |
+| SyncHarness | 335 |
 | **Total** | **816** |
 
 The engine-specific assertions cover browser onboarding, crash reconciliation, SQLite composition,
