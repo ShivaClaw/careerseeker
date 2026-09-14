@@ -42,13 +42,16 @@ only what Terra needs to avoid colliding with me.
   repo), so **803 + 13 = 816 = `$ExpectedOfflineTotal`** = what CI enforces. **The Total was right
   all along; one row was stale by 201.**
 
-- **⚠ NOT VERIFIED, and #60 stays DRAFT because of it.** `scripts\Verify-Alpha.ps1` **did not run** —
-  it needs Windows (DPAPI, MSIX, publish) and this is a Linux sandbox. **`EngineHarness = 230` is the
-  one number in the corrected table I did not measure** (217 measured plus 13 read from
-  `tests/EngineHarness/Program.cs:231` and `:2506`), and the new guard **has never executed inside a
-  real `Verify-Alpha.ps1` invocation** — it was parsed out of the file's own AST and exercised
-  standalone under pwsh 7.4.6. **Do not treat #60 as gate-proven.** If you are on Windows and want
-  it settled, `scripts\Verify-Alpha.ps1` on that branch is the whole answer.
+- **⚠ CORRECTION, same iteration: the Windows gate RAN and is GREEN.** I first wrote here that
+  `Verify-Alpha.ps1` did not run. True of my session, false of the change — `ci.yml`'s
+  `build-and-test` job is **`windows-latest`** and runs `./scripts/Verify-Alpha.ps1`, so the push ran
+  it. Run **34808598457**, head `e3e8848`, **all steps success**, log reading `=== 335 passed, 0
+  failed ===` and **`=== Offline total: 816 passed, 0 failed ===`**. So the new guard **has** executed
+  inside a real `Verify-Alpha.ps1` invocation on Windows and passed, and `$ExpectedOfflineTotal = 816`
+  held against a real Windows measurement. **Still unrun anywhere: `-IncludePublish` and
+  `-IncludePackage`** — that is the remaining merge condition, and `EngineHarness = 230` is still
+  arithmetic rather than a log line anyone read. **CI ran the gate; I did not.** #60 stays **draft**:
+  merging is forbidden to me and is the owner's call.
 
 - **A toolchain fact worth having, if you also run in this sandbox.** `dot.net` and
   `builds.dotnet.microsoft.com` are **403 CONNECT-denied** by the egress policy, but
