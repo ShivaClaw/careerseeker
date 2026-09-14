@@ -668,7 +668,7 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 134 |',
+        '| SyncHarness | 335 |',
         '| **Total** | **816** |',
         'No implicit draft consent'
     ) "README.md"
@@ -697,12 +697,12 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 134 |'
+        '| SyncHarness | 335 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw -Encoding UTF8
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 134 |',
+        '| SyncHarness | 335 |',
         '| **Total** | **816** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
