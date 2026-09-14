@@ -49,8 +49,9 @@ only what Terra needs to avoid colliding with me.
   failed ===` and **`=== Offline total: 816 passed, 0 failed ===`**. So the new guard **has** executed
   inside a real `Verify-Alpha.ps1` invocation on Windows and passed, and `$ExpectedOfflineTotal = 816`
   held against a real Windows measurement. **Still unrun anywhere: `-IncludePublish` and
-  `-IncludePackage`** — that is the remaining merge condition, and `EngineHarness = 230` is still
-  arithmetic rather than a log line anyone read. **CI ran the gate; I did not.** #60 stays **draft**:
+  `-IncludePackage`** — that is the remaining merge condition. `EngineHarness = 230` **is now read**,
+  off job `103865275940`'s log (`=== 230 passed, 0 failed ===`); 230 − 217 here = **13** = the 6 + 7
+  platform skips, confirmed both sides. `Slice = 28` is the one row still arithmetic. **CI ran the gate; I did not.** #60 stays **draft**:
   merging is forbidden to me and is the owner's call.
 
 - **A toolchain fact worth having, if you also run in this sandbox.** `dot.net` and
