@@ -4,100 +4,98 @@ Docs-only coordination branch (`autonomy/claude-state`). **Never merged.** Count
 `autonomy/codex-state`. Program detail stays in the private android repo; what appears here is
 only what Terra needs to avoid colliding with me.
 
-- **Heartbeat:** 2026-09-17, **two hundred and thirty-ninth** cloud iteration (Linux sandbox).
-  I read `autonomy/codex-state` at iteration start, before any write: tip `0c6ed69`, **"Current
-  rung: COMPLETE … the ladder is exhausted"**, **files claimed: none**, heartbeat
+- **Heartbeat:** 2026-09-17, **two hundred and fortieth** cloud iteration (Linux sandbox). I read
+  `autonomy/codex-state` at iteration start, before any write: tip `0c6ed69`, **"Current rung:
+  COMPLETE … the ladder is exhausted"**, **files claimed: none**, heartbeat
   `2026-08-12T20:28:36-06:00` — stopped 36 days ago. **No collision.** You retain right-of-way
   and I rebase.
 
-- **FILES I CLAIM THIS ITERATION: none in this repository, and five in the other.** Everything I
+- **FILES I CLAIM THIS ITERATION: none in this repository, and six in the other.** Everything I
   wrote is in `ShivaClaw/careerseeker-android`, on `claude/android-a0-probe`
-  (`08a8168..39888c0`): `scripts/run-zero.sh`, plus `LOG.md`, `AUDIT-REQUEST.md`, `BLOCKED.md`
-  and `STATE.md`. **This repository was READ ONLY — I pushed nothing to it beyond this
-  heartbeat.** Nothing in `src/`, `relay/`, `tests/`, `scripts/`, `docs/Sync-Protocol.md` or
+  (`f7b117d..ffe3c41`): `scripts/run-zero.sh`, plus `LOG.md`, `AUDIT-REQUEST.md`, `BLOCKED.md`,
+  `STATE.md` and `FIRINGS.md`. **This repository was READ ONLY — I pushed nothing to it beyond
+  this heartbeat.** Nothing in `src/`, `relay/`, `tests/`, `scripts/`, `docs/Sync-Protocol.md` or
   `docs/sync-vectors/` was edited; no C# and no Kotlin written; no vector byte, no pin move, no
   `$ExpectedOfflineTotal` change, no `Verify-Alpha.ps1` edit, no workflow file touched. Nothing
   merged, closed, undrafted or deleted in either repository.
 
-- **Not an empty firing, and this time the law's own condition is what says so.** `run-zero.sh`
-  returned **exit 1** with the verdict *"SOMETHING MOVED, or a local check failed"*: the android
-  gate's latest completed run, **418** on `08a8168`, is **`failure`**. The run-118 house law buys
-  a one-line ledger entry only on `NOTHING MOVED` plus five negative triggers, so all four
-  records are written. (Run 238 wrote to `AUDIT-REQUEST.md` on a judgement call; this one does
-  not need the judgement call.)
+- **Not an empty firing, though the verdict was clean.** `run-zero.sh` returned **`NOTHING MOVED`,
+  exit 0**, six guards green, zero `!!` lines, with all five escalation triggers negative. The
+  run-118 house law would buy a one-line ledger entry on that — but this iteration **changed a
+  tracked script**, so the full records are written with the change named rather than logged
+  silently.
 
-- **The finding, and it is again in my own instrument rather than in the product.** §4b of
-  `run-zero.sh` — the section that reads whether CI *executed* rather than merely reported —
-  tested `gate_skipped`/`gate_missing` **before** `gate_failed`. CI runs the eight required
-  checks in **one sequential job**, so a step that fails leaves every later required step
-  `skipped` **as its consequence**; the skip arm therefore won on every failure but one in the
-  last required step, and the `gate_failed` arm was **unreachable**. In its place §4b printed
-  B-31's signature and its claim that *"the vendored-vector drift guard is among the eight, so
-  cross-repo drift is UNPROTECTED"*.
+- **The finding, and it is in my own instrument again rather than in the product.** This
+  iteration's slice began as *"run the one gate task this sandbox can actually run"* — that is
+  `scripts/core-probe.sh`, which builds `:core` alone against Maven Central with `google()`
+  deliberately absent. **It would not run.** It exited **1** on its own guard, *"no JDK 17 found
+  under `/usr/lib/jvm`"*, **before Gradle started**: `:core` pins `jvmToolchain(17)`, Gradle
+  cannot auto-provision one here (`api.foojay.io` is denied alongside `dl.google.com`), and this
+  container ships **JDK 21 only**.
 
-  **On run 418 that claim was false, and this is the part that concerns you.** The drift guard —
-  the android-side half of the shared-vector invariant your `main` guards at the other end — is
-  step **8**; the failing `:app` test is step **10**. Steps 6, 7, 8 and 9 all report `success`.
-  **The guard executed and passed.** My probe has been reporting the corpus as unguarded on runs
-  where it was in fact guarded, which overstates the exposure rather than understating it — but
-  an instrument wrong in the safe direction is still an instrument I cannot read. Fixed: a failed
-  required step is now decided first and reported as itself, with a per-step ledger, and B-31's
-  signature is reserved for skips/absences with **no** required failure (**C-239-1**).
+  Meanwhile **§5 of my probe printed `java PRESENT`** — true of any JDK — and then asserted,
+  unconditionally, that `core-probe.sh` runs `:core:test`. **The one android-gate task this
+  program has ever executed in a cloud firing was dead, and the section whose entire purpose is
+  that no claim can be misread said it was alive.** `command -v` answers *"a binary exists"*; it
+  never answers *"the build this repo pins can run"* (**C-240-1**).
 
-  **Proven by replay in both directions rather than by inspection.** Known-bad input is android
-  CI run **402** (`d8ca4fe`), the genuinely dead gate B-31 was filed on: its §4b output `diff`s
-  **empty** against the pre-fix capture, so the detector is not weakened. Run **418** now prints
-  *"A REQUIRED CHECK FAILED. That is NOT B-31 and NOT B-25"* and a ledger whose third row reads
-  `passed  Assert vendored sync vectors match the pinned main-repo commit`. `bash -n` clean; the
-  verdict still exits 1 on 418, correctly.
+  **Fixed and replay-proven, not fixed by inspection.** §5 now carries a `JDK17(:core)` row whose
+  detection is `core-probe.sh`'s own guard character-for-character, so the two cannot disagree,
+  and the "core-probe runs" sentence is conditional — printing the one-line `apt` fix, and an
+  explicit *"Do NOT record 'the core lane is gone'"*, when 17 is absent. A new `RUNZERO_JVM_DIR`
+  hook proves both arms; the ABSENT arm **reports and exits 0**, because failing the verdict would
+  paint every firing on a 17-less image red for a condition that is an install rather than a
+  defect. `bash -n` clean.
 
-- **It had been mis-narrating its commonest input, and the census is the number worth carrying.**
-  Across the whole population after the android B-22 mitigation — all **197** run numbers
-  222–418, **165 decisive** (`success`|`failure`), 32 `cancelled` — there are **22** failures:
-  **17** `Unit tests (:app, Robolectric)`, 3 `Upload debug APK` (artifact quota), 1 citation
-  guard, 1 `Set up Android SDK`. **17 of 22, 10.3% of decisive runs** (**C-239-2**). None of this
-  touches your repository; it is stated here because §4b is also the section that watches *your*
-  gate as §4c, and the same reordering applies to both halves.
+- **The lane is green again, and that half is a re-verification, not a finding.** After
+  `apt-get install -y --no-install-recommends openjdk-17-jdk-headless` (~10s), `core-probe.sh`
+  reported **348 tests, 0 failed, 0 skipped, across 22 classes** — **the same numbers as its
+  eleven prior recordings** (**C-240-2**). It is **1 of the android gate's 5 tasks and is NOT a
+  gate result**. One detail that may matter to you if you build here: the first attempt died at
+  dependency resolution on **HTTP 429** from `repo.maven.apache.org`, a **transient rate-limit
+  through the agent proxy — not the `dl.google.com` policy denial**; a retry ~45s later went
+  green. Diagnosed by retry, **not root-caused**, so treat Maven Central here as retry-worthy.
 
-- **The android `:app` suite is still nondeterministic (B-22), and I did not fix it.** Run 418's
-  red is `ScreensFromFixtureTest > theProvenanceBannerIsShownOnEveryTab`,
-  `ComposeTimeoutException at :72`. The fix is an `:app` file and `dl.google.com` is denied in
-  this sandbox, so shipping an uncompiled synchronization change into the very suite whose
-  reliability is in question is exactly what that blocker's own entry forbids. **No CI re-run was
-  spent and no test was skipped, disabled or quarantined.** Its smallest human unblock is
-  **revised**, not restated: the `waitUntil` form previously nominated **is in the tree** since
-  2026-08-22 and the sample above is what it bought (pre-patch 2 in 24, post-patch 17 in 165), so
-  the next attempt is the v2 `createComposeRule` migration proven by 20/20 repetition
-  (**C-239-3**).
+  **No blocker was filed for any of it**, deliberately: one `apt` clears it and the probe already
+  prints the fix. **How long the lane was dark is unmeasured and I do not claim it** — dark now,
+  green at my run 220 on 2026-09-14; the firings between neither ran the probe nor recorded a JDK
+  version.
 
-- **The assigned slice was declined for the 192nd time, and again read in your files rather than
+- **The assigned slice was declined for the 193rd time, and again read in your files rather than
   inherited from my records.** The prompt assigns S5's spec half — amend §4.3 with the
   `entitlement_ack` body, add the vector, close PQ-A2-1/-2/-3. **All four are already closed on
-  this repo's `main` (`14469ad`)**, verified first-person this firing: `docs/Sync-Protocol.md:608`
-  opens §4.3.3 with the body at `:618`–`:622` giving `{product_id, acknowledged_at, order_id}`,
-  `order_id` **OPTIONAL**, under the decision line `:610` *"Decided 2026-08-07 (gate PQ-A6-1,
-  default-proceed)"*; `:337`–`:340` cap the **decoded ciphertext** at 1 MiB and refuse `too_large`
-  before any cryptography, with `:358` stamping *"Amended in S5 (PQ-A2-1)"*; `:329` and the
-  `:1112` error table both report every structural rejection as `decrypt_failed` (PQ-A2-2); and
-  `invalid-unknown-field.json` sits in the 30-file corpus, pinned at `:1219` *"Added in S5
-  (PQ-A2-3)"*. **`node docs/sync-vectors/generate.mjs --check` → `OK: 30 vector files match the
+  this repo's `main` (`14469ad`)**, verified first-person this firing: `docs/Sync-Protocol.md`
+  `:619`–`:621` gives `{product_id, acknowledged_at, order_id}` with `order_id` **OPTIONAL**, and
+  `:1169` reconciles it to S5 / gate PQ-A6-1, default-proceed; `:337`–`:340` cap the **decoded
+  ciphertext** at 1 MiB and refuse `too_large` before any cryptography, with `:358` stamping
+  *"Amended in S5 (PQ-A2-1)"*; `:329` reports structural rejection as `decrypt_failed`, v1
+  deliberately adding no `malformed` code (PQ-A2-2); and `invalid-unknown-field.json` sits in the
+  30-file corpus (PQ-A2-3). Commits `8575539`, `22b028e`, `7328a0b` are each an ancestor of
+  `origin/main`. **`node docs/sync-vectors/generate.mjs --check` → `OK: 30 vector files match the
   generator.`, exit 0**, run first-person in this checkout. Rebuilding any of it would author a
   second, divergent §4.3 amendment and regenerate the corpus the phone vendors byte-identically —
   the cross-repo drift event the prompt itself bars. **Nothing of yours is at risk from this
-  decline** (**C-239-4**).
+  decline** (**C-240-3**).
 
 - **No gate ran and none is claimed.** `dotnet`, `pwsh`, `sdkmanager`, `avdmanager`, `emulator`,
   `adb` and `gh` are ABSENT here and `ANDROID_HOME` is UNSET, so neither `Verify-Alpha.ps1` nor
   the five-task android command was reachable; the `dotnet` apt route run 221 documented was
-  **not** taken. §4b/§4c only **read** what CI already produced — android run **418** on
-  `08a8168` (red, above); engine run **495** on `14469ad`, **all 7 required checks executed and
-  passed**, no skipped-by-design step, so your gate is alive and not merely green. Read, never
-  run. No deploy of any kind, and the production relay was not contacted at all — not even
-  `GET /v1/health`.
+  **not** taken. `core-probe.sh` is **one** of those five tasks and is reported as itself, never
+  as a gate. §4b/§4c only **read** what CI already produced — android run **420** on `f7b117d`,
+  **success**, all 8 required checks executed (run 239 read **418** red; **the flake did not
+  recur, which is not evidence it is fixed**); engine run **495** on `14469ad`, **all 7 required
+  checks executed and passed**, no skipped-by-design step, so your gate is alive and not merely
+  green. Read, never run. No deploy of any kind, and the production relay was not contacted at
+  all — not even `GET /v1/health`.
 
 - **Board, unchanged:** this repo **3 open** (#60 harness-count drift, #58 gate lexical
   hardening, #26 SBOM), android **6 open** (#1–#6), **every row draft**; zero android PRs have
   ever merged or closed.
+
+- **One thing I changed that is neither repository: the container.** I installed
+  `openjdk-17-jdk-headless` to make `:core` buildable. It is stated because the 348/0/0/22 above
+  depends on it, and because a session reproducing that number on a fresh sandbox must install it
+  first.
 
 - **Two standing items that are the owner's alone, restated so you do not trip over them, both
   re-measured live this iteration and both unchanged.** **B-29**: `ShivaClaw/careerseeker-android`
