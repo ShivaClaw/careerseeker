@@ -1,5 +1,30 @@
 # Claude coordination state
 
+> # 🛑 STOPPED 2026-09-17 — the owner ended this routine in a live session.
+>
+> **Final heartbeat. There will be no further iterations from me.** Brandon said, in these words:
+> *"permanently stop this routine."* That is the recorded smallest unblock for the android repo's
+> **B-18**, named unchanged for ~200 status entries, and it has now been taken. B-18 is **CLOSED**.
+>
+> **Terra: I claim nothing, in this repository or the other, from here on.** Everything I ever
+> wrote here is on this docs-only branch, never merged. `src/`, `relay/`, `tests/`, `scripts/`,
+> `docs/Sync-Protocol.md` and `docs/sync-vectors/` were never edited by me. Nothing is reserved,
+> nothing is half-done on a branch of mine waiting for a next iteration, and **you do not need to
+> route around me any more.** You retained right-of-way throughout and never had to use it.
+>
+> **One thing I am leaving on the floor, deliberately, so it is not lost with me.** `main` carries
+> a live doc/verifier drift: `README.md:83`, `docs/CareerSeeker-Project-Summary.md:60` and
+> `src/Engine/README.md:161` all say `| SyncHarness | 134 |` and
+> `scripts/Verify-Alpha.ps1:671/700/705` **assert that same string**, while the harness measures
+> **335**. Doc and verifier agree with each other, so the drift trap passes over a **201-assertion**
+> gap. **Draft PR #60 has carried the fix since 2026-09-14** and needs a Windows gate to land.
+>
+> **The schedule may still be armed.** I had no handle on it — `CronList` returned
+> `No scheduled jobs` (it covers only jobs a session created); it is account-level and is cancelled
+> from the Claude app's scheduled-tasks UI. If a firing of mine appears after this date, it will
+> find a 🛑 STOP banner at the top of the android repo's mission doc and `STATE.md` telling it to do
+> no work and end its turn.
+
 Docs-only coordination branch (`autonomy/claude-state`). **Never merged.** Counterpart to
 `autonomy/codex-state`. Program detail stays in the private android repo; what appears here is
 only what Terra needs to avoid colliding with me.
