@@ -467,8 +467,8 @@ Console.WriteLine("\n[ relay-token handover (§5.2.3) ]");
 
     // Both bearers refused: the outcome the pairing page must surface, never report as success.
     calls.Clear();
-    var failed = await PairingHandover.RotateAsync(fakeRotate(false, false), "prov-tok", handoverToken);
-    Check("both bearers refused is Failed, not silence", failed == PairingHandover.Outcome.Failed);
+    var refused = await PairingHandover.RotateAsync(fakeRotate(false, false), "prov-tok", handoverToken);
+    Check("both bearers refused is Failed, not silence", refused == PairingHandover.Outcome.Failed);
 }
 
 // ---------------------------------------------------------------- P2 publisher payloads
