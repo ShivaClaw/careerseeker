@@ -228,13 +228,20 @@ Three rules a client may rely on:
 
 **`rotate_to` is lowercase hex, and this is a live interop trap rather than a curiosity.** The
 relay tests `/^[0-9a-f]{64}$/`, which is case-**sensitive**. C#'s `Convert.ToHexString`
-returns **uppercase**, and the engine's only rotation caller
-(`tests/SyncLiveSmoke/Program.cs:84`) is correct solely because it appends an explicit
-`.ToLowerInvariant()`. Drop that call and rotation is refused with a bare `400` — and
+returns **uppercase**. The spelling now lives in exactly one place —
+`PairingHandover.TokenSha256Hex` (`src/Sync/PairingHandover.cs`), which lowercases before any
+caller can forget to — and both rotation callers go through it or match it: the production
+pairing seam (`src/Engine/Program.cs`, added 2026-09-18; before that **nothing in production
+rotated at all**, and a paired engine 401'd on every route) and the live smoke
+(`tests/SyncLiveSmoke/Program.cs:84`, with its explicit `.ToLowerInvariant()`). Get the case
+wrong and rotation is refused with a bare `400` — and
 `RelayClient.RotateTokenAsync` returns a bare `bool` (`src/Sync/RelayClient.cs:30-38`), so
 the failure is indistinguishable from a network error, on the one call that is **one-way and
-locks the engine out of the channel if it half-succeeds**. Senders MUST emit lowercase;
-receivers of this document should not assume a hex string is case-normalised anywhere.
+locks the engine out of the channel if it half-succeeds**. Rotation being one-way and
+idempotent is also the recovery: a half-succeeded attempt is absorbed by re-presenting the
+same `rotate_to` as the **final** bearer, which is what `PairingHandover` does. Senders MUST
+emit lowercase; receivers of this document should not assume a hex string is case-normalised
+anywhere.
 
 **`POST /pair`'s cap counts CHARACTERS, and §3.1's lesson had not reached it.** The check is
 `raw.length > 16 * 1024` on the decoded string, so the unit is UTF-16 code units, not bytes.
