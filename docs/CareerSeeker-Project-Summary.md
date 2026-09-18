@@ -44,11 +44,11 @@ The B0-B8 Windows ladder is implemented:
 - **R7 scorer edge case:** an empty local profile has zero CV-match evidence and cannot make an otherwise
   attractive posting act-eligible solely through compensation, growth, and preferences.
 
-The pinned offline verifier is **823 passed, 0 failed**:
+The pinned offline verifier is **832 passed, 0 failed**:
 
 | Harness | Assertions |
 |---|---:|
-| Slice | 28 |
+| Slice | 37 |
 | EngineHarness | 230 |
 | ResearcherHarness | 57 |
 | HookHarness | 16 |
@@ -58,7 +58,7 @@ The pinned offline verifier is **823 passed, 0 failed**:
 | LifecycleHarness | 45 |
 | RendererHarness | 6 |
 | SyncHarness | 342 |
-| **Total** | **823** |
+| **Total** | **832** |
 
 ## Current product path
 

@@ -423,7 +423,9 @@ $offlineProjects = @(
 # lowercase-hex spelling (the relay's case-sensitive gate), the single-call happy path, the
 # idempotent final-bearer retry that distinguishes "already rotated" from "refused", and the
 # Failed outcome the pairing page must surface. 816 + 7 = 823.
-$ExpectedOfflineTotal = 823
+# The 2026-09-10 audit fix (F01/F02: negation guard at every lexical accept + symbol-identifier
+# preservation) adds nine Slice regressions: 823 + 9 = 832.
+$ExpectedOfflineTotal = 832
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -737,7 +739,7 @@ Invoke-Step "Public README and harness count smoke" {
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
         '| SyncHarness | 342 |',
-        '| **Total** | **823** |',
+        '| **Total** | **832** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -751,7 +753,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **823** |',
+        '| **Total** | **832** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -771,7 +773,7 @@ Invoke-Step "Public README and harness count smoke" {
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw -Encoding UTF8
     Assert-Contains $engineReadme @(
         '| SyncHarness | 342 |',
-        '| **Total** | **823** |',
+        '| **Total** | **832** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -811,7 +813,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw -Encoding UTF8
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **823 passed, 0 failed**',
+        'Pinned offline verifier: **832 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',

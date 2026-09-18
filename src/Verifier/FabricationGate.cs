@@ -128,6 +128,12 @@ public static class FabricationGate
         var t = Text.ContentTokens(tc.Text);
         foreach (var s in candidates)
         {
+            // "I am not AWS certified" must never support "I am AWS certified": the
+            // bidirectional subset below cannot see polarity, so a negation mismatch
+            // disqualifies the candidate outright (F01). Credentials have no semantic
+            // fallback — the claim then correctly fails as CredentialNotFound.
+            if (Text.ContainsNegation(tc.Text) != Text.ContainsNegation(s.Text))
+                continue;
             var cs = Text.ContentTokens(s.Text);
             if (t.Count > 0 && (t.IsSubsetOf(cs) || cs.IsSubsetOf(t)))
                 return WeakCheck(tc, s);
@@ -154,6 +160,10 @@ public static class FabricationGate
         SourceClaim? supporting = null;
         foreach (var s in ordered)
         {
+            // Polarity mismatch: identification by token subset would equate a denial
+            // with the skill itself. Leave such pairs to the semantic matcher (F01).
+            if (Text.ContainsNegation(tc.Text) != Text.ContainsNegation(s.Text))
+                continue;
             var st = Text.ContentTokens(s.Text);
             if (st.Count > 0 && st.IsSubsetOf(tcTokens))
             {
@@ -349,8 +359,16 @@ public static class FabricationGate
 
     private static bool LexicallySupports(string tailoredText, string sourceText)
     {
+        // Subset matching is polarity-blind: the positive claim's tokens ARE a subset of
+        // the negated fact's ("I have led X" ⊂ "I have NOT led X"). A negation mismatch
+        // therefore disqualifies lexical support entirely and defers to the semantic
+        // matcher, which fails closed (audit 2026-09-10, finding F01).
+        if (Text.ContainsNegation(tailoredText) != Text.ContainsNegation(sourceText))
+            return false;
         var t = Text.ContentTokens(tailoredText);
         var s = Text.ContentTokens(sourceText);
+        // Empty tailored tokens = no claim content to check (e.g. a bare metric after
+        // StripNumbers); the number itself is compared separately by CheckMetricAsync.
         if (t.Count == 0) return true;
         return t.IsSubsetOf(s);   // covers exact-equal and subset
     }
