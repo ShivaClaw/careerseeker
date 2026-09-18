@@ -618,7 +618,7 @@ Invoke-Step "Docs-site trust copy smoke" {
         if ($relative -like "*download*") {
             Assert-Contains $content @(
                 "The signed Beta is available to trusted testers",
-                "CareerSeeker-beta-win-x64.msix",
+                "CareerSeeker-beta-0.7.0-win-x64.msix",
                 "64,937,092",
                 "3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2",
                 "538E8E647F971B75EBFC99F826BD5302478D253005F8CC21E82A7586DEE89972",
