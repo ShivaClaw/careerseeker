@@ -57,16 +57,7 @@ try {
         throw "MSIX Version must contain four numeric components."
     }
 
-    # The SDK BuildTools restore gets its own empty, script-owned packages
-    # directory, deliberately. NuGet validates the lock file's contentHash only
-    # when it ACQUIRES a package; a copy already sitting in a machine-wide cache
-    # is trusted as-is. The first CI dispatch (2026-09-18) satisfied --locked-mode
-    # from the runner image's pre-primed cache and that copy did not carry
-    # MakeAppx.exe. Restoring into a directory this script controls forces
-    # acquisition from the feed every time, which is the only case the lock's
-    # hash actually protects.
-    $toolsPackages = Resolve-RepoPath "output/nuget-tools"
-    Invoke-Checked "dotnet" @("restore", $toolsProject, "--locked-mode", "--packages", $toolsPackages)
+    Invoke-Checked "dotnet" @("restore", $toolsProject, "--locked-mode")
     if (-not $NoPublish) {
         Invoke-Checked "dotnet" @(
             "publish", $engineProject,
@@ -82,12 +73,32 @@ try {
         throw "Could not locate the NuGet global-packages directory."
     }
     $globalPackages = $Matches[1].Trim()
+    # Resolve the BuildTools package where NuGet actually placed it. On a machine
+    # with Visual Studio -- GitHub's windows-latest runners included -- restore can
+    # be satisfied from a machine-wide FALLBACK folder: nothing is downloaded,
+    # nothing lands in the global-packages folder, and a lookup hard-wired to
+    # `dotnet nuget locals global-packages` finds no package at all, which is how
+    # the first sign-beta dispatch failed (2026-09-18). The assets file records
+    # every package folder restore actually used; trust it, not an assumption.
+    $assetsPath = Resolve-RepoPath "tools/WindowsSdkTools/obj/project.assets.json"
+    if (-not (Test-Path -LiteralPath $assetsPath -PathType Leaf)) {
+        throw "Restore left no assets file at $assetsPath, so the BuildTools package cannot be located."
+    }
+    $assets = Get-Content -LiteralPath $assetsPath -Raw | ConvertFrom-Json
+    $packageFolders = @($assets.packageFolders.PSObject.Properties.Name)
+    $sdkPackageDir = $packageFolders |
+        ForEach-Object { Join-Path $_ "microsoft.windows.sdk.buildtools/$sdkBuildToolsVersion" } |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Container } |
+        Select-Object -First 1
+    if ($null -eq $sdkPackageDir) {
+        throw ("Microsoft.Windows.SDK.BuildTools $sdkBuildToolsVersion was restored but its folder was " +
+            "not found under any packageFolders entry: $($packageFolders -join '; ')")
+    }
     # Locate MakeAppx.exe by search rather than a hard-coded bin/<sdk-build>/x64
     # segment: the inner folder is named for the SDK build, not the package
     # version, and a wrong guess is indistinguishable from a missing file. The
     # x64 filter keeps the match unambiguous; the error path lists what WAS
     # extracted so a recurrence diagnoses itself.
-    $sdkPackageDir = Join-Path $toolsPackages "microsoft.windows.sdk.buildtools/$sdkBuildToolsVersion"
     $makeAppxItem = Get-ChildItem -Path $sdkPackageDir -Filter "makeappx.exe" -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -match '[\\/]x64[\\/]' } |
         Select-Object -First 1
