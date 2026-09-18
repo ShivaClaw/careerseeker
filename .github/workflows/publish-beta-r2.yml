@@ -1,0 +1,119 @@
+name: Publish Beta MSIX to R2
+
+# Manual only, and single-purpose: copy the signed 0.7.0 Beta produced by
+# "Sign Beta MSIX" run 9 (35382458046) from its workflow artifact into the
+# distribution R2 bucket. Everything is pinned -- the artifact id, both
+# SHA-256 digests, the byte count, and the destination key -- so a dispatch
+# can only publish the exact file Q04 validated, or fail.
+#
+# The Alpha object lives under its own key and is never addressed here. The
+# upload is also create-only: if the destination key already exists this
+# workflow refuses, so a re-dispatch cannot silently replace a published
+# Beta either. Replacing a published object is a human decision, made by
+# deleting the object first.
+#
+# Publishing a new Beta version means pinning a new artifact here: new id,
+# new digests, new size, new versioned key. That is deliberate friction, the
+# same reason sign-beta.yml is manual -- nothing reaches testers because it
+# happened to be sitting on a branch.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read # artifact download below
+
+env:
+  # Pinned identity of the one artifact this workflow may publish:
+  # CareerSeeker-beta-win-x64-signed from sign-beta run 9, the file the Q04
+  # VM matrix validated. ZIP_SHA256 is GitHub's stored digest of the artifact
+  # archive; MSIX_* are the numbers docs-site/download.md tells testers to
+  # verify.
+  ARTIFACT_ID: "10562462004"
+  ZIP_SHA256: "d27c9c26ef2013ebb479710115522a2acedda3bad2787a563b160930be96a69b"
+  MSIX_SHA256: "538e8e647f971b75ebfc99f826bd5302478d253005f8cc21e82a7586dee89972"
+  MSIX_BYTES: "33763432"
+  MSIX_NAME: "CareerSeeker-beta-win-x64.msix" # name inside the artifact zip
+  DEST: "careerseeker/beta/CareerSeeker-beta-0.7.0-win-x64.msix"
+
+jobs:
+  publish:
+    name: Verify and publish the signed Beta
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: relay # the repo's locked wrangler lives here
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: relay/package-lock.json
+
+      # npm ci against relay/package-lock.json is what pins the wrangler that
+      # does the upload -- no floating fetch of whatever is newest today.
+      - name: Install locked tooling
+        run: npm ci
+
+      - name: Download the signed artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > artifact.zip
+          echo "${ZIP_SHA256}  artifact.zip" | sha256sum --check
+          unzip -o artifact.zip "${MSIX_NAME}"
+
+      # A mismatch here means the file is not the one Q04 validated, and
+      # nothing gets published.
+      - name: Gate on the pinned digest and size
+        run: |
+          echo "${MSIX_SHA256}  ${MSIX_NAME}" | sha256sum --check
+          actual=$(stat -c%s "${MSIX_NAME}")
+          if [ "${actual}" != "${MSIX_BYTES}" ]; then
+            echo "::error::Size ${actual} does not match pinned ${MSIX_BYTES}."
+            exit 1
+          fi
+
+      - name: Refuse to overwrite an existing object
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if npx wrangler r2 object get "${DEST}" --file /dev/null --remote 2>/dev/null; then
+            echo "::error::${DEST} already exists; refusing to overwrite a published object."
+            exit 1
+          fi
+
+      - name: Upload to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler r2 object put "${DEST}" \
+            --file "${MSIX_NAME}" \
+            --content-type application/msix \
+            --remote
+
+      # Trust the read-back, not the upload's exit code: pull the object just
+      # written and prove the bucket now serves the pinned bytes. These are
+      # the numbers Q05 announces to testers.
+      - name: Read back and verify the published object
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler r2 object get "${DEST}" --file roundtrip.msix --remote
+          echo "${MSIX_SHA256}  roundtrip.msix" | sha256sum --check
+          {
+            echo '### Published'
+            echo ''
+            echo "- key: ${DEST}"
+            echo "- bytes: $(stat -c%s roundtrip.msix)"
+            echo "- sha256: $(sha256sum roundtrip.msix | cut -d' ' -f1)"
+          } >> "${GITHUB_STEP_SUMMARY}"
