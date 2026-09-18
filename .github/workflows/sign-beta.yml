@@ -1,0 +1,145 @@
+name: Sign Beta MSIX
+
+# Manual only, deliberately. Signing must not happen on every push: it spends
+# signature quota and it stamps "Applied Autonomy LLC" onto whatever happens to
+# be sitting on the branch at the time.
+#
+# Run it from `main`. The Entra federated credential is pinned to
+# repo:ShivaClaw@268223005/careerseeker@1292717147:ref:refs/heads/main
+# with no wildcard matching, so a dispatch from any other branch fails at the
+# Azure login step.
+on:
+  workflow_dispatch:
+
+# id-token: write is what lets this job ask GitHub for the OIDC token that
+# proves its identity to Azure. Without it there is no token to present and the
+# login fails with an error that reads like bad credentials rather than a
+# missing permission.
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: true
+  ARTIFACT: output/release/CareerSeeker-beta-win-x64.msix
+
+jobs:
+  sign:
+    name: Build, sign and verify the Beta MSIX
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore CareerSeeker.sln
+
+      - name: Build Release with warnings as errors
+        run: dotnet build CareerSeeker.sln -c Release --no-restore --warnaserror
+
+      # The same gate CI runs. Nothing gets signed that would not have passed CI.
+      - name: Run offline alpha verification
+        shell: pwsh
+        run: ./scripts/Verify-Alpha.ps1
+
+      # Build with the real publisher BEFORE signing. Packaging with a
+      # placeholder and signing afterwards produces a valid signature over a
+      # manifest naming the wrong publisher: it installs on the build machine
+      # and fails on a clean one.
+      #
+      # The publisher goes through `env:` rather than being interpolated into
+      # the run line. That is the recommended pattern for any ${{ }} value used
+      # in a script, and it also sidesteps quoting the commas and equals signs
+      # in the certificate subject.
+      - name: Package the MSIX with the exact certificate subject
+        shell: pwsh
+        env:
+          PUBLISHER: ${{ vars.ARTIFACT_SIGNING_PUBLISHER }}
+        run: ./scripts/Package-BetaRelease.ps1 -Publisher $env:PUBLISHER
+
+      - name: Record the unsigned artifact
+        shell: pwsh
+        run: |
+          $item = Get-Item -LiteralPath $env:ARTIFACT
+          $hash = (Get-FileHash -LiteralPath $env:ARTIFACT -Algorithm SHA256).Hash
+          @(
+            '### Unsigned'
+            ''
+            "- bytes: $($item.Length)"
+            "- sha256: $hash"
+            ''
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Action name and inputs are pinned by HUMAN-QUEUE.md Q03. The RFC-3161
+      # timestamp is what makes the signature outlive the certificate, which is
+      # short-lived by design.
+      - name: Sign the single MSIX
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+          files: ${{ github.workspace }}\output\release\CareerSeeker-beta-win-x64.msix
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Verify the signed package
+        shell: pwsh
+        env:
+          PUBLISHER: ${{ vars.ARTIFACT_SIGNING_PUBLISHER }}
+        run: |
+          ./scripts/Test-BetaReleasePackage.ps1 `
+            -PackagePath $env:ARTIFACT `
+            -ExpectedPublisher $env:PUBLISHER `
+            -RequireSigned
+
+      # Fails loudly rather than reporting a green run over an unsigned or
+      # untimestamped artifact. The numbers printed here are what Q04 and Q05
+      # consume.
+      - name: Record the signed artifact
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature -LiteralPath $env:ARTIFACT
+          if ($sig.Status -ne 'Valid') {
+            throw "Authenticode status is $($sig.Status): $($sig.StatusMessage)"
+          }
+          if (-not $sig.TimeStamperCertificate) {
+            throw 'Signature carries no RFC-3161 timestamp; it would die with the certificate.'
+          }
+          $item = Get-Item -LiteralPath $env:ARTIFACT
+          $hash = (Get-FileHash -LiteralPath $env:ARTIFACT -Algorithm SHA256).Hash
+          @(
+            '### Signed'
+            ''
+            "- bytes: $($item.Length)"
+            "- sha256: $hash"
+            "- subject: $($sig.SignerCertificate.Subject)"
+            "- timestamper: $($sig.TimeStamperCertificate.Subject)"
+            ''
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      # This is how the signed file gets off the runner and onto the disposable
+      # Windows 11 VM for Q04.
+      - name: Upload the signed MSIX
+        uses: actions/upload-artifact@v7
+        with:
+          name: CareerSeeker-beta-win-x64-signed
+          path: output/release/CareerSeeker-beta-win-x64.msix
+          if-no-files-found: error
+          retention-days: 30
