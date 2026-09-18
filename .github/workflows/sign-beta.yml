@@ -5,9 +5,13 @@ name: Sign Beta MSIX
 # be sitting on the branch at the time.
 #
 # Run it from `main`. The Entra federated credential is pinned to
-# repo:ShivaClaw@268223005/careerseeker@1292717147:ref:refs/heads/main
+# repo:ShivaClaw/careerseeker:ref:refs/heads/main
 # with no wildcard matching, so a dispatch from any other branch fails at the
-# Azure login step.
+# Azure login step. (The portal's numeric-ID subject template did not match
+# what GitHub actually asserts for this repo -- AADSTS700213 on the first
+# dispatch, 2026-09-18 -- so the credential is pinned to the name-based
+# subject the token really carries. A repo or account rename will break the
+# login loudly; re-pin the credential if that ever happens.)
 on:
   workflow_dispatch:
 
