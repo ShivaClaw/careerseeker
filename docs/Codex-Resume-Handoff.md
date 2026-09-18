@@ -1,6 +1,98 @@
-# Codex Resume Handoff
+﻿# Codex Resume Handoff
 
-Updated: 2026-08-12
+Updated: 2026-09-18
+
+## 2026-09-18 (Fable 5, cloud session) — Q03 EXECUTED: the Beta MSIX is signed; ASTRA challenge graded
+
+Never trust a SHA here — derive. Signing lane run under Brandon's explicit direction (CoWork
+handoff, summary.md step 1); grading per the sealed-key protocol.
+
+- **Signing pipeline live.** `.github/workflows/sign-beta.yml` on main (`c92df01`, comment fix
+  `944c6e8`); run 35323409298 green end to end: build -> Verify-Alpha **816/0 on the runner** ->
+  package -> OIDC login -> Azure Artifact Signing -> signtool verify + RFC-3161 -> artifact
+  `CareerSeeker-beta-win-x64-signed` (id 10538295386, 30-day retention). **Signed MSIX:
+  33,761,959 bytes, SHA-256 127A07A74C1D8710865726DAB26DC541CBA9FFCD9C51A1EEC7B39151CA0DEE9A**,
+  publisher byte-exact. Q04 seeds from these numbers; Q05 after. Signing cert expires 09-21 —
+  short-lived by design; the timestamp is what endures.
+- Route to green (all failures pre-spend; fixes on main): MakeAppx lookups assumed the global
+  NuGet cache, but VS-image runners satisfy `--locked-mode` from a machine-wide **fallback
+  folder** — `Package-BetaRelease.ps1` (`d132cb4`) and `Test-BetaReleasePackage.ps1` (`0ff50ef`)
+  now resolve through the assets file's `packageFolders` + recursive x64 search. Trap for later:
+  the lock's `contentHash` is NuGet's signature-excluded hash, NOT the catalog `packageHash` —
+  re-pinning to the latter earns NU1403 (my detour, reverted `3f50de3`). Entra FIC re-pinned by
+  Brandon to the name-based subject `repo:ShivaClaw/careerseeker:ref:refs/heads/main`; the
+  portal's numeric-ID template never matched GitHub's assertion (AADSTS700213).
+- **PR #60 reviewed, verdict approve** (posted as comment; GitHub refuses self-APPROVE). Every
+  harness row read off Windows CI log job 103865275940 — Slice 28 measured, closing the PR's last
+  arithmetic residue; the sum-guard lifted from the script's own AST fires on the real
+  134-regression. Its stated merge condition (`-IncludePublish`/`-IncludePackage` local pass)
+  stands. Merge **#60 before #58**: #58's tables still carry `SyncHarness | 134` under pin 825,
+  and #60-first keeps main's docs arithmetically consistent at every point.
+- **ASTRA challenge graded.** Retiring Fable: 89/100. This session, stricter recall map: 86/100
+  (K2 and K12 missed outright; K5/K8/K11/K13 partial — otherwise identical axis calls). Shared
+  verdict: one precision failure (L11 — `data-cfemail` email-obfuscation misread as an analytics
+  beacon), **11 mechanism-novel true findings**, and the report corrected the key three times
+  (K1: iOS corpus byte-identical-additive, not forked — blob-hash proven; K9: production
+  Program.cs DOES build bridge/pump, Play-key-gated with null seams; K15: Apple X-Wing is not
+  the reserved p256+mlkem768 construction). Deliverable-4 decisions endorsed by both graders.
+- **Post-grade findings NOBODY had** — ASTRA, key, and both graders all missed; each verified at
+  `14469ad` by direct read this session:
+  1. **Production pairing never rotates the relay token.** `RelayClient.RotateTokenAsync`'s only
+     caller is `tests/SyncLiveSmoke/Program.cs:85`; `CompleteAsync` (Program.cs:494-513) says
+     "Persist BEFORE rotating" and then never rotates; android `PairingFlow.kt:192` assigns
+     rotation to the engine. First real pairing => relay keeps the provisional hash, engine
+     401-locked out of its own channel, phone looks healthy. The live smoke rotates manually,
+     masking it. P1 before any real pairing.
+  2. **Relay retains completions forever.** The TTL alarm purges only `envelopes`; the
+     `completion` blob (sealed device signing key) and `token_hash` have no expiry; each
+     abandoned Start-pairing leaks an immortal DO channel — vs Spec §8.3's blanket 30-day TTL.
+  3. **`CompletePairing` throws on mistyped completion fields** (GetProperty accessors vs its
+     documented null-on-failure contract), and the relay validates those fields by truthiness
+     only — the composed path turns a malformed body into an engine 500 after the one-shot
+     completion is consumed.
+- 0.0 unchanged: trigger `trig_01JQiVRicpwYXLkdgrN51eGc` still enabled, firing 4-hourly no-ops;
+  http_api routines are owner-toggle only.
+- Queue: Brandon — Q04 VM matrix, #60 then #58 merges, trigger toggle, L11 one-look beacon check.
+  Next session — token-rotation fix (+ a SyncHarness assertion that can fail), relay completion
+  TTL, CompletePairing hardening, C01 `needsSnapshot` persistence, C02 projection contract, L17
+  nonce-math correction, .NET LTS decision (net8.0 EOL 2026-11-10).
+
+## 2026-09-11 (Fable 5, Brandon-authorized burn-down) — the S-series LANDED; queue 18 -> 2
+
+Never trust a SHA here — derive. Executed under Brandon's explicit merge authorization, reconciled
+against the loop's RETURN-DAY.md landing plan and the 2026-09-10 external audit (ASTRA, `AUDIT.md`).
+
+- **main @ `11bb1f5` (PR #59), CI green, offline pin 816** (was 611). Landed as reviewed units:
+  #32, #34, #35, #54-#57 individually; then #37, #38, #39, #45, #46, #47, #49, #33, #36, #48, #50,
+  #51, #52 via the `claude/s5-s6-integration` branch — one integration commit per PR with the pin
+  arithmetic in each message (611+12=623 ... 812+4=816), every step's changed harnesses measured
+  before commit. Eight contained PRs were closed-as-landed with `merge-base --is-ancestor` proof
+  (GitHub auto-flips only five). 26 landed branches deleted from origin.
+- **#53 closed as superseded** (landing plan §11.2/§11.4: duplicate incompatible PushOutcome vs the
+  landed RelayPushResult; its unique guard was already rescued into #54). Branch kept.
+- **Stacked-PR trap recorded:** merging a parent PR with `--delete-branch` CLOSES its children
+  instead of retargeting them. Recovery: restore the branch tip from the merge commit's second
+  parent, reopen, retarget to main, re-delete. Never `--delete-branch` mid-stack.
+- **Two toolchain defects found and fixed in-branch:** (1) integration tooling stripped the
+  verifier's BOM and Windows PowerShell 5.1 re-reads compounded mojibake into 14 lines — restored
+  byte-exactly from clean git twins (`9b1f801`); (2) the doc-smoke was shell-dependent — BOM-less
+  docs read as CP-1252 under 5.1 while pwsh CI read UTF-8, so a curly-quote assertion could fail
+  only locally; all 49 doc reads now pass `-Encoding UTF8` (`b7b5110`).
+- **ASTRA audit reconciliation:** F01/F02 fixed on draft **PR #58** (re-derived onto this main,
+  pin 816+9=825, verifier green locally, awaiting Codex — never self-merge). F06 + F07 landed
+  (#34; #32/#33/#35). F09's transport/component gaps landed (#37-#49); the residual is wiring
+  `BuildSyncBridge`/pump into the production `run` host + a real Android app shell — see
+  `docs/Composition-Root-Decision.md`. F03 fix `e97769e` exists on `claude/android-a0-probe`,
+  unintegrated. F04 (iOS swift-crypto `from:"3.0.0"` can never reach patched 4.5.1) and F05
+  (relay dev-dep lockfile refresh) open. Shared vector corpus on main is now 30 (was 26);
+  android vendors 29 — run the android repo's `scripts/repin-vectors.sh` against post-landing
+  main. Relay changes are landed in source but NOT deployed to relay.careerseeker.app (gated).
+- **VISIBILITY FINDING (Brandon decision, urgent):** GitHub reports `careerseeker-android` AND
+  `careerseeker-ios` as **PUBLIC**; the android README and the recorded program decision say
+  private-always. Possibly deliberate (cloud-session access). Confirm intent; flipping is one
+  command but cuts off any unauthenticated cloud automation.
+- Remaining open PRs: **#58** (Codex review) and **#26** (SBOM, blocked on human queue Q07).
+  Human queue Q01-Q07 unchanged — all Brandon-only.
 
 ## 2026-08-12 (Terra R7) - Final ladder handoff: empty-profile scorer boundary
 

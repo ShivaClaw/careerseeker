@@ -1,5 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import {
+  CHANNEL_IDLE_SECONDS,
+  COMPLETION_TTL_SECONDS,
   DEFAULT_TTL_SECONDS,
   DIRECTIONS,
   ENVELOPE_TABLE_DDL,
@@ -83,7 +85,15 @@ export class PairingChannel extends DurableObject<Env> {
     const existing = await this.ctx.storage.get<Uint8Array>('token_hash');
 
     if (!existing) {
+      const now = Math.floor(Date.now() / 1000);
       await this.ctx.storage.put('token_hash', await this.tokenHash(bearer));
+      // Every channel gets a lease and a death date at birth. Without the alarm here, a
+      // channel that never receives an envelope never alarms, and an abandoned "Start
+      // pairing" press leaks this Durable Object forever — token hash and all.
+      await this.ctx.storage.put('last_activity', now);
+      const current = await this.ctx.storage.getAlarm();
+      const due = (now + CHANNEL_IDLE_SECONDS) * 1000;
+      if (current === null || due < current) await this.ctx.storage.setAlarm(due);
       return this.json({ ok: true }, 201);
     }
 
@@ -106,7 +116,20 @@ export class PairingChannel extends DurableObject<Env> {
 
     const bytes = new Uint8Array(rotateTo.match(/../g)!.map((h) => parseInt(h, 16)));
     await this.ctx.storage.put('token_hash', bytes);
+    await this.touch(Math.floor(Date.now() / 1000));
     return this.json({ ok: true, rotated: true }, 200);
+  }
+
+  /**
+   * Renew the idle lease, at most once an hour so read-heavy traffic does not turn into a
+   * storage write per request. Any authenticated operation counts as life: a channel dies
+   * only after CHANNEL_IDLE_SECONDS in which nobody who holds the bearer touched it at all.
+   */
+  private async touch(nowSeconds: number): Promise<void> {
+    const last = await this.ctx.storage.get<number>('last_activity');
+    if (last === undefined || nowSeconds - last >= 3600) {
+      await this.ctx.storage.put('last_activity', nowSeconds);
+    }
   }
 
   // ------------------------------------------------------------- pairing completion (§5.2.2)
@@ -121,17 +144,48 @@ export class PairingChannel extends DurableObject<Env> {
       return this.json({ error: 'bad_request' }, 400);
     }
 
-    if (await this.ctx.storage.get('completion')) return this.json({ error: 'exists' }, 409);
+    const now = Math.floor(Date.now() / 1000);
+    if (await this.ctx.storage.get('completion')) {
+      // An expired completion must not hold the one-shot slot: the ceremony it belonged to
+      // is dead, and 409ing the next phone would wedge every later pairing on this channel.
+      const exp = await this.ctx.storage.get<number>('completion_expires_at');
+      if (exp !== undefined && exp <= now) {
+        await this.deleteCompletion();
+      } else {
+        return this.json({ error: 'exists' }, 409);
+      }
+    }
     await this.ctx.storage.put('completion', raw);
+    // The completion is relay-stored ciphertext, so it gets what §2 gives envelopes: a
+    // bounded lifetime, enforced by the alarm AND on the read path below. Forever was the
+    // previous behaviour, found 2026-09-18.
+    const expires = now + COMPLETION_TTL_SECONDS;
+    await this.ctx.storage.put('completion_expires_at', expires);
+    const current = await this.ctx.storage.getAlarm();
+    if (current === null || expires * 1000 < current) await this.ctx.storage.setAlarm(expires * 1000);
+    await this.touch(now);
     return this.json({ ok: true }, 201);
   }
 
-  /** One-shot: the completion is deleted on read, so it cannot be replayed to the engine. */
+  /**
+   * One-shot: the completion is deleted on read, so it cannot be replayed to the engine.
+   * Expiry is enforced here as well as in the alarm, for the same reason `pull` re-checks
+   * envelope TTLs: retention that holds only as fast as a background job is not retention.
+   */
   private async takeCompletion(): Promise<Response> {
     const stored = await this.ctx.storage.get<string>('completion');
     if (!stored) return this.json({ error: 'not_found' }, 404);
-    await this.ctx.storage.delete('completion');
+    const exp = await this.ctx.storage.get<number>('completion_expires_at');
+    await this.deleteCompletion();
+    if (exp !== undefined && exp <= Math.floor(Date.now() / 1000)) {
+      return this.json({ error: 'not_found' }, 404);
+    }
     return new Response(stored, { status: 200, headers: this.headers() });
+  }
+
+  private async deleteCompletion(): Promise<void> {
+    await this.ctx.storage.delete('completion');
+    await this.ctx.storage.delete('completion_expires_at');
   }
 
   // ------------------------------------------------------------- envelopes
@@ -200,6 +254,7 @@ export class PairingChannel extends DurableObject<Env> {
     const current = await this.ctx.storage.getAlarm();
     const due = expires * 1000;
     if (current === null || due < current) await this.ctx.storage.setAlarm(due);
+    await this.touch(expires - ttl);
 
     // Live fan-out: sockets are tagged with the direction they LISTEN to.
     for (const ws of this.ctx.getWebSockets(dir)) {
@@ -209,7 +264,7 @@ export class PairingChannel extends DurableObject<Env> {
     return this.json({ ok: true, seq }, 201);
   }
 
-  private pull(url: URL): Response {
+  private async pull(url: URL): Promise<Response> {
     const dir = url.searchParams.get('dir') ?? '';
     if (!DIRECTIONS.includes(dir as Direction)) return this.json({ error: 'bad_request' }, 400);
     const since = Number(url.searchParams.get('since') ?? '0');
@@ -229,6 +284,7 @@ export class PairingChannel extends DurableObject<Env> {
     // forever, and the stall lasts until the alarm collects the row. The disagreement, not the
     // stale row, is what turns this from an untidiness into a hang.
     const now = Math.floor(Date.now() / 1000);
+    await this.touch(now);
 
     const rows = this.sql
       .exec<{ ciphertext: string; seq: number }>(
@@ -271,11 +327,64 @@ export class PairingChannel extends DurableObject<Env> {
   // ------------------------------------------------------------- TTL purge
 
   async alarm(): Promise<void> {
-    this.purgeExpired();
-    const next = this.sql
+    // A channel whose token hash is gone was unpaired (DELETE) or idle-collected on an
+    // earlier pass: nothing here may be resurrected by a straggling alarm.
+    if ((await this.ctx.storage.get('token_hash')) === undefined) {
+      await this.ctx.storage.deleteAll();
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    this.purgeExpired(now);
+
+    // Completion lifetime. A blob stored before expiries existed gets one bounded lease
+    // rather than instant deletion — it might belong to a ceremony in flight right now.
+    let completionExpires = await this.ctx.storage.get<number>('completion_expires_at');
+    let hasCompletion = (await this.ctx.storage.get('completion')) !== undefined;
+    if (hasCompletion && completionExpires === undefined) {
+      completionExpires = now + COMPLETION_TTL_SECONDS;
+      await this.ctx.storage.put('completion_expires_at', completionExpires);
+    }
+    if (hasCompletion && completionExpires !== undefined && completionExpires <= now) {
+      await this.deleteCompletion();
+      hasCompletion = false;
+      completionExpires = undefined;
+    }
+
+    // Idle collection: nothing stored, nobody with the bearer has touched the channel for
+    // CHANNEL_IDLE_SECONDS. Delete ALL state — the token hash included, so every later call
+    // answers 401, which §2.3 already defines as the face of a purged pairing.
+    const lastActivity = (await this.ctx.storage.get<number>('last_activity')) ?? now;
+    if (this.count() === 0 && !hasCompletion && now - lastActivity >= CHANNEL_IDLE_SECONDS) {
+      await this.ctx.storage.deleteAll();
+      await this.ctx.storage.deleteAlarm();
+      for (const ws of this.ctx.getWebSockets()) {
+        try { ws.close(1001, 'expired'); } catch { /* already closed */ }
+      }
+      return;
+    }
+    // A pre-lease channel (created before last_activity existed) starts its clock now.
+    if ((await this.ctx.storage.get<number>('last_activity')) === undefined) {
+      await this.ctx.storage.put('last_activity', lastActivity);
+    }
+
+    // Next wake: earliest of envelope expiry, completion expiry, and the idle deadline.
+    // The idle deadline joins the set only while it is still ahead — a channel that
+    // outlived its lease but still holds envelopes is not collectible yet, and scheduling
+    // a past-time alarm would spin this method until the envelopes expire. In that state
+    // the envelope (or completion) expiry IS the next moment idleness can change. Every
+    // branch that reaches here has at least one candidate: not-empty channels have an
+    // envelope or completion expiry, and empty ones survived the idle check above, so
+    // their deadline is in the future.
+    const envelopeNext = this.sql
       .exec<{ m: number | null }>('SELECT MIN(expires_at) AS m FROM envelopes')
       .one().m;
-    if (next !== null) await this.ctx.storage.setAlarm(next * 1000);
+    const candidates: number[] = [];
+    if (lastActivity + CHANNEL_IDLE_SECONDS > now) candidates.push(lastActivity + CHANNEL_IDLE_SECONDS);
+    if (envelopeNext !== null) candidates.push(envelopeNext);
+    if (hasCompletion && completionExpires !== undefined) candidates.push(completionExpires);
+    await this.ctx.storage.setAlarm(Math.min(...candidates) * 1000);
   }
 
   // ------------------------------------------------------------- helpers (also used by tests)
@@ -308,6 +417,10 @@ export class PairingChannel extends DurableObject<Env> {
   private async purgeAllAndRespond(): Promise<Response> {
     const removed = this.purgeAll();
     await this.ctx.storage.deleteAll();
+    // deleteAll leaves any scheduled alarm standing; without this, the dead channel wakes
+    // once more for nothing (the alarm's own token-hash guard would clean up, but an
+    // explicit delete is the honest shape).
+    await this.ctx.storage.deleteAlarm();
     for (const ws of this.ctx.getWebSockets()) {
       try { ws.close(1001, 'unpaired'); } catch { /* already closed */ }
     }

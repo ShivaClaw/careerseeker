@@ -87,6 +87,67 @@ function Assert-DoesNotContain {
     }
 }
 
+function Assert-HarnessTableSumsToTotal {
+    param(
+        [string] $Content,
+        [string] $Label
+    )
+
+    # The drift trap in CLAUDE.md pins harness counts by asserting an exact row literal
+    # here and an exact Total row in the same doc. Both assertions can be true while the
+    # table contradicts itself, and they were: SyncHarness's row sat at 134 against a real
+    # 335, so doc and verifier agreed on the same wrong row, the Total stayed correct at
+    # 816, every literal passed, and the table's own rows summed to 615. A literal check
+    # cannot catch that, because it never adds anything up. This does.
+    #
+    # Deliberately structural rather than literal: bold markers and alignment padding are
+    # stripped, so a linter re-padding the columns cannot break it, and a row whose number
+    # legitimately moves only has to be correct rather than match a pinned string.
+    $checked = 0
+    $rows = @()
+    $total = -1
+
+    # The trailing sentinel flushes the last table when it ends at end-of-file.
+    foreach ($line in (($Content -split "`r?`n") + '')) {
+        $name = $null
+        $value = 0
+        $match = [regex]::Match($line, '^\s*\|([^|]+)\|([^|]+)\|\s*$')
+        if ($match.Success) {
+            $name = $match.Groups[1].Value.Replace('*', '').Trim()
+            $cell = $match.Groups[2].Value.Replace('*', '').Trim()
+            # Header and alignment rows have a non-numeric second cell and end the table.
+            if (-not [int]::TryParse($cell, [ref] $value)) {
+                $name = $null
+            }
+        }
+
+        if ($null -ne $name) {
+            if ($name -eq 'Total') { $total = $value } else { $rows += $value }
+            continue
+        }
+
+        if ($total -ge 0) {
+            $sum = ($rows | Measure-Object -Sum).Sum
+            if ($null -eq $sum) { $sum = 0 }
+            if ($sum -ne $total) {
+                throw ("$Label harness table does not add up: its rows sum to $sum, its own " +
+                    "Total row says $total. One of them is stale. Measure the harnesses and " +
+                    "correct the ROW -- never edit the Total to match, because the Total is " +
+                    "what `$ExpectedOfflineTotal and CI enforce.")
+            }
+            $checked++
+        }
+
+        $rows = @()
+        $total = -1
+    }
+
+    if ($checked -eq 0) {
+        throw ("$Label has no harness table with a Total row, so this guard checked nothing. " +
+            "If the table moved, update the guard rather than leaving it silently passing.")
+    }
+}
+
 function Get-GitValue {
     param([string[]] $Arguments)
 
@@ -355,9 +416,16 @@ $offlineProjects = @(
 # reasons rather than both reporting OutcomeApplied, and a `pull_request` with no republisher reports
 # SnapshotNotRepublished. Measured on Linux at 385; EngineHarness's 230 is the Windows-only remainder
 # (B-10: it aborts at tests/EngineHarness/Program.cs:221 on POSIX). 812 + 4 = 816.
-# The 2026-09-10 Gate lexical hardening (audit F01/F02: negation-mismatch guard on every
-# lexical accept + symbol-identifier preservation) adds nine Slice regressions: 816 + 9 = 825.
-$ExpectedOfflineTotal = 825
+# 2026-09-18 adds seven SyncHarness assertions (335 -> 342) for the §5.2.3 relay-token handover:
+# production pairing never rotated the channel off the provisional bearer (RotateTokenAsync's only
+# caller was the live smoke, which rotated manually and masked it), so a paired engine 401'd on
+# every route while the phone looked connected. The new PairingHandover unit is pinned on the
+# lowercase-hex spelling (the relay's case-sensitive gate), the single-call happy path, the
+# idempotent final-bearer retry that distinguishes "already rotated" from "refused", and the
+# Failed outcome the pairing page must surface. 816 + 7 = 823.
+# The 2026-09-10 audit fix (F01/F02: negation guard at every lexical accept + symbol-identifier
+# preservation) adds nine Slice regressions: 823 + 9 = 832.
+$ExpectedOfflineTotal = 832
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -670,8 +738,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 134 |',
-        '| **Total** | **825** |',
+        '| SyncHarness | 342 |',
+        '| **Total** | **832** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -685,7 +753,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **825** |',
+        '| **Total** | **832** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -699,13 +767,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 134 |'
+        '| SyncHarness | 342 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw -Encoding UTF8
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 134 |',
-        '| **Total** | **825** |',
+        '| SyncHarness | 342 |',
+        '| **Total** | **832** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -714,6 +782,12 @@ Invoke-Step "Public README and harness count smoke" {
         '`%LOCALAPPDATA%\CareerSeeker`',
         'Native SCM Windows Service and tray UI are not built'
     ) "src/Engine/README.md"
+
+    # Every doc above carries the same harness table. The literal assertions pin the rows
+    # this script names; this pins the arithmetic, which is what actually went wrong.
+    Assert-HarnessTableSumsToTotal $readme "README.md"
+    Assert-HarnessTableSumsToTotal $summary "docs/CareerSeeker-Project-Summary.md"
+    Assert-HarnessTableSumsToTotal $engineReadme "src/Engine/README.md"
 
     $engineCore = Get-Content -LiteralPath "src/Engine/EngineCore.cs" -Raw -Encoding UTF8
     Assert-Contains $engineCore @(
@@ -739,7 +813,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw -Encoding UTF8
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **825 passed, 0 failed**',
+        'Pinned offline verifier: **832 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',

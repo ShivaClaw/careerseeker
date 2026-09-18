@@ -38,20 +38,37 @@ try {
 
     & dotnet restore "tools/WindowsSdkTools/WindowsSdkTools.csproj" --locked-mode
     if ($LASTEXITCODE -ne 0) { throw "Locked Windows SDK tool restore failed." }
-    $globalPackagesLine = (& dotnet nuget locals global-packages --list) -join ""
-    if ($LASTEXITCODE -ne 0 -or $globalPackagesLine -notmatch "global-packages:\s*(.+)$") {
-        throw "Could not locate the NuGet global-packages directory."
+    # Resolve the BuildTools package where NuGet actually placed it (see the
+    # matching block in Package-BetaRelease.ps1: on a machine with Visual
+    # Studio -- GitHub's windows-latest runners included -- restore is satisfied
+    # in place from a machine-wide fallback folder, and nothing lands in the
+    # global-packages directory the old lookup assumed).
+    $assetsPath = Join-Path $repoRoot "tools/WindowsSdkTools/obj/project.assets.json"
+    if (-not (Test-Path -LiteralPath $assetsPath -PathType Leaf)) {
+        throw "Restore left no assets file at $assetsPath, so the BuildTools package cannot be located."
     }
-    $makeAppx = Join-Path $Matches[1].Trim() `
-        "microsoft.windows.sdk.buildtools/$sdkBuildToolsVersion/bin/10.0.26100.0/x64/makeappx.exe"
-    $signTool = Join-Path $Matches[1].Trim() `
-        "microsoft.windows.sdk.buildtools/$sdkBuildToolsVersion/bin/10.0.26100.0/x64/signtool.exe"
-    if (-not (Test-Path -LiteralPath $makeAppx -PathType Leaf)) {
-        throw "MakeAppx.exe is unavailable after locked restore."
+    $assets = Get-Content -LiteralPath $assetsPath -Raw | ConvertFrom-Json
+    $packageFolders = @($assets.packageFolders.PSObject.Properties.Name)
+    $sdkPackageDir = $packageFolders |
+        ForEach-Object { Join-Path $_ "microsoft.windows.sdk.buildtools/$sdkBuildToolsVersion" } |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Container } |
+        Select-Object -First 1
+    if ($null -eq $sdkPackageDir) {
+        throw ("Microsoft.Windows.SDK.BuildTools $sdkBuildToolsVersion was restored but its folder was " +
+            "not found under any packageFolders entry: $($packageFolders -join '; ')")
     }
-    if ($RequireSigned -and -not (Test-Path -LiteralPath $signTool -PathType Leaf)) {
-        throw "SignTool.exe is unavailable after locked restore."
+    function Find-SdkTool {
+        param([string] $Name)
+        $item = Get-ChildItem -Path $sdkPackageDir -Filter $Name -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '[\\/]x64[\\/]' } |
+            Select-Object -First 1
+        if ($null -eq $item) {
+            throw "x64 $Name not found under $sdkPackageDir after locked restore."
+        }
+        return $item.FullName
     }
+    $makeAppx = Find-SdkTool "makeappx.exe"
+    $signTool = if ($RequireSigned) { Find-SdkTool "signtool.exe" } else { $null }
 
     $testRoot = Join-Path $repoRoot "tmp/beta-package-self-check"
     $unpackRoot = Join-Path $testRoot "unpacked"

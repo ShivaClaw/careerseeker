@@ -81,6 +81,27 @@ export const MAX_TTL_SECONDS = 30 * 24 * 60 * 60;
 /** Default retention. Shorter than the ceiling on purpose: keep less, for less time. */
 export const DEFAULT_TTL_SECONDS = 7 * 24 * 60 * 60;
 
+/**
+ * Lifetime of a stored pairing completion. Until 2026-09-18 a completion the engine never
+ * collected lived FOREVER: the TTL alarm swept only the envelopes table, and the completion
+ * blob — phone_pub in clear plus the ciphertext carrying the sealed device signing key — is
+ * exactly the "relay stores ciphertext" that Spec §8.3's 30-day promise covers. One hour is
+ * generous against the ceremony it serves: the engine's pairing window is two minutes, and a
+ * completion nobody collected within the hour belongs to an abandoned ceremony.
+ */
+export const COMPLETION_TTL_SECONDS = 60 * 60;
+
+/**
+ * How long a channel with nothing stored and no authenticated touch survives before the
+ * alarm deletes ALL of its state (token hash included — subsequent calls answer 401, which
+ * §2.3 already defines as what a purged pairing looks like). Every "Start pairing" press
+ * creates a channel, and before 2026-09-18 an abandoned one was immortal. A live pairing
+ * never gets here: the engine pushes every cycle, and any authenticated push, pull or
+ * completion op renews the lease. Equal to the retention ceiling on purpose — nothing the
+ * relay holds may outlive 30 days of silence.
+ */
+export const CHANNEL_IDLE_SECONDS = MAX_TTL_SECONDS;
+
 /** Envelopes per pull page. Clients loop until `latest` is reached. */
 export const PULL_PAGE_SIZE = 100;
 

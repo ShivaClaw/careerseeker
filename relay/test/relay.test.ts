@@ -1171,3 +1171,80 @@ describe('error sites the vocabulary block does not reach (PQ-S2-3)', () => {
     });
   });
 });
+
+// §8.3 promises "relay stores ciphertext with 30-day TTL" about EVERYTHING the relay holds,
+// but until 2026-09-18 only the envelopes table had a lifetime. An uncollected pairing
+// completion — phone_pub plus the ciphertext carrying the sealed device signing key — lived
+// forever, and every abandoned "Start pairing" press leaked an immortal channel whose token
+// hash nothing could ever collect. These cases pin the two lifetimes; each fails against the
+// previous behaviour.
+describe('completion and channel lifetime (§8.3)', () => {
+  const completion = JSON.stringify({ suite: 'p256-hkdf-sha256', phone_pub: 'AAA', nonce: 'BBB', ciphertext: 'CCC' });
+  const asAlarm = (instance: unknown) => instance as { alarm(): Promise<void> };
+  const stub = (pairing: string) => env.PAIRING.get(env.PAIRING.idFromName(pairing));
+
+  it('does not serve an expired completion (read path, not only the alarm)', async () => {
+    const pairing = await bootstrap('tok');
+    expect((await call(`/v1/${pairing}/pair`, { method: 'POST', headers: bearer('tok'), body: completion })).status).toBe(201);
+    await runInDurableObject(stub(pairing), async (_i, state) => {
+      await state.storage.put('completion_expires_at', 1);
+    });
+    expect((await call(`/v1/${pairing}/pair`, { headers: bearer('tok') })).status).toBe(404);
+  });
+
+  it('an expired completion does not 409 the next ceremony out of the one-shot slot', async () => {
+    const pairing = await bootstrap('tok');
+    expect((await call(`/v1/${pairing}/pair`, { method: 'POST', headers: bearer('tok'), body: completion })).status).toBe(201);
+    await runInDurableObject(stub(pairing), async (_i, state) => {
+      await state.storage.put('completion_expires_at', 1);
+    });
+    // Before the fix this answered 409 forever: a dead ceremony wedged every later pairing.
+    expect((await call(`/v1/${pairing}/pair`, { method: 'POST', headers: bearer('tok'), body: completion })).status).toBe(201);
+  });
+
+  it('the alarm collects an expired completion and its expiry stamp', async () => {
+    const pairing = await bootstrap('tok');
+    await call(`/v1/${pairing}/pair`, { method: 'POST', headers: bearer('tok'), body: completion });
+    await runInDurableObject(stub(pairing), async (instance, state) => {
+      await state.storage.put('completion_expires_at', 1);
+      await asAlarm(instance).alarm();
+      expect(await state.storage.get('completion')).toBeUndefined();
+      expect(await state.storage.get('completion_expires_at')).toBeUndefined();
+    });
+  });
+
+  it('a channel with nothing stored and a stale lease is deleted whole by the alarm', async () => {
+    const pairing = await bootstrap('tok');
+    await runInDurableObject(stub(pairing), async (instance, state) => {
+      await state.storage.put('last_activity', 1);
+      await asAlarm(instance).alarm();
+      expect(await state.storage.get('token_hash')).toBeUndefined();
+    });
+    // §2.3's face of a purged pairing: 401 on every authenticated route, indistinguishable
+    // from a wrong token.
+    expect((await call(`/v1/${pairing}/pull?dir=e2p&since=0`, { headers: bearer('tok') })).status).toBe(401);
+  });
+
+  it('stored envelopes keep a stale-leased channel alive', async () => {
+    const pairing = await bootstrap('tok');
+    expect((await call(`/v1/${pairing}/push`, { method: 'POST', headers: bearer('tok'), body: envelope('e2p', 1) })).status).toBe(201);
+    await runInDurableObject(stub(pairing), async (instance, state) => {
+      await state.storage.put('last_activity', 1);
+      await asAlarm(instance).alarm();
+      // Undelivered ciphertext is never idle-collected ahead of its own TTL.
+      expect(await state.storage.get('token_hash')).toBeDefined();
+      // And the next wake is scheduled off the envelope's expiry, never a past-time idle
+      // deadline that would spin the alarm.
+      const next = await state.storage.getAlarm();
+      expect(next).not.toBeNull();
+      expect(next!).toBeGreaterThan(Date.now());
+    });
+  });
+
+  it('every channel is born with an alarm: a channel always has a death date', async () => {
+    const pairing = await bootstrap('tok');
+    await runInDurableObject(stub(pairing), async (_i, state) => {
+      expect(await state.storage.getAlarm()).not.toBeNull();
+    });
+  });
+});
