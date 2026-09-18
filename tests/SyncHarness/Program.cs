@@ -413,6 +413,64 @@ Console.WriteLine("\n[ engine PairingManager completes the handshake ]");
     Check("PairingManager rejects a key-swapped completion", mitmResult is null);
 }
 
+// ---------------------------------------------------------------- §5.2.3 relay-token handover
+//
+// Pins the unit the production pairing seam (src/Engine/Program.cs) now calls after saving the
+// vault. Until 2026-09-18 nothing in production rotated the relay token at all — the live smoke
+// rotated manually and was RotateTokenAsync's only caller — so a paired engine presented the
+// final token to a relay still guarding the provisional hash: 401 on every route, forever.
+// These checks make that class of regression a harness failure, not a field discovery.
+
+Console.WriteLine("\n[ relay-token handover (§5.2.3) ]");
+
+{
+    var handoverToken = (string)pairingBasic["expected"]!["relay_token_b64u"]!;
+    var hex = PairingHandover.TokenSha256Hex(handoverToken);
+
+    // Precomputed OUTSIDE the code under test (python hashlib over the vector's b64u string),
+    // so this is a pin, not a restatement. Lowercase is load-bearing: the relay's rotate_to
+    // gate is /^[0-9a-f]{64}$/, case-SENSITIVE, and C#'s Convert.ToHexString is uppercase --
+    // the exact interop trap Sync-Protocol.md §2 documents.
+    Check("handover hex is the SHA-256 of the vector's relay token, lowercase",
+        hex == "1104bebfbac2ad5045afeba33a111206d0dc572349f6d38397c8e5ab795f62b4");
+    Check("handover hex passes the relay's case-sensitive gate",
+        hex.Length == 64 && hex.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'));
+
+    var calls = new List<(string Bearer, string Hex)>();
+    Func<bool, bool, Func<string, string, CancellationToken, Task<bool>>> fakeRotate =
+        (firstAnswer, laterAnswer) =>
+        {
+            var made = 0;
+            return (bearer, toHex, _) =>
+            {
+                calls.Add((bearer, toHex));
+                return Task.FromResult(made++ == 0 ? firstAnswer : laterAnswer);
+            };
+        };
+
+    // Normal path: the provisional bearer rotates on the first try, and nothing else is sent.
+    calls.Clear();
+    var rotated = await PairingHandover.RotateAsync(fakeRotate(true, false), "prov-tok", handoverToken);
+    Check("a live provisional bearer rotates the channel", rotated == PairingHandover.Outcome.Rotated);
+    Check("...with exactly one rotate call, presenting the provisional bearer",
+        calls.Count == 1 && calls[0].Bearer == "prov-tok" && calls[0].Hex == hex);
+
+    // Half-succeeded earlier attempt: rotation is one-way and idempotent relay-side, so the
+    // provisional bearer is dead but the FINAL bearer re-presenting the same rotate_to answers
+    // 200. The retry is what distinguishes "already done" from "actually refused".
+    calls.Clear();
+    var already = await PairingHandover.RotateAsync(fakeRotate(false, true), "prov-tok", handoverToken);
+    Check("a dead provisional bearer falls through to the final bearer (already rotated)",
+        already == PairingHandover.Outcome.AlreadyRotated);
+    Check("...second call presents the final token with the same target hash",
+        calls.Count == 2 && calls[1].Bearer == handoverToken && calls[1].Hex == hex);
+
+    // Both bearers refused: the outcome the pairing page must surface, never report as success.
+    calls.Clear();
+    var failed = await PairingHandover.RotateAsync(fakeRotate(false, false), "prov-tok", handoverToken);
+    Check("both bearers refused is Failed, not silence", failed == PairingHandover.Outcome.Failed);
+}
+
 // ---------------------------------------------------------------- P2 publisher payloads
 //
 // The engine->phone snapshot/delta/heartbeat builders (SyncPayloads) seal through the

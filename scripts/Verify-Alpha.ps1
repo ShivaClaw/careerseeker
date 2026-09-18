@@ -416,7 +416,14 @@ $offlineProjects = @(
 # reasons rather than both reporting OutcomeApplied, and a `pull_request` with no republisher reports
 # SnapshotNotRepublished. Measured on Linux at 385; EngineHarness's 230 is the Windows-only remainder
 # (B-10: it aborts at tests/EngineHarness/Program.cs:221 on POSIX). 812 + 4 = 816.
-$ExpectedOfflineTotal = 816
+# 2026-09-18 adds seven SyncHarness assertions (335 -> 342) for the §5.2.3 relay-token handover:
+# production pairing never rotated the channel off the provisional bearer (RotateTokenAsync's only
+# caller was the live smoke, which rotated manually and masked it), so a paired engine 401'd on
+# every route while the phone looked connected. The new PairingHandover unit is pinned on the
+# lowercase-hex spelling (the relay's case-sensitive gate), the single-call happy path, the
+# idempotent final-bearer retry that distinguishes "already rotated" from "refused", and the
+# Failed outcome the pairing page must surface. 816 + 7 = 823.
+$ExpectedOfflineTotal = 823
 
 Invoke-Step "Build solution" {
     Invoke-Dotnet @("build", "CareerSeeker.sln", "-c", $Configuration)
@@ -729,8 +736,8 @@ Invoke-Step "Public README and harness count smoke" {
         '| ResearcherHarness | 57 |',
         '| HookHarness | 16 |',
         '| GatewayGateHarness | 36 |',
-        '| SyncHarness | 335 |',
-        '| **Total** | **816** |',
+        '| SyncHarness | 342 |',
+        '| **Total** | **823** |',
         'No implicit draft consent'
     ) "README.md"
     Assert-DoesNotContain $readme @(
@@ -744,7 +751,7 @@ Invoke-Step "Public README and harness count smoke" {
     $summaryCollapsed = [regex]::Replace($summary, '[ \t]+', ' ')
     Assert-Contains $summary @(
         'B0-B8 Windows ladder is implemented',
-        '| **Total** | **816** |',
+        '| **Total** | **823** |',
         'deterministic local `lexical-v2`',
         'one unsigned MSIX',
         '`%LOCALAPPDATA%\CareerSeeker`',
@@ -758,13 +765,13 @@ Invoke-Step "Public README and harness count smoke" {
         '| StoreParityHarness | 28 |',
         '| GatewayGateHarness | 36 |',
         '| LifecycleHarness | 45 |',
-        '| SyncHarness | 335 |'
+        '| SyncHarness | 342 |'
     ) "docs/CareerSeeker-Project-Summary.md (harness table, whitespace-normalized)"
 
     $engineReadme = Get-Content -LiteralPath "src/Engine/README.md" -Raw -Encoding UTF8
     Assert-Contains $engineReadme @(
-        '| SyncHarness | 335 |',
-        '| **Total** | **816** |',
+        '| SyncHarness | 342 |',
+        '| **Total** | **823** |',
         'default `lexical-v2` ranker is deterministic and local',
         'Final counters distinguish `scored` and `act-eligible`',
         '--migration-output tmp\rehearsal\careerseeker.db',
@@ -804,7 +811,7 @@ Invoke-Step "Public README and harness count smoke" {
 
     $handoff = Get-Content -LiteralPath "docs/External-Audit-Handoff.md" -Raw -Encoding UTF8
     Assert-Contains $handoff @(
-        'Pinned offline verifier: **816 passed, 0 failed**',
+        'Pinned offline verifier: **823 passed, 0 failed**',
         'B0-B8 work did not repeat Gmail/provider live calls',
         '## Invariant map',
         'Injection signals quarantine before action/model work',

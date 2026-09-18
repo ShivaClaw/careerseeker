@@ -474,6 +474,17 @@ LocalDashboardPairing BuildPairingSeam()
             if (vault.Load() is not null)
                 return Current("Already paired. Unpair first if you want to pair a different phone.");
 
+            if (pending is not null)
+            {
+                // A superseded invite's relay channel would otherwise outlive it forever: the relay
+                // deletes state only on a bearer-authenticated DELETE, and after this method returns
+                // nothing else knows the old channel's pairing id or provisional bearer. Best effort
+                // — the invite is being discarded either way, and the relay's own idle sweep is the
+                // backstop for the unreachable case.
+                var stale = new RelayClient(http, relayUrl, pending.Pairing);
+                try { await stale.UnpairAsync(pending.ProvisionalRelayToken(), ct).ConfigureAwait(false); } catch { }
+            }
+
             pending?.Dispose();
             pending = new PairingManager(relayUrl, ttl: TimeSpan.FromMinutes(2));
             var relay = new RelayClient(http, relayUrl, pending.Pairing);
@@ -509,9 +520,26 @@ LocalDashboardPairing BuildPairingSeam()
                 paired.RelayToken, SyncPairingVault.DefaultKeyId,
                 LastE2pSeq: 0, LastP2eSeq: 0));
 
+            // §5.2.3: hand the channel from the QR-derived provisional bearer to the ikm-derived
+            // final one. Every later engine call — push, pull, unpair — presents the final token,
+            // so skipping this leaves the relay honouring only the provisional hash: 401 on every
+            // route, from an engine that believes it is paired, while the phone (which §5.2.3
+            // forbids from rotating) looks healthily connected. Found 2026-09-18: the live smoke
+            // rotated manually and was the only caller, masking the gap here. The handover unit
+            // owns the lowercase-hex spelling and the idempotent retry with the final bearer.
+            var handover = await PairingHandover.RotateAsync(
+                (current, toHex, token) => relay.RotateTokenAsync(current, toHex, token),
+                provisional, paired.RelayToken, ct).ConfigureAwait(false);
+
+            var confirmCode = paired.ConfirmCode;
             pending.Dispose();
             pending = null;
-            return new PairingPageState(true, SyncPairingVault.Describe(vault.Load()!), null, paired.ConfirmCode, null);
+
+            var summary = SyncPairingVault.Describe(vault.Load()!);
+            return handover == PairingHandover.Outcome.Failed
+                ? new PairingPageState(true, summary, null, confirmCode,
+                    "Paired, but the relay refused the token handover — sync will answer 401 until this is repaired. Unpair and pair again.")
+                : new PairingPageState(true, summary, null, confirmCode, null);
         },
 
         UnpairAsync: async ct =>
