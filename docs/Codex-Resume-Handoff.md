@@ -2,6 +2,47 @@
 
 Updated: 2026-09-18
 
+## 2026-09-18 (Fable 5, cloud session, evening) — RELEASE DAY: signed 0.7.0 Beta published to R2
+
+Never trust a SHA here — derive. Supersedes the morning entry's artifact numbers: those were
+run 8's (pre-#58) signing output; the released Beta is run 9's, below. All merges and the
+publish were Brandon-authorized in-session.
+
+- **Merge order executed #60 -> #61 -> #58** (squashes; #58 landed as `5ee5d05` on the
+  re-derive "pin 832 (= 823 + 9), sum-guard validated"), so the signed Beta carries the Gate
+  lexical hardening. `$ExpectedOfflineTotal` = 832 on main.
+- **Released artifact (sign-beta run 9, 35382458046, on `5ee5d05`):** signed MSIX
+  **33,763,432 bytes, SHA-256 538E8E647F971B75EBFC99F826BD5302478D253005F8CC21E82A7586DEE89972**;
+  workflow artifact `CareerSeeker-beta-win-x64-signed` id 10562462004 (zip digest `d27c9c26...`,
+  expires 2026-10-18). Q04: Brandon ran the Win11 VM matrix against it — clean, all 11 recorded.
+- **Publish copy flipped as one drift-trap unit** (`339877b`): download/privacy/changelog/audit
+  docs now state the signed-0.7.0 truth. One literal escaped the unit — the verifier's download
+  block still asserted the unversioned filename; fixed in `961de0d`
+  (Verify-Alpha.ps1:621 -> `CareerSeeker-beta-0.7.0-win-x64.msix`), CI green (run 35384730037).
+- **R2 publish is a pinned workflow, not a hand upload:** `.github/workflows/publish-beta-r2.yml`
+  (`0dcf24a`), dispatch-only, pins artifact id + zip digest + MSIX digest + size + destination
+  key `beta/CareerSeeker-beta-0.7.0-win-x64.msix`; create-only (refuses an existing key, so the
+  Alpha object is structurally unreachable); ends by re-downloading the object and re-hashing.
+  Run 35400549645 green end to end — read-back `roundtrip.msix: OK` against the pinned digest.
+  **The object is live in bucket `careerseeker` and serves the exact Q04 bytes.**
+- Credential trap recorded: an R2-page bucket-scoped "Object Read & Write" token authenticates
+  (`whoami` passes) but 403s `wrangler r2 object put` — wrangler's REST path needs the account
+  permission **Workers R2 Storage: Edit** (dispatch 1 failed exactly there; dispatch 2 green
+  after Brandon re-cut the token as a custom 1-day-TTL token). Token is single-purpose; advised
+  deletion after the run.
+- **Site: ASTRA deployed the site-v3 redesign** (authoritative source `Desktop\site-v3`,
+  `build.py` -> `public/`, deploy from inside `public/`; `site-v2` retained as rollback).
+  UNPROVEN from this session: careerseeker.app is egress-blocked from the cloud container, so
+  live-URL verification (5 production URLs + public MSIX fetch/hash) is Brandon's checklist, not
+  yet evidence here. Per ASTRA the live Privacy page now discloses the Cloudflare Web Analytics
+  beacon; repo `docs-site/privacy.*` does not mention it — **open repo/live copy sync**, needs
+  the live wording relayed (plus verifier expectations, one unit). ASTRA also reports the public
+  signup handoff done; no matching "pending" literal exists in this repo, so nothing was edited
+  — reconcile Beta-Runbook PENDING rows only with human-recorded timestamps as ever.
+- Remains: literal public download URL into `docs-site/download.*` + verifier (one unit) once
+  Brandon confirms the URL shape; CompletePairing throwing-parse hardening (finding 3, no PR
+  yet); prior queue (C01, C02, L17 nonce math, .NET LTS decision) unchanged.
+
 ## 2026-09-18 (Fable 5, cloud session) — Q03 EXECUTED: the Beta MSIX is signed; ASTRA challenge graded
 
 Never trust a SHA here — derive. Signing lane run under Brandon's explicit direction (CoWork
