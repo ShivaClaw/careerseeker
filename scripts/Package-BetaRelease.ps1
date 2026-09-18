@@ -57,7 +57,16 @@ try {
         throw "MSIX Version must contain four numeric components."
     }
 
-    Invoke-Checked "dotnet" @("restore", $toolsProject, "--locked-mode")
+    # The SDK BuildTools restore gets its own empty, script-owned packages
+    # directory, deliberately. NuGet validates the lock file's contentHash only
+    # when it ACQUIRES a package; a copy already sitting in a machine-wide cache
+    # is trusted as-is. The first CI dispatch (2026-09-18) satisfied --locked-mode
+    # from the runner image's pre-primed cache and that copy did not carry
+    # MakeAppx.exe. Restoring into a directory this script controls forces
+    # acquisition from the feed every time, which is the only case the lock's
+    # hash actually protects.
+    $toolsPackages = Resolve-RepoPath "output/nuget-tools"
+    Invoke-Checked "dotnet" @("restore", $toolsProject, "--locked-mode", "--packages", $toolsPackages)
     if (-not $NoPublish) {
         Invoke-Checked "dotnet" @(
             "publish", $engineProject,
@@ -73,11 +82,23 @@ try {
         throw "Could not locate the NuGet global-packages directory."
     }
     $globalPackages = $Matches[1].Trim()
-    $sdkBin = Join-Path $globalPackages "microsoft.windows.sdk.buildtools/$sdkBuildToolsVersion/bin/10.0.26100.0/x64"
-    $makeAppx = Join-Path $sdkBin "makeappx.exe"
-    if (-not (Test-Path -LiteralPath $makeAppx -PathType Leaf)) {
-        throw "The locked Microsoft Windows SDK BuildTools package did not contain MakeAppx.exe."
+    # Locate MakeAppx.exe by search rather than a hard-coded bin/<sdk-build>/x64
+    # segment: the inner folder is named for the SDK build, not the package
+    # version, and a wrong guess is indistinguishable from a missing file. The
+    # x64 filter keeps the match unambiguous; the error path lists what WAS
+    # extracted so a recurrence diagnoses itself.
+    $sdkPackageDir = Join-Path $toolsPackages "microsoft.windows.sdk.buildtools/$sdkBuildToolsVersion"
+    $makeAppxItem = Get-ChildItem -Path $sdkPackageDir -Filter "makeappx.exe" -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match '[\\/]x64[\\/]' } |
+        Select-Object -First 1
+    if ($null -eq $makeAppxItem) {
+        $foundExes = @(Get-ChildItem -Path $sdkPackageDir -Filter "*.exe" -Recurse -File -ErrorAction SilentlyContinue |
+            ForEach-Object { $_.FullName })
+        $inventory = if ($foundExes.Count -gt 0) { $foundExes -join "; " } else { "none" }
+        throw ("The restored Microsoft Windows SDK BuildTools package did not contain an x64 MakeAppx.exe " +
+            "under $sdkPackageDir. Executables actually extracted: $inventory")
     }
+    $makeAppx = $makeAppxItem.FullName
 
     $publishDirectory = Resolve-RepoPath $publishRelative
     $sourceExe = Join-Path $publishDirectory $sourceExeName
