@@ -592,7 +592,7 @@ Invoke-Step "Docs-site trust copy smoke" {
                 "Google user data to train generalized AI or ML models",
                 "L1 Drafts beta",
                 "%LOCALAPPDATA%\CareerSeeker",
-                "current Beta MSIX is unsigned",
+                "current Beta MSIX is signed",
                 "delete-all-data",
                 "--confirm-delete-all-data"
             ) $relative
@@ -617,11 +617,14 @@ Invoke-Step "Docs-site trust copy smoke" {
         }
         if ($relative -like "*download*") {
             Assert-Contains $content @(
-                "Beta download is not yet available",
+                "The signed Beta is available to trusted testers",
                 "CareerSeeker-beta-win-x64.msix",
                 "64,937,092",
                 "3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2",
-                "currently unsigned",
+                "538E8E647F971B75EBFC99F826BD5302478D253005F8CC21E82A7586DEE89972",
+                "33,763,432",
+                "beta/CareerSeeker-beta-0.7.0-win-x64.msix",
+                "Azure Artifact Signing",
                 "%LOCALAPPDATA%\CareerSeeker"
             ) $relative
             Assert-DoesNotContain $content @(
@@ -645,8 +648,8 @@ Invoke-Step "R5 distribution copy smoke" {
         "64,937,092",
         "3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2",
         "CareerSeeker-beta-win-x64.msix",
-        "The repository candidate is unsigned",
-        "No public Beta artifact or download URL has been published"
+        "first signed Beta",
+        "beta/CareerSeeker-beta-0.7.0-win-x64.msix"
     ) "docs/Beta-Changelog.md"
 
     $migration = Get-Content -LiteralPath "docs/Alpha-to-Beta-Migration.md" -Raw -Encoding UTF8
@@ -820,7 +823,7 @@ Invoke-Step "Public README and harness count smoke" {
         'Crash-window recovery does not repeat a successful effect',
         'MSIX has one exe and external user data',
         '## Safety surfaces to inspect adversarially',
-        'The MSIX is unsigned',
+        'The locally packaged MSIX is unsigned',
         'Historical Alpha `.cmd` launchers',
         'Local evidence export/import still uses ZIP'
     ) "docs/External-Audit-Handoff.md"

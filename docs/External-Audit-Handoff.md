@@ -137,8 +137,10 @@ create provider cost or a Gmail draft. They are not needed to reproduce the offl
 
 ## Known gaps and non-claims
 
-- The MSIX is unsigned. It was created/unpacked, not installed, signed, removed through Windows, or
-  reboot-tested.
+- The locally packaged MSIX is unsigned; the published 0.7.0 Beta is signed
+  (Azure Artifact Signing, RFC-3161, 2026-09-18, SHA-256
+  `538E8E647F971B75EBFC99F826BD5302478D253005F8CC21E82A7586DEE89972`), and the
+  disposable-machine install/upgrade/removal matrix was executed the same day.
 - Start-menu registration, Startup Apps behavior, and Windows uninstall UI are structurally declared but not
   claimed as executed.
 - Native Windows Service, tray, and WinUI shell are not built.

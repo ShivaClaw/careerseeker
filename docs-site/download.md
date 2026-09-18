@@ -1,11 +1,19 @@
 # CareerSeeker Beta download
 
-**Status: Beta download is not yet available.**
+**Status: The signed Beta is available to trusted testers.** Published 2026-09-18.
 
-The repository candidate is `CareerSeeker-beta-win-x64.msix` for x64 Windows.
-It is currently unsigned. Human signing, signature verification, and a
-disposable Windows install/upgrade/removal matrix remain release gates. No
-public Beta artifact URL is staged on this page.
+The published artifact is `CareerSeeker-beta-0.7.0-win-x64.msix` for x64 Windows,
+signed via Azure Artifact Signing with an RFC-3161 timestamp — the signature
+outlives the deliberately short-lived certificate. Verify before installing:
+
+- Object key: `beta/CareerSeeker-beta-0.7.0-win-x64.msix`
+- Size: 33,763,432 bytes
+- SHA-256: `538E8E647F971B75EBFC99F826BD5302478D253005F8CC21E82A7586DEE89972`
+- Publisher: `CN=Applied Autonomy LLC, O=Applied Autonomy LLC, L=Denver, S=Colorado, C=US`
+
+`Get-FileHash` on the downloaded file must print exactly that SHA-256; do not
+install a file that differs. The disposable Windows install/upgrade/removal
+matrix (VM01-VM11) was executed and recorded on 2026-09-18 before publication.
 
 ## What testers can expect
 
@@ -19,7 +27,7 @@ public Beta artifact URL is staged on this page.
 - An optional startup task that is disabled by default; package activation is
   discovery-only.
 
-The previously shipped Alpha remains the last published artifact:
+The previously shipped Alpha remains available for existing testers:
 `CareerSeeker-alpha2-bridge-win-x64-2026-07-24-7018ff9.zip`, 64,937,092 bytes,
 SHA-256 `3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2`.
 

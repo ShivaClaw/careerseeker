@@ -97,7 +97,7 @@ Nightly encrypted local backups remain a planned feature. Confirmed deletion of 
 
 - OAuth tokens and API keys are stored in a Windows DPAPI-protected local vault when using the provided OAuth/token helpers.
 - The audit log is hash-chained; each entry's integrity depends on the previous entry.
-- The current Beta MSIX is unsigned. Public release builds are expected to be signed; the signing hook is implemented but no production signature is claimed.
+- The current Beta MSIX is signed via Azure Artifact Signing with an RFC-3161 timestamp; the download page publishes the exact size and SHA-256 to verify before install.
 - No secrets, tokens, resumes, or user profile data should be committed to source control or transmitted in diagnostic output.
 
 ## 11. Children's Privacy

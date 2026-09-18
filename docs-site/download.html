@@ -14,8 +14,15 @@
 </head>
 <body>
 <h1>CareerSeeker Beta download</h1>
-<p class="status"><strong>Status: Beta download is not yet available.</strong></p>
-<p>The repository candidate is <code>CareerSeeker-beta-win-x64.msix</code> for x64 Windows. It is currently unsigned. Human signing, signature verification, and a disposable Windows install/upgrade/removal matrix remain release gates. No public Beta artifact URL is staged on this page.</p>
+<p class="status"><strong>Status: The signed Beta is available to trusted testers.</strong> Published 2026-09-18.</p>
+<p>The published artifact is <code>CareerSeeker-beta-0.7.0-win-x64.msix</code> for x64 Windows, signed via Azure Artifact Signing with an RFC-3161 timestamp — the signature outlives the deliberately short-lived certificate. Verify before installing:</p>
+<ul>
+<li>Object key: <code>beta/CareerSeeker-beta-0.7.0-win-x64.msix</code></li>
+<li>Size: 33,763,432 bytes</li>
+<li>SHA-256: <code>538E8E647F971B75EBFC99F826BD5302478D253005F8CC21E82A7586DEE89972</code></li>
+<li>Publisher: <code>CN=Applied Autonomy LLC, O=Applied Autonomy LLC, L=Denver, S=Colorado, C=US</code></li>
+</ul>
+<p><code>Get-FileHash</code> on the downloaded file must print exactly that SHA-256; do not install a file that differs. The disposable Windows install/upgrade/removal matrix (VM01-VM11) was executed and recorded on 2026-09-18 before publication.</p>
 
 <h2>What testers can expect</h2>
 <ul>
@@ -27,7 +34,7 @@
   <li>An optional startup task that is disabled by default; package activation is discovery-only.</li>
 </ul>
 
-<p>The previously shipped Alpha remains the last published artifact: <code>CareerSeeker-alpha2-bridge-win-x64-2026-07-24-7018ff9.zip</code>, 64,937,092 bytes, SHA-256 <code>3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2</code>.</p>
+<p>The previously shipped Alpha remains available for existing testers: <code>CareerSeeker-alpha2-bridge-win-x64-2026-07-24-7018ff9.zip</code>, 64,937,092 bytes, SHA-256 <code>3A4251F65AEF530BC5D73387422CD53556294970EC546C0112B6EF1BA4E900F2</code>.</p>
 
 <h2>Moving from Alpha</h2>
 <p>The Beta transition uses the existing <code>export-alpha-package</code> and <code>import-alpha-package</code> workflow. Export first, keep the evidence ZIP as a backup, and import without overwrite. Provider keys and Gmail OAuth tokens are not transferred; reconnect them separately if wanted.</p>

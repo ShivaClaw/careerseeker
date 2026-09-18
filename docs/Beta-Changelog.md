@@ -1,9 +1,9 @@
 # CareerSeeker Beta changelog
 
-Updated: 2026-08-07
+Updated: 2026-09-18
 
-This changelog compares the shipped Alpha ZIP with the repository-staged Beta
-MSIX candidate. It does not announce a public Beta download.
+This changelog compares the shipped Alpha ZIP with the Beta MSIX. The 0.7.0
+release below is the first signed Beta published for trusted testers.
 
 ## Baseline
 
@@ -59,9 +59,13 @@ Reconnect or reconfigure those integrations after migration if wanted.
 
 ## Release gates still open
 
-- The repository candidate is unsigned.
-- The disposable Windows install/upgrade/removal matrix has not been executed.
-- No public Beta artifact or download URL has been published.
+- CLOSED 2026-09-18: 0.7.0 is the first signed Beta (Azure Artifact Signing,
+  RFC-3161 timestamped; CI run 35382458046, offline gate 832/0). Published to
+  R2 as `beta/CareerSeeker-beta-0.7.0-win-x64.msix`, 33,763,432 bytes, SHA-256
+  `538E8E647F971B75EBFC99F826BD5302478D253005F8CC21E82A7586DEE89972`.
+- CLOSED 2026-09-18: the disposable Windows install/upgrade/removal matrix
+  (VM01-VM11) was executed and recorded; VM09 upgrade-in-place is N/A for a
+  first signed release and is noted as such in the evidence.
 - The R2 real-profile rehearsal is blocked after two bounded public-board
   attempts produced zero Act-eligible postings; the authorized live Gmail
   drafting allowance therefore remains unused.
